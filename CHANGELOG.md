@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Comprehensive architecture documentation guides in `docs/architecture/` with interactive Mermaid visual diagrams covering Clean Architecture, Folder Structure, DDD Strategy, CQRS Decision, Repository Pattern, Dependency Inversion, Bounded Contexts, Shared Kernel, Platform Layer, and ADRs.
+- Architectural Decision Record (`docs/adr/0015-architecture-documentation-and-diagrams.md`).
 - Zod-validated environment configuration system (`env.validation.ts`, `app.config.ts`, `database.config.ts`), environment documentation in `.env.example`, unit tests, and support for `development`, `test`, and `production` modes.
 - Architectural Decision Record (`docs/adr/0014-zod-validated-application-configuration.md`).
 - Platform services infrastructure (`Identity`, `Logging`, `Audit`) with interface ports, NestJS injectable placeholder services, NestJS platform modules (`IdentityModule`, `LoggingModule`, `AuditModule`, global `PlatformModule`), and unit tests.

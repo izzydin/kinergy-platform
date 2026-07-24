@@ -20,6 +20,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0012](file:///c:/Projects/kinergy-platform/docs/adr/0012-shared-domain-kernel-abstractions.md)           | Shared Domain Kernel Abstractions                                         | Accepted | 2026-07-24 |
 | [0013](file:///c:/Projects/kinergy-platform/docs/adr/0013-enterprise-platform-services-infrastructure.md) | Enterprise Platform Services Infrastructure                               | Accepted | 2026-07-24 |
 | [0014](file:///c:/Projects/kinergy-platform/docs/adr/0014-zod-validated-application-configuration.md)     | Zod-Validated Application Configuration                                   | Accepted | 2026-07-24 |
+| [0015](file:///c:/Projects/kinergy-platform/docs/adr/0015-architecture-documentation-and-diagrams.md)     | Architecture Documentation and Visual Diagrams Setup                      | Accepted | 2026-07-24 |
 
 ## Format
 
