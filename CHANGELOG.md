@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Technical Quality Gate Baseline (`docs/development/technical-quality-report.md`) verifying zero circular dependencies, zero explicit `any` types, 100% Prettier compliance, 100% passing test suites, multi-project build verification, and Nx dependency graph artifact (`dist/graph.json`).
+- Architectural Decision Record (`docs/adr/0016-technical-quality-gate-baseline.md`).
 - Comprehensive architecture documentation guides in `docs/architecture/` with interactive Mermaid visual diagrams covering Clean Architecture, Folder Structure, DDD Strategy, CQRS Decision, Repository Pattern, Dependency Inversion, Bounded Contexts, Shared Kernel, Platform Layer, and ADRs.
 - Architectural Decision Record (`docs/adr/0015-architecture-documentation-and-diagrams.md`).
 - Zod-validated environment configuration system (`env.validation.ts`, `app.config.ts`, `database.config.ts`), environment documentation in `.env.example`, unit tests, and support for `development`, `test`, and `production` modes.
