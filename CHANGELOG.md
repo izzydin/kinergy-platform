@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- GitHub Actions CI workflow (`.github/workflows/ci.yml`) validating format, lint, typecheck, test, and build on PRs and main branch pushes.
+- Architectural Decision Record (`docs/adr/0005-ci-cd-github-actions-workflow.md`).
 - Workspace development tooling setup (ESLint flat config, Prettier, Husky, lint-staged, Commitlint).
 - Workspace npm scripts (`lint`, `format`, `format:check`, `typecheck`, `test`, `build`, `prepare`).
 - Architectural Decision Record (`docs/adr/0004-workspace-development-tooling.md`).

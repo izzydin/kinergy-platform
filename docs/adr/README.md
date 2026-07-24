@@ -10,6 +10,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0002](file:///c:/Projects/kinergy-platform/docs/adr/0002-nx-monorepo-clean-architecture-ddd.md) | Nx Monorepo Architecture with Clean Architecture and Domain-Driven Design | Accepted | 2026-07-24 |
 | [0003](file:///c:/Projects/kinergy-platform/docs/adr/0003-nx-integrated-workspace-pnpm.md)       | Nx Integrated Workspace Setup with pnpm                                   | Accepted | 2026-07-24 |
 | [0004](file:///c:/Projects/kinergy-platform/docs/adr/0004-workspace-development-tooling.md)      | Workspace Development Tooling Setup                                       | Accepted | 2026-07-24 |
+| [0005](file:///c:/Projects/kinergy-platform/docs/adr/0005-ci-cd-github-actions-workflow.md)      | CI/CD GitHub Actions Workflow                                             | Accepted | 2026-07-24 |
 
 ## Format
 
