@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Zod-validated environment configuration system (`env.validation.ts`, `app.config.ts`, `database.config.ts`), environment documentation in `.env.example`, unit tests, and support for `development`, `test`, and `production` modes.
+- Architectural Decision Record (`docs/adr/0014-zod-validated-application-configuration.md`).
 - Platform services infrastructure (`Identity`, `Logging`, `Audit`) with interface ports, NestJS injectable placeholder services, NestJS platform modules (`IdentityModule`, `LoggingModule`, `AuditModule`, global `PlatformModule`), and unit tests.
 - Architectural Decision Record (`docs/adr/0013-enterprise-platform-services-infrastructure.md`).
 - Shared domain kernel abstractions (`Entity`, `AggregateRoot`, `ValueObject`, `Result`, `IRepository`, `IDomainEvent`) with TypeScript generics and unit test coverage.
