@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Platform services infrastructure (`Identity`, `Logging`, `Audit`) with interface ports, NestJS injectable placeholder services, NestJS platform modules (`IdentityModule`, `LoggingModule`, `AuditModule`, global `PlatformModule`), and unit tests.
+- Architectural Decision Record (`docs/adr/0013-enterprise-platform-services-infrastructure.md`).
 - Shared domain kernel abstractions (`Entity`, `AggregateRoot`, `ValueObject`, `Result`, `IRepository`, `IDomainEvent`) with TypeScript generics and unit test coverage.
 - Architectural Decision Record (`docs/adr/0012-shared-domain-kernel-abstractions.md`).
 - Prisma ORM infrastructure configured for PostgreSQL (`prisma/schema.prisma`, `prisma/seed.ts`, NestJS `PrismaService`, `PrismaModule`, and workspace scripts).
