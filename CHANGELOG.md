@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Prisma ORM infrastructure configured for PostgreSQL (`prisma/schema.prisma`, `prisma/seed.ts`, NestJS `PrismaService`, `PrismaModule`, and workspace scripts).
+- Architectural Decision Record (`docs/adr/0011-prisma-orm-persistence-infrastructure.md`).
 - Backend architecture layout in `apps/api/src/` (`config`, `shared` [`kernel`, `common`], `platform` [`persistence`, `identity`, `logging`, `audit`], `contexts`) with barrel exports and DDD base abstractions.
 - Architectural Decision Record (`docs/adr/0010-backend-clean-architecture-layering.md`).
 - Shared Nx packages under `packages/` (`@kinergy-platform/ui`, `@kinergy-platform/types`, `@kinergy-platform/utils`, `@kinergy-platform/config`, `@kinergy-platform/validation`) with global path aliases, barrel exports, and Nx project targets.
