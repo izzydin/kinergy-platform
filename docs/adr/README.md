@@ -8,6 +8,7 @@ This directory contains records of key architectural and technical decisions mad
 | --- | --- | --- | --- |
 | [0001](file:///c:/Projects/kinergy-platform/docs/adr/0001-record-architecture-decisions.md) | Record Architecture Decisions | Accepted | 2026-07-24 |
 | [0002](file:///c:/Projects/kinergy-platform/docs/adr/0002-nx-monorepo-clean-architecture-ddd.md) | Nx Monorepo Architecture with Clean Architecture and Domain-Driven Design | Accepted | 2026-07-24 |
+| [0003](file:///c:/Projects/kinergy-platform/docs/adr/0003-nx-integrated-workspace-pnpm.md) | Nx Integrated Workspace Setup with pnpm | Accepted | 2026-07-24 |
 
 ## Format
 
