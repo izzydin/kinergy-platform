@@ -41,9 +41,11 @@ Chosen Option: **Nx Monorepo combined with Clean Architecture and Domain-Driven 
 ## Consequences
 
 ### Positive
+
 - Framework independence enables seamless tech stack upgrades without breaking domain rules.
 - High testability without relying on heavy integration test setups or databases for domain verification.
 - Enforced module boundaries in Nx eliminate accidental circular dependencies.
 
 ### Negative
+
 - Initial overhead in defining DTOs, interfaces, and boundary mappings.

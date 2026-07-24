@@ -21,6 +21,7 @@ We need to record technical and architectural decisions made during the design a
 ## Decision Outcome
 
 Chosen option: **2. Architecture Decision Records stored in version control**, because:
+
 - Decisions are version-controlled alongside code changes.
 - Reviewers can evaluate architecture proposals via standard Git Pull Requests.
 - The repository remains the single source of truth.

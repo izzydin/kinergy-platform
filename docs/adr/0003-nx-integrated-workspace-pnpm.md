@@ -29,6 +29,7 @@ Chosen Option: **Nx Integrated Workspace using `pnpm` as the package manager**.
 ## Consequences
 
 ### Positive
+
 - Strict dependency isolation prevents phantom dependencies.
 - Native performance and fast caching across Nx tasks.
 - `pnpm nx graph` visualizes workspace dependencies cleanly.

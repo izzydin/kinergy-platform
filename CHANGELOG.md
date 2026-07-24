@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+- Workspace development tooling setup (ESLint flat config, Prettier, Husky, lint-staged, Commitlint).
+- Workspace npm scripts (`lint`, `format`, `format:check`, `typecheck`, `test`, `build`, `prepare`).
+- Architectural Decision Record (`docs/adr/0004-workspace-development-tooling.md`).
 - Nx Integrated Workspace setup configured with `pnpm`.
 - `nx.json`, `package.json`, `pnpm-workspace.yaml`, `tsconfig.base.json`, `.editorconfig`, `.nvmrc`.
 - Initial GitHub repository structure for `kinergy-platform`.

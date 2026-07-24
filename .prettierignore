@@ -1,0 +1,9 @@
+dist
+build
+out
+node_modules
+.nx
+.pnpm-store
+coverage
+pnpm-lock.yaml
+*.min.js

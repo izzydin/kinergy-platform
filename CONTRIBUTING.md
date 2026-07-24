@@ -46,13 +46,16 @@ The Kinergy Platform follows strict engineering guidelines to maintain high main
 ## 2. Development Workflow & Git Practices
 
 ### Branching Strategy
+
 - Default Branch: `main`
 - Feature Branches: `feature/<short-description>` or `feat/<short-description>`
 - Bug Fix Branches: `fix/<short-description>`
 - Architecture/Docs Branches: `docs/<short-description>` or `refactor/<short-description>`
 
 ### Commit Conventions (Conventional Commits)
+
 All commit messages must follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
 - `feat(domain-energy): add energy telemetry value object`
 - `fix(infra-db): resolve connection pool timeout`
 - `docs(adr): document module boundary rules`
@@ -74,5 +77,6 @@ All commit messages must follow the [Conventional Commits](https://www.conventio
 ## 4. Architecture Decision Records (ADRs)
 
 If your contribution introduces an architectural change, new module dependency boundary, or core technology adoption:
+
 1. Create a new ADR in [docs/adr/](file:///c:/Projects/kinergy-platform/docs/adr/) following the established format.
 2. Link the new ADR in your Pull Request description for reviewer evaluation.

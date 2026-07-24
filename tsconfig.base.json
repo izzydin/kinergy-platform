@@ -14,7 +14,9 @@
     "skipLibCheck": true,
     "skipDefaultLibCheck": true,
     "baseUrl": ".",
-    "paths": {},
+    "paths": {
+      "@kinergy-platform/types": ["packages/types/src/index.ts"]
+    },
     "strict": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
@@ -31,5 +33,6 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
+  "include": ["apps/**/*", "libs/**/*", "packages/**/*"],
   "exclude": ["node_modules", "tmp", "dist"]
 }

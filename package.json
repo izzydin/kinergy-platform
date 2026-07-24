@@ -9,12 +9,26 @@
     "graph": "nx graph",
     "build": "nx run-many -t build",
     "test": "nx run-many -t test",
-    "lint": "nx run-many -t lint"
+    "lint": "nx run-many -t lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc --noEmit -p tsconfig.base.json",
+    "prepare": "husky"
   },
   "devDependencies": {
+    "@commitlint/cli": "^19.7.1",
+    "@commitlint/config-conventional": "^19.6.0",
     "@nx/devkit": "^20.4.0",
+    "@nx/eslint": "^20.4.0",
     "@nx/js": "^20.4.0",
     "@nx/workspace": "^20.4.0",
+    "@typescript-eslint/eslint-plugin": "^8.24.0",
+    "@typescript-eslint/parser": "^8.24.0",
+    "typescript-eslint": "^8.24.0",
+    "eslint": "^9.20.1",
+    "eslint-config-prettier": "^10.0.1",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.4.3",
     "nx": "^20.4.0",
     "prettier": "^3.4.2",
     "typescript": "~5.7.3"

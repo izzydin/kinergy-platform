@@ -83,6 +83,7 @@ Key architectural decisions are documented under [`docs/adr/`](file:///c:/Projec
 ## 🤝 Contributing & Engineering Standards
 
 Please read [`CONTRIBUTING.md`](file:///c:/Projects/kinergy-platform/CONTRIBUTING.md) for detailed guidelines on:
+
 - Domain-Driven Design conventions
 - Clean Architecture layer boundaries
 - Strict TypeScript rules
