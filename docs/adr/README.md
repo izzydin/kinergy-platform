@@ -15,6 +15,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0007](file:///c:/Projects/kinergy-platform/docs/adr/0007-nestjs-application-scaffolding.md)          | NestJS Application Scaffolding in `apps/api`                              | Accepted | 2026-07-24 |
 | [0008](file:///c:/Projects/kinergy-platform/docs/adr/0008-react-vite-web-application-scaffolding.md)  | React + Vite Application Scaffolding in `apps/web`                        | Accepted | 2026-07-24 |
 | [0009](file:///c:/Projects/kinergy-platform/docs/adr/0009-shared-workspace-packages.md)               | Shared Workspace Packages in `packages/`                                  | Accepted | 2026-07-24 |
+| [0010](file:///c:/Projects/kinergy-platform/docs/adr/0010-backend-clean-architecture-layering.md)     | Backend Clean Architecture & Layering Structure in `apps/api`             | Accepted | 2026-07-24 |
 
 ## Format
 
