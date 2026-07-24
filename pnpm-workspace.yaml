@@ -4,4 +4,6 @@ packages:
   - 'libs/*/*'
   - 'packages/*'
 allowBuilds:
+  '@nestjs/core': true
+  '@scarf/scarf': true
   nx: true

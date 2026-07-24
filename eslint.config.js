@@ -10,7 +10,7 @@ module.exports = tseslint.config(
     ignores: ['**/dist/**', '**/node_modules/**', '**/.nx/**', '**/coverage/**'],
   },
   {
-    files: ['eslint.config.js'],
+    files: ['eslint.config.js', 'jest.preset.js', '**/*.config.js'],
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
       'no-undef': 'off',

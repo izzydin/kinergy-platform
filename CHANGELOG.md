@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- NestJS backend application in `apps/api` with Helmet, Compression, CORS, Swagger OpenAPI UI, Global Validation Pipe, ConfigModule, environment validation, logging, and graceful shutdown.
+- Architectural Decision Record (`docs/adr/0007-nestjs-application-scaffolding.md`).
 - Docker local development foundation (`docker-compose.yml`, `.env.example`, `.env`, `infrastructure/docker/init-db.sql`) with PostgreSQL 16, Adminer, healthchecks, and persistent volumes.
 - Architectural Decision Record (`docs/adr/0006-docker-local-development-infrastructure.md`).
 - GitHub Actions CI workflow (`.github/workflows/ci.yml`) validating format, lint, typecheck, test, and build on PRs and main branch pushes.

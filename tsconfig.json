@@ -1,6 +1,11 @@
 {
   "extends": "./tsconfig.base.json",
   "files": [],
-  "include": [],
-  "references": []
+  "include": ["apps/**/*", "libs/**/*", "packages/**/*"],
+  "references": [
+    {
+      "path": "./apps/api"
+    }
+  ]
 }
+

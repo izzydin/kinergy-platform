@@ -12,6 +12,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0004](file:///c:/Projects/kinergy-platform/docs/adr/0004-workspace-development-tooling.md)           | Workspace Development Tooling Setup                                       | Accepted | 2026-07-24 |
 | [0005](file:///c:/Projects/kinergy-platform/docs/adr/0005-ci-cd-github-actions-workflow.md)           | CI/CD GitHub Actions Workflow                                             | Accepted | 2026-07-24 |
 | [0006](file:///c:/Projects/kinergy-platform/docs/adr/0006-docker-local-development-infrastructure.md) | Docker Infrastructure for Local Development                               | Accepted | 2026-07-24 |
+| [0007](file:///c:/Projects/kinergy-platform/docs/adr/0007-nestjs-application-scaffolding.md)          | NestJS Application Scaffolding in `apps/api`                              | Accepted | 2026-07-24 |
 
 ## Format
 
