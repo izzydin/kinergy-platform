@@ -1,0 +1,16 @@
+# Global Owners
+* @kinergy-platform/lead-architects
+
+# Monorepo Core & Config
+/tools/ @kinergy-platform/platform-team
+/docs/ @kinergy-platform/lead-architects
+/docs/adr/ @kinergy-platform/lead-architects
+
+# Applications
+/apps/ @kinergy-platform/app-leads
+
+# Libraries & Domain Boundaries
+/libs/ @kinergy-platform/domain-leads
+/libs/*/domain/ @kinergy-platform/domain-leads
+/libs/*/application/ @kinergy-platform/domain-leads
+/libs/*/infrastructure/ @kinergy-platform/platform-team
