@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Shared Nx packages under `packages/` (`@kinergy-platform/ui`, `@kinergy-platform/types`, `@kinergy-platform/utils`, `@kinergy-platform/config`, `@kinergy-platform/validation`) with global path aliases, barrel exports, and Nx project targets.
+- Architectural Decision Record (`docs/adr/0009-shared-workspace-packages.md`).
 - React 18 + Vite web application in `apps/web` with React Router, TanStack Query, Tailwind CSS, shadcn/ui utils (`cn`), React Hook Form, Zod, and structured folder layout.
 - Architectural Decision Record (`docs/adr/0008-react-vite-web-application-scaffolding.md`).
 - NestJS backend application in `apps/api` with Helmet, Compression, CORS, Swagger OpenAPI UI, Global Validation Pipe, ConfigModule, environment validation, logging, and graceful shutdown.
