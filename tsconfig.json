@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.base.json",
   "files": [],
-  "include": ["apps/**/*", "libs/**/*", "packages/**/*"],
+  "include": ["apps/**/*", "libs/**/*", "packages/**/*", "prisma/**/*"],
   "references": []
 }

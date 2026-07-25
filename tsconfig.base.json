@@ -39,6 +39,6 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["apps/**/*", "libs/**/*", "packages/**/*"],
+  "include": ["apps/**/*", "libs/**/*", "packages/**/*", "prisma/**/*"],
   "exclude": ["node_modules", "tmp", "dist"]
 }
