@@ -38,6 +38,7 @@ model User {
   passwordHash String     @map("password_hash")
   status       UserStatus @default(PENDING_ACTIVATION)
   roleId       String     @map("role_id")
+  tenantId     String?    @map("tenant_id")
   createdAt    DateTime   @default(now()) @map("created_at")
   updatedAt    DateTime   @updatedAt @map("updated_at")
 
@@ -46,6 +47,7 @@ model User {
   @@index([email])
   @@index([roleId])
   @@index([status])
+  @@index([tenantId])
   @@map("users")
 }
 
