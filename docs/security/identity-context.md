@@ -9,7 +9,7 @@
 
 ## Context
 
-Under Domain-Driven Design (DDD) and Clean Architecture, the Kinergy Platform is organized into distinct **Bounded Contexts**. The **Identity Bounded Context** governs security authentication, credential management, token issuance, and authorization policies.
+Under Domain-Driven Design (DDD) and Clean Architecture, the Kinergy Platform is organized into distinct **Bounded Contexts**. The **Identity Bounded Context** governs security authentication, credential management, token issuance, and authorization policies. The detailed tactical domain specification for this context is recorded in [identity-domain-model.md](file:///c:/Projects/kinergy-platform/docs/architecture/identity-domain-model.md).
 
 As the platform evolves into a multi-tenant enterprise SaaS platform, the Identity context must define crisp domain boundaries, clean integration mechanisms with downstream contexts (User Profile, Organization/Tenant Management, Energy Asset Monitoring, Billing), multi-tenant SaaS isolation policies, and immutable security audit capabilities.
 
