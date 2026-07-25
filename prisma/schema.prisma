@@ -1,4 +1,5 @@
 // Kinergy Platform - Prisma Database Schema
+// Bounded Context: Identity & Access Management (IAM)
 // Datasource: PostgreSQL
 
 generator client {
@@ -10,4 +11,85 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Infrastructure Baseline (No domain entities defined yet as per architecture guidelines)
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum UserStatus {
+  PENDING_ACTIVATION
+  ACTIVE
+  LOCKED
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum RoleType {
+  SYSTEM
+  CUSTOM
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String     @map("password_hash")
+  status       UserStatus @default(PENDING_ACTIVATION)
+  roleId       String     @map("role_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
+
+  role Role @relation("UserToRole", fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@index([email])
+  @@index([roleId])
+  @@index([status])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  type        RoleType @default(CUSTOM)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  users       User[]           @relation("UserToRole")
+  permissions RolePermission[] @relation("RoleToRolePermissions")
+
+  @@index([name])
+  @@index([type])
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  roles RolePermission[] @relation("PermissionToRolePermissions")
+
+  @@index([code])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String   @map("role_id")
+  permissionId String   @map("permission_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  role       Role       @relation("RoleToRolePermissions", fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation("PermissionToRolePermissions", fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId], name: "unique_role_permission")
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
