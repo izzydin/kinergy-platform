@@ -1,4 +1,4 @@
-import { Logger, ValidationPipe } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -6,6 +6,7 @@ import compression from 'compression';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters';
+import { GlobalSanitizationValidationPipe } from './common/pipes';
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
@@ -27,16 +28,7 @@ async function bootstrap(): Promise<void> {
   // Global Prefix, Exception Filter & Pipe
   app.setGlobalPrefix(globalPrefix);
   app.useGlobalFilters(new GlobalExceptionFilter());
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      forbidNonWhitelisted: true,
-      transformOptions: {
-        enableImplicitConversion: true,
-      },
-    }),
-  );
+  app.useGlobalPipes(new GlobalSanitizationValidationPipe());
 
   // OpenAPI Swagger Setup
   const swaggerConfig = new DocumentBuilder()

@@ -1,6 +1,8 @@
 /**
- * Shared Validation Contracts & Assertions
+ * Shared Validation Contracts & Input Sanitization
  */
+
+export * from './sanitizer/input-sanitizer';
 
 export interface ValidationResult {
   isValid: boolean;
