@@ -140,6 +140,16 @@ export class User {
     this._updatedAt = new Date();
   }
 
+  public changePassword(newPasswordHash: string): void {
+    if (this.isDeleted()) {
+      throw new Error('Cannot change password for soft-deleted user.');
+    }
+    this._passwordHash = newPasswordHash;
+    this.clearRefreshToken();
+    this.incrementTokenVersion();
+    this._updatedAt = new Date();
+  }
+
   public updateEmail(newEmail: string): void {
     if (this.isDeleted()) {
       throw new Error('Cannot update a soft-deleted user.');

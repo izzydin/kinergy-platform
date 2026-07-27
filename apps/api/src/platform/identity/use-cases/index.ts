@@ -5,3 +5,4 @@ export * from './logout.use-case';
 export * from './refresh-token.use-case';
 export * from './get-current-user.use-case';
 export * from './admin';
+export * from './password';

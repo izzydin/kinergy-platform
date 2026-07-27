@@ -1,7 +1,12 @@
 import { Module } from '@nestjs/common';
 import { IDENTITY_CONTEXT } from './identity-context.interface';
 import { PlaceholderIdentityContextService } from './placeholder-identity-context.service';
-import { Argon2PasswordHasher, PASSWORD_HASHER, PasswordPolicyService } from './password';
+import {
+  Argon2PasswordHasher,
+  PASSWORD_HASHER,
+  PasswordPolicyService,
+  TemporaryPasswordGeneratorService,
+} from './password';
 import {
   ACCESS_TOKEN_SERVICE,
   AccessTokenService,
@@ -33,12 +38,14 @@ import { PrismaRefreshTokenRepository, PrismaUserRepository } from '../persisten
 import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
 import {
   ActivateUserUseCase,
+  ChangePasswordUseCase,
   CreateUserUseCase,
   DeactivateUserUseCase,
   DeleteUserUseCase,
+  ResetPasswordUseCase,
   SearchUsersUseCase,
   UpdateUserUseCase,
-} from './use-cases/admin';
+} from './use-cases';
 
 @Module({
   providers: [
@@ -53,6 +60,7 @@ import {
       useClass: Argon2PasswordHasher,
     },
     PasswordPolicyService,
+    TemporaryPasswordGeneratorService,
     ConfigSecretProvider,
     {
       provide: SECRET_PROVIDER,
@@ -131,6 +139,8 @@ import {
     DeactivateUserUseCase,
     DeleteUserUseCase,
     SearchUsersUseCase,
+    ChangePasswordUseCase,
+    ResetPasswordUseCase,
   ],
   exports: [
     PlaceholderIdentityContextService,
@@ -138,6 +148,7 @@ import {
     Argon2PasswordHasher,
     PASSWORD_HASHER,
     PasswordPolicyService,
+    TemporaryPasswordGeneratorService,
     ConfigSecretProvider,
     SECRET_PROVIDER,
     ConfigTokenConfiguration,
@@ -174,6 +185,8 @@ import {
     DeactivateUserUseCase,
     DeleteUserUseCase,
     SearchUsersUseCase,
+    ChangePasswordUseCase,
+    ResetPasswordUseCase,
   ],
 })
 export class IdentityModule {}

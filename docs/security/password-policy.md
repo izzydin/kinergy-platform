@@ -99,6 +99,23 @@ stateDiagram-v2
 - Schema design includes a `PasswordHistory` aggregate entity linked to the Identity user.
 - Stores the last $N$ (e.g., 5) hashed passwords with distinct salts to enforce non-reuse policies during password changes.
 
+### 7. Password Lifecycle & Temporary Password Management
+
+Password lifecycle operations are executed via dedicated application use cases in `platform/identity/use-cases/password`:
+
+- **User Password Change (`ChangePasswordUseCase`)**:
+  - Verifies current password using `IPasswordHasher.verify(...)`.
+  - Validates candidate against `PasswordPolicyService`.
+  - Verifies new password differs from current password.
+  - Updates hash via `User.changePassword(newHash)`, invalidating active refresh tokens and incrementing `tokenVersion`.
+  - Emits `PasswordChanged` security event.
+- **Admin Password Reset (`ResetPasswordUseCase`)**:
+  - Generates cryptographically secure temporary password via `TemporaryPasswordGeneratorService`.
+  - Hashes temporary password via Argon2id.
+  - Updates hash via `User.changePassword(tempHash)` and invalidates active sessions.
+  - Emits `PasswordResetByAdmin` security event.
+  - Securely returns temporary password once to admin. Plaintext passwords & hashes are never logged.
+
 ---
 
 ## Alternatives Considered

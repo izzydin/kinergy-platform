@@ -7,7 +7,8 @@ export type SecurityEventType =
   | 'LogoutSucceeded'
   | 'RefreshTokenRotated'
   | 'RefreshTokenReplayDetected'
-  | 'PasswordChanged';
+  | 'PasswordChanged'
+  | 'PasswordResetByAdmin';
 
 /**
  * Base Security Event Interface.
@@ -59,10 +60,17 @@ export interface PasswordChangedEvent extends BaseSecurityEvent {
   userId: string;
 }
 
+export interface PasswordResetByAdminEvent extends BaseSecurityEvent {
+  eventType: 'PasswordResetByAdmin';
+  userId: string;
+  adminId?: string | null;
+}
+
 export type SecurityEvent =
   | LoginSucceededEvent
   | LoginFailedEvent
   | LogoutSucceededEvent
   | RefreshTokenRotatedEvent
   | RefreshTokenReplayDetectedEvent
-  | PasswordChangedEvent;
+  | PasswordChangedEvent
+  | PasswordResetByAdminEvent;

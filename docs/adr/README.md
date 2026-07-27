@@ -36,6 +36,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0028](file:///c:/Projects/kinergy-platform/docs/adr/0028-extracted-authorization-decision-engine.md)            | Extracted Authorization Decision Engine (AuthorizationEvaluator)          | Accepted | 2026-07-27 |
 | [0029](file:///c:/Projects/kinergy-platform/docs/adr/0029-transport-rate-limiting-architecture.md)               | Transport Rate Limiting Architecture                                      | Accepted | 2026-07-27 |
 | [0030](file:///c:/Projects/kinergy-platform/docs/adr/0030-user-administration-identity-boundary-architecture.md) | User Administration & Identity Boundary Architecture                      | Accepted | 2026-07-27 |
+| [0031](file:///c:/Projects/kinergy-platform/docs/adr/0031-secure-password-lifecycle-management.md)               | Secure Password Lifecycle Management Architecture                         | Accepted | 2026-07-27 |
 
 ## Format
 
