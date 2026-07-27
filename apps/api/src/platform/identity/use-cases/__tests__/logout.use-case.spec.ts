@@ -1,5 +1,6 @@
 import { User, UserStatus, RefreshToken, IRefreshTokenRepository } from '../../domain';
 import { IUserRepository } from '../../domain/user.repository.interface';
+import { ISecurityEventPublisher } from '../../events/security-event-publisher.interface';
 import { IRefreshTokenService } from '../../tokens/refresh-token.service';
 import { Sha256TokenHasher } from '../../tokens/token-hasher.interface';
 import { ILoggerPort } from '../../../logging/logger-port.interface';
@@ -11,6 +12,7 @@ describe('LogoutUseCase', () => {
   let mockRefreshTokenRepository: jest.Mocked<IRefreshTokenRepository>;
   let mockRefreshTokenService: jest.Mocked<IRefreshTokenService>;
   let tokenHasher: Sha256TokenHasher;
+  let mockSecurityEventPublisher: jest.Mocked<ISecurityEventPublisher>;
   let mockLogger: jest.Mocked<ILoggerPort>;
 
   const testUser = new User({
@@ -56,10 +58,14 @@ describe('LogoutUseCase', () => {
 
     tokenHasher = new Sha256TokenHasher();
 
+    mockSecurityEventPublisher = {
+      publish: jest.fn().mockResolvedValue(undefined),
+    };
+
     mockLogger = {
       log: jest.fn(),
-      error: jest.fn(),
       warn: jest.fn(),
+      error: jest.fn(),
       debug: jest.fn(),
     };
 
@@ -68,32 +74,39 @@ describe('LogoutUseCase', () => {
       mockRefreshTokenRepository,
       mockRefreshTokenService,
       tokenHasher,
+      mockSecurityEventPublisher,
       mockLogger,
     );
   });
 
-  it('should revoke all user sessions when userId is provided', async () => {
+  it('should revoke token family by refreshToken and publish LogoutSucceeded event', async () => {
+    mockRefreshTokenRepository.findByHash.mockResolvedValue(testTokenEntity);
+
+    const result = await useCase.execute({ refreshToken: 'valid_refresh_token' });
+
+    expect(result.success).toBe(true);
+    expect(mockRefreshTokenRepository.revokeFamily).toHaveBeenCalledWith('fam_123');
+    expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'LogoutSucceeded',
+        userId: 'usr_123',
+      }),
+    );
+  });
+
+  it('should revoke all sessions by userId and publish LogoutSucceeded event', async () => {
     mockUserRepository.findById.mockResolvedValue(testUser);
 
     const result = await useCase.execute({ userId: 'usr_123' });
 
-    expect(result).toEqual({ success: true });
+    expect(result.success).toBe(true);
     expect(mockRefreshTokenRepository.revokeAllForUser).toHaveBeenCalledWith('usr_123');
-  });
-
-  it('should revoke token family when valid refreshToken is provided', async () => {
-    const rawToken = 'raw_refresh_token_xyz';
-    const hash = tokenHasher.hashToken(rawToken);
-
-    mockRefreshTokenRepository.findByHash.mockImplementation(async (searchHash) => {
-      if (searchHash === hash) return testTokenEntity;
-      return null;
-    });
-
-    const result = await useCase.execute({ refreshToken: rawToken });
-
-    expect(result).toEqual({ success: true });
-    expect(mockRefreshTokenRepository.findByHash).toHaveBeenCalledWith(hash);
-    expect(mockRefreshTokenRepository.revokeFamily).toHaveBeenCalledWith('fam_123');
+    expect(mockUserRepository.save).toHaveBeenCalled();
+    expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'LogoutSucceeded',
+        userId: 'usr_123',
+      }),
+    );
   });
 });

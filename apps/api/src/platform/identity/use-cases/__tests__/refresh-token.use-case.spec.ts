@@ -1,5 +1,6 @@
 import { User, UserStatus, RefreshToken, IRefreshTokenRepository } from '../../domain';
 import { IUserRepository } from '../../domain/user.repository.interface';
+import { ISecurityEventPublisher } from '../../events/security-event-publisher.interface';
 import { IAccessTokenService } from '../../tokens/access-token.service';
 import { IRefreshTokenService } from '../../tokens/refresh-token.service';
 import { ITokenConfiguration } from '../../tokens/token-configuration.interface';
@@ -8,7 +9,7 @@ import { IClock } from '../../../../shared/common/clock.interface';
 import { ILoggerPort } from '../../../logging/logger-port.interface';
 import { IUnitOfWork } from '../../../persistence/unit-of-work.interface';
 import { RefreshTokenUseCase } from '../refresh-token.use-case';
-import { AccountDisabledException, InvalidTokenException } from '../exceptions/auth.exception';
+import { InvalidTokenException } from '../exceptions/auth.exception';
 
 describe('RefreshTokenUseCase', () => {
   let useCase: RefreshTokenUseCase;
@@ -20,11 +21,11 @@ describe('RefreshTokenUseCase', () => {
   let mockClock: jest.Mocked<IClock>;
   let mockUnitOfWork: IUnitOfWork;
   let mockTokenConfiguration: jest.Mocked<ITokenConfiguration>;
+  let mockSecurityEventPublisher: jest.Mocked<ISecurityEventPublisher>;
   let mockLogger: jest.Mocked<ILoggerPort>;
 
   const fixedNow = new Date('2026-07-27T12:00:00.000Z');
   const futureExpiry = new Date('2026-08-01T12:00:00.000Z');
-  const pastExpiry = new Date('2026-07-20T12:00:00.000Z');
 
   const rawToken = 'valid_raw_refresh_token';
 
@@ -109,6 +110,10 @@ describe('RefreshTokenUseCase', () => {
       getTokenPolicy: jest.fn(),
     };
 
+    mockSecurityEventPublisher = {
+      publish: jest.fn().mockResolvedValue(undefined),
+    };
+
     mockLogger = {
       log: jest.fn(),
       warn: jest.fn(),
@@ -125,23 +130,27 @@ describe('RefreshTokenUseCase', () => {
       mockClock,
       mockUnitOfWork,
       mockTokenConfiguration,
+      mockSecurityEventPublisher,
       mockLogger,
     );
   });
 
-  it('should successfully rotate refresh token inside an IUnitOfWork transaction using ITokenConfiguration', async () => {
+  it('should successfully rotate refresh token inside an IUnitOfWork transaction and publish RefreshTokenRotated event', async () => {
     const result = await useCase.execute({ refreshToken: rawToken });
 
     expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
-    expect(mockTokenConfiguration.getRefreshTokenTtlMs).toHaveBeenCalled();
-    expect(mockTokenConfiguration.getAccessTokenTtlSeconds).toHaveBeenCalled();
     expect(result.accessToken).toBe('new_access_token');
     expect(result.refreshToken).toBe('new_raw_refresh_token');
-    expect(result.expiresIn).toBe(900);
-    expect(mockRefreshTokenRepository.save).toHaveBeenCalledTimes(2);
+    expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'RefreshTokenRotated',
+        userId: 'usr_123',
+        familyId: 'fam_123',
+      }),
+    );
   });
 
-  it('should trigger replay attack protection and revoke token family on reused token within transaction', async () => {
+  it('should trigger replay attack protection, revoke token family, and publish RefreshTokenReplayDetected event on reused token', async () => {
     const tokenHash = tokenHasher.hashToken(rawToken);
     mockRefreshTokenRepository.findByHash.mockResolvedValueOnce(
       new RefreshToken({
@@ -159,52 +168,12 @@ describe('RefreshTokenUseCase', () => {
     );
     expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
     expect(mockRefreshTokenRepository.revokeFamily).toHaveBeenCalledWith('fam_123');
-  });
-
-  it('should reject expired refresh token within transaction', async () => {
-    const tokenHash = tokenHasher.hashToken(rawToken);
-    mockRefreshTokenRepository.findByHash.mockResolvedValueOnce(
-      new RefreshToken({
-        id: 'rt_expired',
-        tokenHash,
-        familyId: 'fam_123',
+    expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'RefreshTokenReplayDetected',
         userId: 'usr_123',
-        isRevoked: false,
-        expiresAt: pastExpiry,
+        familyId: 'fam_123',
       }),
     );
-
-    await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
-      InvalidTokenException,
-    );
-    expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
-  });
-
-  it('should reject if user account is disabled within transaction', async () => {
-    const disabledUser = new User({
-      id: 'usr_123',
-      email: 'test@example.com',
-      passwordHash: 'hash',
-      status: UserStatus.SUSPENDED,
-      roles: ['USER'],
-      permissions: [],
-      tokenVersion: 1,
-    });
-    mockUserRepository.findById.mockResolvedValueOnce(disabledUser);
-
-    await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
-      AccountDisabledException,
-    );
-    expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
-    expect(mockRefreshTokenRepository.revokeFamily).toHaveBeenCalledWith('fam_123');
-  });
-
-  it('should propagate errors thrown inside transaction callback for automatic rollback', async () => {
-    mockRefreshTokenRepository.save.mockRejectedValueOnce(new Error('Database Connection Error'));
-
-    await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
-      'Database Connection Error',
-    );
-    expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
   });
 });

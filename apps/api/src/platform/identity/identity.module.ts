@@ -16,6 +16,7 @@ import {
   TOKEN_HASHER,
   Sha256TokenHasher,
 } from './tokens';
+import { LoggerSecurityEventPublisher, SECURITY_EVENT_PUBLISHER } from './events';
 import { REFRESH_TOKEN_REPOSITORY, USER_REPOSITORY } from './domain';
 import { PrismaRefreshTokenRepository, PrismaUserRepository } from '../persistence/prisma';
 import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
@@ -63,6 +64,11 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
       provide: TOKEN_HASHER,
       useClass: Sha256TokenHasher,
     },
+    LoggerSecurityEventPublisher,
+    {
+      provide: SECURITY_EVENT_PUBLISHER,
+      useClass: LoggerSecurityEventPublisher,
+    },
     PrismaUserRepository,
     {
       provide: USER_REPOSITORY,
@@ -97,6 +103,8 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
     REFRESH_TOKEN_SERVICE,
     Sha256TokenHasher,
     TOKEN_HASHER,
+    LoggerSecurityEventPublisher,
+    SECURITY_EVENT_PUBLISHER,
     PrismaUserRepository,
     USER_REPOSITORY,
     PrismaRefreshTokenRepository,

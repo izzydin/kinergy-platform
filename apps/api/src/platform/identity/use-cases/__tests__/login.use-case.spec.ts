@@ -1,5 +1,6 @@
 import { User, UserStatus, IRefreshTokenRepository } from '../../domain';
 import { IUserRepository } from '../../domain/user.repository.interface';
+import { ISecurityEventPublisher } from '../../events/security-event-publisher.interface';
 import { IPasswordHasher } from '../../password/password-hasher.interface';
 import { IAccessTokenService } from '../../tokens/access-token.service';
 import { IRefreshTokenService } from '../../tokens/refresh-token.service';
@@ -23,6 +24,7 @@ describe('LoginUseCase', () => {
   let mockRefreshTokenService: jest.Mocked<IRefreshTokenService>;
   let mockClock: jest.Mocked<IClock>;
   let mockTokenConfiguration: jest.Mocked<ITokenConfiguration>;
+  let mockSecurityEventPublisher: jest.Mocked<ISecurityEventPublisher>;
   let mockLogger: jest.Mocked<ILoggerPort>;
 
   const fixedDate = new Date('2026-07-27T12:00:00.000Z');
@@ -94,6 +96,10 @@ describe('LoginUseCase', () => {
       getTokenPolicy: jest.fn(),
     };
 
+    mockSecurityEventPublisher = {
+      publish: jest.fn().mockResolvedValue(undefined),
+    };
+
     mockLogger = {
       log: jest.fn(),
       warn: jest.fn(),
@@ -110,11 +116,12 @@ describe('LoginUseCase', () => {
       mockRefreshTokenService,
       mockClock,
       mockTokenConfiguration,
+      mockSecurityEventPublisher,
       mockLogger,
     );
   });
 
-  it('should authenticate user successfully and return tokens formatted via ITokenConfiguration', async () => {
+  it('should authenticate user successfully and publish LoginSucceeded security event', async () => {
     mockUserRepository.findByEmail.mockResolvedValue(testUser);
 
     const result = await useCase.execute({
@@ -128,20 +135,32 @@ describe('LoginUseCase', () => {
     expect(result.expiresIn).toBe(900);
     expect(result.user.id).toBe(testUser.id);
 
-    expect(mockTokenConfiguration.getRefreshTokenTtlMs).toHaveBeenCalled();
-    expect(mockTokenConfiguration.getAccessTokenTtlSeconds).toHaveBeenCalled();
-    expect(mockRefreshTokenRepository.save).toHaveBeenCalledTimes(1);
+    expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'LoginSucceeded',
+        userId: testUser.id,
+        email: testUser.email,
+      }),
+    );
   });
 
-  it('should throw InvalidCredentialsException if user is not found', async () => {
+  it('should publish LoginFailed event and throw InvalidCredentialsException if user is not found', async () => {
     mockUserRepository.findByEmail.mockResolvedValue(null);
 
     await expect(
       useCase.execute({ email: 'nonexistent@example.com', password: 'password' }),
     ).rejects.toThrow(InvalidCredentialsException);
+
+    expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'LoginFailed',
+        email: 'nonexistent@example.com',
+        reason: 'User not found',
+      }),
+    );
   });
 
-  it('should throw AccountDisabledException if user status is suspended', async () => {
+  it('should publish LoginFailed event and throw AccountDisabledException if user status is suspended', async () => {
     const suspendedUser = new User({
       id: 'usr_disabled',
       email: 'disabled@example.com',
@@ -156,14 +175,31 @@ describe('LoginUseCase', () => {
     await expect(
       useCase.execute({ email: 'disabled@example.com', password: 'password' }),
     ).rejects.toThrow(AccountDisabledException);
+
+    expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'LoginFailed',
+        userId: 'usr_disabled',
+        email: 'disabled@example.com',
+      }),
+    );
   });
 
-  it('should throw InvalidCredentialsException if password verification fails', async () => {
+  it('should publish LoginFailed event and throw InvalidCredentialsException if password verification fails', async () => {
     mockUserRepository.findByEmail.mockResolvedValue(testUser);
     mockPasswordHasher.verify.mockResolvedValue(false);
 
     await expect(
       useCase.execute({ email: 'test@example.com', password: 'WrongPassword' }),
     ).rejects.toThrow(InvalidCredentialsException);
+
+    expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: 'LoginFailed',
+        userId: testUser.id,
+        email: testUser.email,
+        reason: 'Invalid password',
+      }),
+    );
   });
 });

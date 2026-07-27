@@ -3,6 +3,7 @@ import { IUseCase } from '../../../shared/common/use-case.interface';
 import { IClock } from '../../../shared/common/clock.interface';
 import { ILoggerPort } from '../../logging/logger-port.interface';
 import { RefreshToken, IRefreshTokenRepository, IUserRepository } from '../domain';
+import { ISecurityEventPublisher } from '../events/security-event-publisher.interface';
 import { IPasswordHasher } from '../password/password-hasher.interface';
 import { IAccessTokenService } from '../tokens/access-token.service';
 import { IRefreshTokenService } from '../tokens/refresh-token.service';
@@ -13,7 +14,7 @@ import { AccountDisabledException, InvalidCredentialsException } from './excepti
 
 /**
  * Use Case handling user authentication (Login).
- * Persists hashed refresh token records into dedicated RefreshToken repository using ITokenConfiguration policies.
+ * Emits structured Security Events (LoginSucceeded / LoginFailed) via ISecurityEventPublisher.
  */
 export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> {
   constructor(
@@ -25,6 +26,7 @@ export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> 
     private readonly refreshTokenService: IRefreshTokenService,
     private readonly clock: IClock,
     private readonly tokenConfiguration: ITokenConfiguration,
+    private readonly eventPublisher?: ISecurityEventPublisher,
     private readonly logger?: ILoggerPort,
   ) {}
 
@@ -38,6 +40,13 @@ export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> 
 
     if (!user) {
       this.logger?.warn(`Login failed: user not found (${normalizedEmail})`, 'LoginUseCase');
+      await this.eventPublisher?.publish({
+        eventId: randomUUID(),
+        eventType: 'LoginFailed',
+        timestamp: this.clock.now(),
+        email: normalizedEmail,
+        reason: 'User not found',
+      });
       throw new InvalidCredentialsException();
     }
 
@@ -46,12 +55,30 @@ export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> 
         `Login rejected: user status is ${user.status} (${normalizedEmail})`,
         'LoginUseCase',
       );
+      await this.eventPublisher?.publish({
+        eventId: randomUUID(),
+        eventType: 'LoginFailed',
+        timestamp: this.clock.now(),
+        userId: user.id,
+        email: normalizedEmail,
+        tenantId: user.tenantId,
+        reason: `Account status disabled (${user.status})`,
+      });
       throw new AccountDisabledException();
     }
 
     const isPasswordValid = await this.passwordHasher.verify(request.password, user.passwordHash);
     if (!isPasswordValid) {
       this.logger?.warn(`Login failed: invalid password (${normalizedEmail})`, 'LoginUseCase');
+      await this.eventPublisher?.publish({
+        eventId: randomUUID(),
+        eventType: 'LoginFailed',
+        timestamp: this.clock.now(),
+        userId: user.id,
+        email: normalizedEmail,
+        tenantId: user.tenantId,
+        reason: 'Invalid password',
+      });
       throw new InvalidCredentialsException();
     }
 
@@ -86,6 +113,15 @@ export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> 
     await this.refreshTokenRepository.save(refreshTokenEntity);
 
     this.logger?.log(`User authenticated successfully (${user.id})`, 'LoginUseCase');
+
+    await this.eventPublisher?.publish({
+      eventId: randomUUID(),
+      eventType: 'LoginSucceeded',
+      timestamp: this.clock.now(),
+      userId: user.id,
+      email: user.email,
+      tenantId: user.tenantId,
+    });
 
     const userProfile: UserProfileDto = {
       id: user.id,

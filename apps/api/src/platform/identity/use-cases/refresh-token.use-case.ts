@@ -4,6 +4,7 @@ import { IClock } from '../../../shared/common/clock.interface';
 import { ILoggerPort } from '../../logging/logger-port.interface';
 import { IUnitOfWork } from '../../persistence/unit-of-work.interface';
 import { RefreshToken, IRefreshTokenRepository, IUserRepository } from '../domain';
+import { ISecurityEventPublisher } from '../events/security-event-publisher.interface';
 import { IAccessTokenService } from '../tokens/access-token.service';
 import { IRefreshTokenService } from '../tokens/refresh-token.service';
 import { ITokenConfiguration } from '../tokens/token-configuration.interface';
@@ -13,7 +14,7 @@ import { AccountDisabledException, InvalidTokenException } from './exceptions/au
 
 /**
  * Use Case handling Refresh Token rotation and new Access Token issuance.
- * Enforces transactional consistency via IUnitOfWork and token policies via ITokenConfiguration.
+ * Publishes RefreshTokenRotated and RefreshTokenReplayDetected security events via ISecurityEventPublisher.
  */
 export class RefreshTokenUseCase implements IUseCase<RefreshTokenDto, AuthenticationResponse> {
   constructor(
@@ -25,6 +26,7 @@ export class RefreshTokenUseCase implements IUseCase<RefreshTokenDto, Authentica
     private readonly clock: IClock,
     private readonly unitOfWork: IUnitOfWork,
     private readonly tokenConfiguration: ITokenConfiguration,
+    private readonly eventPublisher?: ISecurityEventPublisher,
     private readonly logger?: ILoggerPort,
   ) {}
 
@@ -47,7 +49,6 @@ export class RefreshTokenUseCase implements IUseCase<RefreshTokenDto, Authentica
       const tokenEntity = await this.refreshTokenRepository.findByHash(incomingHash);
 
       // REPLAY ATTACK MITIGATION:
-      // If presented token is absent or has already been revoked, an attacker is attempting to replay a token.
       if (!tokenEntity || tokenEntity.isRevoked) {
         this.logger?.error(
           `Security Alert: Refresh token replay attack detected for family (${payload.familyId}) and user (${payload.sub}). Revoking token family.`,
@@ -55,6 +56,14 @@ export class RefreshTokenUseCase implements IUseCase<RefreshTokenDto, Authentica
           'RefreshTokenUseCase',
         );
         await this.refreshTokenRepository.revokeFamily(payload.familyId);
+        await this.eventPublisher?.publish({
+          eventId: randomUUID(),
+          eventType: 'RefreshTokenReplayDetected',
+          timestamp: this.clock.now(),
+          userId: payload.sub,
+          familyId: payload.familyId,
+          tenantId: payload.tenantId,
+        });
         throw new InvalidTokenException('Refresh token reuse detected. Session revoked.');
       }
 
@@ -128,6 +137,15 @@ export class RefreshTokenUseCase implements IUseCase<RefreshTokenDto, Authentica
         `Refresh token rotated successfully for user (${user.id})`,
         'RefreshTokenUseCase',
       );
+
+      await this.eventPublisher?.publish({
+        eventId: randomUUID(),
+        eventType: 'RefreshTokenRotated',
+        timestamp: this.clock.now(),
+        userId: user.id,
+        familyId: payload.familyId,
+        tenantId: user.tenantId,
+      });
 
       const userProfile: UserProfileDto = {
         id: user.id,
