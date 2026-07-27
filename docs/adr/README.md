@@ -39,6 +39,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0031](file:///c:/Projects/kinergy-platform/docs/adr/0031-secure-password-lifecycle-management.md)               | Secure Password Lifecycle Management Architecture                         | Accepted | 2026-07-27 |
 | [0032](file:///c:/Projects/kinergy-platform/docs/adr/0032-user-account-status-state-machine-architecture.md)     | User Account Status State Machine Architecture                            | Accepted | 2026-07-27 |
 | [0033](file:///c:/Projects/kinergy-platform/docs/adr/0033-reusable-testing-platform-package-architecture.md)     | Reusable Testing Platform Package Architecture                            | Accepted | 2026-07-27 |
+| [0034](file:///c:/Projects/kinergy-platform/docs/adr/0034-enterprise-testing-strategy-and-standards.md)          | Enterprise Testing Strategy & Standards                                   | Accepted | 2026-07-27 |
 
 ## Format
 
