@@ -48,7 +48,7 @@ export class PrismaUserRepository implements IUserRepository {
       id: record.id,
       email: record.email,
       passwordHash: record.passwordHash,
-      status: record.status as UserStatus,
+      status: record.status as unknown as UserStatus,
       roles: [record.role.name],
       permissions,
       tenantId: record.tenantId,
@@ -83,7 +83,7 @@ export class PrismaUserRepository implements IUserRepository {
       id: record.id,
       email: record.email,
       passwordHash: record.passwordHash,
-      status: record.status as UserStatus,
+      status: record.status as unknown as UserStatus,
       roles: [record.role.name],
       permissions,
       tenantId: record.tenantId,
@@ -107,7 +107,7 @@ export class PrismaUserRepository implements IUserRepository {
         id: user.id,
         email: user.email,
         passwordHash: user.passwordHash,
-        status: user.status as UserStatus,
+        status: user.status as unknown as Prisma.UserCreateInput['status'],
         roleId: roleRecord.id,
         tenantId: user.tenantId,
         createdAt: user.createdAt,
@@ -134,7 +134,7 @@ export class PrismaUserRepository implements IUserRepository {
       data: {
         email: user.email,
         passwordHash: user.passwordHash,
-        status: user.status as UserStatus,
+        status: user.status as unknown as Prisma.UserUpdateInput['status'],
         roleId: roleId,
         tenantId: user.tenantId,
         updatedAt: user.updatedAt,
@@ -153,7 +153,7 @@ export class PrismaUserRepository implements IUserRepository {
       where.email = { contains: query.email, mode: 'insensitive' };
     }
     if (query.status) {
-      where.status = query.status;
+      where.status = query.status as unknown as Prisma.EnumUserStatusFilter;
     }
     if (query.role) {
       where.role = { name: query.role };
@@ -186,7 +186,7 @@ export class PrismaUserRepository implements IUserRepository {
         id: record.id,
         email: record.email,
         passwordHash: record.passwordHash,
-        status: record.status as UserStatus,
+        status: record.status as unknown as UserStatus,
         roles: [record.role.name],
         permissions,
         tenantId: record.tenantId,

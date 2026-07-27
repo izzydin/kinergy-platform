@@ -1,4 +1,5 @@
 import { UserStatus } from './user-status.enum';
+import { UserStatusStateMachine } from './user-status-state-machine';
 
 export interface IUserProps {
   id: string;
@@ -39,7 +40,7 @@ export class User {
     this._id = props.id;
     this._email = props.email;
     this._passwordHash = props.passwordHash;
-    this._status = props.status ?? UserStatus.PENDING_ACTIVATION;
+    this._status = props.status ?? UserStatus.PENDING;
     this._roles = props.roles ?? [];
     this._permissions = props.permissions ?? [];
     this._tenantId = props.tenantId ?? null;
@@ -103,30 +104,51 @@ export class User {
     return this._deletedAt;
   }
 
+  public canAuthenticate(): boolean {
+    return !this.isDeleted() && UserStatusStateMachine.canAuthenticate(this._status);
+  }
+
   public isActive(): boolean {
-    return !this.isDeleted() && this._status === UserStatus.ACTIVE;
+    return this.canAuthenticate();
   }
 
   public isDeleted(): boolean {
     return this._deletedAt !== null;
   }
 
-  public activate(): void {
+  public transitionTo(targetStatus: UserStatus): void {
     if (this.isDeleted()) {
-      throw new Error('Cannot activate a soft-deleted user.');
+      throw new Error('Cannot transition status of a soft-deleted user.');
     }
-    this._status = UserStatus.ACTIVE;
+
+    UserStatusStateMachine.assertValidTransition(this._status, targetStatus);
+
+    this._status = targetStatus;
+    if (targetStatus !== UserStatus.ACTIVE) {
+      this.clearRefreshToken();
+      this.incrementTokenVersion();
+    }
     this._updatedAt = new Date();
   }
 
+  public activate(): void {
+    this.transitionTo(UserStatus.ACTIVE);
+  }
+
   public deactivate(): void {
-    if (this.isDeleted()) {
-      throw new Error('Cannot deactivate a soft-deleted user.');
-    }
-    this._status = UserStatus.DEACTIVATED;
-    this.clearRefreshToken();
-    this.incrementTokenVersion();
-    this._updatedAt = new Date();
+    this.transitionTo(UserStatus.DEACTIVATED);
+  }
+
+  public inactivate(): void {
+    this.transitionTo(UserStatus.INACTIVE);
+  }
+
+  public block(): void {
+    this.transitionTo(UserStatus.BLOCKED);
+  }
+
+  public unblock(): void {
+    this.transitionTo(UserStatus.ACTIVE);
   }
 
   public softDelete(): void {
