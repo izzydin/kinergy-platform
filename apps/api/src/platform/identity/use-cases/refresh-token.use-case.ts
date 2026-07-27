@@ -6,13 +6,14 @@ import { IUnitOfWork } from '../../persistence/unit-of-work.interface';
 import { RefreshToken, IRefreshTokenRepository, IUserRepository } from '../domain';
 import { IAccessTokenService } from '../tokens/access-token.service';
 import { IRefreshTokenService } from '../tokens/refresh-token.service';
+import { ITokenConfiguration } from '../tokens/token-configuration.interface';
 import { ITokenHasher } from '../tokens/token-hasher.interface';
 import { AuthenticationResponse, RefreshTokenDto, UserProfileDto } from './dtos/auth.dtos';
 import { AccountDisabledException, InvalidTokenException } from './exceptions/auth.exception';
 
 /**
  * Use Case handling Refresh Token rotation and new Access Token issuance.
- * Enforces transactional consistency via IUnitOfWork, token family rotation, and strict replay attack mitigation.
+ * Enforces transactional consistency via IUnitOfWork and token policies via ITokenConfiguration.
  */
 export class RefreshTokenUseCase implements IUseCase<RefreshTokenDto, AuthenticationResponse> {
   constructor(
@@ -23,6 +24,7 @@ export class RefreshTokenUseCase implements IUseCase<RefreshTokenDto, Authentica
     private readonly refreshTokenService: IRefreshTokenService,
     private readonly clock: IClock,
     private readonly unitOfWork: IUnitOfWork,
+    private readonly tokenConfiguration: ITokenConfiguration,
     private readonly logger?: ILoggerPort,
   ) {}
 
@@ -108,7 +110,8 @@ export class RefreshTokenUseCase implements IUseCase<RefreshTokenDto, Authentica
       });
 
       const newHash = this.tokenHasher.hashToken(newRefreshTokenResult.token);
-      const expiresAt = new Date(this.clock.now().getTime() + 7 * 24 * 60 * 60 * 1000);
+      const refreshTokenTtlMs = this.tokenConfiguration.getRefreshTokenTtlMs();
+      const expiresAt = new Date(this.clock.now().getTime() + refreshTokenTtlMs);
 
       const newRefreshTokenEntity = new RefreshToken({
         id: randomUUID(),
@@ -141,7 +144,7 @@ export class RefreshTokenUseCase implements IUseCase<RefreshTokenDto, Authentica
         accessToken: newAccessToken,
         refreshToken: newRefreshTokenResult.token,
         tokenType: 'Bearer',
-        expiresIn: 900,
+        expiresIn: this.tokenConfiguration.getAccessTokenTtlSeconds(),
         user: userProfile,
       };
     });

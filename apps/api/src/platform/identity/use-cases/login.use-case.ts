@@ -6,13 +6,14 @@ import { RefreshToken, IRefreshTokenRepository, IUserRepository } from '../domai
 import { IPasswordHasher } from '../password/password-hasher.interface';
 import { IAccessTokenService } from '../tokens/access-token.service';
 import { IRefreshTokenService } from '../tokens/refresh-token.service';
+import { ITokenConfiguration } from '../tokens/token-configuration.interface';
 import { ITokenHasher } from '../tokens/token-hasher.interface';
 import { AuthenticationResponse, LoginDto, UserProfileDto } from './dtos/auth.dtos';
 import { AccountDisabledException, InvalidCredentialsException } from './exceptions/auth.exception';
 
 /**
  * Use Case handling user authentication (Login).
- * Persists hashed refresh token records into a dedicated RefreshToken repository.
+ * Persists hashed refresh token records into dedicated RefreshToken repository using ITokenConfiguration policies.
  */
 export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> {
   constructor(
@@ -23,6 +24,7 @@ export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> 
     private readonly accessTokenService: IAccessTokenService,
     private readonly refreshTokenService: IRefreshTokenService,
     private readonly clock: IClock,
+    private readonly tokenConfiguration: ITokenConfiguration,
     private readonly logger?: ILoggerPort,
   ) {}
 
@@ -69,7 +71,8 @@ export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> 
     });
 
     const hashedToken = this.tokenHasher.hashToken(refreshTokenResult.token);
-    const expiresAt = new Date(this.clock.now().getTime() + 7 * 24 * 60 * 60 * 1000);
+    const refreshTokenTtlMs = this.tokenConfiguration.getRefreshTokenTtlMs();
+    const expiresAt = new Date(this.clock.now().getTime() + refreshTokenTtlMs);
 
     const refreshTokenEntity = new RefreshToken({
       id: randomUUID(),
@@ -99,7 +102,7 @@ export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> 
       accessToken,
       refreshToken: refreshTokenResult.token,
       tokenType: 'Bearer',
-      expiresIn: 900,
+      expiresIn: this.tokenConfiguration.getAccessTokenTtlSeconds(),
       user: userProfile,
     };
   }

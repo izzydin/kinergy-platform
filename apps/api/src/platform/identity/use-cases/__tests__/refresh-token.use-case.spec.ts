@@ -2,6 +2,7 @@ import { User, UserStatus, RefreshToken, IRefreshTokenRepository } from '../../d
 import { IUserRepository } from '../../domain/user.repository.interface';
 import { IAccessTokenService } from '../../tokens/access-token.service';
 import { IRefreshTokenService } from '../../tokens/refresh-token.service';
+import { ITokenConfiguration } from '../../tokens/token-configuration.interface';
 import { Sha256TokenHasher } from '../../tokens/token-hasher.interface';
 import { IClock } from '../../../../shared/common/clock.interface';
 import { ILoggerPort } from '../../../logging/logger-port.interface';
@@ -18,6 +19,7 @@ describe('RefreshTokenUseCase', () => {
   let mockRefreshTokenService: jest.Mocked<IRefreshTokenService>;
   let mockClock: jest.Mocked<IClock>;
   let mockUnitOfWork: IUnitOfWork;
+  let mockTokenConfiguration: jest.Mocked<ITokenConfiguration>;
   let mockLogger: jest.Mocked<ILoggerPort>;
 
   const fixedNow = new Date('2026-07-27T12:00:00.000Z');
@@ -94,6 +96,19 @@ describe('RefreshTokenUseCase', () => {
       executeInTransaction: jest.fn().mockImplementation((work: () => Promise<unknown>) => work()),
     };
 
+    mockTokenConfiguration = {
+      getAccessTokenTtlSeconds: jest.fn().mockReturnValue(900),
+      getAccessTokenTtlMs: jest.fn().mockReturnValue(900000),
+      getRefreshTokenTtlSeconds: jest.fn().mockReturnValue(604800),
+      getRefreshTokenTtlMs: jest.fn().mockReturnValue(604800000),
+      getAccessTokenExpiresInString: jest.fn().mockReturnValue('15m'),
+      getRefreshTokenExpiresInString: jest.fn().mockReturnValue('7d'),
+      getIssuer: jest.fn().mockReturnValue('kinergy-platform'),
+      getAudience: jest.fn().mockReturnValue('kinergy-api'),
+      getClockSkewSeconds: jest.fn().mockReturnValue(60),
+      getTokenPolicy: jest.fn(),
+    };
+
     mockLogger = {
       log: jest.fn(),
       warn: jest.fn(),
@@ -109,16 +124,20 @@ describe('RefreshTokenUseCase', () => {
       mockRefreshTokenService,
       mockClock,
       mockUnitOfWork,
+      mockTokenConfiguration,
       mockLogger,
     );
   });
 
-  it('should successfully rotate refresh token inside an IUnitOfWork transaction', async () => {
+  it('should successfully rotate refresh token inside an IUnitOfWork transaction using ITokenConfiguration', async () => {
     const result = await useCase.execute({ refreshToken: rawToken });
 
     expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
+    expect(mockTokenConfiguration.getRefreshTokenTtlMs).toHaveBeenCalled();
+    expect(mockTokenConfiguration.getAccessTokenTtlSeconds).toHaveBeenCalled();
     expect(result.accessToken).toBe('new_access_token');
     expect(result.refreshToken).toBe('new_raw_refresh_token');
+    expect(result.expiresIn).toBe(900);
     expect(mockRefreshTokenRepository.save).toHaveBeenCalledTimes(2);
   });
 

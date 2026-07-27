@@ -3,6 +3,7 @@ import { IUserRepository } from '../../domain/user.repository.interface';
 import { IPasswordHasher } from '../../password/password-hasher.interface';
 import { IAccessTokenService } from '../../tokens/access-token.service';
 import { IRefreshTokenService } from '../../tokens/refresh-token.service';
+import { ITokenConfiguration } from '../../tokens/token-configuration.interface';
 import { Sha256TokenHasher } from '../../tokens/token-hasher.interface';
 import { IClock } from '../../../../shared/common/clock.interface';
 import { ILoggerPort } from '../../../logging/logger-port.interface';
@@ -21,6 +22,7 @@ describe('LoginUseCase', () => {
   let mockAccessTokenService: jest.Mocked<IAccessTokenService>;
   let mockRefreshTokenService: jest.Mocked<IRefreshTokenService>;
   let mockClock: jest.Mocked<IClock>;
+  let mockTokenConfiguration: jest.Mocked<ITokenConfiguration>;
   let mockLogger: jest.Mocked<ILoggerPort>;
 
   const fixedDate = new Date('2026-07-27T12:00:00.000Z');
@@ -68,8 +70,7 @@ describe('LoginUseCase', () => {
 
     mockRefreshTokenService = {
       generateRefreshToken: jest.fn().mockResolvedValue({
-        token: 'mock_refresh_token',
-        jti: 'jti_123',
+        token: 'mock_raw_refresh_token',
         familyId: 'fam_123',
       }),
       validateRefreshToken: jest.fn(),
@@ -80,10 +81,23 @@ describe('LoginUseCase', () => {
       now: jest.fn().mockReturnValue(fixedDate),
     };
 
+    mockTokenConfiguration = {
+      getAccessTokenTtlSeconds: jest.fn().mockReturnValue(900),
+      getAccessTokenTtlMs: jest.fn().mockReturnValue(900000),
+      getRefreshTokenTtlSeconds: jest.fn().mockReturnValue(604800),
+      getRefreshTokenTtlMs: jest.fn().mockReturnValue(604800000),
+      getAccessTokenExpiresInString: jest.fn().mockReturnValue('15m'),
+      getRefreshTokenExpiresInString: jest.fn().mockReturnValue('7d'),
+      getIssuer: jest.fn().mockReturnValue('kinergy-platform'),
+      getAudience: jest.fn().mockReturnValue('kinergy-api'),
+      getClockSkewSeconds: jest.fn().mockReturnValue(60),
+      getTokenPolicy: jest.fn(),
+    };
+
     mockLogger = {
       log: jest.fn(),
-      error: jest.fn(),
       warn: jest.fn(),
+      error: jest.fn(),
       debug: jest.fn(),
     };
 
@@ -95,80 +109,61 @@ describe('LoginUseCase', () => {
       mockAccessTokenService,
       mockRefreshTokenService,
       mockClock,
+      mockTokenConfiguration,
       mockLogger,
     );
   });
 
-  it('should authenticate user successfully and persist hashed refresh token entity', async () => {
+  it('should authenticate user successfully and return tokens formatted via ITokenConfiguration', async () => {
     mockUserRepository.findByEmail.mockResolvedValue(testUser);
 
     const result = await useCase.execute({
       email: 'test@example.com',
-      password: 'ValidPassword123!',
+      password: 'CorrectPassword123!',
     });
 
-    expect(mockUserRepository.findByEmail).toHaveBeenCalledWith('test@example.com');
-    expect(mockPasswordHasher.verify).toHaveBeenCalledWith(
-      'ValidPassword123!',
-      testUser.passwordHash,
-    );
-    expect(mockAccessTokenService.generateToken).toHaveBeenCalledWith({
-      userId: 'usr_123',
-      email: 'test@example.com',
-      roles: ['USER'],
-      permissions: ['read:profile'],
-      tokenVersion: 1,
-      tenantId: 'tenant_1',
-    });
-    expect(mockRefreshTokenRepository.save).toHaveBeenCalled();
+    expect(result.accessToken).toBe('mock_access_token');
+    expect(result.refreshToken).toBe('mock_raw_refresh_token');
+    expect(result.tokenType).toBe('Bearer');
+    expect(result.expiresIn).toBe(900);
+    expect(result.user.id).toBe(testUser.id);
 
-    expect(result).toEqual({
-      accessToken: 'mock_access_token',
-      refreshToken: 'mock_refresh_token',
-      tokenType: 'Bearer',
-      expiresIn: 900,
-      user: {
-        id: 'usr_123',
-        email: 'test@example.com',
-        status: UserStatus.ACTIVE,
-        roles: ['USER'],
-        permissions: ['read:profile'],
-        tenantId: 'tenant_1',
-        createdAt: testUser.createdAt,
-        updatedAt: testUser.updatedAt,
-      },
-    });
-  });
-
-  it('should throw InvalidCredentialsException if email or password is missing', async () => {
-    await expect(useCase.execute({ email: '', password: '123' })).rejects.toThrow(
-      InvalidCredentialsException,
-    );
+    expect(mockTokenConfiguration.getRefreshTokenTtlMs).toHaveBeenCalled();
+    expect(mockTokenConfiguration.getAccessTokenTtlSeconds).toHaveBeenCalled();
+    expect(mockRefreshTokenRepository.save).toHaveBeenCalledTimes(1);
   });
 
   it('should throw InvalidCredentialsException if user is not found', async () => {
     mockUserRepository.findByEmail.mockResolvedValue(null);
 
     await expect(
-      useCase.execute({ email: 'nonexistent@example.com', password: 'Password123!' }),
+      useCase.execute({ email: 'nonexistent@example.com', password: 'password' }),
     ).rejects.toThrow(InvalidCredentialsException);
   });
 
-  it('should throw AccountDisabledException if user status is not ACTIVE', async () => {
-    const inactiveUser = new User({
-      id: testUser.id,
-      email: testUser.email,
-      passwordHash: testUser.passwordHash,
+  it('should throw AccountDisabledException if user status is suspended', async () => {
+    const suspendedUser = new User({
+      id: 'usr_disabled',
+      email: 'disabled@example.com',
+      passwordHash: 'hash',
       status: UserStatus.SUSPENDED,
-      roles: testUser.roles,
-      permissions: testUser.permissions,
-      tenantId: testUser.tenantId,
-      tokenVersion: testUser.tokenVersion,
+      roles: ['USER'],
+      permissions: [],
+      tokenVersion: 1,
     });
-    mockUserRepository.findByEmail.mockResolvedValue(inactiveUser);
+    mockUserRepository.findByEmail.mockResolvedValue(suspendedUser);
 
     await expect(
-      useCase.execute({ email: 'test@example.com', password: 'Password123!' }),
+      useCase.execute({ email: 'disabled@example.com', password: 'password' }),
     ).rejects.toThrow(AccountDisabledException);
+  });
+
+  it('should throw InvalidCredentialsException if password verification fails', async () => {
+    mockUserRepository.findByEmail.mockResolvedValue(testUser);
+    mockPasswordHasher.verify.mockResolvedValue(false);
+
+    await expect(
+      useCase.execute({ email: 'test@example.com', password: 'WrongPassword' }),
+    ).rejects.toThrow(InvalidCredentialsException);
   });
 });

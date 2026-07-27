@@ -27,6 +27,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0019](file:///c:/Projects/kinergy-platform/docs/adr/0019-refresh-token-persistence-strategy.md)          | Refresh Token Persistence & Security Strategy                             | Accepted | 2026-07-27 |
 | [0020](file:///c:/Projects/kinergy-platform/docs/adr/0020-production-security-configuration-hardening.md) | Production Security Configuration Hardening                               | Accepted | 2026-07-27 |
 | [0021](file:///c:/Projects/kinergy-platform/docs/adr/0021-transactional-consistency-unit-of-work.md)      | Transactional Consistency & Unit of Work Pattern                          | Accepted | 2026-07-27 |
+| [0022](file:///c:/Projects/kinergy-platform/docs/adr/0022-token-configuration-policy-abstraction.md)      | Dedicated Token Configuration Abstraction                                 | Accepted | 2026-07-27 |
 
 ## Format
 

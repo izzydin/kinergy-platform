@@ -6,10 +6,12 @@ import {
   ACCESS_TOKEN_SERVICE,
   AccessTokenService,
   ConfigSecretProvider,
+  ConfigTokenConfiguration,
   JwtTokenFactory,
   REFRESH_TOKEN_SERVICE,
   RefreshTokenService,
   SECRET_PROVIDER,
+  TOKEN_CONFIGURATION,
   TOKEN_FACTORY,
   TOKEN_HASHER,
   Sha256TokenHasher,
@@ -35,6 +37,11 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
     {
       provide: SECRET_PROVIDER,
       useClass: ConfigSecretProvider,
+    },
+    ConfigTokenConfiguration,
+    {
+      provide: TOKEN_CONFIGURATION,
+      useClass: ConfigTokenConfiguration,
     },
     JwtTokenFactory,
     {
@@ -80,6 +87,8 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
     PasswordPolicyService,
     ConfigSecretProvider,
     SECRET_PROVIDER,
+    ConfigTokenConfiguration,
+    TOKEN_CONFIGURATION,
     JwtTokenFactory,
     TOKEN_FACTORY,
     AccessTokenService,
