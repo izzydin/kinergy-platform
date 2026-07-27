@@ -107,6 +107,21 @@ Multi-Factor Authentication will be integrated into the use-case pipeline via a 
 - Initial credential validation returns a temporary `MFA_PENDING` pre-authentication token.
 - Successful TOTP (RFC 6238) or WebAuthn (FIDO2) verification elevates the session state, issuing the full Access/Refresh token pair with an `amr` (Authentication Methods References) claim reflecting `["pwd", "mfa"]`.
 
+### 6. Transport Rate Limiting & Protection Layer
+
+To protect authentication endpoints against brute-force attacks and CPU exhaustion caused by expensive Argon2id hashing, transport rate limiting is enforced via `RateLimitingModule` (`CustomThrottlerGuard`).
+
+```mermaid
+flowchart TD
+    Edge[Cloudflare Edge WAF] --> Gateway[API Gateway Rate Limiter]
+    Gateway --> Nginx[NGINX Reverse Proxy]
+    Nginx --> Guard[NestJS CustomThrottlerGuard]
+    Guard --> AuthCtrl[Authentication Controllers]
+```
+
+- **Policy Matrix**: Configurable thresholds (`AUTH_LOGIN_LIMIT`, `AUTH_REFRESH_LIMIT`, `AUTH_LOGOUT_LIMIT`, `AUTH_ME_LIMIT`).
+- **Standardized Error**: Breaches throw standardized HTTP 429 (`ThrottlerException`) responses.
+
 ---
 
 ## Alternatives Considered

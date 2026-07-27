@@ -23,6 +23,14 @@ export const envSchema = z
     JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
     JWT_ISSUER: z.string().default('kinergy-platform'),
     JWT_AUDIENCE: z.string().default('kinergy-api'),
+    AUTH_LOGIN_LIMIT: z.coerce.number().positive().default(5),
+    AUTH_LOGIN_WINDOW: z.coerce.number().positive().default(60),
+    AUTH_REFRESH_LIMIT: z.coerce.number().positive().default(20),
+    AUTH_REFRESH_WINDOW: z.coerce.number().positive().default(60),
+    AUTH_LOGOUT_LIMIT: z.coerce.number().positive().default(30),
+    AUTH_LOGOUT_WINDOW: z.coerce.number().positive().default(60),
+    AUTH_ME_LIMIT: z.coerce.number().positive().default(60),
+    AUTH_ME_WINDOW: z.coerce.number().positive().default(60),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
