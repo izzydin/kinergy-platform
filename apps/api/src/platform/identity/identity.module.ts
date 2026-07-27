@@ -20,8 +20,10 @@ import { LoggerSecurityEventPublisher, SECURITY_EVENT_PUBLISHER } from './events
 import { REFRESH_TOKEN_REPOSITORY, USER_REPOSITORY } from './domain';
 import { AuthenticationGuard } from './guards';
 import {
+  AUTHORIZATION_EVALUATOR,
   AUTHORIZATION_SERVICE,
   AuthorizationGuard,
+  DefaultAuthorizationEvaluator,
   DefaultAuthorizationService,
   DefaultPermissionResolver,
   PERMISSION_RESOLVER,
@@ -99,6 +101,11 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
       provide: PERMISSION_RESOLVER,
       useClass: DefaultPermissionResolver,
     },
+    DefaultAuthorizationEvaluator,
+    {
+      provide: AUTHORIZATION_EVALUATOR,
+      useClass: DefaultAuthorizationEvaluator,
+    },
     DefaultAuthorizationService,
     {
       provide: AUTHORIZATION_SERVICE,
@@ -140,6 +147,8 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
     AuthenticationGuard,
     DefaultPermissionResolver,
     PERMISSION_RESOLVER,
+    DefaultAuthorizationEvaluator,
+    AUTHORIZATION_EVALUATOR,
     DefaultAuthorizationService,
     AUTHORIZATION_SERVICE,
     AuthorizationGuard,

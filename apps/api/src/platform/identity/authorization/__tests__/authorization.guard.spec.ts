@@ -1,15 +1,16 @@
 import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { AuthorizationGuard, RequestUserPayload } from '../authorization.guard';
-import { IAuthorizationService, IPermissionResolver } from '../authorization.interface';
+import { AuthenticatedUserContext } from '../../context/authenticated-user-context';
+import { AuthorizationGuard } from '../authorization.guard';
+import { IAuthorizationEvaluator } from '../authorization-evaluator.interface';
+import { AuthorizationDecision } from '../models/authorization-decision.model';
 
 describe('AuthorizationGuard', () => {
   let guard: AuthorizationGuard;
   let mockReflector: jest.Mocked<Reflector>;
-  let mockAuthorizationService: jest.Mocked<IAuthorizationService>;
-  let mockPermissionResolver: jest.Mocked<IPermissionResolver>;
+  let mockEvaluator: jest.Mocked<IAuthorizationEvaluator>;
 
-  const createMockContext = (user?: RequestUserPayload): ExecutionContext => {
+  const createMockContext = (user?: AuthenticatedUserContext): ExecutionContext => {
     const mockRequest = { user };
 
     return {
@@ -26,17 +27,11 @@ describe('AuthorizationGuard', () => {
       getAllAndOverride: jest.fn().mockReturnValue(undefined),
     } as unknown as jest.Mocked<Reflector>;
 
-    mockAuthorizationService = {
-      isAuthorized: jest.fn().mockResolvedValue(true),
+    mockEvaluator = {
+      evaluate: jest.fn().mockResolvedValue(AuthorizationDecision.authorized()),
     };
 
-    mockPermissionResolver = {
-      resolvePermissions: jest
-        .fn()
-        .mockImplementation((_id, _roles, directPerms) => Promise.resolve(directPerms ?? [])),
-    };
-
-    guard = new AuthorizationGuard(mockReflector, mockAuthorizationService, mockPermissionResolver);
+    guard = new AuthorizationGuard(mockReflector, mockEvaluator);
   });
 
   it('should pass through if neither required roles nor permissions are specified on route', async () => {
@@ -46,62 +41,57 @@ describe('AuthorizationGuard', () => {
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
-    expect(mockAuthorizationService.isAuthorized).not.toHaveBeenCalled();
+    expect(mockEvaluator.evaluate).not.toHaveBeenCalled();
   });
 
-  it('should throw UnauthorizedException if request.user is missing when roles/permissions are required', async () => {
+  it('should throw UnauthorizedException if user context is missing when roles/permissions are required', async () => {
     mockReflector.getAllAndOverride.mockReturnValue(['ADMIN']);
     const context = createMockContext(undefined);
 
     await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
   });
 
-  it('should delegate resolution and evaluation to IPermissionResolver and IAuthorizationService', async () => {
+  it('should delegate policy requirements to IAuthorizationEvaluator', async () => {
     mockReflector.getAllAndOverride
       .mockReturnValueOnce(['MANAGER']) // requiredRoles
       .mockReturnValueOnce(['read:reports']); // requiredPermissions
 
-    const userPayload: RequestUserPayload = {
-      id: 'usr_1',
+    const userContext = new AuthenticatedUserContext({
+      userId: 'usr_1',
       email: 'user@example.com',
       status: 'ACTIVE',
       roles: ['MANAGER'],
       permissions: ['read:reports'],
       tenantId: 'tenant_1',
-    };
-    const context = createMockContext(userPayload);
+    });
+    const context = createMockContext(userContext);
 
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
-    expect(mockPermissionResolver.resolvePermissions).toHaveBeenCalledWith(
-      'usr_1',
-      ['MANAGER'],
-      ['read:reports'],
-      'tenant_1',
-    );
-    expect(mockAuthorizationService.isAuthorized).toHaveBeenCalledWith(
+    expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+      userContext,
       expect.objectContaining({
-        userId: 'usr_1',
-        userRoles: ['MANAGER'],
         requiredRoles: ['MANAGER'],
         requiredPermissions: ['read:reports'],
       }),
     );
   });
 
-  it('should throw ForbiddenException if IAuthorizationService denies access', async () => {
+  it('should throw ForbiddenException if IAuthorizationEvaluator returns denied decision', async () => {
     mockReflector.getAllAndOverride.mockReturnValue(['ADMIN']);
-    mockAuthorizationService.isAuthorized.mockResolvedValue(false);
+    mockEvaluator.evaluate.mockResolvedValue(
+      AuthorizationDecision.denied('Required role missing.', 'ROLES'),
+    );
 
-    const userPayload: RequestUserPayload = {
-      id: 'usr_1',
+    const userContext = new AuthenticatedUserContext({
+      userId: 'usr_1',
       email: 'user@example.com',
       status: 'ACTIVE',
       roles: ['USER'],
       permissions: [],
-    };
-    const context = createMockContext(userPayload);
+    });
+    const context = createMockContext(userContext);
 
     await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
   });

@@ -8,36 +8,28 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
+import { AuthenticatedUserContext } from '../context/authenticated-user-context';
+import { RequestContext } from '../request-context';
 import {
-  AUTHORIZATION_SERVICE,
-  IAuthorizationService,
-  IPermissionResolver,
-  PERMISSION_RESOLVER,
-} from './authorization.interface';
+  AUTHORIZATION_EVALUATOR,
+  IAuthorizationEvaluator,
+} from './authorization-evaluator.interface';
+import { AuthorizationRequirements } from './models/authorization-requirements.model';
 import { ROLES_KEY } from './decorators/roles.decorator';
 import { PERMISSIONS_KEY } from './decorators/permissions.decorator';
 
-export interface RequestUserPayload {
-  id: string;
-  email: string;
-  status: string;
-  roles: string[];
-  permissions: string[];
-  tenantId?: string | null;
-}
-
 /**
- * NestJS Authorization Guard for Role and Permission Evaluation.
- * Reads metadata (@Roles, @Permissions) and delegates evaluation to IAuthorizationService and IPermissionResolver.
+ * Thin NestJS Authorization Guard for HTTP Transport Orchestration.
+ * Reads route metadata (@Roles, @Permissions), extracts AuthenticatedUserContext,
+ * and delegates policy evaluation to IAuthorizationEvaluator.
+ * Contains zero authorization decision logic.
  */
 @Injectable()
 export class AuthorizationGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
-    @Inject(AUTHORIZATION_SERVICE)
-    private readonly authorizationService: IAuthorizationService,
-    @Inject(PERMISSION_RESOLVER)
-    private readonly permissionResolver: IPermissionResolver,
+    @Inject(AUTHORIZATION_EVALUATOR)
+    private readonly evaluator: IAuthorizationEvaluator,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -51,40 +43,31 @@ export class AuthorizationGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    // Pass through if neither roles nor permissions are specified on route/controller
-    if (
-      (!requiredRoles || requiredRoles.length === 0) &&
-      (!requiredPermissions || requiredPermissions.length === 0)
-    ) {
+    const requirements = new AuthorizationRequirements({
+      requiredRoles,
+      requiredPermissions,
+    });
+
+    if (!requirements.hasRequirements()) {
       return true;
     }
 
     const request = context.switchToHttp().getRequest<Request>();
-    const userPayload = (request as unknown as { user?: RequestUserPayload }).user;
+    const reqUser = (
+      request as unknown as { user?: AuthenticatedUserContext | Record<string, unknown> }
+    ).user;
 
-    if (!userPayload) {
+    const userContext: AuthenticatedUserContext | null =
+      reqUser instanceof AuthenticatedUserContext ? reqUser : RequestContext.currentContext();
+
+    if (!userContext) {
       throw new UnauthorizedException('Authentication required before authorization check.');
     }
 
-    // Resolve comprehensive user permissions via IPermissionResolver
-    const resolvedPermissions = await this.permissionResolver.resolvePermissions(
-      userPayload.id,
-      userPayload.roles ?? [],
-      userPayload.permissions ?? [],
-      userPayload.tenantId,
-    );
+    const decision = await this.evaluator.evaluate(userContext, requirements);
 
-    const isAllowed = await this.authorizationService.isAuthorized({
-      userId: userPayload.id,
-      userRoles: userPayload.roles ?? [],
-      userPermissions: resolvedPermissions,
-      requiredRoles,
-      requiredPermissions,
-      tenantId: userPayload.tenantId,
-    });
-
-    if (!isAllowed) {
-      throw new ForbiddenException('Access denied: insufficient permissions or roles.');
+    if (!decision.isAuthorized) {
+      throw new ForbiddenException(decision.reason ?? 'Access denied: insufficient privileges.');
     }
 
     return true;

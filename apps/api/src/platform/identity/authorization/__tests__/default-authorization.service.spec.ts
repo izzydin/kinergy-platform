@@ -1,10 +1,14 @@
+import { DefaultAuthorizationEvaluator } from '../default-authorization-evaluator';
 import { DefaultAuthorizationService } from '../default-authorization.service';
+import { DefaultPermissionResolver } from '../default-permission-resolver';
 
 describe('DefaultAuthorizationService', () => {
   let service: DefaultAuthorizationService;
 
   beforeEach(() => {
-    service = new DefaultAuthorizationService();
+    const permissionResolver = new DefaultPermissionResolver();
+    const evaluator = new DefaultAuthorizationEvaluator(permissionResolver);
+    service = new DefaultAuthorizationService(evaluator);
   });
 
   it('should authorize request when no roles or permissions are required', async () => {

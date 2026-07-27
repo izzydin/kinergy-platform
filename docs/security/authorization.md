@@ -120,8 +120,53 @@ Roles act as administrative wrappers bundling permission sets. The platform defi
 
 ---
 
+## Extracted Authorization Decision Engine (`AuthorizationEvaluator`)
+
+Following architectural refactoring (ADR 0028), authorization evaluation was extracted out of transport guards into a dedicated **Authorization Evaluator** (`IAuthorizationEvaluator` / `DefaultAuthorizationEvaluator`).
+
+### Architecture & Responsibility Boundaries
+
+```mermaid
+flowchart TD
+    Req[Incoming HTTP Request] --> AuthNGuard[NestJS Authentication Guard]
+    AuthNGuard -- Validate Token --> Context[Construct & Attach AuthenticatedUserContext]
+    Context --> AuthZGuard[NestJS Authorization Guard Orchestrator]
+
+    subgraph Thin Guard Orchestration
+        AuthZGuard --> ExtractMeta[Read Metadata @Roles & @Permissions]
+        ExtractMeta --> BuildReqs[Construct AuthorizationRequirements Model]
+    end
+
+    AuthZGuard -- Delegate (Context & Requirements) --> Evaluator[IAuthorizationEvaluator / DefaultAuthorizationEvaluator]
+
+    subgraph Application Policy Decision Engine
+        Evaluator --> ResolvePerms[IPermissionResolver.resolvePermissions]
+        ResolvePerms --> EvalRoles{Satisfies Roles?}
+        EvalRoles -- Yes --> EvalPerms{Satisfies Permissions?}
+        EvalRoles -- No --> DenyDecision[Return AuthorizationDecision.denied]
+        EvalPerms -- No --> DenyDecision
+        EvalPerms -- Yes --> AllowDecision[Return AuthorizationDecision.authorized]
+    end
+
+    Evaluator -- Return AuthorizationDecision --> AuthZGuard
+    AuthZGuard -- isAuthorized = true --> Controller[Execute Controller Handler]
+    AuthZGuard -- isAuthorized = false --> Forbidden[Throw 403 Forbidden Exception]
+```
+
+### Component Responsibilities
+
+| Component                   | Layer                      | Primary Responsibility                                                                                                                                                                                 |
+| :-------------------------- | :------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AuthorizationGuard`        | Infrastructure (Transport) | Reads route metadata (`@Roles`, `@Permissions`), retrieves `AuthenticatedUserContext`, constructs `AuthorizationRequirements`, delegates to evaluator, throws HTTP 403 on denial. Zero decision logic. |
+| `IAuthorizationEvaluator`   | Application Layer          | Single source of truth for authorization decisions. Evaluates user context against requirements. Returns structured `AuthorizationDecision` objects.                                                   |
+| `AuthorizationRequirements` | Application Model          | Value object encapsulating required roles, permissions, tenant boundaries, resource IDs, and ABAC attributes requested by an endpoint.                                                                 |
+| `AuthorizationDecision`     | Application Model          | Value object representing outcome (`isAuthorized`, `reason`, `failedRequirement`, `evaluatedAt`, `metadata`).                                                                                          |
+| `IPermissionResolver`       | Application Port           | Resolves effective permissions for a user from direct and role mappings (isolated behind abstraction for Redis, OPA, Cedar, or OpenFGA providers).                                                     |
+
+---
+
 ## Future Evolution
 
 1. **Hierarchical & Inherited Roles:** Support for parent-child role structures where child roles inherit base permission sets.
-2. **Dynamic ABAC Rules:** Extending `PermissionsGuard` with condition functions (e.g., evaluating dynamic resource ownership `isOwner(userId, assetId)`).
-3. **External Policy Engine Integration:** Offloading authorization policy evaluation to Open Policy Agent (OPA) or AWS Verified Permissions as scale demands.
+2. **Dynamic ABAC Rules:** Extending `AuthorizationRequirements` and `DefaultAuthorizationEvaluator` with condition functions (e.g., evaluating dynamic resource ownership `isOwner(userId, assetId)`).
+3. **External Policy Engine Integration:** Offloading authorization policy evaluation to Open Policy Agent (OPA), OpenFGA, or AWS Cedar PDPs without altering controllers or guards.

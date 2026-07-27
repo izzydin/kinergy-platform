@@ -1,53 +1,39 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import { AuthenticatedUserContext } from '../context/authenticated-user-context';
+import {
+  AUTHORIZATION_EVALUATOR,
+  IAuthorizationEvaluator,
+} from './authorization-evaluator.interface';
 import { AuthorizationContext, IAuthorizationService } from './authorization.interface';
+import { AuthorizationRequirements } from './models/authorization-requirements.model';
 
 /**
- * Default implementation of IAuthorizationService.
- * Evaluates authorization rules based on role satisfaction AND permission satisfaction.
- * Supports wildcard permission pattern matching ('*', 'users:*').
+ * Adapter implementation of IAuthorizationService delegating policy decisions to IAuthorizationEvaluator.
  */
 @Injectable()
 export class DefaultAuthorizationService implements IAuthorizationService {
+  constructor(
+    @Inject(AUTHORIZATION_EVALUATOR)
+    private readonly evaluator: IAuthorizationEvaluator,
+  ) {}
+
   async isAuthorized(context: AuthorizationContext): Promise<boolean> {
-    const { userRoles, userPermissions, requiredRoles, requiredPermissions } = context;
-
-    // Rule 1: Validate Role Requirements (if specified)
-    if (requiredRoles && requiredRoles.length > 0) {
-      const hasRequiredRole = requiredRoles.some(
-        (role) => userRoles.includes(role) || userRoles.includes('ADMIN'),
-      );
-      if (!hasRequiredRole) {
-        return false;
-      }
-    }
-
-    // Rule 2: Validate Permission Requirements (if specified)
-    if (requiredPermissions && requiredPermissions.length > 0) {
-      const hasAllPermissions = requiredPermissions.every((requiredPerm) =>
-        this.hasPermission(userPermissions, requiredPerm),
-      );
-      if (!hasAllPermissions) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  /**
-   * Evaluates if user permissions contain required permission, supporting wildcard patterns.
-   */
-  private hasPermission(userPermissions: string[], requiredPerm: string): boolean {
-    if (userPermissions.includes('*') || userPermissions.includes(requiredPerm)) {
-      return true;
-    }
-
-    return userPermissions.some((perm) => {
-      if (perm.endsWith(':*')) {
-        const prefix = perm.slice(0, -2);
-        return requiredPerm.startsWith(prefix);
-      }
-      return false;
+    const userContext = new AuthenticatedUserContext({
+      userId: context.userId,
+      email: '',
+      status: 'ACTIVE',
+      roles: context.userRoles,
+      permissions: context.userPermissions,
+      tenantId: context.tenantId,
     });
+
+    const requirements = new AuthorizationRequirements({
+      requiredRoles: context.requiredRoles,
+      requiredPermissions: context.requiredPermissions,
+      tenantId: context.tenantId,
+    });
+
+    const decision = await this.evaluator.evaluate(userContext, requirements);
+    return decision.isAuthorized;
   }
 }
