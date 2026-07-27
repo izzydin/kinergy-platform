@@ -9,3 +9,4 @@ export * from './domain';
 export * from './events';
 export * from './use-cases';
 export * from './application';
+export * from './guards';

@@ -18,6 +18,7 @@ import {
 } from './tokens';
 import { LoggerSecurityEventPublisher, SECURITY_EVENT_PUBLISHER } from './events';
 import { REFRESH_TOKEN_REPOSITORY, USER_REPOSITORY } from './domain';
+import { AuthenticationGuard } from './guards';
 import { PrismaRefreshTokenRepository, PrismaUserRepository } from '../persistence/prisma';
 import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
 
@@ -84,6 +85,7 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
       provide: CLOCK,
       useClass: SystemClock,
     },
+    AuthenticationGuard,
   ],
   exports: [
     PlaceholderIdentityContextService,
@@ -111,6 +113,7 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
     REFRESH_TOKEN_REPOSITORY,
     SystemClock,
     CLOCK,
+    AuthenticationGuard,
   ],
 })
 export class IdentityModule {}
