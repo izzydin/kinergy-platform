@@ -36,7 +36,9 @@ describe('LogoutUseCase', () => {
     mockUserRepository = {
       findByEmail: jest.fn(),
       findById: jest.fn(),
+      create: jest.fn(),
       save: jest.fn().mockResolvedValue(undefined),
+      search: jest.fn(),
       updateRefreshToken: jest.fn().mockResolvedValue(undefined),
     };
 

@@ -23,7 +23,9 @@ describe('GetCurrentUserUseCase', () => {
     mockUserRepository = {
       findByEmail: jest.fn(),
       findById: jest.fn(),
+      create: jest.fn(),
       save: jest.fn(),
+      search: jest.fn(),
       updateRefreshToken: jest.fn(),
     };
 

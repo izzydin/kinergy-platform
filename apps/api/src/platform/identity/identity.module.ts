@@ -31,6 +31,14 @@ import {
 import { AsyncLocalStorageRequestContextAccessor, REQUEST_CONTEXT_ACCESSOR } from './context';
 import { PrismaRefreshTokenRepository, PrismaUserRepository } from '../persistence/prisma';
 import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
+import {
+  ActivateUserUseCase,
+  CreateUserUseCase,
+  DeactivateUserUseCase,
+  DeleteUserUseCase,
+  SearchUsersUseCase,
+  UpdateUserUseCase,
+} from './use-cases/admin';
 
 @Module({
   providers: [
@@ -117,6 +125,12 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
       provide: REQUEST_CONTEXT_ACCESSOR,
       useClass: AsyncLocalStorageRequestContextAccessor,
     },
+    CreateUserUseCase,
+    UpdateUserUseCase,
+    ActivateUserUseCase,
+    DeactivateUserUseCase,
+    DeleteUserUseCase,
+    SearchUsersUseCase,
   ],
   exports: [
     PlaceholderIdentityContextService,
@@ -154,6 +168,12 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
     AuthorizationGuard,
     AsyncLocalStorageRequestContextAccessor,
     REQUEST_CONTEXT_ACCESSOR,
+    CreateUserUseCase,
+    UpdateUserUseCase,
+    ActivateUserUseCase,
+    DeactivateUserUseCase,
+    DeleteUserUseCase,
+    SearchUsersUseCase,
   ],
 })
 export class IdentityModule {}

@@ -13,6 +13,7 @@ export interface IUserProps {
   tokenVersion?: number;
   createdAt?: Date;
   updatedAt?: Date;
+  deletedAt?: Date | null;
 }
 
 /**
@@ -32,6 +33,7 @@ export class User {
   private _tokenVersion: number;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
+  private _deletedAt: Date | null;
 
   constructor(props: IUserProps) {
     this._id = props.id;
@@ -46,6 +48,7 @@ export class User {
     this._tokenVersion = props.tokenVersion ?? 1;
     this._createdAt = props.createdAt ?? new Date();
     this._updatedAt = props.updatedAt ?? new Date();
+    this._deletedAt = props.deletedAt ?? null;
   }
 
   public get id(): string {
@@ -96,8 +99,61 @@ export class User {
     return this._updatedAt;
   }
 
+  public get deletedAt(): Date | null {
+    return this._deletedAt;
+  }
+
   public isActive(): boolean {
-    return this._status === UserStatus.ACTIVE;
+    return !this.isDeleted() && this._status === UserStatus.ACTIVE;
+  }
+
+  public isDeleted(): boolean {
+    return this._deletedAt !== null;
+  }
+
+  public activate(): void {
+    if (this.isDeleted()) {
+      throw new Error('Cannot activate a soft-deleted user.');
+    }
+    this._status = UserStatus.ACTIVE;
+    this._updatedAt = new Date();
+  }
+
+  public deactivate(): void {
+    if (this.isDeleted()) {
+      throw new Error('Cannot deactivate a soft-deleted user.');
+    }
+    this._status = UserStatus.DEACTIVATED;
+    this.clearRefreshToken();
+    this.incrementTokenVersion();
+    this._updatedAt = new Date();
+  }
+
+  public softDelete(): void {
+    if (this.isDeleted()) {
+      throw new Error('User is already soft-deleted.');
+    }
+    this._status = UserStatus.DEACTIVATED;
+    this._deletedAt = new Date();
+    this.clearRefreshToken();
+    this.incrementTokenVersion();
+    this._updatedAt = new Date();
+  }
+
+  public updateEmail(newEmail: string): void {
+    if (this.isDeleted()) {
+      throw new Error('Cannot update a soft-deleted user.');
+    }
+    this._email = newEmail;
+    this._updatedAt = new Date();
+  }
+
+  public updateRoles(newRoles: string[]): void {
+    if (this.isDeleted()) {
+      throw new Error('Cannot update a soft-deleted user.');
+    }
+    this._roles = newRoles;
+    this._updatedAt = new Date();
   }
 
   public setRefreshToken(hashedToken: string, expiresAt: Date): void {

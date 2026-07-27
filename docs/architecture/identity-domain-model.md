@@ -402,4 +402,26 @@ export interface IPasswordHasherPort {
   hash(plainTextPassword: string): Promise<PasswordHash>;
   verify(plainTextPassword: string, hash: PasswordHash): Promise<boolean>;
 }
+
+---
+
+## 9. User Administration & Context Boundary Isolation
+
+### 9.1 Boundary Isolation Guarantee
+
+The `User` aggregate in the Identity Bounded Context owns **only** credential attributes and security state:
+- `id`, `email`, `passwordHash`, `status`, `roles`, `permissions`, `tenantId`, `tokenVersion`, `createdAt`, `updatedAt`, `deletedAt`.
+
+Personal profile data (`firstName`, `lastName`, `phone`, `avatar`, `birthDate`, `employeeInfo`) is strictly excluded from `platform/identity` and resides in future domain contexts (e.g. Employee Profile, Trainer Context).
+
+### 9.2 Administrative Application Use Cases
+
+Administrative identity account management is executed via 6 application use cases in `platform/identity/use-cases/admin`:
+1. `CreateUserUseCase`: Validates email uniqueness & format, hashes password, saves `User` instance.
+2. `UpdateUserUseCase`: Updates email or roles with uniqueness validation.
+3. `ActivateUserUseCase`: Transitions status to `ACTIVE`.
+4. `DeactivateUserUseCase`: Transitions status to `DEACTIVATED`, revokes tokens.
+5. `DeleteUserUseCase`: Soft-deletes user (`deletedAt = now()`), revokes active tokens.
+6. `SearchUsersUseCase`: Searches identity accounts with pagination (`page`, `limit`) and filters (`email`, `role`, `status`).
+
 ```

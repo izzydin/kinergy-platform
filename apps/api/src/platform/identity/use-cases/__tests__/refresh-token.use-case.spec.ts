@@ -47,7 +47,9 @@ describe('RefreshTokenUseCase', () => {
     mockUserRepository = {
       findByEmail: jest.fn(),
       findById: jest.fn().mockResolvedValue(activeUser),
+      create: jest.fn(),
       save: jest.fn().mockResolvedValue(undefined),
+      search: jest.fn(),
       updateRefreshToken: jest.fn().mockResolvedValue(undefined),
     };
 
