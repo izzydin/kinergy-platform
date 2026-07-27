@@ -21,7 +21,8 @@
       "@kinergy-platform/types": ["packages/types/src/index.ts"],
       "@kinergy-platform/utils": ["packages/utils/src/index.ts"],
       "@kinergy-platform/config": ["packages/config/src/index.ts"],
-      "@kinergy-platform/validation": ["packages/validation/src/index.ts"]
+      "@kinergy-platform/validation": ["packages/validation/src/index.ts"],
+      "@kinergy-platform/testing": ["packages/testing/src/index.ts"]
     },
     "strict": true,
     "noImplicitAny": true,
