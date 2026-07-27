@@ -30,6 +30,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0022](file:///c:/Projects/kinergy-platform/docs/adr/0022-token-configuration-policy-abstraction.md)      | Dedicated Token Configuration Abstraction                                 | Accepted | 2026-07-27 |
 | [0023](file:///c:/Projects/kinergy-platform/docs/adr/0023-extensible-security-event-infrastructure.md)    | Extensible Security Event Infrastructure                                  | Accepted | 2026-07-27 |
 | [0024](file:///c:/Projects/kinergy-platform/docs/adr/0024-authentication-guard-architecture.md)           | Reusable Authentication Guard Architecture                                | Accepted | 2026-07-27 |
+| [0025](file:///c:/Projects/kinergy-platform/docs/adr/0025-role-and-permission-authorization-framework.md) | Extensible Role and Permission Authorization Framework                    | Accepted | 2026-07-27 |
 
 ## Format
 

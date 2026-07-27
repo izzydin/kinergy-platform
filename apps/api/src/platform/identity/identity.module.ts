@@ -19,6 +19,13 @@ import {
 import { LoggerSecurityEventPublisher, SECURITY_EVENT_PUBLISHER } from './events';
 import { REFRESH_TOKEN_REPOSITORY, USER_REPOSITORY } from './domain';
 import { AuthenticationGuard } from './guards';
+import {
+  AUTHORIZATION_SERVICE,
+  AuthorizationGuard,
+  DefaultAuthorizationService,
+  DefaultPermissionResolver,
+  PERMISSION_RESOLVER,
+} from './authorization';
 import { PrismaRefreshTokenRepository, PrismaUserRepository } from '../persistence/prisma';
 import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
 
@@ -86,6 +93,17 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
       useClass: SystemClock,
     },
     AuthenticationGuard,
+    DefaultPermissionResolver,
+    {
+      provide: PERMISSION_RESOLVER,
+      useClass: DefaultPermissionResolver,
+    },
+    DefaultAuthorizationService,
+    {
+      provide: AUTHORIZATION_SERVICE,
+      useClass: DefaultAuthorizationService,
+    },
+    AuthorizationGuard,
   ],
   exports: [
     PlaceholderIdentityContextService,
@@ -114,6 +132,11 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
     SystemClock,
     CLOCK,
     AuthenticationGuard,
+    DefaultPermissionResolver,
+    PERMISSION_RESOLVER,
+    DefaultAuthorizationService,
+    AUTHORIZATION_SERVICE,
+    AuthorizationGuard,
   ],
 })
 export class IdentityModule {}
