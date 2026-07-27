@@ -32,6 +32,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0024](file:///c:/Projects/kinergy-platform/docs/adr/0024-authentication-guard-architecture.md)           | Reusable Authentication Guard Architecture                                | Accepted | 2026-07-27 |
 | [0025](file:///c:/Projects/kinergy-platform/docs/adr/0025-role-and-permission-authorization-framework.md) | Extensible Role and Permission Authorization Framework                    | Accepted | 2026-07-27 |
 | [0026](file:///c:/Projects/kinergy-platform/docs/adr/0026-reusable-security-decorators-architecture.md)   | Reusable Security Decorators Architecture                                 | Accepted | 2026-07-27 |
+| [0027](file:///c:/Projects/kinergy-platform/docs/adr/0027-authenticated-request-context-architecture.md)  | Authenticated Request Context Architecture                                | Accepted | 2026-07-27 |
 
 ## Format
 

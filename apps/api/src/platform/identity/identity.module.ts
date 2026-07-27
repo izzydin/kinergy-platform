@@ -26,6 +26,7 @@ import {
   DefaultPermissionResolver,
   PERMISSION_RESOLVER,
 } from './authorization';
+import { AsyncLocalStorageRequestContextAccessor, REQUEST_CONTEXT_ACCESSOR } from './context';
 import { PrismaRefreshTokenRepository, PrismaUserRepository } from '../persistence/prisma';
 import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
 
@@ -104,6 +105,11 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
       useClass: DefaultAuthorizationService,
     },
     AuthorizationGuard,
+    AsyncLocalStorageRequestContextAccessor,
+    {
+      provide: REQUEST_CONTEXT_ACCESSOR,
+      useClass: AsyncLocalStorageRequestContextAccessor,
+    },
   ],
   exports: [
     PlaceholderIdentityContextService,
@@ -137,6 +143,8 @@ import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
     DefaultAuthorizationService,
     AUTHORIZATION_SERVICE,
     AuthorizationGuard,
+    AsyncLocalStorageRequestContextAccessor,
+    REQUEST_CONTEXT_ACCESSOR,
   ],
 })
 export class IdentityModule {}

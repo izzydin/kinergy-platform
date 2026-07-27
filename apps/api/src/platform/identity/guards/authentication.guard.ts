@@ -9,12 +9,13 @@ import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { ACCESS_TOKEN_SERVICE, IAccessTokenService } from '../tokens/access-token.service';
 import { IUserRepository, USER_REPOSITORY, UserStatus } from '../domain';
+import { AuthenticatedUserContext } from '../context/authenticated-user-context';
 import { IS_PUBLIC_KEY } from './public.decorator';
 
 /**
  * Primary Authentication Guard for HTTP API Requests.
  * Validates JWT access tokens, signature, expiration, required claims, user existence, and account status.
- * Delegates database lookup to abstractions only; contains zero ORM or business logic coupling.
+ * Constructs and populates the unified AuthenticatedUserContext model.
  */
 @Injectable()
 export class AuthenticationGuard implements CanActivate {
@@ -61,14 +62,16 @@ export class AuthenticationGuard implements CanActivate {
       throw new UnauthorizedException('Session token has been invalidated.');
     }
 
-    (request as unknown as { user: unknown }).user = {
-      id: user.id,
+    const userContext = new AuthenticatedUserContext({
+      userId: user.id,
       email: user.email,
       status: user.status,
       roles: user.roles,
       permissions: user.permissions,
       tenantId: user.tenantId,
-    };
+    });
+
+    (request as unknown as { user: unknown }).user = userContext;
 
     return true;
   }
