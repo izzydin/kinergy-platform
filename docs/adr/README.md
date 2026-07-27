@@ -25,6 +25,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0017](file:///c:/Projects/kinergy-platform/docs/adr/0017-password-infrastructure-argon2id.md)            | Password Hashing Infrastructure Argon2id                                  | Accepted | 2026-07-24 |
 | [0018](file:///c:/Projects/kinergy-platform/docs/adr/0018-jwt-token-infrastructure.md)                    | JWT Token Infrastructure                                                  | Accepted | 2026-07-24 |
 | [0019](file:///c:/Projects/kinergy-platform/docs/adr/0019-refresh-token-persistence-strategy.md)          | Refresh Token Persistence & Security Strategy                             | Accepted | 2026-07-27 |
+| [0020](file:///c:/Projects/kinergy-platform/docs/adr/0020-production-security-configuration-hardening.md) | Production Security Configuration Hardening                               | Accepted | 2026-07-27 |
 
 ## Format
 

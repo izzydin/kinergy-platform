@@ -30,18 +30,46 @@ describe('Environment Variable Validation', () => {
     expect(env.PORT).toBe(3000);
   });
 
-  it('should validate production environment configuration', () => {
+  it('should validate production environment configuration with valid JWT secrets', () => {
     const rawEnv = {
       NODE_ENV: 'production',
       PORT: '8080',
       DATABASE_URL: 'postgresql://prod_user:secret@prod-db.internal:5432/kinergy_prod',
       SWAGGER_ENABLED: 'false',
+      JWT_ACCESS_SECRET: 'production-access-secret-at-least-32-chars-long!',
+      JWT_REFRESH_SECRET: 'production-refresh-secret-at-least-32-chars-long!',
     };
 
     const env = validateEnv(rawEnv);
     expect(env.NODE_ENV).toBe('production');
     expect(env.PORT).toBe(8080);
     expect(env.SWAGGER_ENABLED).toBe(false);
+    expect(env.JWT_ACCESS_SECRET).toBe('production-access-secret-at-least-32-chars-long!');
+    expect(env.JWT_REFRESH_SECRET).toBe('production-refresh-secret-at-least-32-chars-long!');
+  });
+
+  it('should throw an error in production environment if JWT_ACCESS_SECRET is missing', () => {
+    const rawEnv = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://prod_user:secret@prod-db.internal:5432/kinergy_prod',
+      JWT_REFRESH_SECRET: 'production-refresh-secret-at-least-32-chars-long!',
+    };
+
+    expect(() => validateEnv(rawEnv)).toThrow(
+      'JWT_ACCESS_SECRET is required in production environment',
+    );
+  });
+
+  it('should throw an error in production environment if JWT_REFRESH_SECRET is missing', () => {
+    const rawEnv = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://prod_user:secret@prod-db.internal:5432/kinergy_prod',
+      JWT_ACCESS_SECRET: 'production-access-secret-at-least-32-chars-long!',
+    };
+
+    expect(() => validateEnv(rawEnv)).toThrow(
+      'JWT_REFRESH_SECRET is required in production environment',
+    );
   });
 
   it('should throw an error if NODE_ENV is invalid', () => {
