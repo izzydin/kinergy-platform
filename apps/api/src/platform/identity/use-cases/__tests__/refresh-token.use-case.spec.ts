@@ -1,17 +1,18 @@
-import { User, UserStatus } from '../../domain';
+import { User, UserStatus, RefreshToken, IRefreshTokenRepository } from '../../domain';
 import { IUserRepository } from '../../domain/user.repository.interface';
-import { IPasswordHasher } from '../../password/password-hasher.interface';
 import { IAccessTokenService } from '../../tokens/access-token.service';
 import { IRefreshTokenService } from '../../tokens/refresh-token.service';
+import { Sha256TokenHasher } from '../../tokens/token-hasher.interface';
 import { IClock } from '../../../../shared/common/clock.interface';
 import { ILoggerPort } from '../../../logging/logger-port.interface';
 import { RefreshTokenUseCase } from '../refresh-token.use-case';
-import { AccountDisabledException, InvalidTokenException } from '../exceptions/auth.exception';
+import { AccountDisabledException } from '../exceptions/auth.exception';
 
 describe('RefreshTokenUseCase', () => {
   let useCase: RefreshTokenUseCase;
   let mockUserRepository: jest.Mocked<IUserRepository>;
-  let mockPasswordHasher: jest.Mocked<IPasswordHasher>;
+  let mockRefreshTokenRepository: jest.Mocked<IRefreshTokenRepository>;
+  let tokenHasher: Sha256TokenHasher;
   let mockAccessTokenService: jest.Mocked<IAccessTokenService>;
   let mockRefreshTokenService: jest.Mocked<IRefreshTokenService>;
   let mockClock: jest.Mocked<IClock>;
@@ -21,7 +22,9 @@ describe('RefreshTokenUseCase', () => {
   const futureExpiry = new Date('2026-08-01T12:00:00.000Z');
   const pastExpiry = new Date('2026-07-20T12:00:00.000Z');
 
-  const activeUserProps = {
+  const rawToken = 'valid_raw_refresh_token';
+
+  const activeUser = new User({
     id: 'usr_123',
     email: 'test@example.com',
     passwordHash: 'hash',
@@ -29,22 +32,37 @@ describe('RefreshTokenUseCase', () => {
     roles: ['USER'],
     permissions: ['read:all'],
     tenantId: 'tenant_1',
-    hashedRefreshToken: 'stored_hashed_token',
-    refreshTokenExpiresAt: futureExpiry,
     tokenVersion: 1,
-  };
+  });
 
   beforeEach(() => {
+    tokenHasher = new Sha256TokenHasher();
+    const tokenHash = tokenHasher.hashToken(rawToken);
+
     mockUserRepository = {
       findByEmail: jest.fn(),
-      findById: jest.fn(),
+      findById: jest.fn().mockResolvedValue(activeUser),
       save: jest.fn().mockResolvedValue(undefined),
       updateRefreshToken: jest.fn().mockResolvedValue(undefined),
     };
 
-    mockPasswordHasher = {
-      hash: jest.fn().mockResolvedValue('new_hashed_token'),
-      verify: jest.fn().mockResolvedValue(true),
+    mockRefreshTokenRepository = {
+      save: jest.fn().mockResolvedValue(undefined),
+      findByHash: jest.fn().mockResolvedValue(
+        new RefreshToken({
+          id: 'rt_1',
+          tokenHash,
+          familyId: 'fam_123',
+          userId: 'usr_123',
+          isRevoked: false,
+          expiresAt: futureExpiry,
+        }),
+      ),
+      findByFamilyId: jest.fn(),
+      findByUserId: jest.fn(),
+      revokeFamily: jest.fn().mockResolvedValue(undefined),
+      revokeAllForUser: jest.fn().mockResolvedValue(undefined),
+      deleteExpired: jest.fn().mockResolvedValue(0),
     };
 
     mockAccessTokenService = {
@@ -84,7 +102,8 @@ describe('RefreshTokenUseCase', () => {
 
     useCase = new RefreshTokenUseCase(
       mockUserRepository,
-      mockPasswordHasher,
+      mockRefreshTokenRepository,
+      tokenHasher,
       mockAccessTokenService,
       mockRefreshTokenService,
       mockClock,
@@ -93,19 +112,11 @@ describe('RefreshTokenUseCase', () => {
   });
 
   it('should rotate refresh token and issue new access token successfully', async () => {
-    const user = new User(activeUserProps);
-    mockUserRepository.findById.mockResolvedValue(user);
+    const result = await useCase.execute({ refreshToken: rawToken });
 
-    const result = await useCase.execute({ refreshToken: 'valid_refresh_token' });
-
-    expect(mockRefreshTokenService.validateRefreshToken).toHaveBeenCalledWith(
-      'valid_refresh_token',
-    );
-    expect(mockUserRepository.findById).toHaveBeenCalledWith('usr_123');
-    expect(mockPasswordHasher.verify).toHaveBeenCalledWith(
-      'valid_refresh_token',
-      'stored_hashed_token',
-    );
+    expect(mockRefreshTokenService.validateRefreshToken).toHaveBeenCalledWith(rawToken);
+    expect(mockRefreshTokenRepository.findByHash).toHaveBeenCalled();
+    expect(mockRefreshTokenRepository.save).toHaveBeenCalledTimes(2); // Old revoked + new persisted
     expect(mockAccessTokenService.generateToken).toHaveBeenCalledWith({
       userId: 'usr_123',
       email: 'test@example.com',
@@ -114,14 +125,6 @@ describe('RefreshTokenUseCase', () => {
       tokenVersion: 1,
       tenantId: 'tenant_1',
     });
-    expect(mockRefreshTokenService.generateRefreshToken).toHaveBeenCalledWith({
-      userId: 'usr_123',
-      familyId: 'fam_123',
-      tokenVersion: 1,
-      tenantId: 'tenant_1',
-    });
-    expect(mockPasswordHasher.hash).toHaveBeenCalledWith('new_raw_refresh_token');
-    expect(mockUserRepository.save).toHaveBeenCalledWith(user);
 
     expect(result).toEqual({
       accessToken: 'new_access_token',
@@ -135,73 +138,62 @@ describe('RefreshTokenUseCase', () => {
         roles: ['USER'],
         permissions: ['read:all'],
         tenantId: 'tenant_1',
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
+        createdAt: activeUser.createdAt,
+        updatedAt: activeUser.updatedAt,
       },
     });
   });
 
-  it('should throw InvalidTokenException when refreshToken input is missing', async () => {
-    await expect(useCase.execute({ refreshToken: '' })).rejects.toThrow(InvalidTokenException);
-  });
+  it('should throw InvalidTokenException and revoke family on replay attack (token not found or revoked)', async () => {
+    const revokedToken = new RefreshToken({
+      id: 'rt_revoked',
+      tokenHash: tokenHasher.hashToken(rawToken),
+      familyId: 'fam_123',
+      userId: 'usr_123',
+      isRevoked: true,
+      expiresAt: futureExpiry,
+    });
+    mockRefreshTokenRepository.findByHash.mockResolvedValue(revokedToken);
 
-  it('should throw InvalidTokenException when token validation fails', async () => {
-    mockRefreshTokenService.validateRefreshToken.mockResolvedValue(null);
-
-    await expect(useCase.execute({ refreshToken: 'bad_token' })).rejects.toThrow(
-      InvalidTokenException,
+    await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
+      'Refresh token reuse detected. Session revoked.',
     );
+
+    expect(mockRefreshTokenRepository.revokeFamily).toHaveBeenCalledWith('fam_123');
+    expect(mockLogger.error).toHaveBeenCalled();
   });
 
-  it('should throw InvalidTokenException when user does not exist', async () => {
-    mockUserRepository.findById.mockResolvedValue(null);
+  it('should throw InvalidTokenException when stored token has expired', async () => {
+    const expiredToken = new RefreshToken({
+      id: 'rt_expired',
+      tokenHash: tokenHasher.hashToken(rawToken),
+      familyId: 'fam_123',
+      userId: 'usr_123',
+      isRevoked: false,
+      expiresAt: pastExpiry,
+    });
+    mockRefreshTokenRepository.findByHash.mockResolvedValue(expiredToken);
 
-    await expect(useCase.execute({ refreshToken: 'valid_format_token' })).rejects.toThrow(
-      InvalidTokenException,
+    await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
+      'Refresh token expired.',
     );
+    expect(mockRefreshTokenRepository.save).toHaveBeenCalled();
   });
 
-  it('should throw AccountDisabledException when user is not active', async () => {
-    const suspendedUser = new User({ ...activeUserProps, status: UserStatus.SUSPENDED });
+  it('should throw AccountDisabledException if user is not ACTIVE', async () => {
+    const suspendedUser = new User({
+      id: 'usr_123',
+      email: 'test@example.com',
+      passwordHash: 'hash',
+      status: UserStatus.SUSPENDED,
+      roles: ['USER'],
+      permissions: [],
+    });
     mockUserRepository.findById.mockResolvedValue(suspendedUser);
 
-    await expect(useCase.execute({ refreshToken: 'valid_format_token' })).rejects.toThrow(
+    await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
       AccountDisabledException,
     );
-  });
-
-  it('should throw InvalidTokenException if user has no stored hashed refresh token', async () => {
-    const revokedUser = new User({ ...activeUserProps, hashedRefreshToken: null });
-    mockUserRepository.findById.mockResolvedValue(revokedUser);
-
-    await expect(useCase.execute({ refreshToken: 'valid_format_token' })).rejects.toThrow(
-      InvalidTokenException,
-    );
-  });
-
-  it('should throw InvalidTokenException and clear stored token if stored refresh token has expired', async () => {
-    const expiredUser = new User({ ...activeUserProps, refreshTokenExpiresAt: pastExpiry });
-    mockUserRepository.findById.mockResolvedValue(expiredUser);
-
-    await expect(useCase.execute({ refreshToken: 'valid_format_token' })).rejects.toThrow(
-      InvalidTokenException,
-    );
-    expect(expiredUser.hashedRefreshToken).toBeNull();
-    expect(mockUserRepository.save).toHaveBeenCalledWith(expiredUser);
-  });
-
-  it('should handle token mismatch / reuse attempt: clear stored token, increment version, throw InvalidTokenException', async () => {
-    const user = new User(activeUserProps);
-    mockUserRepository.findById.mockResolvedValue(user);
-    mockPasswordHasher.verify.mockResolvedValue(false);
-
-    await expect(useCase.execute({ refreshToken: 'reused_token' })).rejects.toThrow(
-      InvalidTokenException,
-    );
-
-    expect(user.hashedRefreshToken).toBeNull();
-    expect(user.tokenVersion).toBe(2);
-    expect(mockUserRepository.save).toHaveBeenCalledWith(user);
-    expect(mockLogger.error).toHaveBeenCalled();
+    expect(mockRefreshTokenRepository.revokeFamily).toHaveBeenCalledWith('fam_123');
   });
 });

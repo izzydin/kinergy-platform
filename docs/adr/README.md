@@ -22,6 +22,9 @@ This directory contains records of key architectural and technical decisions mad
 | [0014](file:///c:/Projects/kinergy-platform/docs/adr/0014-zod-validated-application-configuration.md)     | Zod-Validated Application Configuration                                   | Accepted | 2026-07-24 |
 | [0015](file:///c:/Projects/kinergy-platform/docs/adr/0015-architecture-documentation-and-diagrams.md)     | Architecture Documentation and Visual Diagrams Setup                      | Accepted | 2026-07-24 |
 | [0016](file:///c:/Projects/kinergy-platform/docs/adr/0016-technical-quality-gate-baseline.md)             | Technical Quality Gate Baseline                                           | Accepted | 2026-07-24 |
+| [0017](file:///c:/Projects/kinergy-platform/docs/adr/0017-password-infrastructure-argon2id.md)            | Password Hashing Infrastructure Argon2id                                  | Accepted | 2026-07-24 |
+| [0018](file:///c:/Projects/kinergy-platform/docs/adr/0018-jwt-token-infrastructure.md)                    | JWT Token Infrastructure                                                  | Accepted | 2026-07-24 |
+| [0019](file:///c:/Projects/kinergy-platform/docs/adr/0019-refresh-token-persistence-strategy.md)          | Refresh Token Persistence & Security Strategy                             | Accepted | 2026-07-27 |
 
 ## Format
 

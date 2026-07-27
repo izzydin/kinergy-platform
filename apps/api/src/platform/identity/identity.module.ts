@@ -11,7 +11,12 @@ import {
   RefreshTokenService,
   SECRET_PROVIDER,
   TOKEN_FACTORY,
+  TOKEN_HASHER,
+  Sha256TokenHasher,
 } from './tokens';
+import { REFRESH_TOKEN_REPOSITORY, USER_REPOSITORY } from './domain';
+import { PrismaRefreshTokenRepository, PrismaUserRepository } from '../persistence/prisma';
+import { CLOCK, SystemClock } from '../../shared/common/clock.interface';
 
 @Module({
   providers: [
@@ -46,6 +51,26 @@ import {
       provide: REFRESH_TOKEN_SERVICE,
       useClass: RefreshTokenService,
     },
+    Sha256TokenHasher,
+    {
+      provide: TOKEN_HASHER,
+      useClass: Sha256TokenHasher,
+    },
+    PrismaUserRepository,
+    {
+      provide: USER_REPOSITORY,
+      useClass: PrismaUserRepository,
+    },
+    PrismaRefreshTokenRepository,
+    {
+      provide: REFRESH_TOKEN_REPOSITORY,
+      useClass: PrismaRefreshTokenRepository,
+    },
+    SystemClock,
+    {
+      provide: CLOCK,
+      useClass: SystemClock,
+    },
   ],
   exports: [
     PlaceholderIdentityContextService,
@@ -61,6 +86,14 @@ import {
     ACCESS_TOKEN_SERVICE,
     RefreshTokenService,
     REFRESH_TOKEN_SERVICE,
+    Sha256TokenHasher,
+    TOKEN_HASHER,
+    PrismaUserRepository,
+    USER_REPOSITORY,
+    PrismaRefreshTokenRepository,
+    REFRESH_TOKEN_REPOSITORY,
+    SystemClock,
+    CLOCK,
   ],
 })
 export class IdentityModule {}

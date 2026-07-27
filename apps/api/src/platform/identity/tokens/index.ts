@@ -5,3 +5,4 @@ export * from './refresh-token.service';
 export * from './secret-provider.interface';
 export * from './token-factory.interface';
 export * from './token-payload.interface';
+export * from './token-hasher.interface';

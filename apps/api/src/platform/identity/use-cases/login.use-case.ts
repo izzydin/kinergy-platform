@@ -1,21 +1,25 @@
+import { randomUUID } from 'crypto';
 import { IUseCase } from '../../../shared/common/use-case.interface';
 import { IClock } from '../../../shared/common/clock.interface';
 import { ILoggerPort } from '../../logging/logger-port.interface';
-import { IUserRepository } from '../domain/user.repository.interface';
+import { RefreshToken, IRefreshTokenRepository, IUserRepository } from '../domain';
 import { IPasswordHasher } from '../password/password-hasher.interface';
 import { IAccessTokenService } from '../tokens/access-token.service';
 import { IRefreshTokenService } from '../tokens/refresh-token.service';
+import { ITokenHasher } from '../tokens/token-hasher.interface';
 import { AuthenticationResponse, LoginDto, UserProfileDto } from './dtos/auth.dtos';
 import { AccountDisabledException, InvalidCredentialsException } from './exceptions/auth.exception';
 
 /**
  * Use Case handling user authentication (Login).
- * Strictly decoupled from HTTP controllers, NestJS, Prisma, and crypto details.
+ * Persists hashed refresh token records into a dedicated RefreshToken repository.
  */
 export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> {
   constructor(
     private readonly userRepository: IUserRepository,
+    private readonly refreshTokenRepository: IRefreshTokenRepository,
     private readonly passwordHasher: IPasswordHasher,
+    private readonly tokenHasher: ITokenHasher,
     private readonly accessTokenService: IAccessTokenService,
     private readonly refreshTokenService: IRefreshTokenService,
     private readonly clock: IClock,
@@ -64,12 +68,19 @@ export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> 
       tenantId: user.tenantId,
     });
 
-    const hashedRefreshToken = await this.passwordHasher.hash(refreshTokenResult.token);
-    // 7 days expiration for refresh tokens
+    const hashedToken = this.tokenHasher.hashToken(refreshTokenResult.token);
     const expiresAt = new Date(this.clock.now().getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    user.setRefreshToken(hashedRefreshToken, expiresAt);
-    await this.userRepository.save(user);
+    const refreshTokenEntity = new RefreshToken({
+      id: randomUUID(),
+      tokenHash: hashedToken,
+      familyId: refreshTokenResult.familyId,
+      userId: user.id,
+      isRevoked: false,
+      expiresAt,
+    });
+
+    await this.refreshTokenRepository.save(refreshTokenEntity);
 
     this.logger?.log(`User authenticated successfully (${user.id})`, 'LoginUseCase');
 

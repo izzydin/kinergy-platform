@@ -44,11 +44,31 @@ model User {
 
   role Role @relation("UserToRole", fields: [roleId], references: [id], onDelete: Restrict)
 
+  refreshTokens RefreshToken[] @relation("UserToRefreshTokens")
+
   @@index([email])
   @@index([roleId])
   @@index([status])
   @@index([tenantId])
   @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  tokenHash String   @unique @map("token_hash")
+  familyId  String   @map("family_id")
+  userId    String   @map("user_id")
+  isRevoked Boolean  @default(false) @map("is_revoked")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation("UserToRefreshTokens", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([familyId])
+  @@index([tokenHash])
+  @@map("refresh_tokens")
 }
 
 model Role {
