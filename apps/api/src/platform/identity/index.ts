@@ -5,3 +5,6 @@ export * from './placeholder-identity-context.service';
 export * from './request-context';
 export * from './tokens';
 export * from './user-identity.interface';
+export * from './domain';
+export * from './use-cases';
+export * from './application';
