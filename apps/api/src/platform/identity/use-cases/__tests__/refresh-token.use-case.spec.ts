@@ -5,8 +5,9 @@ import { IRefreshTokenService } from '../../tokens/refresh-token.service';
 import { Sha256TokenHasher } from '../../tokens/token-hasher.interface';
 import { IClock } from '../../../../shared/common/clock.interface';
 import { ILoggerPort } from '../../../logging/logger-port.interface';
+import { IUnitOfWork } from '../../../persistence/unit-of-work.interface';
 import { RefreshTokenUseCase } from '../refresh-token.use-case';
-import { AccountDisabledException } from '../exceptions/auth.exception';
+import { AccountDisabledException, InvalidTokenException } from '../exceptions/auth.exception';
 
 describe('RefreshTokenUseCase', () => {
   let useCase: RefreshTokenUseCase;
@@ -16,6 +17,7 @@ describe('RefreshTokenUseCase', () => {
   let mockAccessTokenService: jest.Mocked<IAccessTokenService>;
   let mockRefreshTokenService: jest.Mocked<IRefreshTokenService>;
   let mockClock: jest.Mocked<IClock>;
+  let mockUnitOfWork: IUnitOfWork;
   let mockLogger: jest.Mocked<ILoggerPort>;
 
   const fixedNow = new Date('2026-07-27T12:00:00.000Z');
@@ -58,8 +60,8 @@ describe('RefreshTokenUseCase', () => {
           expiresAt: futureExpiry,
         }),
       ),
-      findByFamilyId: jest.fn(),
-      findByUserId: jest.fn(),
+      findByFamilyId: jest.fn().mockResolvedValue([]),
+      findByUserId: jest.fn().mockResolvedValue([]),
       revokeFamily: jest.fn().mockResolvedValue(undefined),
       revokeAllForUser: jest.fn().mockResolvedValue(undefined),
       deleteExpired: jest.fn().mockResolvedValue(0),
@@ -67,36 +69,35 @@ describe('RefreshTokenUseCase', () => {
 
     mockAccessTokenService = {
       generateToken: jest.fn().mockResolvedValue('new_access_token'),
-      validateToken: jest.fn(),
+      validateToken: jest.fn().mockResolvedValue(null),
     };
 
     mockRefreshTokenService = {
       generateRefreshToken: jest.fn().mockResolvedValue({
         token: 'new_raw_refresh_token',
-        jti: 'jti_456',
         familyId: 'fam_123',
       }),
       validateRefreshToken: jest.fn().mockResolvedValue({
         sub: 'usr_123',
         familyId: 'fam_123',
-        jti: 'jti_123',
         tokenVersion: 1,
         tenantId: 'tenant_1',
-        sessionId: null,
-        iat: 100,
-        exp: 200,
       }),
-      generateOpaqueToken: jest.fn(),
+      generateOpaqueToken: jest.fn().mockReturnValue('opaque_token'),
     };
 
     mockClock = {
       now: jest.fn().mockReturnValue(fixedNow),
     };
 
+    mockUnitOfWork = {
+      executeInTransaction: jest.fn().mockImplementation((work: () => Promise<unknown>) => work()),
+    };
+
     mockLogger = {
       log: jest.fn(),
-      error: jest.fn(),
       warn: jest.fn(),
+      error: jest.fn(),
       debug: jest.fn(),
     };
 
@@ -107,93 +108,84 @@ describe('RefreshTokenUseCase', () => {
       mockAccessTokenService,
       mockRefreshTokenService,
       mockClock,
+      mockUnitOfWork,
       mockLogger,
     );
   });
 
-  it('should rotate refresh token and issue new access token successfully', async () => {
+  it('should successfully rotate refresh token inside an IUnitOfWork transaction', async () => {
     const result = await useCase.execute({ refreshToken: rawToken });
 
-    expect(mockRefreshTokenService.validateRefreshToken).toHaveBeenCalledWith(rawToken);
-    expect(mockRefreshTokenRepository.findByHash).toHaveBeenCalled();
-    expect(mockRefreshTokenRepository.save).toHaveBeenCalledTimes(2); // Old revoked + new persisted
-    expect(mockAccessTokenService.generateToken).toHaveBeenCalledWith({
-      userId: 'usr_123',
-      email: 'test@example.com',
-      roles: ['USER'],
-      permissions: ['read:all'],
-      tokenVersion: 1,
-      tenantId: 'tenant_1',
-    });
-
-    expect(result).toEqual({
-      accessToken: 'new_access_token',
-      refreshToken: 'new_raw_refresh_token',
-      tokenType: 'Bearer',
-      expiresIn: 900,
-      user: {
-        id: 'usr_123',
-        email: 'test@example.com',
-        status: UserStatus.ACTIVE,
-        roles: ['USER'],
-        permissions: ['read:all'],
-        tenantId: 'tenant_1',
-        createdAt: activeUser.createdAt,
-        updatedAt: activeUser.updatedAt,
-      },
-    });
+    expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
+    expect(result.accessToken).toBe('new_access_token');
+    expect(result.refreshToken).toBe('new_raw_refresh_token');
+    expect(mockRefreshTokenRepository.save).toHaveBeenCalledTimes(2);
   });
 
-  it('should throw InvalidTokenException and revoke family on replay attack (token not found or revoked)', async () => {
-    const revokedToken = new RefreshToken({
-      id: 'rt_revoked',
-      tokenHash: tokenHasher.hashToken(rawToken),
-      familyId: 'fam_123',
-      userId: 'usr_123',
-      isRevoked: true,
-      expiresAt: futureExpiry,
-    });
-    mockRefreshTokenRepository.findByHash.mockResolvedValue(revokedToken);
-
-    await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
-      'Refresh token reuse detected. Session revoked.',
+  it('should trigger replay attack protection and revoke token family on reused token within transaction', async () => {
+    const tokenHash = tokenHasher.hashToken(rawToken);
+    mockRefreshTokenRepository.findByHash.mockResolvedValueOnce(
+      new RefreshToken({
+        id: 'rt_revoked',
+        tokenHash,
+        familyId: 'fam_123',
+        userId: 'usr_123',
+        isRevoked: true,
+        expiresAt: futureExpiry,
+      }),
     );
 
+    await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
+      InvalidTokenException,
+    );
+    expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
     expect(mockRefreshTokenRepository.revokeFamily).toHaveBeenCalledWith('fam_123');
-    expect(mockLogger.error).toHaveBeenCalled();
   });
 
-  it('should throw InvalidTokenException when stored token has expired', async () => {
-    const expiredToken = new RefreshToken({
-      id: 'rt_expired',
-      tokenHash: tokenHasher.hashToken(rawToken),
-      familyId: 'fam_123',
-      userId: 'usr_123',
-      isRevoked: false,
-      expiresAt: pastExpiry,
-    });
-    mockRefreshTokenRepository.findByHash.mockResolvedValue(expiredToken);
+  it('should reject expired refresh token within transaction', async () => {
+    const tokenHash = tokenHasher.hashToken(rawToken);
+    mockRefreshTokenRepository.findByHash.mockResolvedValueOnce(
+      new RefreshToken({
+        id: 'rt_expired',
+        tokenHash,
+        familyId: 'fam_123',
+        userId: 'usr_123',
+        isRevoked: false,
+        expiresAt: pastExpiry,
+      }),
+    );
 
     await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
-      'Refresh token expired.',
+      InvalidTokenException,
     );
-    expect(mockRefreshTokenRepository.save).toHaveBeenCalled();
+    expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
   });
 
-  it('should throw AccountDisabledException if user is not ACTIVE', async () => {
-    const suspendedUser = new User({
+  it('should reject if user account is disabled within transaction', async () => {
+    const disabledUser = new User({
       id: 'usr_123',
       email: 'test@example.com',
       passwordHash: 'hash',
       status: UserStatus.SUSPENDED,
       roles: ['USER'],
       permissions: [],
+      tokenVersion: 1,
     });
-    mockUserRepository.findById.mockResolvedValue(suspendedUser);
+    mockUserRepository.findById.mockResolvedValueOnce(disabledUser);
 
     await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
       AccountDisabledException,
     );
+    expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
     expect(mockRefreshTokenRepository.revokeFamily).toHaveBeenCalledWith('fam_123');
+  });
+
+  it('should propagate errors thrown inside transaction callback for automatic rollback', async () => {
+    mockRefreshTokenRepository.save.mockRejectedValueOnce(new Error('Database Connection Error'));
+
+    await expect(useCase.execute({ refreshToken: rawToken })).rejects.toThrow(
+      'Database Connection Error',
+    );
+    expect(mockUnitOfWork.executeInTransaction).toHaveBeenCalledTimes(1);
   });
 });

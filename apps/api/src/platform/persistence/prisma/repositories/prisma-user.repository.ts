@@ -5,13 +5,18 @@ import { PrismaService } from '../prisma.service';
 /**
  * Production Prisma Implementation for IUserRepository.
  * Maps Prisma User records to domain User entities.
+ * Dynamically resolves transactional Prisma client when executing within IUnitOfWork contexts.
  */
 @Injectable()
 export class PrismaUserRepository implements IUserRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  private get client() {
+    return this.prisma.getClient();
+  }
+
   async findByEmail(email: string): Promise<User | null> {
-    const record = await this.prisma.user.findUnique({
+    const record = await this.client.user.findUnique({
       where: { email },
       include: {
         role: {
@@ -46,7 +51,7 @@ export class PrismaUserRepository implements IUserRepository {
   }
 
   async findById(id: string): Promise<User | null> {
-    const record = await this.prisma.user.findUnique({
+    const record = await this.client.user.findUnique({
       where: { id },
       include: {
         role: {
@@ -81,7 +86,7 @@ export class PrismaUserRepository implements IUserRepository {
   }
 
   async save(user: User): Promise<void> {
-    await this.prisma.user.update({
+    await this.client.user.update({
       where: { id: user.id },
       data: {
         email: user.email,

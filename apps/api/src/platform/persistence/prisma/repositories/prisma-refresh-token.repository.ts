@@ -5,13 +5,18 @@ import { PrismaService } from '../prisma.service';
 /**
  * Production Prisma Implementation for IRefreshTokenRepository.
  * Handles database operations for refresh token sessions with zero leaky abstractions.
+ * Dynamically resolves transactional Prisma client when executing within IUnitOfWork contexts.
  */
 @Injectable()
 export class PrismaRefreshTokenRepository implements IRefreshTokenRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  private get client() {
+    return this.prisma.getClient();
+  }
+
   async save(refreshToken: RefreshToken): Promise<void> {
-    await this.prisma.refreshToken.upsert({
+    await this.client.refreshToken.upsert({
       where: { tokenHash: refreshToken.tokenHash },
       create: {
         id: refreshToken.id,
@@ -31,7 +36,7 @@ export class PrismaRefreshTokenRepository implements IRefreshTokenRepository {
   }
 
   async findByHash(tokenHash: string): Promise<RefreshToken | null> {
-    const record = await this.prisma.refreshToken.findUnique({
+    const record = await this.client.refreshToken.findUnique({
       where: { tokenHash },
     });
 
@@ -52,7 +57,7 @@ export class PrismaRefreshTokenRepository implements IRefreshTokenRepository {
   }
 
   async findByFamilyId(familyId: string): Promise<RefreshToken[]> {
-    const records = await this.prisma.refreshToken.findMany({
+    const records = await this.client.refreshToken.findMany({
       where: { familyId },
       orderBy: { createdAt: 'asc' },
     });
@@ -73,7 +78,7 @@ export class PrismaRefreshTokenRepository implements IRefreshTokenRepository {
   }
 
   async findByUserId(userId: string): Promise<RefreshToken[]> {
-    const records = await this.prisma.refreshToken.findMany({
+    const records = await this.client.refreshToken.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },
     });
@@ -94,21 +99,21 @@ export class PrismaRefreshTokenRepository implements IRefreshTokenRepository {
   }
 
   async revokeFamily(familyId: string): Promise<void> {
-    await this.prisma.refreshToken.updateMany({
+    await this.client.refreshToken.updateMany({
       where: { familyId },
       data: { isRevoked: true },
     });
   }
 
   async revokeAllForUser(userId: string): Promise<void> {
-    await this.prisma.refreshToken.updateMany({
+    await this.client.refreshToken.updateMany({
       where: { userId },
       data: { isRevoked: true },
     });
   }
 
   async deleteExpired(now: Date = new Date()): Promise<number> {
-    const result = await this.prisma.refreshToken.deleteMany({
+    const result = await this.client.refreshToken.deleteMany({
       where: { expiresAt: { lt: now } },
     });
     return result.count;
