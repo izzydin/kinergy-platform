@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   validate:
     name: Validate Workspace
@@ -33,17 +37,5 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Check Formatting
-        run: pnpm run format:check
-
-      - name: Lint Workspace
-        run: pnpm run lint
-
-      - name: Typecheck Workspace
-        run: pnpm run typecheck
-
-      - name: Test Workspace
-        run: pnpm run test
-
-      - name: Build Workspace
-        run: pnpm run build
+      - name: Validate Workspace
+        run: pnpm validate

@@ -24,11 +24,7 @@ Chosen Option: **GitHub Actions CI Workflow (`.github/workflows/ci.yml`)**.
 2. **Environment Setup**: Configures Node.js from `.nvmrc` and `pnpm` with dependency caching.
 3. **Install Dependencies**: Executes `pnpm install --frozen-lockfile`.
 4. **Validations**:
-   - `pnpm run format:check`
-   - `pnpm run lint`
-   - `pnpm run typecheck`
-   - `pnpm run test`
-   - `pnpm run build`
+   - `pnpm validate` (executes `format:check`, `lint`, `typecheck`, `test`, `build` sequentially via `npm-run-all2`)
 
 ## Consequences
 
