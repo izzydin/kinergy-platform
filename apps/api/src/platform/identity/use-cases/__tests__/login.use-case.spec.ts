@@ -187,6 +187,38 @@ describe('LoginUseCase', () => {
     );
   });
 
+  it('should publish LoginFailed event and throw AccountDisabledException for PENDING, INACTIVE, or BLOCKED status', async () => {
+    const pendingUser = new User({
+      id: 'usr_pending',
+      email: 'pending@example.com',
+      passwordHash: 'hash',
+      status: UserStatus.PENDING,
+      roles: ['USER'],
+      permissions: [],
+      tokenVersion: 1,
+    });
+    mockUserRepository.findByEmail.mockResolvedValue(pendingUser);
+
+    await expect(
+      useCase.execute({ email: 'pending@example.com', password: 'password' }),
+    ).rejects.toThrow(AccountDisabledException);
+
+    const blockedUser = new User({
+      id: 'usr_blocked',
+      email: 'blocked@example.com',
+      passwordHash: 'hash',
+      status: UserStatus.BLOCKED,
+      roles: ['USER'],
+      permissions: [],
+      tokenVersion: 1,
+    });
+    mockUserRepository.findByEmail.mockResolvedValue(blockedUser);
+
+    await expect(
+      useCase.execute({ email: 'blocked@example.com', password: 'password' }),
+    ).rejects.toThrow(AccountDisabledException);
+  });
+
   it('should publish LoginFailed event and throw InvalidCredentialsException if password verification fails', async () => {
     mockUserRepository.findByEmail.mockResolvedValue(testUser);
     mockPasswordHasher.verify.mockResolvedValue(false);

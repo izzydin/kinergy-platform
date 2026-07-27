@@ -4,11 +4,12 @@ export interface UserTestFactoryProps {
   id: string;
   email: string;
   passwordHash: string;
-  status: 'PENDING' | 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
+  status: string;
   roles: string[];
   permissions: string[];
   tenantId?: string | null;
   hashedRefreshToken?: string | null;
+  refreshTokenExpiresAt?: Date | null;
   tokenVersion?: number;
   createdAt?: Date;
   updatedAt?: Date;
@@ -27,6 +28,7 @@ export class UserTestFactory extends TestFactoryBase<UserTestFactoryProps, UserT
       permissions: [],
       tenantId: 'tenant_test_1',
       hashedRefreshToken: null,
+      refreshTokenExpiresAt: null,
       tokenVersion: 1,
       createdAt: new Date('2026-01-01T00:00:00.000Z'),
       updatedAt: new Date('2026-01-01T00:00:00.000Z'),
