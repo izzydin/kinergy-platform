@@ -1,65 +1,115 @@
-# Identity Bounded Context Domain Model Specification
+# Identity Bounded Context Architecture & Domain Model Specification
 
-- **Status:** Approved Architecture
-- **Date:** 2026-07-25
+- **Status:** Approved Architecture Specification (Authoritative Single Source of Truth)
+- **Date:** 2026-07-29
 - **Domain:** Identity & Access Management (IAM)
-- **Bounded Context:** Identity Context
+- **Bounded Context:** Identity Context (`apps/api/src/platform/identity`)
 
 ---
 
-## 1. Domain Architectural Overview
+## 1. Executive Summary & Bounded Context Overview
 
-The **Identity Bounded Context** is the primary domain boundary in the Kinergy Platform responsible for identity verification, credential management, security status lifecycles, and authorization role/permission definitions.
+The **Identity Bounded Context** is the foundational security boundary of the Kinergy Platform. It is responsible for identity verification, credential management, security account status lifecycles, role-based and permission-based authorization (RBAC/ABAC), and security telemetry publishing.
 
 In accordance with **Domain-Driven Design (DDD)** and **Clean Architecture** principles:
 
-- The domain layer is pure TypeScript, completely framework-agnostic, and has zero dependencies on NestJS, Prisma, TypeORM, or external web frameworks.
-- Business rules and invariants are encapsulated entirely inside Aggregate Roots, Entities, and Value Objects.
-- Persistence and external operations (hashing, email delivery) are abstracted behind explicit **Domain Ports** (interfaces).
+- **Pure Domain Layer**: The domain layer is pure TypeScript, completely framework-agnostic, and has zero dependencies on NestJS, Prisma, TypeORM, or external web frameworks.
+- **Encapsulated Invariants**: Business rules, security policies, and account state transitions are enforced exclusively within Aggregate Roots, Entities, and Value Objects.
+- **Dependency Inversion**: External operations (database persistence, password hashing, token generation, logging, telemetry) are abstracted behind explicit **Domain Ports** (interfaces).
 
 ```mermaid
 graph TD
-    subgraph Presentation & Delivery Layer
-        Controllers[NestJS Auth Controllers]
-        Guards[NestJS AuthN/AuthZ Guards]
+    subgraph Presentation & Transport Layer
+        Controllers[NestJS Auth & User Controllers]
+        Guards[AuthenticationGuard / AuthorizationGuard]
     end
 
     subgraph Application Use Cases Layer
-        AuthUC[AuthenticateUser Use Case]
-        ResetUC[ResetPassword Use Case]
-        RoleUC[AssignRole Use Case]
+        AuthUC[LoginUseCase / RefreshTokenUseCase]
+        UserAdminUC[CreateUserUseCase / SearchUsersUseCase]
+        PassUC[ChangePasswordUseCase / ResetPasswordUseCase]
     end
 
     subgraph Pure Domain Layer
         UserAgg[User Aggregate Root]
         RoleAgg[Role Aggregate Root]
-        PermVO[Permission Object]
+        PermVO[Permission Value Object]
         EmailVO[Email Value Object]
         HashVO[PasswordHash Value Object]
-        Ports[IRepository Ports / IPasswordHasherPort]
+        DomainPorts[IUserRepository / IPasswordHasher / IAuditEventPublisher]
     end
 
     subgraph Infrastructure Layer
-        PrismaRepo[Prisma User / Role Repositories]
-        ArgonHasher[Argon2id Password Hasher]
+        PrismaRepo[PrismaUserRepository / PrismaRefreshTokenRepository]
+        ArgonHasher[Argon2PasswordHasher]
+        JwtFactory[JwtTokenFactory]
+        LoggerAudit[LoggerAuditEventPublisher]
     end
 
     Controllers --> AuthUC
     Guards --> AuthUC
     AuthUC --> UserAgg
-    ResetUC --> UserAgg
-    RoleUC --> RoleAgg
+    UserAdminUC --> UserAgg
+    PassUC --> UserAgg
 
-    UserAgg --> Ports
-    RoleAgg --> Ports
+    UserAgg --> DomainPorts
+    RoleAgg --> DomainPorts
 
-    PrismaRepo -.->|Implements| Ports
-    ArgonHasher -.->|Implements| Ports
+    PrismaRepo -.->|Implements| DomainPorts
+    ArgonHasher -.->|Implements| DomainPorts
+    JwtFactory -.->|Implements| DomainPorts
+    LoggerAudit -.->|Implements| DomainPorts
 ```
 
 ---
 
-## 2. Tactical DDD Model Overview
+## 2. Context Responsibilities & Non-Responsibilities
+
+To prevent security hazards, data leakage, and domain coupling, the Identity bounded context strictly demarcates inside responsibilities from outside business domain concerns.
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                       IDENTITY BOUNDED CONTEXT                          │
+│                                                                         │
+│  ┌─────────────────────────┐           ┌─────────────────────────────┐  │
+│  │   User Aggregate Root   │           │   Prisma Persistence Model  │  │
+│  │  - id                   │           │  - id                       │  │
+│  │  - email                │           │  - email                    │  │
+│  │  - passwordHash         │  ───────► │  - password_hash             │  │
+│  │  - status               │           │  - status                   │  │
+│  │  - roles / permissions  │           │  - role_id / tenant_id      │  │
+│  │  - tenantId / tokenVer  │           │  - created_at / updated_at  │  │
+│  └─────────────────────────┘           └─────────────────────────────┘  │
+│                                                                         │
+│  ZERO Profile Data (No Names, Phones, Avatars, Payroll, or Schedules)   │
+└─────────────────────────────────────────────────────────────────────────┘
+```
+
+### 2.1 Inside Identity Context Responsibilities
+
+- **Authentication Credentials**: User email, hashed Argon2id passwords, temporary CSPRNG reset tokens, token versioning.
+- **Session & Token Management**: JWT access token creation, opaque refresh token issuance, sliding-window Refresh Token Rotation (RTR), family reuse detection, and session revocation.
+- **Account Security Lifecycle**: Enforcing account status state machine (`PENDING`, `ACTIVE`, `SUSPENDED`, `BLOCKED`, `DEACTIVATED`, `DELETED`), lockout timers, and failed attempt counters.
+- **Authorization Engine**: Role definitions (`Role` aggregate), permission string mappings, wildcard permission resolution (`*`, `users.*`), and security decorators (`@Roles()`, `@RequirePermissions()`).
+- **Security Audit Telemetry**: Emitting structured `SecurityEvent` and normalized `IAuditEvent` records (`LOGIN_SUCCEEDED`, `LOGIN_FAILED`, `SECURITY_ALERT`).
+
+### 2.2 Outside Identity Context Non-Responsibilities (Explicitly Rejected)
+
+| Category                         | Prohibited Attributes & Concerns                                 | Managing Context                  |
+| :------------------------------- | :--------------------------------------------------------------- | :-------------------------------- |
+| **Personal Identifiers**         | `firstName`, `lastName`, `middleName`, `displayName`, `nickname` | `User Profile` Context            |
+| **Contact Data**                 | `phoneNumber`, `mobilePhone`, `homeAddress`, `emergencyContact`  | `User Profile` Context            |
+| **Profile Assets**               | `avatarUrl`, `profilePicture`, `bio`, `mediaGallery`             | `User Profile` Context            |
+| **Employee & Staff Data**        | `employeeId`, `jobTitle`, `department`, `hireDate`, `managerId`  | `Staff / HR` Context              |
+| **Trainer Data**                 | `specialties`, `certifications`, `hourlyRate`, `commissionTier`  | `Trainer / Operations` Context    |
+| **Billing & SaaS Subscriptions** | `taxId`, `bankAccount`, `subscriptionTier`, `billingAddress`     | `Tenant / Billing` Context        |
+| **Schedules & Operations**       | `shiftSchedule`, `workingHours`, `assignedBranches`              | `Operations / Scheduling` Context |
+
+---
+
+## 3. Core Domain Model Specification
+
+### 3.1 Domain Model Class Diagram
 
 ```mermaid
 classDiagram
@@ -76,9 +126,11 @@ classDiagram
         -passwordHash: PasswordHash
         -status: UserStatus
         -roleId: RoleId
+        -tokenVersion: number
         -failedLoginAttempts: number
         -lockoutExpiresAt: Date
         -lastLoginAt: Date
+        +canAuthenticate(): boolean
         +authenticate(plainPassword, hasher): Result~boolean~
         +changePassword(currentPassword, newHash, hasher): Result~void~
         +assignRole(roleId): Result~void~
@@ -86,6 +138,8 @@ classDiagram
         +lock(durationMinutes): void
         +unlock(): void
         +suspend(): void
+        +deactivate(): void
+        +delete(): void
     }
 
     class Role {
@@ -102,326 +156,217 @@ classDiagram
 
     class Permission {
         -code: string
+        -name: string
         -resource: string
         -action: string
-        -description: string
-        +equals(other): boolean
-    }
-
-    class Email {
-        -value: string
-        +getValue(): string
-        +equals(other): boolean
-        +create(rawEmail): Result~Email~
-    }
-
-    class PasswordHash {
-        -value: string
-        +getValue(): string
-        +verify(plainText, hasher): Promise~boolean~
-        +create(hashString): Result~PasswordHash~
+        +matches(requiredPermission): boolean
     }
 
     class UserStatus {
         <<enumeration>>
-        PENDING_ACTIVATION
+        PENDING
         ACTIVE
-        LOCKED
         SUSPENDED
+        BLOCKED
         DEACTIVATED
-    }
-
-    class RoleType {
-        <<enumeration>>
-        SYSTEM
-        CUSTOM
+        DELETED
     }
 
     AggregateRoot <|-- User
     AggregateRoot <|-- Role
-    User "1" --> "1" Email : holds
-    User "1" --> "1" PasswordHash : owns
-    User "1" --> "1" UserStatus : governed by
-    User "*" --> "1" Role : references (via RoleId)
-    Role "1" --> "1" RoleType : classified by
-    Role "1" --> "*" Permission : owns
+    User "1" --> "1" UserStatus
+    Role "1" *-- "*" Permission
 ```
+
+### 3.2 User Aggregate Root (`User`)
+
+The `User` aggregate root is the core security entity. It encapsulates:
+
+- **`id`**: Unique string identifier (`usr_...`).
+- **`email`**: `Email` value object enforcing RFC 5322 validation.
+- **`passwordHash`**: `PasswordHash` value object encapsulating Argon2id hashes (`$argon2id$v=19$...`).
+- **`status`**: `UserStatus` enum governed by `UserStatusStateMachine`.
+- **`tokenVersion`**: Integer incremented on password changes or security resets to revoke all outstanding JWT access tokens.
+- **`tenantId`**: String tenant identifier enabling multi-tenant SaaS context isolation.
+
+#### Core Domain Methods
+
+- `canAuthenticate()`: Returns `true` only if `status === UserStatus.ACTIVE` and account is not locked.
+- `authenticate(plainPassword, hasher)`: Validates plain password against `passwordHash` via `IPasswordHasher` port.
+- `changePassword(currentPassword, newHash, hasher)`: Validates current password, updates hash, increments `tokenVersion`, and emits `PasswordChangedEvent`.
+- `activate()`, `suspend()`, `lock()`, `unlock()`, `deactivate()`, `delete()`: Governed by state machine rules.
 
 ---
 
-## 3. Aggregate Root: User
+## 4. Account Lifecycle & State Machine
 
-### 3.1 Responsibilities
-
-The `User` aggregate root is the transactional boundary representing a human or system actor credential account. It is responsible for:
-
-1. Safeguarding credential access and delegating password verification.
-2. Managing failed authentication attempts and enforcing security lockouts.
-3. Executing account status transitions (`PENDING_ACTIVATION`, `ACTIVE`, `LOCKED`, `SUSPENDED`, `DEACTIVATED`).
-4. Maintaining reference assignment to authorized `RoleId`s.
-5. Recording and clearing domain events (`UserAuthenticatedEvent`, `UserPasswordChangedEvent`, `UserLockedEvent`, `UserStatusChangedEvent`).
-
-### 3.2 Identity & Key Attributes
-
-- **`id` (`UserId`):** Globally unique domain identity (UUID v4).
-- **`tenantId` (`TenantId`):** Multi-tenant organization boundary reference.
-- **`email` (`Email`):** Unique, normalized email address Value Object.
-- **`passwordHash` (`PasswordHash`):** Encapsulated PHC password hash Value Object.
-- **`status` (`UserStatus`):** Current account state.
-- **`roleId` (`RoleId`):** Assigned role aggregate identifier reference.
-- **`failedLoginAttempts` (`number`):** Counter tracking consecutive failed logins.
-- **`lockoutExpiresAt` (`Date | null`):** Expiration timestamp if account is currently locked.
-- **`lastLoginAt` (`Date | null`):** Timestamp of last successful authentication.
-
-### 3.3 Invariants & Business Rules
-
-1. **Authentication State Rule:** A user can ONLY authenticate successfully if `status === UserStatus.ACTIVE`. Attempting to authenticate a `PENDING_ACTIVATION`, `LOCKED`, `SUSPENDED`, or `DEACTIVATED` user returns an explicit `Result.fail(UserAccountNotActiveError)`.
-2. **Lockout Policy Rule:**
-   - 5 consecutive failed password verifications automatically transition `status` to `UserStatus.LOCKED` for 15 minutes (`lockoutExpiresAt = now + 15m`).
-   - Re-authenticating while `lockoutExpiresAt` is in the future returns `AccountLockedError`.
-   - Once `lockoutExpiresAt` has passed, an authentication attempt automatically resets `failedLoginAttempts` to 0 and unlocks the user.
-3. **Password Change Rule:**
-   - Changing a password requires verifying the existing current password using `IPasswordHasherPort`.
-   - Successful password change updates `passwordHash`, increments `tokenVersion`, and emits `UserPasswordChangedEvent`.
-4. **Role Assignment Rule:**
-   - A user cannot be assigned a null or invalid `RoleId`.
-   - Assigning a role emits `UserRoleAssignedEvent`.
-
-### 3.4 Aggregate Boundary & Ownership
-
-- `User` owns its credentials (`PasswordHash`), failed login state, and status machine.
-- `User` maintains a direct reference to `RoleId` (by ID), NOT a direct reference to the `Role` aggregate object. This prevents bloated aggregate trees and ensures transactional independence between User and Role aggregates.
-
-### 3.5 User Lifecycle State Machine
+Account statuses are governed by the `UserStatusStateMachine` to enforce strict security state transition rules.
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING_ACTIVATION : User Created
+    [*] --> PENDING: Account Onboarded
+    PENDING --> ACTIVE: User Activates / Initial Password Set
+    PENDING --> DELETED: Soft Deleted
 
-    PENDING_ACTIVATION --> ACTIVE : activate()
-    PENDING_ACTIVATION --> DEACTIVATED : deactivate()
+    ACTIVE --> SUSPENDED: Admin Suspends
+    ACTIVE --> BLOCKED: Max Lockout / Security Breach
+    ACTIVE --> DEACTIVATED: User / Admin Deactivates
+    ACTIVE --> DELETED: Soft Deleted
 
-    ACTIVE --> LOCKED : 5 Failed Logins / lock()
-    ACTIVE --> SUSPENDED : suspend()
-    ACTIVE --> DEACTIVATED : deactivate()
+    SUSPENDED --> ACTIVE: Admin Reinstates
+    BLOCKED --> ACTIVE: Admin Unlocks / Identity Verified
+    DEACTIVATED --> ACTIVE: Admin Reactivates
 
-    LOCKED --> ACTIVE : Lock Expired / unlock()
-    LOCKED --> SUSPENDED : Admin Intervention
-
-    SUSPENDED --> ACTIVE : reactivate()
-    SUSPENDED --> DEACTIVATED : deactivate()
-
-    DEACTIVATED --> [*]
+    SUSPENDED --> DELETED: Soft Deleted
+    BLOCKED --> DELETED: Soft Deleted
+    DEACTIVATED --> DELETED: Soft Deleted
+    DELETED --> [*]
 ```
 
----
+### Allowed State Transition Invariants
 
-## 4. Aggregate Root / Entity: Role
-
-### 4.1 Purpose & Responsibilities
-
-The `Role` entity encapsulates a named authorization bundle mapping domain permissions to user identity groups.
-It is responsible for:
-
-1. Maintaining an immutable set of domain permissions (`Permission`).
-2. Distinguishing system-defined default roles from tenant-defined custom roles.
-3. Enforcing permission assignment rules.
-
-### 4.2 Attributes
-
-- **`id` (`RoleId`):** Domain identity (UUID or system key string, e.g. `role-super-admin`).
-- **`tenantId` (`TenantId | null`):** `null` for global system roles; non-null for tenant-specific custom roles.
-- **`name` (`string`):** Unique human-readable role name (e.g. "Energy Operations Manager").
-- **`description` (`string`):** Explanatory text describing role entitlements.
-- **`type` (`RoleType`):** Classification enum (`SYSTEM` vs `CUSTOM`).
-- **`permissions` (`Set<Permission>`):** Unique set of permissions granted to this role.
-
-### 4.3 Invariants & Immutable Behavior
-
-1. **System Role Immutability Rule:** Roles defined with `type === RoleType.SYSTEM` are globally immutable. Attempting to add, remove, or clear permissions from a `SYSTEM` role returns `Result.fail(SystemRoleImmutableError)`.
-2. **Tenant Scope Rule:** Roles with `type === RoleType.CUSTOM` MUST be bound to a valid `tenantId`. Global system roles MUST have `tenantId === null`.
-3. **Permission Uniqueness Rule:** A role cannot contain duplicate permissions. Permissions are stored in a Set keyed by unique permission code.
-
-### 4.4 Future Database Flexibility
-
-Role definitions are completely independent of persistence mechanisms. Whether loaded from static code definitions or dynamically from a `roles` table in PostgreSQL via Prisma, the `Role` aggregate behavior remains identical.
+| Current Status         | Target Status | Transition Trigger                  | Validation Invariants                        |
+| :--------------------- | :------------ | :---------------------------------- | :------------------------------------------- |
+| `PENDING`              | `ACTIVE`      | Initial login / password set        | Verification code validated                  |
+| `ACTIVE`               | `SUSPENDED`   | Temporary administrative block      | Reason required in audit log                 |
+| `ACTIVE`               | `BLOCKED`     | Automated lockout / fraud detection | Exceeds max failed attempts or replay attack |
+| `ACTIVE`               | `DEACTIVATED` | Account closure                     | Revokes all active refresh token families    |
+| Any (except `DELETED`) | `DELETED`     | Soft delete requested               | Sets `deletedAt`, increments `tokenVersion`  |
+| `DELETED`              | Any           | **PROHIBITED**                      | Immutable end state                          |
 
 ---
 
-## 5. Domain Object: Permission (Code-Defined to Database-Managed)
+## 5. Roles & Permissions Model (RBAC / ABAC)
 
-### 5.1 Overview & Responsibilities
+Authorization is implemented using a hybrid Role-Based and Permission-Based Access Control model.
 
-A `Permission` represents a single fine-grained authorization entitlement defined as a string formatted as `<resource>:<action>` (e.g., `identity:users:create`, `assets:devices:configure`).
+### 5.1 System Built-in Roles
 
-### 5.2 Decoupling Strategy: Code-Defined to Database-Managed
+| Role Code      | Description                   | Default Permissions Scope                        |
+| :------------- | :---------------------------- | :----------------------------------------------- |
+| `OWNER`        | Platform SaaS Super Admin     | Wildcard full control (`*`)                      |
+| `ADMIN`        | Tenant Administrative Manager | `users.*`, `roles.*`, `sustainability.*`         |
+| `OPERATOR`     | Facility Energy Manager       | `assets.read`, `assets.update`, `telemetry.read` |
+| `TRAINER`      | Operational Field Staff       | `appointments.read`, `clients.read`              |
+| `CLIENT`       | End Consumer / Customer       | `profile.me`, `telemetry.read_own`               |
+| `RECEPTIONIST` | Front Desk Support            | `appointments.*`, `clients.read`                 |
 
-To prevent breaking changes when transitioning from static, code-defined permissions to dynamic database-driven permissions:
+### 5.2 Permission Resolution Engine (`DefaultPermissionResolver`)
 
-1. **Domain Abstraction:** `Permission` is modeled as an immutable domain object containing:
-   - `code`: String identifier (e.g., `identity:users:create`).
-   - `resource`: Target domain resource (`identity:users`).
-   - `action`: Action verb (`create`).
-   - `description`: Human-readable entitlement description.
+Permissions are represented as structured strings (`resource:action` e.g., `users:create`, `assets:update`). Wildcard evaluation is supported:
 
-2. **Repository Port Decoupling:** Use cases query permissions via the `IPermissionRepository` port.
+- `*` matches any permission across the system.
+- `users.*` matches `users:create`, `users:read`, `users:update`, `users:delete`.
+- `users:read` matches only exact `users:read` requests.
+
+---
+
+## 6. Dual-Token Authentication & Refresh Token Rotation Sequence
 
 ```mermaid
-classDiagram
-    class IPermissionRepository {
-        <<interface>>
-        +findByCode(code): Promise~Permission~
-        +findAll(): Promise~Permission[]~
-        +findForRole(roleId): Promise~Permission[]~
-    }
+sequenceDiagram
+    autonumber
+    actor Client as Client App (Web/Mobile)
+    participant AuthGuard as NestJS Auth Guard
+    participant IdentityUC as Auth Use Case
+    participant TokenService as Token Service
+    participant DB as PostgreSQL Store
 
-    class CodePermissionRepositoryAdapter {
-        -staticRegistry: Map~string, Permission~
-        +findByCode(code)
-        +findAll()
-    }
+    Client->>IdentityUC: Authenticate(credentials)
+    IdentityUC->>DB: Validate User & Hash
+    IdentityUC->>TokenService: Issue Token Pair (Sub, TenantID)
+    TokenService-->>Client: Return Access Token (JWT 15m) + Refresh Token (Opaque/JWT 7d)
 
-    class PrismaPermissionRepositoryAdapter {
-        -prisma: PrismaService
-        +findByCode(code)
-        +findAll()
-    }
+    Note over Client, AuthGuard: Subsequent API Requests
+    Client->>AuthGuard: Request with Bearer Access Token
+    AuthGuard->>AuthGuard: Verify Signature & Claims
+    AuthGuard-->>Client: Process Request (Stateless)
 
-    IPermissionRepository <|.. CodePermissionRepositoryAdapter : Phase 1 (Static)
-    IPermissionRepository <|.. PrismaPermissionRepositoryAdapter : Phase 2 (Database)
-```
-
-- **Phase 1 (Code-Defined):** `CodePermissionRepositoryAdapter` serves permissions from an in-memory TypeScript registry (`PERMISSIONS_REGISTRY`).
-- **Phase 2 (Database-Managed):** `PrismaPermissionRepositoryAdapter` implements `IPermissionRepository`, fetching permissions dynamically from database tables.
-- **Result:** Zero changes required in Domain Entities, NestJS Policy Guards, or Application Use Cases during the migration.
-
----
-
-## 6. Value Objects
-
-### 6.1 `Email`
-
-#### Responsibilities
-
-Encapsulates string validation, lowercasing normalization, and structural equality for email addresses.
-
-#### Validation & Normalization Rules
-
-- Validated against RFC 5322 standard format regex.
-- Maximum length: 254 characters.
-- Automatically trimmed and converted to lowercase upon creation (`John.Doe@Example.COM` $\rightarrow$ `john.doe@example.com`).
-
-#### Immutability & Equality
-
-- Properties are frozen (`Object.freeze`).
-- Equality is structural:
-  ```typescript
-  public equals(other: Email): boolean {
-    return this.props.value === other.props.value;
-  }
-  ```
-
----
-
-### 6.2 `PasswordHash`
-
-#### Responsibilities
-
-Encapsulates hashed password security representation, preventing raw plaintext passwords from ever polluting domain entities.
-
-#### Validation & Immutability Rules
-
-- Validated to ensure it matches standard PHC hash string format (`$argon2id$...` or `$2b$...`).
-- Purely immutable; contains zero setter methods.
-
-#### Hasher Service Delegation
-
-Verification of plaintext passwords against the hash is executed by delegating to an injected `IPasswordHasherPort`:
-
-```typescript
-public async verify(plainTextPassword: string, hasher: IPasswordHasherPort): Promise<boolean> {
-  return hasher.verify(plainTextPassword, this.props.value);
-}
+    Note over Client, IdentityUC: Token Refresh Flow
+    Client->>IdentityUC: RefreshToken(Current Refresh Token)
+    IdentityUC->>IdentityUC: Verify Family & Detect Reuse
+    alt Valid Refresh Token
+        IdentityUC->>TokenService: Rotate & Issue New Token Pair
+        IdentityUC->>DB: Update Refresh Token Family State
+        TokenService-->>Client: Return New Access Token + New Refresh Token
+    else Token Reuse Detected (Attack Scenario)
+        IdentityUC->>DB: Invalidate ENTIRE Token Family
+        IdentityUC-->>Client: 401 Unauthorized (Security Alert)
+    end
 ```
 
 ---
 
-## 7. Enums & Rationale
+## 7. Application & Infrastructure Layer Mapping
 
-### 7.1 `UserStatus`
+### 7.1 Application Layer Use Cases (`apps/api/src/platform/identity/use-cases`)
 
-```typescript
-export enum UserStatus {
-  PENDING_ACTIVATION = 'PENDING_ACTIVATION',
-  ACTIVE = 'ACTIVE',
-  LOCKED = 'LOCKED',
-  SUSPENDED = 'SUSPENDED',
-  DEACTIVATED = 'DEACTIVATED',
-}
-```
+- **`LoginUseCase`**: Validates credentials via `canAuthenticate()`, executes dummy Argon2id hash verification on missing users to prevent timing attacks, and issues token pairs.
+- **`LogoutUseCase`**: Revokes active refresh token family and purges session context.
+- **`RefreshTokenUseCase`**: Performs sliding-window token rotation and family reuse detection.
+- **`ChangePasswordUseCase`**: Validates current password, updates hash, and increments `tokenVersion`.
+- **`ResetPasswordUseCase`**: Admin-initiated CSPRNG temporary password generation.
+- **`CreateUserUseCase`**, **`UpdateUserUseCase`**, **`DeactivateUserUseCase`**, **`DeleteUserUseCase`**, **`SearchUsersUseCase`**: Identity administration use cases.
 
-### 7.2 `RoleType`
+### 7.2 Infrastructure Adapters (`apps/api/src/platform/identity/*`)
 
-```typescript
-export enum RoleType {
-  SYSTEM = 'SYSTEM',
-  CUSTOM = 'CUSTOM',
-}
-```
-
-### 7.3 Rationale for Enum Usage
-
-Enums are strictly appropriate for `UserStatus` and `RoleType` because:
-
-1. **Closed Domain State Classification:** Both status lifecycles and role types represent fixed, finite sets of states defined by core business domain rules.
-2. **Compile-Time Type Safety:** Enums enable strict TypeScript compile-time type checking, preventing invalid strings from entering domain logic.
-3. **Exhaustive State Machine Guarding:** Switch statements in domain use cases can enforce exhaustive pattern matching, guaranteeing every account state transition is explicitly handled.
+| Port Interface            | Infrastructure Implementation  | Responsibilities                                               |
+| :------------------------ | :----------------------------- | :------------------------------------------------------------- |
+| `IUserRepository`         | `PrismaUserRepository`         | Persistence mapping to `users` PostgreSQL table via Prisma ORM |
+| `IRefreshTokenRepository` | `PrismaRefreshTokenRepository` | Persistence mapping to `refresh_tokens` table                  |
+| `IPasswordHasher`         | `Argon2PasswordHasher`         | Memory-hard password hashing ($m=64\text{MB}, t=3, p=4$)       |
+| `ISecurityEventPublisher` | `LoggerSecurityEventPublisher` | Structured JSON log output for security events                 |
+| `IAuditEventPublisher`    | `LoggerAuditEventPublisher`    | Standardized audit logging dispatcher                          |
 
 ---
 
-## 8. Domain Ports (Dependency Inversion)
+## 8. Relationships with Future Bounded Contexts
 
-The Identity domain defines clean interfaces for all infrastructure dependencies:
+Future application modules (`User Profile`, `Staff / HR`, `Asset Monitoring`, `Billing`) consume `Identity` as an **Authentication and Authorization Provider** by referencing `User.id` as a loose foreign key without direct ORM table coupling or circular domain dependencies.
 
-```typescript
-// Core Domain Ports (Abstract Interfaces)
+```mermaid
+graph TB
+    subgraph Identity Bounded Context
+        UserAgg[User Aggregate Root (id, email, tenantId)]
+        AuthGuard[Authentication & Authorization Guards]
+    end
 
-export interface IUserRepository {
-  findById(id: UserId): Promise<User | null>;
-  findByEmail(email: Email): Promise<User | null>;
-  save(user: User): Promise<void>;
-}
+    subgraph Downstream Bounded Contexts
+        ProfileBC[User Profile Context]
+        StaffBC[Staff & HR Context]
+        AssetBC[Asset Telemetry Context]
+        BillingBC[SaaS Tenant Billing Context]
+    end
 
-export interface IRoleRepository {
-  findById(id: RoleId): Promise<Role | null>;
-  findByName(name: string, tenantId: TenantId | null): Promise<Role | null>;
-  save(role: Role): Promise<void>;
-}
+    AuthGuard -->|Injects Security Context| ProfileBC
+    AuthGuard -->|Injects Security Context| StaffBC
+    AuthGuard -->|Injects Security Context| AssetBC
+    AuthGuard -->|Injects Security Context| BillingBC
 
-export interface IPasswordHasherPort {
-  hash(plainTextPassword: string): Promise<PasswordHash>;
-  verify(plainTextPassword: string, hash: PasswordHash): Promise<boolean>;
-}
+    ProfileBC -.->|References User.id (String)| UserAgg
+    StaffBC -.->|References User.id (String)| UserAgg
+    AssetBC -.->|References User.id (String)| UserAgg
+    BillingBC -.->|References Tenant.id (String)| UserAgg
+```
 
 ---
 
-## 9. User Administration & Context Boundary Isolation
+## 9. Architecture Extension Guidelines
 
-### 9.1 Boundary Isolation Guarantee
+### 9.1 Adding a New Permission
 
-The `User` aggregate in the Identity Bounded Context owns **only** credential attributes and security state:
-- `id`, `email`, `passwordHash`, `status`, `roles`, `permissions`, `tenantId`, `tokenVersion`, `createdAt`, `updatedAt`, `deletedAt`.
+1. Add the permission code string to `PermissionCode` enum/type in `apps/api/src/platform/identity/authorization/types`.
+2. Register the permission mapping in `DefaultPermissionResolver` or seed configuration in `prisma/seeds/identity.seed.ts`.
+3. Use `@RequirePermissions('resource:action')` on controller routes.
 
-Personal profile data (`firstName`, `lastName`, `phone`, `avatar`, `birthDate`, `employeeInfo`) is strictly excluded from `platform/identity` and resides in future domain contexts (e.g. Employee Profile, Trainer Context).
+### 9.2 Adding a New Role
 
-### 9.2 Administrative Application Use Cases
+1. Register role code in `RoleType` enum.
+2. Define default permissions set in `RoleTestFactory` and Prisma seed file.
+3. Update RBAC evaluation tests in `authorization.guard.spec.ts`.
 
-Administrative identity account management is executed via 6 application use cases in `platform/identity/use-cases/admin`:
-1. `CreateUserUseCase`: Validates email uniqueness & format, hashes password, saves `User` instance.
-2. `UpdateUserUseCase`: Updates email or roles with uniqueness validation.
-3. `ActivateUserUseCase`: Transitions status to `ACTIVE`.
-4. `DeactivateUserUseCase`: Transitions status to `DEACTIVATED`, revokes tokens.
-5. `DeleteUserUseCase`: Soft-deletes user (`deletedAt = now()`), revokes active tokens.
-6. `SearchUsersUseCase`: Searches identity accounts with pagination (`page`, `limit`) and filters (`email`, `role`, `status`).
+### 9.3 Adding a Federated Identity Provider (OAuth2 / OIDC)
 
-```
+1. Implement domain port `IFederatedIdentityProviderPort` (`authenticateWithProvider(token)`).
+2. Create infrastructure adapter (e.g. `GoogleOidcIdentityProviderService`).
+3. Map external OIDC `sub` and `email` to existing `User` aggregate without modifying core identity invariants.

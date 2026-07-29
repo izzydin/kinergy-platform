@@ -74,3 +74,5 @@ graph TD
    - Generic Repository Pattern (`IRepository<T>`).
    - CQRS (Command Query Responsibility Segregation) decision alignment.
    - Architectural Decision Record (ADR) methodology.
+5. **[Identity Bounded Context Architecture](./identity-domain-model.md)**
+   - Single authoritative specification for Identity Aggregate, account lifecycle, RBAC/ABAC, Clean Architecture layering, and downstream context integration.

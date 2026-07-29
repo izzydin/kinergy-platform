@@ -13,8 +13,8 @@
 2. **[Authorization Framework](file:///c:/Projects/kinergy-platform/docs/security/authorization.md)**
    - Role-Based Access Control (RBAC), permission resolution, `@RequirePermissions()` decorators, and `AuthorizationEvaluator`.
 
-3. **[Authenticated Request Context](file:///c:/Projects/kinergy-platform/docs/security/identity-context.md)**
-   - `RequestContext` pipeline, `AsyncLocalStorage` propagation, and request-scoped identity context accessors.
+3. **[Identity Architecture & Context](file:///c:/Projects/kinergy-platform/docs/architecture/identity-domain-model.md)**
+   - `User` aggregate, account lifecycle state machine, `RequestContext` pipeline, and security boundaries.
 
 4. **[Password Infrastructure & Policy](file:///c:/Projects/kinergy-platform/docs/security/password-policy.md)**
    - Hardened Argon2id parameters ($m=64\text{MB}, t=3, p=4$), password complexity validation, reuse prevention, and CSPRNG reset flows.
