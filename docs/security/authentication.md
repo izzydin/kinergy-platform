@@ -1,136 +1,229 @@
-# Identity Authentication & Operational Security Specification
+# Identity Authentication Architecture & Security Specification
 
-- **Status:** Accepted
+- **Status:** Accepted (Authoritative Single Source of Truth)
 - **Date:** 2026-07-29
 - **Authors:** Principal Security Architect & Staff Software Engineer
 - **Domain:** Identity & Access Management (IAM)
+- **Target Subsystem:** `apps/api/src/platform/identity`
 
 ---
 
 ## Executive Summary
 
-The Kinergy Platform Authentication Subsystem is engineered to enforce strict zero-information-disclosure principles, side-channel timing attack mitigations, fail-fast startup configuration validation, and stateless JWT verification with Refresh Token Rotation (RTR).
+The Kinergy Platform Authentication Subsystem is engineered to enforce strict zero-information-disclosure principles, side-channel timing attack mitigations, fail-fast startup secret validation, account lifecycle state validation, and stateless JWT verification with Refresh Token Rotation (RTR).
 
 ---
 
-## 1. Core Architecture & Token Lifetimes
+## 1. Authentication Endpoints & Workflows
 
-We implement a **Dual-Token Asymmetric JWT Authentication Architecture** with **Refresh Token Rotation (RTR)**.
+### 1.1 Login Workflow (`POST /api/v1/auth/login`)
+
+- **Route**: `POST /auth/login` (Public route via `@Public()`, Rate-Limited via `@LoginThrottle()`).
+- **Payload DTO**: `{ "email": "user@kinergy.com", "password": "SecurePassword123!" }` (Sanitized via `InputSanitizer`).
+- **Use Case**: `LoginUseCase`.
+- **Execution Lifecycle**:
+  1. Input payload is sanitized and validated.
+  2. `userRepository.findByEmail(email)` retrieves the target `User` aggregate root.
+  3. **Timing Attack Protection**: If user is `null`, `LoginUseCase` executes a constant-time dummy Argon2id verification (`DUMMY_ARGON2_HASH`) and throws `InvalidCredentialsException('Invalid email or password.')`.
+  4. **Account Lifecycle Check**: Evaluates `user.canAuthenticate()`. If account is `PENDING`, `INACTIVE`, `SUSPENDED`, `BLOCKED`, or `DELETED`, `LoginUseCase` throws `InvalidCredentialsException('Invalid email or password.')` to preserve zero-information disclosure while logging exact failure telemetry internally.
+  5. **Password Verification**: Executes `argon2PasswordHasher.compare(plainPassword, user.passwordHash)`. If invalid, increments failed attempt counter and throws `InvalidCredentialsException`.
+  6. **Token Issuance**: Generates short-lived Access Token and long-lived Refresh Token via `JwtTokenFactory` and `RefreshTokenService`.
+  7. **Security Telemetry**: Dispatches `LoginSucceeded` domain event to `ISecurityEventPublisher` and `SecurityAuditHookService`.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Client as Client App (Web/Mobile)
-    participant AuthGuard as NestJS Auth Guard
-    participant IdentityUC as Auth Use Case
-    participant TokenService as Token Service
-    participant DB as PostgreSQL Store
+    participant Ctrl as AuthController
+    participant UC as LoginUseCase
+    participant Hasher as Argon2PasswordHasher
+    participant Factory as JwtTokenFactory
+    participant Event as SecurityEventPublisher
 
-    Client->>IdentityUC: Authenticate(credentials)
-    IdentityUC->>DB: Validate User & Hash
-    IdentityUC->>TokenService: Issue Token Pair (Sub, TenantID)
-    TokenService-->>Client: Return Access Token (JWT 15m) + Refresh Token (Opaque/JWT 7d)
-
-    Note over Client, AuthGuard: Subsequent API Requests
-    Client->>AuthGuard: Request with Bearer Access Token
-    AuthGuard->>AuthGuard: Verify Signature & Claims
-    AuthGuard-->>Client: Process Request (Stateless)
-
-    Note over Client, IdentityUC: Token Refresh Flow
-    Client->>IdentityUC: RefreshToken(Current Refresh Token)
-    IdentityUC->>IdentityUC: Verify Family & Detect Reuse
-    alt Valid Refresh Token
-        IdentityUC->>TokenService: Rotate & Issue New Token Pair
-        IdentityUC->>DB: Update Refresh Token Family State
-        TokenService-->>Client: Return New Access Token + New Refresh Token
-    else Token Reuse Detected (Attack Scenario)
-        IdentityUC->>DB: Invalidate ENTIRE Token Family
-        IdentityUC-->>Client: 401 Unauthorized (Security Alert)
+    Client->>Ctrl: POST /auth/login { email, password }
+    Ctrl->>UC: execute(dto)
+    UC->>UC: userRepository.findByEmail(email)
+    alt User Not Found
+        UC->>Hasher: compare(password, DUMMY_ARGON2_HASH)
+        UC-->>Ctrl: throw InvalidCredentialsException
+        Ctrl-->>Client: HTTP 401 { message: "Invalid email or password." }
+    else User Found
+        UC->>UC: user.canAuthenticate()
+        alt Account Disabled (PENDING/INACTIVE/BLOCKED/DELETED)
+            UC-->>Ctrl: throw InvalidCredentialsException
+            Ctrl-->>Client: HTTP 401 { message: "Invalid email or password." }
+        else Account Active
+            UC->>Hasher: compare(password, user.passwordHash)
+            alt Password Invalid
+                UC-->>Ctrl: throw InvalidCredentialsException
+                Ctrl-->>Client: HTTP 401 { message: "Invalid email or password." }
+            else Password Valid
+                UC->>Factory: createAccessToken(userPayload)
+                UC->>Factory: createRefreshToken(userPayload)
+                UC->>Event: publish(LoginSucceeded)
+                UC-->>Ctrl: Return TokenPair { accessToken, refreshToken }
+                Ctrl-->>Client: HTTP 200 OK + Set-Cookie / Token Envelope
+            end
+        end
     end
 ```
 
-### Dual-Token Architecture & Lifetimes
-
-- **Access Token:**
-  - **Type:** Asymmetrically signed JSON Web Token (RS256 or HMAC SHA-256 for symmetric configuration).
-  - **Lifetime:** Short-lived (15 minutes).
-  - **Payload Claims:** Standard claims (`sub`, `iss`, `aud`, `exp`, `nbf`, `iat`, `jti`) and domain claims (`tenant_id`, `roles`, `permissions`, `token_version`).
-  - **Verification:** Stateless validation using local public key or secret; no database lookup required for valid tokens.
-
-- **Refresh Token:**
-  - **Type:** High-entropy cryptographically secure random string (opaque) tied to a token family identifier (`family_id`).
-  - **Lifetime:** 7 days sliding window; maximum absolute lifetime of 30 days.
-  - **Storage:** Secure HTTP-Only, SameSite=Strict, Encrypted Cookie (Web) or Secure Keychain (Mobile).
-
 ---
 
-## 2. Refresh Token Rotation (RTR) & Family Invalidation
+### 1.2 Logout Workflow (`POST /api/v1/auth/logout`)
 
-To eliminate the risk of stolen long-lived refresh tokens:
+- **Route**: `POST /auth/logout` (Protected via `AuthenticationGuard`, Rate-Limited via `@LogoutThrottle()`).
+- **Use Case**: `LogoutUseCase`.
+- **Execution Lifecycle**:
+  1. `AuthenticationGuard` extracts active user claims from Bearer token.
+  2. `LogoutUseCase.execute(userId, refreshToken)` receives request.
+  3. Invalidates active `RefreshToken` family record in repository (`refreshTokenRepository.revokeFamily(familyId)`).
+  4. Instructs client to clear HTTP-Only `refreshToken` cookie.
+  5. Dispatches `LogoutSucceeded` event to security telemetry pipeline.
 
-- Every time a refresh token is presented to `/auth/refresh`, it is consumed, invalidated, and replaced by a **new** Access Token and a **new** Refresh Token.
-- Tokens belong to a **Token Family** (`family_id`).
-- If an already consumed (old) refresh token is presented, the system triggers **Reuse Detection**, immediately invalidating the entire Token Family and revoking all active sessions associated with that user session.
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Client App
+    participant Guard as AuthenticationGuard
+    participant UC as LogoutUseCase
+    participant DB as RefreshTokenRepository
 
----
-
-## 3. Zero-Information-Disclosure Error Strategy
-
-To prevent user enumeration and account state harvesting, all public authentication endpoints return generic error responses regardless of the underlying failure reason.
-
-### Client-Facing vs. Internal Telemetry Response Matrix
-
-| Failure Cause                | HTTP Status        | Response Payload `message`   | Internal Log / Security Event Telemetry                    |
-| :--------------------------- | :----------------- | :--------------------------- | :--------------------------------------------------------- |
-| **Missing Email / Password** | `401 Unauthorized` | `Invalid email or password.` | `Email and password are required`                          |
-| **Email Not Found**          | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: User not found` (+ Dummy Argon2id execution) |
-| **Invalid Password**         | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: Invalid password`                            |
-| **Pending Status**           | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: Account status disabled (PENDING)`           |
-| **Inactive Status**          | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: Account status disabled (INACTIVE)`          |
-| **Blocked Status**           | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: Account status disabled (BLOCKED)`           |
-| **Suspended Status**         | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: Account status disabled (SUSPENDED)`         |
-
-> [!IMPORTANT]
-> **SIEM & Security Telemetry**: While external clients receive sanitized generic error responses, internal security teams can monitor exact failure reasons via structured `LoginFailed` events emitted to `ISecurityEventPublisher` and `PlatformLogger`.
-
----
-
-## 4. Timing Attack & Side-Channel Mitigation
-
-When an authentication request specifies a non-existent email address, traditional systems fail early without executing password hashing functions, resulting in noticeable latency differences (e.g. 1ms vs 50ms).
-
-```
-Non-Existent Email Request ──► Dummy Argon2id Verification ──► Standard Response (~50ms)
-Valid Email Request        ──► Real Argon2id Verification  ──► Standard Response (~50ms)
+    Client->>Guard: POST /auth/logout (Bearer Token + Cookie)
+    Guard->>Guard: Verify JWT Access Token
+    Guard->>UC: execute(userId, refreshToken)
+    UC->>DB: revokeFamily(familyId)
+    UC-->>Client: HTTP 200 OK (Clear HTTP-Only Cookie)
 ```
 
-The Kinergy API executes a constant-time dummy Argon2id hash verification (`$argon2id$v=19$m=65536,t=3,p=4$...`) whenever `userRepository.findByEmail()` returns `null`, ensuring identical CPU time and response latency for valid and invalid user accounts.
+---
+
+### 1.3 Refresh Token Workflow (`POST /api/v1/auth/refresh`)
+
+- **Route**: `POST /auth/refresh` (Public via `@Public()`, Rate-Limited via `@RefreshThrottle()`).
+- **Use Case**: `RefreshTokenUseCase`.
+- **Sliding Window RTR Lifecycle**:
+  1. Verifies input refresh token signature and expiration.
+  2. Retrieves active token family state from `refreshTokenRepository`.
+  3. **Reuse Detection (Replay Attack)**: If token was already consumed/invalidated, triggers security breach workflow, revokes entire `familyId`, publishes `RefreshTokenReplayDetected` alert, and returns `HTTP 401 Unauthorized`.
+  4. If valid, invalidates current token, issues new Access Token and new Refresh Token pair belonging to same `familyId`, and updates store.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Client as Client App
+    participant UC as RefreshTokenUseCase
+    participant DB as RefreshTokenRepository
+    participant Factory as JwtTokenFactory
+    participant Event as SecurityEventPublisher
+
+    Client->>UC: POST /auth/refresh { refreshToken }
+    UC->>Factory: verifyRefreshToken(refreshToken)
+    UC->>DB: findByToken(refreshToken)
+    alt Token Reused / Already Consumed (Attack Scenario!)
+        UC->>DB: revokeEntireFamily(familyId)
+        UC->>Event: publish(RefreshTokenReplayDetected - CRITICAL)
+        UC-->>Client: HTTP 401 Unauthorized (Security Alert)
+    else Token Valid & Active
+        UC->>DB: markConsumed(refreshToken)
+        UC->>Factory: createAccessToken(payload)
+        UC->>Factory: createRefreshToken(payload, familyId)
+        UC->>DB: saveNewRefreshToken(newToken)
+        UC-->>Client: HTTP 200 OK { accessToken, refreshToken }
+    end
+```
 
 ---
 
-## 5. Secret Management & Fail-Fast Startup Validation
+### 1.4 Get Current User Workflow (`GET /api/v1/auth/me`)
 
-Security secrets are centrally managed and validated during application bootstrap. Insecure fallbacks are strictly prohibited.
-
-### Required Security Environment Variables
-
-| Variable             | Min Length | Default (Non-Prod)                                  | Production Requirements                             |
-| :------------------- | :--------- | :-------------------------------------------------- | :-------------------------------------------------- |
-| `JWT_ACCESS_SECRET`  | 32 chars   | `kinergy-platform-dev-access-secret-min-32-chars!`  | Custom secret $\ge 32$ chars. Dev default rejected. |
-| `JWT_REFRESH_SECRET` | 32 chars   | `kinergy-platform-dev-refresh-secret-min-32-chars!` | Custom secret $\ge 32$ chars. Dev default rejected. |
-| `ARGON2_MEMORY_COST` | N/A        | `65536` (64 MB)                                     | Minimum 15360 KB (15 MB). Recommended 64 MB.        |
-| `ARGON2_TIME_COST`   | N/A        | `3` iterations                                      | Minimum 1 iteration.                                |
-| `ARGON2_PARALLELISM` | N/A        | `4` threads                                         | Minimum 1 thread.                                   |
+- **Route**: `GET /auth/me` (Protected via `AuthenticationGuard`, Rate-Limited via `@MeThrottle()`).
+- **Use Case**: `GetCurrentUserUseCase`.
+- **Execution Lifecycle**:
+  1. `AuthenticationGuard` validates Bearer token claims (`sub`, `tokenVersion`).
+  2. `RequestContext` injects authenticated user state into request local storage.
+  3. `GetCurrentUserUseCase.execute(userId)` fetches active user details and returns `CurrentUserDto` payload (`userId`, `email`, `roles`, `permissions`, `tenantId`).
 
 ---
 
-## 6. OWASP Authentication Compliance Self-Review
+## 2. Password Verification & Timing Attack Mitigations
 
-| OWASP ASVS 4.0 Requirement | Description                                            | Status     | Evidence & Verification                                                         |
-| :------------------------- | :----------------------------------------------------- | :--------- | :------------------------------------------------------------------------------ |
-| **V2.1.1**                 | Generic error messages on authentication failure       | **PASSED** | `LoginUseCase` & `GlobalExceptionFilter` return `Invalid email or password.`    |
-| **V2.1.12**                | Side-channel timing attack mitigation                  | **PASSED** | Dummy Argon2id hash verification on missing users                               |
-| **V2.10.1**                | Cryptographic secret strength & storage                | **PASSED** | `JWT_ACCESS_SECRET` & `JWT_REFRESH_SECRET` enforced $\ge 32$ chars              |
-| **V2.10.2**                | Application fail-fast on insecure secret configuration | **PASSED** | `ConfigSecretProvider.onModuleInit()` throws `SecurityConfigurationException`   |
-| **V2.10.3**                | Removal of insecure hardcoded fallback credentials     | **PASSED** | Fallback constants removed; startup validation enforced across all environments |
-| **V3.3.1**                 | Audit event logging for security monitoring            | **PASSED** | Detailed `LoginFailed` security events published internally for SIEM            |
+Password hashing uses **Argon2id** (memory-hard password hashing algorithm).
+
+### 2.1 Production Parameters
+
+- **Memory Cost (`m`)**: $65536\text{ KB}$ ($64\text{ MB}$).
+- **Time Cost (`t`)**: $3\text{ iterations}$.
+- **Parallelism (`p`)**: $4\text{ threads}$.
+
+### 2.2 Constant-Time Timing Attack Defense
+
+To prevent account enumeration via timing side-channels, `LoginUseCase` maintains a pre-computed `DUMMY_ARGON2_HASH`. When a non-existent email is queried, the system performs a full Argon2id comparison against `DUMMY_ARGON2_HASH`, ensuring constant CPU time ($\sim 50\text{ ms}$) regardless of user existence.
+
+```
+Non-Existent Email ──► Execute Argon2id(password, DUMMY_HASH) ──► Latency ~50ms ──► Generic Error
+Valid Email        ──► Execute Argon2id(password, USER_HASH)  ──► Latency ~50ms ──► Generic Error / OK
+```
+
+---
+
+## 3. JWT Token Generation & Claims Specification
+
+Access tokens are generated by `JwtTokenFactory` using cryptographic secrets (`JWT_ACCESS_SECRET`).
+
+### 3.1 Access Token Claims Payload Schema
+
+```json
+{
+  "sub": "usr_9b1deb4d-3b7d-416b-9548-52ee8c8230e5",
+  "email": "operator@kinergy.com",
+  "roles": ["OPERATOR"],
+  "permissions": ["assets.read", "assets.update"],
+  "tokenVersion": 1,
+  "tenantId": "tenant_alpha",
+  "iss": "kinergy-platform",
+  "aud": "kinergy-api",
+  "iat": 1785240000,
+  "exp": 1785240900
+}
+```
+
+---
+
+## 4. Generic Authentication Errors Strategy
+
+All public authentication failures return an uninformative, generic HTTP 401 response payload to prevent user enumeration and account harvesting.
+
+### Client Response vs. Internal Security Telemetry Matrix
+
+| Scenario                 | Client Response Payload (`401 Unauthorized`)                     | Internal Log / Security Telemetry Event                    |
+| :----------------------- | :--------------------------------------------------------------- | :--------------------------------------------------------- |
+| Missing Email / Password | `{ "statusCode": 401, "message": "Invalid email or password." }` | `Email and password are required`                          |
+| Unknown Email            | `{ "statusCode": 401, "message": "Invalid email or password." }` | `LoginFailed: User not found` (+ Dummy Argon2id execution) |
+| Invalid Password         | `{ "statusCode": 401, "message": "Invalid email or password." }` | `LoginFailed: Invalid password`                            |
+| Pending Account          | `{ "statusCode": 401, "message": "Invalid email or password." }` | `LoginFailed: Account status disabled (PENDING)`           |
+| Inactive Account         | `{ "statusCode": 401, "message": "Invalid email or password." }` | `LoginFailed: Account status disabled (INACTIVE)`          |
+| Blocked Account          | `{ "statusCode": 401, "message": "Invalid email or password." }` | `LoginFailed: Account status disabled (BLOCKED)`           |
+| Suspended Account        | `{ "statusCode": 401, "message": "Invalid email or password." }` | `LoginFailed: Account status disabled (SUSPENDED)`         |
+
+---
+
+## 5. Startup Secret Management & Fail-Fast Lifecycle
+
+Cryptographic secrets are managed by `ConfigSecretProvider`.
+
+- `JWT_ACCESS_SECRET` & `JWT_REFRESH_SECRET` must be $\ge 32$ characters.
+- In production (`NODE_ENV=production`), developer default fallback strings are strictly forbidden.
+- During `NestFactory.create(AppModule)` bootstrap, `ConfigSecretProvider.onModuleInit()` checks secrets. If invalid, it throws `SecurityConfigurationException` and halts startup immediately before port binding.
+
+---
+
+## 6. OWASP ASVS Compliance Matrix
+
+| OWASP Requirement | Description                             | Status     | Implementation Verification                                                    |
+| :---------------- | :-------------------------------------- | :--------- | :----------------------------------------------------------------------------- |
+| **V2.1.1**        | Generic error messages on login failure | **PASSED** | `LoginUseCase` & `GlobalExceptionFilter` return generic HTTP 401 response      |
+| **V2.1.12**       | Timing attack side-channel defense      | **PASSED** | Constant-time `DUMMY_ARGON2_HASH` execution on non-existent users              |
+| **V2.10.1**       | Strong secret key validation            | **PASSED** | Secrets enforced $\ge 32$ chars via Zod `envSchema` & `ConfigSecretProvider`   |
+| **V2.10.2**       | Fail-fast application startup           | **PASSED** | Startup exception halts port binding on missing/weak secrets                   |
+| **V3.3.1**        | Audit event logging                     | **PASSED** | Emits `LoginFailed`, `LoginSucceeded`, and `RefreshTokenReplayDetected` events |
