@@ -1,6 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { PasswordPolicyService } from './password-policy.service';
+import {
+  IPasswordPolicyConfiguration,
+  PASSWORD_POLICY_CONFIGURATION,
+} from './password-policy-configuration.interface';
 
 /**
  * Service generating cryptographically secure temporary passwords
@@ -13,14 +17,20 @@ export class TemporaryPasswordGeneratorService {
   private readonly numberChars = '23456789';
   private readonly specialChars = '!@#$%^&*()_+-=[]{}|;:,.<>?';
 
-  constructor(private readonly passwordPolicyService: PasswordPolicyService) {}
+  constructor(
+    private readonly passwordPolicyService: PasswordPolicyService,
+    @Inject(PASSWORD_POLICY_CONFIGURATION)
+    @Optional()
+    private readonly policyConfig?: IPasswordPolicyConfiguration,
+  ) {}
 
   /**
    * Generates a random, cryptographically secure temporary password
    * matching length (default 16) and complexity rules.
    */
   generate(length = 16): string {
-    const minLen = Math.max(12, length);
+    const configuredMin = this.policyConfig?.getMinLength() ?? 12;
+    const minLen = Math.max(configuredMin, length);
     const requiredChars: string[] = [
       this.getRandomChar(this.uppercaseChars),
       this.getRandomChar(this.lowercaseChars),

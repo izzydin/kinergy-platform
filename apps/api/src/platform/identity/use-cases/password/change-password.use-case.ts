@@ -1,7 +1,13 @@
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { IUseCase } from '../../../../shared/common';
 import { ISecurityEventPublisher, SECURITY_EVENT_PUBLISHER } from '../../events';
-import { IPasswordHasher, PASSWORD_HASHER, PasswordPolicyService } from '../../password';
+import {
+  IPasswordHasher,
+  IPasswordPolicyConfiguration,
+  PASSWORD_HASHER,
+  PASSWORD_POLICY_CONFIGURATION,
+  PasswordPolicyService,
+} from '../../password';
 import { IUserRepository, USER_REPOSITORY } from '../../domain';
 import { AuthException } from '../exceptions/auth.exception';
 import { ChangePasswordDto } from './dtos/password.dtos';
@@ -16,6 +22,9 @@ export class ChangePasswordUseCase implements IUseCase<ChangePasswordDto, { succ
     private readonly passwordPolicyService: PasswordPolicyService,
     @Inject(SECURITY_EVENT_PUBLISHER)
     private readonly securityEventPublisher: ISecurityEventPublisher,
+    @Inject(PASSWORD_POLICY_CONFIGURATION)
+    @Optional()
+    private readonly policyConfig?: IPasswordPolicyConfiguration,
   ) {}
 
   async execute(dto: ChangePasswordDto): Promise<{ success: boolean }> {
@@ -30,8 +39,26 @@ export class ChangePasswordUseCase implements IUseCase<ChangePasswordDto, { succ
       throw new AuthException('Invalid current password.');
     }
 
+    // Direct string match check
     if (dto.currentPassword === dto.newPassword) {
       throw new AuthException('New password must differ from current password.');
+    }
+
+    // Verify candidate password against current password hash
+    const isSameAsCurrentHash = await this.passwordHasher.verify(
+      dto.newPassword,
+      user.passwordHash,
+    );
+    if (isSameAsCurrentHash) {
+      throw new AuthException('New password must differ from current password.');
+    }
+
+    // Password Reuse Prevention: check historical password hashes
+    for (const historicalHash of user.passwordHistory) {
+      const isHistoricalMatch = await this.passwordHasher.verify(dto.newPassword, historicalHash);
+      if (isHistoricalMatch) {
+        throw new AuthException('Password has been used recently. Please choose a new password.');
+      }
     }
 
     try {
@@ -42,9 +69,10 @@ export class ChangePasswordUseCase implements IUseCase<ChangePasswordDto, { succ
     }
 
     const newPasswordHash = await this.passwordHasher.hash(dto.newPassword);
+    const historyLimit = this.policyConfig?.getPasswordHistoryLimit() ?? 5;
 
     try {
-      user.changePassword(newPasswordHash);
+      user.changePassword(newPasswordHash, historyLimit);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to change password.';
       throw new AuthException(message);

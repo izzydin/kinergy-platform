@@ -53,7 +53,11 @@ describe('ChangePasswordUseCase', () => {
     });
 
     mockUserRepository.findById.mockResolvedValue(user);
-    mockPasswordHasher.verify.mockResolvedValue(true);
+    // Return true for current password verification, false for new password match checks
+    mockPasswordHasher.verify.mockImplementation(async (pwd, hash) => {
+      if (pwd === 'OldPassword123!' && hash === 'old_hash_123') return true;
+      return false;
+    });
 
     const result = await useCase.execute({
       userId: 'usr_1',
@@ -63,6 +67,7 @@ describe('ChangePasswordUseCase', () => {
 
     expect(result.success).toBe(true);
     expect(user.passwordHash).toBe('new_hash_456');
+    expect(user.passwordHistory).toContain('old_hash_123');
     expect(user.hashedRefreshToken).toBeNull();
     expect(user.tokenVersion).toBe(2);
     expect(mockUserRepository.save).toHaveBeenCalledWith(user);
@@ -96,7 +101,7 @@ describe('ChangePasswordUseCase', () => {
     ).rejects.toThrow('Invalid current password.');
   });
 
-  it('should throw AuthException if new password is identical to current password', async () => {
+  it('should throw AuthException if new password is identical to current password string', async () => {
     const user = new User({
       id: 'usr_1',
       email: 'user@example.com',
@@ -116,6 +121,33 @@ describe('ChangePasswordUseCase', () => {
         newPassword: 'SamePassword123!',
       }),
     ).rejects.toThrow('New password must differ from current password.');
+  });
+
+  it('should throw AuthException if new password matches a historical password in passwordHistory', async () => {
+    const user = new User({
+      id: 'usr_1',
+      email: 'user@example.com',
+      passwordHash: 'current_hash_789',
+      status: UserStatus.ACTIVE,
+      roles: ['USER'],
+      permissions: [],
+      passwordHistory: ['historical_hash_1', 'historical_hash_2'],
+    });
+
+    mockUserRepository.findById.mockResolvedValue(user);
+    mockPasswordHasher.verify.mockImplementation(async (pwd, hash) => {
+      if (pwd === 'CurrentPassword123!' && hash === 'current_hash_789') return true;
+      if (pwd === 'ReusedOldPassword123!' && hash === 'historical_hash_2') return true;
+      return false;
+    });
+
+    await expect(
+      useCase.execute({
+        userId: 'usr_1',
+        currentPassword: 'CurrentPassword123!',
+        newPassword: 'ReusedOldPassword123!',
+      }),
+    ).rejects.toThrow('Password has been used recently. Please choose a new password.');
   });
 
   it('should throw AuthException if new password fails password complexity policy', async () => {

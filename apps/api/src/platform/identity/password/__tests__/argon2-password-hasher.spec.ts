@@ -1,4 +1,5 @@
 import { Argon2PasswordHasher } from '../argon2-password-hasher';
+import { IPasswordPolicyConfiguration } from '../password-policy-configuration.interface';
 import { hashSeedPassword } from '../../../../../../../prisma/seeds/identity.seed';
 
 describe('Argon2PasswordHasher', () => {
@@ -10,6 +11,28 @@ describe('Argon2PasswordHasher', () => {
       memoryCost: 4096, // 4 MB for unit test speed
       timeCost: 1,
       parallelism: 1,
+    });
+  });
+
+  describe('configuration injection', () => {
+    it('should configure options from injected IPasswordPolicyConfiguration', async () => {
+      const mockPolicyConfig: IPasswordPolicyConfiguration = {
+        getArgon2MemoryCost: () => 4096,
+        getArgon2TimeCost: () => 1,
+        getArgon2Parallelism: () => 1,
+        getArgon2HashLength: () => 32,
+        getMinLength: () => 12,
+        getMaxLength: () => 128,
+        getRequireUppercase: () => true,
+        getRequireLowercase: () => true,
+        getRequireNumber: () => true,
+        getRequireSpecialChar: () => true,
+        getPasswordHistoryLimit: () => 5,
+      };
+
+      const configuredHasher = new Argon2PasswordHasher(mockPolicyConfig);
+      const hash = await configuredHasher.hash('TestPassword123!');
+      expect(hash).toMatch(/^\$argon2id\$v=19\$m=4096,/);
     });
   });
 

@@ -1,7 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import * as argon2 from 'argon2';
 import { pbkdf2Sync } from 'crypto';
 import { IPasswordHasher } from './password-hasher.interface';
+import {
+  IPasswordPolicyConfiguration,
+  PASSWORD_POLICY_CONFIGURATION,
+} from './password-policy-configuration.interface';
 
 /**
  * Options interface for Argon2id hashing configuration.
@@ -17,13 +21,35 @@ export interface Argon2Options {
 export class Argon2PasswordHasher implements IPasswordHasher {
   private readonly options: Parameters<typeof argon2.hash>[1];
 
-  constructor(options?: Argon2Options) {
+  constructor(
+    @Inject(PASSWORD_POLICY_CONFIGURATION)
+    @Optional()
+    policyConfig?: IPasswordPolicyConfiguration | Argon2Options,
+    explicitOptions?: Argon2Options,
+  ) {
+    let opts: Argon2Options | undefined;
+    if (
+      policyConfig &&
+      typeof (policyConfig as IPasswordPolicyConfiguration).getArgon2MemoryCost === 'function'
+    ) {
+      const cfg = policyConfig as IPasswordPolicyConfiguration;
+      opts = {
+        memoryCost: cfg.getArgon2MemoryCost(),
+        timeCost: cfg.getArgon2TimeCost(),
+        parallelism: cfg.getArgon2Parallelism(),
+        hashLength: cfg.getArgon2HashLength(),
+        ...explicitOptions,
+      };
+    } else {
+      opts = (policyConfig as Argon2Options) ?? explicitOptions;
+    }
+
     this.options = {
       type: argon2.argon2id,
-      memoryCost: options?.memoryCost ?? 65536, // 64 MB
-      timeCost: options?.timeCost ?? 3,
-      parallelism: options?.parallelism ?? 4,
-      hashLength: options?.hashLength ?? 32,
+      memoryCost: opts?.memoryCost ?? 65536, // 64 MB
+      timeCost: opts?.timeCost ?? 3,
+      parallelism: opts?.parallelism ?? 4,
+      hashLength: opts?.hashLength ?? 32,
       raw: false,
     };
   }

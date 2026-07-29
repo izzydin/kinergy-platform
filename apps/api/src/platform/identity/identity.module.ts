@@ -3,7 +3,9 @@ import { IDENTITY_CONTEXT } from './identity-context.interface';
 import { PlaceholderIdentityContextService } from './placeholder-identity-context.service';
 import {
   Argon2PasswordHasher,
+  ConfigPasswordPolicyConfiguration,
   PASSWORD_HASHER,
+  PASSWORD_POLICY_CONFIGURATION,
   PasswordPolicyService,
   TemporaryPasswordGeneratorService,
 } from './password';
@@ -53,6 +55,11 @@ import {
     {
       provide: IDENTITY_CONTEXT,
       useExisting: PlaceholderIdentityContextService,
+    },
+    ConfigPasswordPolicyConfiguration,
+    {
+      provide: PASSWORD_POLICY_CONFIGURATION,
+      useClass: ConfigPasswordPolicyConfiguration,
     },
     Argon2PasswordHasher,
     {
@@ -145,6 +152,8 @@ import {
   exports: [
     PlaceholderIdentityContextService,
     IDENTITY_CONTEXT,
+    ConfigPasswordPolicyConfiguration,
+    PASSWORD_POLICY_CONFIGURATION,
     Argon2PasswordHasher,
     PASSWORD_HASHER,
     PasswordPolicyService,

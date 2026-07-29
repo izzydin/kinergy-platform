@@ -12,6 +12,7 @@ export interface IUserProps {
   hashedRefreshToken?: string | null;
   refreshTokenExpiresAt?: Date | null;
   tokenVersion?: number;
+  passwordHistory?: string[];
   createdAt?: Date;
   updatedAt?: Date;
   deletedAt?: Date | null;
@@ -32,6 +33,7 @@ export class User {
   private _hashedRefreshToken: string | null;
   private _refreshTokenExpiresAt: Date | null;
   private _tokenVersion: number;
+  private _passwordHistory: string[];
   private readonly _createdAt: Date;
   private _updatedAt: Date;
   private _deletedAt: Date | null;
@@ -47,6 +49,7 @@ export class User {
     this._hashedRefreshToken = props.hashedRefreshToken ?? null;
     this._refreshTokenExpiresAt = props.refreshTokenExpiresAt ?? null;
     this._tokenVersion = props.tokenVersion ?? 1;
+    this._passwordHistory = props.passwordHistory ?? [];
     this._createdAt = props.createdAt ?? new Date();
     this._updatedAt = props.updatedAt ?? new Date();
     this._deletedAt = props.deletedAt ?? null;
@@ -90,6 +93,10 @@ export class User {
 
   public get tokenVersion(): number {
     return this._tokenVersion;
+  }
+
+  public get passwordHistory(): string[] {
+    return [...this._passwordHistory];
   }
 
   public get createdAt(): Date {
@@ -162,9 +169,15 @@ export class User {
     this._updatedAt = new Date();
   }
 
-  public changePassword(newPasswordHash: string): void {
+  public changePassword(newPasswordHash: string, historyLimit = 5): void {
     if (this.isDeleted()) {
       throw new Error('Cannot change password for soft-deleted user.');
+    }
+    if (this._passwordHash) {
+      this._passwordHistory = [this._passwordHash, ...this._passwordHistory].slice(
+        0,
+        Math.max(0, historyLimit),
+      );
     }
     this._passwordHash = newPasswordHash;
     this.clearRefreshToken();

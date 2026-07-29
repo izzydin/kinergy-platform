@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
+import {
+  IPasswordPolicyConfiguration,
+  PASSWORD_POLICY_CONFIGURATION,
+} from './password-policy-configuration.interface';
 
 /**
  * Configurable policy rules for password complexity validation.
@@ -24,14 +28,38 @@ export interface PasswordValidationResult {
 export class PasswordPolicyService {
   private readonly options: Required<PasswordPolicyOptions>;
 
-  constructor(options?: PasswordPolicyOptions) {
+  constructor(
+    @Inject(PASSWORD_POLICY_CONFIGURATION)
+    @Optional()
+    policyConfig?: IPasswordPolicyConfiguration | PasswordPolicyOptions,
+    explicitOptions?: PasswordPolicyOptions,
+  ) {
+    let opts: PasswordPolicyOptions | undefined;
+    if (
+      policyConfig &&
+      typeof (policyConfig as IPasswordPolicyConfiguration).getMinLength === 'function'
+    ) {
+      const cfg = policyConfig as IPasswordPolicyConfiguration;
+      opts = {
+        minLength: cfg.getMinLength(),
+        maxLength: cfg.getMaxLength(),
+        requireUppercase: cfg.getRequireUppercase(),
+        requireLowercase: cfg.getRequireLowercase(),
+        requireNumber: cfg.getRequireNumber(),
+        requireSpecialChar: cfg.getRequireSpecialChar(),
+        ...explicitOptions,
+      };
+    } else {
+      opts = (policyConfig as PasswordPolicyOptions) ?? explicitOptions;
+    }
+
     this.options = {
-      minLength: options?.minLength ?? 12,
-      maxLength: options?.maxLength ?? 128,
-      requireUppercase: options?.requireUppercase ?? true,
-      requireLowercase: options?.requireLowercase ?? true,
-      requireNumber: options?.requireNumber ?? true,
-      requireSpecialChar: options?.requireSpecialChar ?? true,
+      minLength: opts?.minLength ?? 12,
+      maxLength: opts?.maxLength ?? 128,
+      requireUppercase: opts?.requireUppercase ?? true,
+      requireLowercase: opts?.requireLowercase ?? true,
+      requireNumber: opts?.requireNumber ?? true,
+      requireSpecialChar: opts?.requireSpecialChar ?? true,
     };
   }
 
@@ -42,14 +70,33 @@ export class PasswordPolicyService {
   validate(password: string): PasswordValidationResult {
     const errors: string[] = [];
 
-    if (!password) {
+    if (password === null || password === undefined || typeof password !== 'string') {
+      return {
+        isValid: false,
+        errors: ['Password must be a non-empty string.'],
+      };
+    }
+
+    if (password.length === 0) {
       return {
         isValid: false,
         errors: ['Password cannot be empty.'],
       };
     }
 
-    if (password.length < this.options.minLength) {
+    // Edge case check: Null bytes and dangerous control characters
+    // eslint-disable-next-line no-control-regex
+    if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/.test(password)) {
+      return {
+        isValid: false,
+        errors: ['Password contains unprintable or invalid control characters.'],
+      };
+    }
+
+    // Character length check (handles Unicode code points)
+    const charCount = Array.from(password).length;
+
+    if (charCount < this.options.minLength) {
       errors.push(`Password must be at least ${this.options.minLength} characters long.`);
     }
 
@@ -71,9 +118,9 @@ export class PasswordPolicyService {
 
     if (
       this.options.requireSpecialChar &&
-      !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`]/.test(password)
+      !/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?~`\s]/.test(password)
     ) {
-      errors.push('Password must contain at least one special character.');
+      errors.push('Password must contain at least one special character or space.');
     }
 
     return {

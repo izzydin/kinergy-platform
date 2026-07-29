@@ -134,7 +134,7 @@ describe('User Aggregate Root', () => {
   });
 
   describe('Password & Credential Lifecycle', () => {
-    it('should change password, clear refresh tokens, and increment token version', () => {
+    it('should change password, clear refresh tokens, increment token version, and push old hash to history', () => {
       const user = new User(
         toUserProps({
           status: UserStatus.ACTIVE,
@@ -147,8 +147,26 @@ describe('User Aggregate Root', () => {
       user.changePassword('new_argon2id_hash');
 
       expect(user.passwordHash).toBe('new_argon2id_hash');
+      expect(user.passwordHistory).toEqual(['old_hash']);
       expect(user.hashedRefreshToken).toBeNull();
       expect(user.tokenVersion).toBe(6);
+    });
+
+    it('should limit rolling passwordHistory length according to historyLimit parameter', () => {
+      const user = new User(
+        toUserProps({
+          status: UserStatus.ACTIVE,
+          passwordHash: 'hash_0',
+        }),
+      );
+
+      user.changePassword('hash_1', 2);
+      user.changePassword('hash_2', 2);
+      user.changePassword('hash_3', 2);
+
+      expect(user.passwordHash).toBe('hash_3');
+      expect(user.passwordHistory).toEqual(['hash_2', 'hash_1']);
+      expect(user.passwordHistory).toHaveLength(2);
     });
   });
 });

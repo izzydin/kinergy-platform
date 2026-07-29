@@ -31,6 +31,30 @@ export const envSchema = z
     AUTH_LOGOUT_WINDOW: z.coerce.number().positive().default(60),
     AUTH_ME_LIMIT: z.coerce.number().positive().default(60),
     AUTH_ME_WINDOW: z.coerce.number().positive().default(60),
+    // Password Infrastructure & Policy Settings
+    ARGON2_MEMORY_COST: z.coerce.number().min(15360).default(65536), // Minimum 15 MB, Default 64 MB
+    ARGON2_TIME_COST: z.coerce.number().min(1).default(3),
+    ARGON2_PARALLELISM: z.coerce.number().min(1).default(4),
+    ARGON2_HASH_LENGTH: z.coerce.number().min(16).default(32),
+    PASSWORD_MIN_LENGTH: z.coerce.number().min(8).max(128).default(12),
+    PASSWORD_MAX_LENGTH: z.coerce.number().min(32).max(256).default(128),
+    PASSWORD_REQUIRE_UPPERCASE: z
+      .union([z.boolean(), z.string()])
+      .transform((val) => (typeof val === 'boolean' ? val : val === 'true' || val === '1'))
+      .default(true),
+    PASSWORD_REQUIRE_LOWERCASE: z
+      .union([z.boolean(), z.string()])
+      .transform((val) => (typeof val === 'boolean' ? val : val === 'true' || val === '1'))
+      .default(true),
+    PASSWORD_REQUIRE_NUMBER: z
+      .union([z.boolean(), z.string()])
+      .transform((val) => (typeof val === 'boolean' ? val : val === 'true' || val === '1'))
+      .default(true),
+    PASSWORD_REQUIRE_SPECIAL_CHAR: z
+      .union([z.boolean(), z.string()])
+      .transform((val) => (typeof val === 'boolean' ? val : val === 'true' || val === '1'))
+      .default(true),
+    PASSWORD_HISTORY_LIMIT: z.coerce.number().min(0).max(24).default(5),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
