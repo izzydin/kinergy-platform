@@ -1,172 +1,155 @@
-# ADR-0002: Identity Authorization Architecture (RBAC & Least Privilege)
+# Identity Authorization Framework & Security Policy Specification
 
-- **Status:** Accepted
-- **Date:** 2026-07-25
+- **Status:** Accepted (Authoritative Single Source of Truth)
+- **Date:** 2026-07-29
 - **Authors:** Principal Security Architect & Staff Software Engineer
 - **Domain:** Identity & Access Management (IAM)
+- **Target Subsystem:** `apps/api/src/platform/identity`
 
 ---
 
-## Context
+## Executive Summary
 
-The Kinergy Platform requires a comprehensive authorization framework to control access to business functions, domain entities, energy asset management capabilities, and system configuration endpoints across a future multi-tenant SaaS architecture.
-
-Authorization must strictly enforce the **Principle of Least Privilege**, decouple identity verification (Authentication) from entitlement evaluation (Authorization), and maintain clean separation of concerns within NestJS application layers.
+The Kinergy Platform Authorization Framework enforces strict **Principle of Least Privilege (PoLP)** and **Default-Deny** access controls across the platform. Authentication (verifying identity) is strictly separated from Authorization (evaluating entitlement decisions). Authorization logic is decoupled from HTTP guards into a dedicated application-layer decision engine (`DefaultAuthorizationEvaluator`) and permission resolution port (`IPermissionResolver`).
 
 ---
 
-## Problem
-
-In many applications, authorization logic is fragmented across controllers, services, and database queries using ad-hoc `if (user.role === 'ADMIN')` checks. This anti-pattern leads to:
-
-1. Privileged logic leakages and insecure direct object references (IDOR).
-2. Fragile role explosion when business demands fine-grained access rules.
-3. Tight coupling between business domain logic and security access policies.
-4. Difficulty auditing effective user permissions across multi-tenant boundaries.
-
----
-
-## Decision
-
-We decide to implement a **Fine-Grained Role-Based Access Control (RBAC)** architecture governed by **Explicit Permission Strings** (`resource:action`) and enforced via **NestJS Policy Guards and Interceptors**.
+## 1. End-to-End Permission Resolution & Authorization Flow
 
 ```mermaid
 flowchart TD
-    Req[Incoming HTTP Request] --> AuthNGuard[NestJS Authentication Guard]
-    AuthNGuard -- Extract & Validate JWT --> Context[Attach IdentityContext to Request]
-    Context --> AuthZGuard[NestJS Authorization Policy Guard]
+    Req[Incoming HTTP Request] --> AuthNGuard[NestJS AuthenticationGuard]
 
-    subgraph Authorization Policy Guard Evaluation
-        AuthZGuard --> ExtractPerms[Extract Identity Permissions from Context]
-        AuthZGuard --> MetaCheck[Read Required Permissions Metadata @RequirePermissions]
-        ExtractPerms & MetaCheck --> PolicyEval{Has Required Permissions?}
+    subgraph Authentication Stage
+        AuthNGuard --> CheckPublic{Is @Public Route?}
+        CheckPublic -- Yes --> Controller[Execute Controller Handler]
+        CheckPublic -- No --> ValidateToken[Verify JWT & Token Version]
+        ValidateToken -- Invalid / Expired --> AuthNError[Throw 401 Unauthorized]
+        ValidateToken -- Valid --> AttachContext[Attach AuthenticatedUserContext & RequestContext]
     end
 
-    PolicyEval -- Yes --> Controller[Execute Route Controller]
-    PolicyEval -- No --> Forbidden[Throw 403 Forbidden Exception]
-    Controller --> UseCase[Execute Application Use Case]
-```
+    AttachContext --> AuthZGuard[NestJS AuthorizationGuard]
 
-### 1. Separation of Authentication vs Authorization
-
-- **Authentication (AuthN):** Verifies _who_ the caller is. Executed by `JwtAuthGuard`, extracting claims from the validated JWT token and instantiating an immutable `IdentityContext` on the request object.
-- **Authorization (AuthZ):** Verifies _what_ the authenticated identity is allowed to do. Executed by `PermissionsGuard` and policy handlers prior to route controller invocation.
-
-### 2. Fine-Grained Permission Strings (`resource:action`)
-
-Instead of evaluating raw roles within code, all domain rights are defined as discrete permission tokens using standard notation:
-`<domain_context>:<resource>:<action>`
-
-Examples:
-
-- `identity:user:create`
-- `identity:role:assign`
-- `assets:device:read`
-- `assets:device:configure`
-- `analytics:report:export`
-
-### 3. Role-to-Permission Mapping Model
-
-Roles act as administrative wrappers bundling permission sets. The platform defines system default roles and allows dynamic tenant roles:
-
-- **System Pre-defined Roles:**
-  - `SUPER_ADMIN`: All platform permissions (`*:*:*`).
-  - `TENANT_ADMIN`: All tenant-scoped administrative permissions (`<tenant_id>:*:*`).
-  - `OPERATOR`: Operational asset configuration and reporting permissions.
-  - `VIEWER`: Read-only permissions across assigned tenant resources.
-
-- **Domain Model Structure:**
-
-```typescript
-// Conceptual domain model (No code implementation)
-// Entity: Role -> Aggregate Root
-// Entity: Permission -> Value Object
-// Relationship: User HAS-MANY Roles, Role HAS-MANY Permissions
-```
-
-### 4. Principle of Least Privilege & Default-Deny Baseline
-
-- **Default-Deny Policy:** All NestJS API endpoints are protected by default. Access is rejected (403 Forbidden) unless explicitly annotated with `@RequirePermissions(...)` or `@Public()`.
-- **Tenant Scope Enforcement:** Permissions are evaluated strictly within the context of the user's active `tenant_id`. Holding `assets:device:configure` in Tenant A gives zero right to access assets in Tenant B.
-
----
-
-## Alternatives Considered
-
-1. **Coarse-Grained Role Checks (`@Roles('ADMIN')`):**
-   - _Pros:_ Simple to implement initially.
-   - _Cons:_ Inflexible. Adding a custom role or tweaking operator rights requires changing code and redeploying backend controllers.
-2. **Attribute-Based Access Control (ABAC) / Open Policy Agent (OPA):**
-   - _Pros:_ Extremely dynamic, evaluating attributes like time of day, IP address, device security posture, and payload fields.
-   - _Cons:_ High operational overhead, increased runtime latency, and unnecessary initial complexity for current platform requirements.
-3. **Hardcoding Checks in Domain Use Cases:**
-   - _Pros:_ Direct visibility within domain functions.
-   - _Cons:_ Violates Clean Architecture by polluting core business logic with infrastructure security concerns.
-
----
-
-## Consequences
-
-### Positive
-
-- **Auditable Security:** Every protected route explicitly declares required permissions via metadata decorators (`@RequirePermissions('identity:user:create')`).
-- **Flexibility:** Roles can be created, updated, or reassigned by tenant admins without codebase changes.
-- **Zero Business Logic Pollution:** Security policy evaluation occurs in NestJS guards, keeping domain use cases pure.
-
-### Negative
-
-- **Token Size:** Including permission lists in JWT claims increases access token size. (Mitigated by compressing permission tokens or caching role permissions server-side).
-- **Maintenance:** Permission catalog must be strictly versioned and maintained across product updates.
-
----
-
-## Extracted Authorization Decision Engine (`AuthorizationEvaluator`)
-
-Following architectural refactoring (ADR 0028), authorization evaluation was extracted out of transport guards into a dedicated **Authorization Evaluator** (`IAuthorizationEvaluator` / `DefaultAuthorizationEvaluator`).
-
-### Architecture & Responsibility Boundaries
-
-```mermaid
-flowchart TD
-    Req[Incoming HTTP Request] --> AuthNGuard[NestJS Authentication Guard]
-    AuthNGuard -- Validate Token --> Context[Construct & Attach AuthenticatedUserContext]
-    Context --> AuthZGuard[NestJS Authorization Guard Orchestrator]
-
-    subgraph Thin Guard Orchestration
-        AuthZGuard --> ExtractMeta[Read Metadata @Roles & @Permissions]
+    subgraph Guard Metadata Stage
+        AuthZGuard --> ExtractMeta[Read @Roles & @Permissions Metadata]
         ExtractMeta --> BuildReqs[Construct AuthorizationRequirements Model]
     end
 
-    AuthZGuard -- Delegate (Context & Requirements) --> Evaluator[IAuthorizationEvaluator / DefaultAuthorizationEvaluator]
+    AuthZGuard -- Delegate Context & Requirements --> Evaluator[DefaultAuthorizationEvaluator]
 
-    subgraph Application Policy Decision Engine
+    subgraph Decision Engine Stage
         Evaluator --> ResolvePerms[IPermissionResolver.resolvePermissions]
-        ResolvePerms --> EvalRoles{Satisfies Roles?}
-        EvalRoles -- Yes --> EvalPerms{Satisfies Permissions?}
+        ResolvePerms --> EvalRoles{Satisfies Required Roles?}
         EvalRoles -- No --> DenyDecision[Return AuthorizationDecision.denied]
+        EvalRoles -- Yes --> EvalPerms{Satisfies Required Permissions?}
         EvalPerms -- No --> DenyDecision
         EvalPerms -- Yes --> AllowDecision[Return AuthorizationDecision.authorized]
     end
 
     Evaluator -- Return AuthorizationDecision --> AuthZGuard
-    AuthZGuard -- isAuthorized = true --> Controller[Execute Controller Handler]
-    AuthZGuard -- isAuthorized = false --> Forbidden[Throw 403 Forbidden Exception]
+    AuthZGuard -- Decision = authorized --> Controller
+    AuthZGuard -- Decision = denied --> Forbidden[Throw 403 Forbidden Exception]
 ```
-
-### Component Responsibilities
-
-| Component                   | Layer                      | Primary Responsibility                                                                                                                                                                                 |
-| :-------------------------- | :------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AuthorizationGuard`        | Infrastructure (Transport) | Reads route metadata (`@Roles`, `@Permissions`), retrieves `AuthenticatedUserContext`, constructs `AuthorizationRequirements`, delegates to evaluator, throws HTTP 403 on denial. Zero decision logic. |
-| `IAuthorizationEvaluator`   | Application Layer          | Single source of truth for authorization decisions. Evaluates user context against requirements. Returns structured `AuthorizationDecision` objects.                                                   |
-| `AuthorizationRequirements` | Application Model          | Value object encapsulating required roles, permissions, tenant boundaries, resource IDs, and ABAC attributes requested by an endpoint.                                                                 |
-| `AuthorizationDecision`     | Application Model          | Value object representing outcome (`isAuthorized`, `reason`, `failedRequirement`, `evaluatedAt`, `metadata`).                                                                                          |
-| `IPermissionResolver`       | Application Port           | Resolves effective permissions for a user from direct and role mappings (isolated behind abstraction for Redis, OPA, Cedar, or OpenFGA providers).                                                     |
 
 ---
 
-## Future Evolution
+## 2. Component Specifications
 
-1. **Hierarchical & Inherited Roles:** Support for parent-child role structures where child roles inherit base permission sets.
-2. **Dynamic ABAC Rules:** Extending `AuthorizationRequirements` and `DefaultAuthorizationEvaluator` with condition functions (e.g., evaluating dynamic resource ownership `isOwner(userId, assetId)`).
-3. **External Policy Engine Integration:** Offloading authorization policy evaluation to Open Policy Agent (OPA), OpenFGA, or AWS Cedar PDPs without altering controllers or guards.
+### 2.1 Authentication Guard (`AuthenticationGuard`)
+
+- **Layer**: Infrastructure / Transport (`apps/api/src/platform/identity/guards/authentication.guard.ts`).
+- **Responsibilities**:
+  1. Checks if route is annotated with `@Public()`. If true, bypasses authentication.
+  2. Extracts Bearer token from `Authorization` HTTP header.
+  3. Verifies token signature and expiration via `JwtTokenFactory`.
+  4. Validates user account status and `tokenVersion` to reject revoked tokens immediately.
+  5. Binds authenticated user payload to `RequestContext` via `AsyncLocalStorage`.
+
+### 2.2 Authorization Guard (`AuthorizationGuard`)
+
+- **Layer**: Infrastructure / Transport (`apps/api/src/platform/identity/authorization/guards/authorization.guard.ts`).
+- **Responsibilities**:
+  1. Reads metadata annotations (`@Roles()`, `@RequirePermissions()`) from route handler and class target.
+  2. Extracts active `AuthenticatedUserContext` from request local storage.
+  3. Builds `AuthorizationRequirements` model object.
+  4. Delegates evaluation to `IAuthorizationEvaluator` abstraction. Zero inline decision checks.
+  5. If `decision.isAuthorized` is `false`, throws `ForbiddenException(decision.reason)`.
+
+### 2.3 Authorization Decision Engine (`AuthorizationEvaluator`)
+
+- **Layer**: Application Policy Engine (`apps/api/src/platform/identity/authorization/evaluators`).
+- **Interface**: `IAuthorizationEvaluator` / Implementation: `DefaultAuthorizationEvaluator`.
+- **Responsibilities**:
+  - Functions as the single source of truth for authorization decisions across the application.
+  - Receives `AuthenticatedUserContext` and `AuthorizationRequirements`.
+  - Evaluates role compliance (`hasRequiredRole`).
+  - Evaluates permission compliance via `IPermissionResolver` (`hasRequiredPermissions`).
+  - Returns structured immutable `AuthorizationDecision` objects (`isAuthorized`, `reason`, `failedRequirement`, `evaluatedAt`).
+
+### 2.4 Permission Resolver (`PermissionResolver`)
+
+- **Layer**: Application Port (`apps/api/src/platform/identity/authorization/resolvers`).
+- **Interface**: `IPermissionResolver` / Implementation: `DefaultPermissionResolver`.
+- **Wildcard Permission Matching Engine**:
+  - Resolves effective permissions from explicit direct permissions and assigned role permission sets.
+  - Supports wildcard notation:
+    - `*` matches any permission across the system.
+    - `users.*` matches `users:create`, `users:read`, `users:update`, `users:delete`.
+    - `clients.read` matches exact string `clients.read`.
+
+### 2.5 Request Context (`RequestContext`)
+
+- **Layer**: Platform Service (`apps/api/src/platform/identity/context`).
+- **Implementation**: `RequestContextAccessor` backed by Node.js `AsyncLocalStorage`.
+- **Attributes Exposed**: `userId`, `email`, `tenantId`, `roles`, `permissions`, `tokenVersion`, `authenticatedAt`.
+
+---
+
+## 3. Security Metadata Decorators
+
+| Decorator                  | Target         | Usage & Effect                                                                                                     |
+| :------------------------- | :------------- | :----------------------------------------------------------------------------------------------------------------- |
+| `@Public()`                | Method / Class | Bypasses `AuthenticationGuard` and `AuthorizationGuard` (e.g. `/auth/login`, `/health`).                           |
+| `@Roles(...)`              | Method / Class | Requires user to possess at least one of the specified roles (e.g., `@Roles('ADMIN', 'OWNER')`).                   |
+| `@RequirePermissions(...)` | Method / Class | Requires user to possess all listed permission strings or wildcards (e.g., `@RequirePermissions('users:create')`). |
+| `@CurrentUser()`           | Parameter      | Injects current `AuthenticatedUserContext` object directly into controller method parameters.                      |
+
+---
+
+## 4. Role Evaluation Matrix
+
+The platform defines system built-in roles and supports dynamic tenant roles.
+
+| Role Code      | Type                    | Default Permissions Scope                        |
+| :------------- | :---------------------- | :----------------------------------------------- |
+| `OWNER`        | System Built-in         | Full platform wildcard control (`*`)             |
+| `ADMIN`        | Tenant Admin            | `users.*`, `roles.*`, `sustainability.*`         |
+| `OPERATOR`     | Facility Energy Manager | `assets.read`, `assets.update`, `telemetry.read` |
+| `TRAINER`      | Operational Field Staff | `appointments.read`, `clients.read`              |
+| `CLIENT`       | End Consumer            | `profile.me`, `telemetry.read_own`               |
+| `RECEPTIONIST` | Front Desk Support      | `appointments.*`, `clients.read`                 |
+
+---
+
+## 5. Permission Notation & Resolution Algorithm
+
+Permissions follow standard string notation: `<resource>:<action>` or `<domain>:<resource>:<action>`.
+
+### Resolution Order Algorithm
+
+```
+1. If user permissions contain "*", ALLOW immediately (Super Admin Override).
+2. For each required permission "R":
+   a. Check if direct user permissions contain "R" or matching wildcard (e.g. "users.*").
+   b. Check if any assigned user role permissions contain "R" or matching wildcard.
+   c. If neither match, DENY request.
+3. If all required permissions are satisfied, ALLOW request.
+```
+
+---
+
+## 6. Future Extensibility & Advanced Policies
+
+1. **Dynamic ABAC Resource Ownership Rules**: Extending `AuthorizationRequirements` with dynamic condition attributes (e.g., `isOwner(userId, assetId)` or `isTenantMember(tenantId)`).
+2. **Parent-Child Role Inheritance**: Support for hierarchical role models where child roles inherit base permission sets.
+3. **External PDP Offloading**: `IPermissionResolver` and `IAuthorizationEvaluator` ports can be re-bound via dependency injection to external Policy Decision Points (Open Policy Agent - OPA, OpenFGA, AWS Cedar) without changing controller handlers or guards.
