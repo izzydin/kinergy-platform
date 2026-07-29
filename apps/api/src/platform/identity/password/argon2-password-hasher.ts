@@ -25,6 +25,7 @@ export class Argon2PasswordHasher implements IPasswordHasher {
     @Inject(PASSWORD_POLICY_CONFIGURATION)
     @Optional()
     policyConfig?: IPasswordPolicyConfiguration | Argon2Options,
+    @Optional()
     explicitOptions?: Argon2Options,
   ) {
     let opts: Argon2Options | undefined;

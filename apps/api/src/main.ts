@@ -7,23 +7,26 @@ import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters';
 import { GlobalSanitizationValidationPipe } from './common/pipes';
+import {
+  ConfigCorsConfiguration,
+  helmetSecurityOptions,
+  SecurityHeadersMiddleware,
+} from './platform/web-security';
 
 async function bootstrap(): Promise<void> {
   const logger = new Logger('Bootstrap');
   const app = await NestFactory.create(AppModule);
 
   const configService = app.get(ConfigService);
+  const corsConfig = app.get(ConfigCorsConfiguration);
   const port = configService.get<number>('PORT', 3000);
   const globalPrefix = configService.get<string>('API_PREFIX', 'api/v1');
 
   // Security & Optimization Middleware
-  app.use(helmet());
+  app.use(helmet(helmetSecurityOptions));
+  app.use(new SecurityHeadersMiddleware().use);
   app.use(compression());
-  app.enableCors({
-    origin: '*',
-    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    credentials: true,
-  });
+  app.enableCors(corsConfig.createCorsOptions());
 
   // Global Prefix, Exception Filter & Pipe
   app.setGlobalPrefix(globalPrefix);

@@ -32,6 +32,7 @@ export class PasswordPolicyService {
     @Inject(PASSWORD_POLICY_CONFIGURATION)
     @Optional()
     policyConfig?: IPasswordPolicyConfiguration | PasswordPolicyOptions,
+    @Optional()
     explicitOptions?: PasswordPolicyOptions,
   ) {
     let opts: PasswordPolicyOptions | undefined;

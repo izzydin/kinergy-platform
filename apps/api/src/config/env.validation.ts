@@ -10,6 +10,19 @@ export const envSchema = z
       .min(1, 'DATABASE_URL is required')
       .default('postgresql://postgres:postgres@localhost:5432/kinergy_db?schema=public'),
     CORS_ORIGINS: z.string().default('http://localhost:4200'),
+    CORS_ALLOWED_METHODS: z.string().default('GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS'),
+    CORS_ALLOWED_HEADERS: z
+      .string()
+      .default('Content-Type,Authorization,X-Requested-With,Accept,Origin,X-Tenant-ID'),
+    CORS_EXPOSED_HEADERS: z
+      .string()
+      .default('Content-Range,X-Content-Range,X-Total-Count,X-Request-ID'),
+    CORS_MAX_AGE: z.coerce.number().positive().default(86400),
+    CORS_ALLOW_CREDENTIALS: z
+      .union([z.boolean(), z.string()])
+      .transform((val) => (typeof val === 'boolean' ? val : val === 'true' || val === '1'))
+      .default(true),
+    CORS_TENANT_DOMAIN_PATTERN: z.string().optional(),
     SWAGGER_ENABLED: z
       .union([z.boolean(), z.string()])
       .transform((val) => {
@@ -72,6 +85,17 @@ export const envSchema = z
           message:
             'JWT_REFRESH_SECRET is required in production environment and must be at least 32 characters long.',
           path: ['JWT_REFRESH_SECRET'],
+        });
+      }
+      if (
+        data.CORS_ORIGINS.split(',')
+          .map((o) => o.trim())
+          .includes('*')
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Wildcard CORS_ORIGINS ("*") is strictly prohibited in production environment.',
+          path: ['CORS_ORIGINS'],
         });
       }
     }

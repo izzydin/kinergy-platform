@@ -30,11 +30,12 @@ describe('Environment Variable Validation', () => {
     expect(env.PORT).toBe(3000);
   });
 
-  it('should validate production environment configuration with valid JWT secrets', () => {
+  it('should validate production environment configuration with valid JWT secrets and origins', () => {
     const rawEnv = {
       NODE_ENV: 'production',
       PORT: '8080',
       DATABASE_URL: 'postgresql://prod_user:secret@prod-db.internal:5432/kinergy_prod',
+      CORS_ORIGINS: 'https://app.kinergy.com,https://admin.kinergy.com',
       SWAGGER_ENABLED: 'false',
       JWT_ACCESS_SECRET: 'production-access-secret-at-least-32-chars-long!',
       JWT_REFRESH_SECRET: 'production-refresh-secret-at-least-32-chars-long!',
@@ -46,6 +47,19 @@ describe('Environment Variable Validation', () => {
     expect(env.SWAGGER_ENABLED).toBe(false);
     expect(env.JWT_ACCESS_SECRET).toBe('production-access-secret-at-least-32-chars-long!');
     expect(env.JWT_REFRESH_SECRET).toBe('production-refresh-secret-at-least-32-chars-long!');
+    expect(env.CORS_ORIGINS).toBe('https://app.kinergy.com,https://admin.kinergy.com');
+  });
+
+  it('should throw an error in production environment if CORS_ORIGINS contains wildcard "*"', () => {
+    const rawEnv = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://prod_user:secret@prod-db.internal:5432/kinergy_prod',
+      CORS_ORIGINS: '*',
+      JWT_ACCESS_SECRET: 'production-access-secret-at-least-32-chars-long!',
+      JWT_REFRESH_SECRET: 'production-refresh-secret-at-least-32-chars-long!',
+    };
+
+    expect(() => validateEnv(rawEnv)).toThrow(/Wildcard CORS_ORIGINS/);
   });
 
   it('should throw an error in production environment if JWT_ACCESS_SECRET is missing', () => {
