@@ -44,6 +44,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0036](file:///c:/Projects/kinergy-platform/docs/adr/0036-hardened-password-infrastructure-and-owasp-alignment.md) | Hardened Password Infrastructure, Centralized Policy & OWASP Alignment          | Accepted | 2026-07-29 |
 | [0037](file:///c:/Projects/kinergy-platform/docs/adr/0037-secure-http-defaults-cors-and-helmet-infrastructure.md)  | Secure HTTP Defaults, Production Helmet & Multi-Tenant CORS Infrastructure      | Accepted | 2026-07-29 |
 | [0038](file:///c:/Projects/kinergy-platform/docs/adr/0038-authentication-hardening-and-generic-error-handling.md)  | Authentication Hardening, Information Disclosure Prevention & Secret Validation | Accepted | 2026-07-29 |
+| [0039](file:///c:/Projects/kinergy-platform/docs/adr/0039-reusable-audit-logging-event-infrastructure.md)          | Reusable Audit Logging Event Infrastructure Architecture                        | Accepted | 2026-07-29 |
 
 ## Format
 
