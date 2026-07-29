@@ -57,10 +57,15 @@ kinergy-platform/
 │   ├── infrastructure/   # Database repositories and external integrations
 │   └── shared/           # Cross-cutting utilities and shared types
 ├── docs/                 # Platform documentation
-│   └── adr/              # Architecture Decision Records
-│       ├── README.md
-│       ├── 0001-record-architecture-decisions.md
-│       └── 0002-nx-monorepo-clean-architecture-ddd.md
+│   ├── README.md         # Master Documentation Index
+│   ├── getting-started/  # Developer Onboarding Guide
+│   ├── architecture/     # System Architecture & DDD Guides
+│   ├── security/         # OWASP Specifications & Hardening
+│   ├── testing/          # Testing Strategies & Quality Gates
+│   ├── configuration/    # Centralized Zod Environment Reference
+│   ├── api/              # OpenAPI / Swagger Reference Guide
+│   ├── adr/              # Architecture Decision Records (0001 - 0040)
+│   └── glossary.md       # Platform Glossary & Terminology Index
 ├── .gitignore            # Git ignore definitions
 ├── CHANGELOG.md          # Release history and unreleased changes
 ├── CONTRIBUTING.md       # Engineering standards & contribution process
@@ -71,12 +76,18 @@ kinergy-platform/
 
 ---
 
-## 📖 Architectural Decision Records (ADRs)
+## 📖 Master Documentation Hub
 
-Key architectural decisions are documented under [`docs/adr/`](file:///c:/Projects/kinergy-platform/docs/adr/):
+All technical, security, architecture, and developer documentation is indexed under [`docs/README.md`](file:///c:/Projects/kinergy-platform/docs/README.md):
 
-- [ADR 0001: Record Architecture Decisions](file:///c:/Projects/kinergy-platform/docs/adr/0001-record-architecture-decisions.md)
-- [ADR 0002: Nx Monorepo Architecture with Clean Architecture and Domain-Driven Design](file:///c:/Projects/kinergy-platform/docs/adr/0002-nx-monorepo-clean-architecture-ddd.md)
+- [Getting Started Guide](file:///c:/Projects/kinergy-platform/docs/getting-started/README.md)
+- [Architecture & Design](file:///c:/Projects/kinergy-platform/docs/architecture/README.md)
+- [Security Specifications](file:///c:/Projects/kinergy-platform/docs/security/README.md)
+- [Testing Strategy & Quality Gates](file:///c:/Projects/kinergy-platform/docs/testing/README.md)
+- [Environment Configuration Guide](file:///c:/Projects/kinergy-platform/docs/configuration/README.md)
+- [API Reference Guide](file:///c:/Projects/kinergy-platform/docs/api/README.md)
+- [Architectural Decision Records (ADRs)](file:///c:/Projects/kinergy-platform/docs/adr/README.md)
+- [Platform Glossary](file:///c:/Projects/kinergy-platform/docs/glossary.md)
 
 ---
 

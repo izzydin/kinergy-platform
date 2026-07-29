@@ -1,6 +1,6 @@
 # 17. Argon2id Password Infrastructure and Complexity Validation Engine
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0036](file:///c:/Projects/kinergy-platform/docs/adr/0036-hardened-password-infrastructure-and-owasp-alignment.md)
 - **Date:** 2026-07-25
 - **Authors:** Principal Security Engineer & Staff Software Engineer
 - **Domain:** Identity & Access Management (IAM)

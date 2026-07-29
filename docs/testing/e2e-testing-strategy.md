@@ -55,7 +55,7 @@ Unlike isolated unit tests or component integration tests, E2E tests mount real 
 
 ## 3. Reusable Testing Patterns for Future Bounded Contexts
 
-1. **Single-Line Auth Harness**: Reuse `auth(user, secret).headers()` from `@kinergy-platform/testing` to inject authenticated headers into Supertest HTTP requests:
+1. **Single-Line Auth Harness**: Reuse `auth(user, secret).headers()` from `@kinergy/testing` to inject authenticated headers into Supertest HTTP requests:
    ```typescript
    const authHeaders = auth(createOwner(), secret).headers();
    const response = await request(app.getHttpServer()).get('/protected-endpoint').set(authHeaders);

@@ -1,36 +1,21 @@
-# ADR-0001: Identity Authentication Strategy & Mechanisms
+# Identity Authentication & Operational Security Specification
 
 - **Status:** Accepted
-- **Date:** 2026-07-25
+- **Date:** 2026-07-29
 - **Authors:** Principal Security Architect & Staff Software Engineer
 - **Domain:** Identity & Access Management (IAM)
 
 ---
 
-## Context
+## Executive Summary
 
-The Kinergy Platform is an enterprise SaaS application built using NestJS, Prisma, PostgreSQL, and TypeScript, structured as a Modular Monolith with Domain-Driven Design (DDD) and Clean Architecture principles.
-
-The platform requires a robust identity verification mechanism for human users (operators, administrators, energy managers) and machine clients (APIs, energy IoT telemetry collectors). Authentication must be stateless, resilient against session hijacking and replay attacks, scalable across distributed environments, and flexible enough to support future enterprise Single Sign-On (SSO), OAuth2/OIDC federation, and Multi-Factor Authentication (MFA).
+The Kinergy Platform Authentication Subsystem is engineered to enforce strict zero-information-disclosure principles, side-channel timing attack mitigations, fail-fast startup configuration validation, and stateless JWT verification with Refresh Token Rotation (RTR).
 
 ---
 
-## Problem
+## 1. Core Architecture & Token Lifetimes
 
-Legacy session-based authentication mechanisms relying on server-side session databases introduce statefulness and latency bottlenecks at scale. Conversely, naive stateless JWT authentication implementations often suffer from token theft, inability to invalidate sessions immediately upon logout or breach, and tight coupling to specific authentication providers.
-
-Key challenges to address:
-
-1. Guaranteeing secure authentication across stateless REST APIs.
-2. Preventing token replay and theft via Refresh Token Rotation (RTR).
-3. Implementing deterministic logout mechanisms despite stateless access tokens.
-4. Structuring identity boundaries to support future OAuth2/OIDC integration and MFA step-up capabilities without refactoring core domain models.
-
----
-
-## Decision
-
-We decide to implement a **Dual-Token Asymmetric JWT Authentication Architecture** with **Refresh Token Rotation (RTR)**, executed within the Identity Bounded Context.
+We implement a **Dual-Token Asymmetric JWT Authentication Architecture** with **Refresh Token Rotation (RTR)**.
 
 ```mermaid
 sequenceDiagram
@@ -48,7 +33,7 @@ sequenceDiagram
 
     Note over Client, AuthGuard: Subsequent API Requests
     Client->>AuthGuard: Request with Bearer Access Token
-    AuthGuard->>AuthGuard: Verify RSA256 Signature & Claims
+    AuthGuard->>AuthGuard: Verify Signature & Claims
     AuthGuard-->>Client: Process Request (Stateless)
 
     Note over Client, IdentityUC: Token Refresh Flow
@@ -64,21 +49,22 @@ sequenceDiagram
     end
 ```
 
-### 1. Dual-Token Architecture & Lifetimes
+### Dual-Token Architecture & Lifetimes
 
 - **Access Token:**
-  - **Type:** Asymmetrically signed JSON Web Token (RS256 or Ed25519).
+  - **Type:** Asymmetrically signed JSON Web Token (RS256 or HMAC SHA-256 for symmetric configuration).
   - **Lifetime:** Short-lived (15 minutes).
-  - **Storage:** Memory (JS context) or short-lived memory storage on client.
   - **Payload Claims:** Standard claims (`sub`, `iss`, `aud`, `exp`, `nbf`, `iat`, `jti`) and domain claims (`tenant_id`, `roles`, `permissions`, `token_version`).
-  - **Verification:** Stateless validation using local public key; no database lookup required for valid tokens.
+  - **Verification:** Stateless validation using local public key or secret; no database lookup required for valid tokens.
 
 - **Refresh Token:**
-  - **Type:** High-entropy cryptographically secure random string (opaque) or signed token tied to a token family identifier (`family_id`).
+  - **Type:** High-entropy cryptographically secure random string (opaque) tied to a token family identifier (`family_id`).
   - **Lifetime:** 7 days sliding window; maximum absolute lifetime of 30 days.
   - **Storage:** Secure HTTP-Only, SameSite=Strict, Encrypted Cookie (Web) or Secure Keychain (Mobile).
 
-### 2. Refresh Token Rotation (RTR) & Family Invalidation
+---
+
+## 2. Refresh Token Rotation (RTR) & Family Invalidation
 
 To eliminate the risk of stolen long-lived refresh tokens:
 
@@ -86,75 +72,65 @@ To eliminate the risk of stolen long-lived refresh tokens:
 - Tokens belong to a **Token Family** (`family_id`).
 - If an already consumed (old) refresh token is presented, the system triggers **Reuse Detection**, immediately invalidating the entire Token Family and revoking all active sessions associated with that user session.
 
-### 3. Secure Logout Strategy
+---
 
-Logout execution requires two simultaneous actions:
+## 3. Zero-Information-Disclosure Error Strategy
 
-1. **Server-Side Revocation:** Revoke the active refresh token family and blacklist the current Access Token JTI in high-performance cache (Redis) if unexpired.
-2. **Client-Side Clearance:** Instruct the client browser to clear the HTTP-Only cookie and purge in-memory tokens.
+To prevent user enumeration and account state harvesting, all public authentication endpoints return generic error responses regardless of the underlying failure reason.
 
-### 4. Future OAuth2 / OIDC Integration
+### Client-Facing vs. Internal Telemetry Response Matrix
 
-The architecture decouples core identity validation from credential source via a domain port (`IFederatedIdentityProviderPort`).
+| Failure Cause                | HTTP Status        | Response Payload `message`   | Internal Log / Security Event Telemetry                    |
+| :--------------------------- | :----------------- | :--------------------------- | :--------------------------------------------------------- |
+| **Missing Email / Password** | `401 Unauthorized` | `Invalid email or password.` | `Email and password are required`                          |
+| **Email Not Found**          | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: User not found` (+ Dummy Argon2id execution) |
+| **Invalid Password**         | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: Invalid password`                            |
+| **Pending Status**           | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: Account status disabled (PENDING)`           |
+| **Inactive Status**          | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: Account status disabled (INACTIVE)`          |
+| **Blocked Status**           | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: Account status disabled (BLOCKED)`           |
+| **Suspended Status**         | `401 Unauthorized` | `Invalid email or password.` | `LoginFailed: Account status disabled (SUSPENDED)`         |
 
-- Local identity (email/password) is treated as one identity provider among equals.
-- Future providers (Okta, Azure AD, Google Workspace, GitHub) will implement `IFederatedIdentityProviderPort`, mapping external OIDC claims to the internal `IdentityContext`.
+> [!IMPORTANT]
+> **SIEM & Security Telemetry**: While external clients receive sanitized generic error responses, internal security teams can monitor exact failure reasons via structured `LoginFailed` events emitted to `ISecurityEventPublisher` and `PlatformLogger`.
 
-### 5. Future MFA Compatibility
+---
 
-Multi-Factor Authentication will be integrated into the use-case pipeline via a two-stage authentication flow:
+## 4. Timing Attack & Side-Channel Mitigation
 
-- Initial credential validation returns a temporary `MFA_PENDING` pre-authentication token.
-- Successful TOTP (RFC 6238) or WebAuthn (FIDO2) verification elevates the session state, issuing the full Access/Refresh token pair with an `amr` (Authentication Methods References) claim reflecting `["pwd", "mfa"]`.
+When an authentication request specifies a non-existent email address, traditional systems fail early without executing password hashing functions, resulting in noticeable latency differences (e.g. 1ms vs 50ms).
 
-### 6. Transport Rate Limiting & Protection Layer
-
-To protect authentication endpoints against brute-force attacks and CPU exhaustion caused by expensive Argon2id hashing, transport rate limiting is enforced via `RateLimitingModule` (`CustomThrottlerGuard`).
-
-```mermaid
-flowchart TD
-    Edge[Cloudflare Edge WAF] --> Gateway[API Gateway Rate Limiter]
-    Gateway --> Nginx[NGINX Reverse Proxy]
-    Nginx --> Guard[NestJS CustomThrottlerGuard]
-    Guard --> AuthCtrl[Authentication Controllers]
+```
+Non-Existent Email Request ──► Dummy Argon2id Verification ──► Standard Response (~50ms)
+Valid Email Request        ──► Real Argon2id Verification  ──► Standard Response (~50ms)
 ```
 
-- **Policy Matrix**: Configurable thresholds (`AUTH_LOGIN_LIMIT`, `AUTH_REFRESH_LIMIT`, `AUTH_LOGOUT_LIMIT`, `AUTH_ME_LIMIT`).
-- **Standardized Error**: Breaches throw standardized HTTP 429 (`ThrottlerException`) responses.
+The Kinergy API executes a constant-time dummy Argon2id hash verification (`$argon2id$v=19$m=65536,t=3,p=4$...`) whenever `userRepository.findByEmail()` returns `null`, ensuring identical CPU time and response latency for valid and invalid user accounts.
 
 ---
 
-## Alternatives Considered
+## 5. Secret Management & Fail-Fast Startup Validation
 
-1. **Stateful Session IDs in Redis/PostgreSQL:**
-   - _Pros:_ Instant revocation of any session by deleting key from store.
-   - _Cons:_ Introduces network I/O latency and database dependency on every API request. Does not align with stateless microservice/modular monolith scalability goals.
-2. **Symmetric Secret JWT Signing (HS256):**
-   - _Pros:_ Simple configuration with a single shared secret key.
-   - _Cons:_ Demands sharing the secret key with any service that needs to verify tokens. Asymmetric signing (RS256/Ed25519) allows public key distribution for token verification without risking signature forgery.
-3. **Non-Rotating Refresh Tokens:**
-   - _Pros:_ Simple client-side token refresh implementation.
-   - _Cons:_ Extreme security vulnerability—if a refresh token is stolen from client storage, the attacker retains persistent access until token expiration.
+Security secrets are centrally managed and validated during application bootstrap. Insecure fallbacks are strictly prohibited.
 
----
+### Required Security Environment Variables
 
-## Consequences
-
-### Positive
-
-- **High Performance & Scalability:** API requests are verified statelessly using public keys without database overhead.
-- **Compromise Containment:** Refresh Token Rotation with family reuse detection automatically neutralizes compromised refresh tokens.
-- **Clean Architecture Alignment:** Clear separation of token generation services, authentication guards, and underlying identity providers.
-
-### Negative
-
-- **Public Key Management:** Requires secure key generation, storage, and eventual rotation mechanisms (e.g., JWKS endpoints).
-- **Access Token Window of Exposure:** If an Access Token is compromised, it remains valid until its short 15-minute expiration unless blacklisted via Redis JTI revocation.
+| Variable             | Min Length | Default (Non-Prod)                                  | Production Requirements                             |
+| :------------------- | :--------- | :-------------------------------------------------- | :-------------------------------------------------- |
+| `JWT_ACCESS_SECRET`  | 32 chars   | `kinergy-platform-dev-access-secret-min-32-chars!`  | Custom secret $\ge 32$ chars. Dev default rejected. |
+| `JWT_REFRESH_SECRET` | 32 chars   | `kinergy-platform-dev-refresh-secret-min-32-chars!` | Custom secret $\ge 32$ chars. Dev default rejected. |
+| `ARGON2_MEMORY_COST` | N/A        | `65536` (64 MB)                                     | Minimum 15360 KB (15 MB). Recommended 64 MB.        |
+| `ARGON2_TIME_COST`   | N/A        | `3` iterations                                      | Minimum 1 iteration.                                |
+| `ARGON2_PARALLELISM` | N/A        | `4` threads                                         | Minimum 1 thread.                                   |
 
 ---
 
-## Future Evolution
+## 6. OWASP Authentication Compliance Self-Review
 
-1. **JWKS Key Rotation (`/.well-known/jwks.json`):** Automated asymmetric key rotation using JSON Web Key Sets.
-2. **Passkey / WebAuthn First-Class Support:** Passwordless authentication utilizing FIDO2/WebAuthn hardware authenticators.
-3. **Risk-Based Adaptive Authentication:** Contextual step-up triggers monitoring IP changes, novel device signatures, or geographic anomalies.
+| OWASP ASVS 4.0 Requirement | Description                                            | Status     | Evidence & Verification                                                         |
+| :------------------------- | :----------------------------------------------------- | :--------- | :------------------------------------------------------------------------------ |
+| **V2.1.1**                 | Generic error messages on authentication failure       | **PASSED** | `LoginUseCase` & `GlobalExceptionFilter` return `Invalid email or password.`    |
+| **V2.1.12**                | Side-channel timing attack mitigation                  | **PASSED** | Dummy Argon2id hash verification on missing users                               |
+| **V2.10.1**                | Cryptographic secret strength & storage                | **PASSED** | `JWT_ACCESS_SECRET` & `JWT_REFRESH_SECRET` enforced $\ge 32$ chars              |
+| **V2.10.2**                | Application fail-fast on insecure secret configuration | **PASSED** | `ConfigSecretProvider.onModuleInit()` throws `SecurityConfigurationException`   |
+| **V2.10.3**                | Removal of insecure hardcoded fallback credentials     | **PASSED** | Fallback constants removed; startup validation enforced across all environments |
+| **V3.3.1**                 | Audit event logging for security monitoring            | **PASSED** | Detailed `LoginFailed` security events published internally for SIEM            |

@@ -46,12 +46,12 @@ Unlike isolated unit tests that verify single classes or functions, integration 
 | **Workflow 1: User Administration**       | `CreateUserUseCase`, `UpdateUserUseCase`, `DeactivateUserUseCase`, `DeleteUserUseCase`, `SearchUsersUseCase`, `InMemoryUserRepository`.                              | **PASSED**: Validated email search, role changes, deactivation, and soft delete index filtering.                         |
 | **Workflow 2: Authentication & Rotation** | `LoginUseCase`, `RefreshTokenUseCase`, `LogoutUseCase`, `Argon2PasswordHasher`, `JwtTokenFactory`, `Sha256TokenHasher`, `AccessTokenService`, `RefreshTokenService`. | **PASSED**: Validated real Argon2id password verification, sliding-window token rotation, and session purging on logout. |
 | **Workflow 3: Password Management**       | `ChangePasswordUseCase`, `ResetPasswordUseCase`, `TemporaryPasswordGeneratorService`, `PasswordPolicyService`.                                                       | **PASSED**: Validated CSPRNG temporary password generation, password complexity checks, and security event publishing.   |
-| **Workflow 4: Authorization Engine**      | `DefaultAuthorizationEvaluator`, `DefaultPermissionResolver`, `@kinergy-platform/testing` persona fixtures (`createOwner`, `createTrainer`).                         | **PASSED**: Validated wildcard role permission resolution and RBAC access rule evaluation.                               |
+| **Workflow 4: Authorization Engine**      | `DefaultAuthorizationEvaluator`, `DefaultPermissionResolver`, `@kinergy/testing` persona fixtures (`createOwner`, `createTrainer`).                                  | **PASSED**: Validated wildcard role permission resolution and RBAC access rule evaluation.                               |
 
 ---
 
 ## 3. Database & Fixture Lifecycle Guidelines
 
 1. **Deterministic State Reset**: Integration test suites must wipe repository state (`clear()`) inside `beforeEach()` blocks to prevent cross-test contamination.
-2. **Containerless Testing Harness**: Use `@kinergy-platform/testing` persona factories (`createOwner`, `createTrainer`, `createReceptionist`) to generate deterministic test data without invoking HTTP login endpoints.
+2. **Containerless Testing Harness**: Use `@kinergy/testing` persona factories (`createOwner`, `createTrainer`, `createReceptionist`) to generate deterministic test data without invoking HTTP login endpoints.
 3. **External Dependencies Only**: Internal application services, domain state machines, and repositories interact naturally. Only external I/O (loggers, telemetry events, email notification queues) are mocked via `MockLogger` and `MockSecurityEventPublisher`.

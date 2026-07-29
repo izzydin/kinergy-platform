@@ -1,6 +1,6 @@
 # 20. Production Security Configuration Hardening
 
-- **Status:** Accepted
+- **Status:** Superseded by [ADR 0037](file:///c:/Projects/kinergy-platform/docs/adr/0037-secure-http-defaults-cors-and-helmet-infrastructure.md)
 - **Date:** 2026-07-27
 
 ## Context and Problem Statement

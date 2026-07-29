@@ -1,4 +1,4 @@
-# Intentional Use of In-Memory Rate Limiting for Single-Instance Deployment
+# 0040. Intentional In-Memory Rate Limiting for Single-Instance Deployment
 
 - **Status**: Accepted
 - **Classification**: Technical Debt (Low / Managed) & Planned Future Enhancement
@@ -7,7 +7,7 @@
 
 ## 1. Context
 
-The Kynergy Platform currently operates as a single-instance Modular Monolith backed by PostgreSQL. The API is deployed without distributed caching services (e.g. Redis/Memcached) or container orchestration clusters (e.g. Kubernetes, AWS ECS).
+The Kynergy Platform currently operates as a single-instance Modular Monolith backed by PostgreSQL. The API is deployed without distributed caching services (e.g., Redis/Memcached) or container orchestration clusters (e.g., Kubernetes, AWS ECS).
 
 A recent Security Hardening Review highlighted the following operational observation:
 
