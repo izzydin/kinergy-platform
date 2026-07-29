@@ -118,7 +118,7 @@ flowchart TD
 
 ## 4. Role Evaluation Matrix
 
-The platform defines system built-in roles and supports dynamic tenant roles.
+The platform defines system built-in roles (`Owner`, `Trainer`, `Kitchen Staff`, `Receptionist`) and supports dynamic tenant roles. For the full 22-permission mapping matrix, see [Role & Permission Matrix](file:///c:/Projects/kinergy-platform/docs/security/role-permission-matrix.md).
 
 | Role Code      | Type                    | Default Permissions Scope                        |
 | :------------- | :---------------------- | :----------------------------------------------- |

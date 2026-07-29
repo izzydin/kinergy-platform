@@ -27,3 +27,6 @@
 
 7. **[Audit Logging Infrastructure](file:///c:/Projects/kinergy-platform/docs/security/audit-logging-architecture.md)**
    - Abstract `IAuditEventPublisher` port, `LoggerAuditEventPublisher` adapter, `SecurityAuditHookService`, and normalized `IAuditEvent` schema.
+
+8. **[Role & Permission Matrix](file:///c:/Projects/kinergy-platform/docs/security/role-permission-matrix.md)**
+   - Authoritative mapping of system roles (`Owner`, `Trainer`, `Kitchen Staff`, `Receptionist`) to 22 seeded permission definitions across 9 modules.
