@@ -26,19 +26,14 @@ describe('ConfigSecretProvider', () => {
       expect(provider.getRefreshSecret()).toBe('custom-dev-refresh-secret-min-32-chars!');
     });
 
-    it('should use documented developer fallbacks in development mode when secrets are omitted', () => {
+    it('should throw SecurityConfigurationException if secrets are omitted or shorter than 32 characters', () => {
       delete process.env.JWT_ACCESS_SECRET;
-      delete process.env.JWT_REFRESH_SECRET;
+      process.env.JWT_REFRESH_SECRET = 'custom-dev-refresh-secret-min-32-chars!';
       process.env.NODE_ENV = 'development';
 
       const provider = new ConfigSecretProvider();
 
-      expect(provider.getAccessSecret()).toBe(
-        'kinergy-platform-default-dev-access-secret-min-32-chars!',
-      );
-      expect(provider.getRefreshSecret()).toBe(
-        'kinergy-platform-default-dev-refresh-secret-min-32-chars!',
-      );
+      expect(() => provider.getAccessSecret()).toThrow(SecurityConfigurationException);
     });
 
     it('should resolve secrets via injected ConfigService', () => {
@@ -55,6 +50,16 @@ describe('ConfigSecretProvider', () => {
 
       expect(provider.getAccessSecret()).toBe('config-service-access-secret-32-chars');
       expect(provider.getRefreshSecret()).toBe('config-service-refresh-secret-32-chars');
+    });
+
+    it('should validate secrets during onModuleInit lifecycle hook', () => {
+      process.env.NODE_ENV = 'development';
+      process.env.JWT_ACCESS_SECRET = 'custom-dev-access-secret-min-32-chars!!';
+      process.env.JWT_REFRESH_SECRET = 'custom-dev-refresh-secret-min-32-chars!';
+
+      const provider = new ConfigSecretProvider();
+
+      expect(() => provider.onModuleInit()).not.toThrow();
     });
   });
 
@@ -78,22 +83,17 @@ describe('ConfigSecretProvider', () => {
       const provider = new ConfigSecretProvider();
 
       expect(() => provider.getAccessSecret()).toThrow(SecurityConfigurationException);
-      expect(() => provider.getAccessSecret()).toThrow(
-        'JWT_ACCESS_SECRET environment variable is missing or insecure in production mode',
-      );
     });
 
-    it('should throw SecurityConfigurationException in production if JWT_REFRESH_SECRET is missing', () => {
+    it('should throw SecurityConfigurationException in production if using developer default secret', () => {
       process.env.NODE_ENV = 'production';
-      process.env.JWT_ACCESS_SECRET = 'production-access-secret-min-32-chars-long!';
-      delete process.env.JWT_REFRESH_SECRET;
+      process.env.JWT_ACCESS_SECRET = 'kinergy-platform-dev-access-secret-min-32-chars!';
+      process.env.JWT_REFRESH_SECRET = 'production-refresh-secret-min-32-chars-long!';
 
       const provider = new ConfigSecretProvider();
 
-      expect(() => provider.getRefreshSecret()).toThrow(SecurityConfigurationException);
-      expect(() => provider.getRefreshSecret()).toThrow(
-        'JWT_REFRESH_SECRET environment variable is missing or insecure in production mode',
-      );
+      expect(() => provider.getAccessSecret()).toThrow(SecurityConfigurationException);
+      expect(() => provider.getAccessSecret()).toThrow('Insecure developer default');
     });
 
     it('should throw SecurityConfigurationException in production if secret length is less than 32 characters', () => {

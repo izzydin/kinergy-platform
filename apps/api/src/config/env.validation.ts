@@ -30,8 +30,14 @@ export const envSchema = z
         return val === 'true' || val === '1';
       })
       .default(true),
-    JWT_ACCESS_SECRET: z.string().optional(),
-    JWT_REFRESH_SECRET: z.string().optional(),
+    JWT_ACCESS_SECRET: z
+      .string()
+      .min(32, 'JWT_ACCESS_SECRET must be at least 32 characters long.')
+      .default('kinergy-platform-dev-access-secret-min-32-chars!'),
+    JWT_REFRESH_SECRET: z
+      .string()
+      .min(32, 'JWT_REFRESH_SECRET must be at least 32 characters long.')
+      .default('kinergy-platform-dev-refresh-secret-min-32-chars!'),
     JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
     JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
     JWT_ISSUER: z.string().default('kinergy-platform'),
@@ -71,19 +77,30 @@ export const envSchema = z
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
-      if (!data.JWT_ACCESS_SECRET || data.JWT_ACCESS_SECRET.trim().length < 32) {
+      const devAccessSecret = 'kinergy-platform-dev-access-secret-min-32-chars!';
+      const devRefreshSecret = 'kinergy-platform-dev-refresh-secret-min-32-chars!';
+
+      if (
+        !data.JWT_ACCESS_SECRET ||
+        data.JWT_ACCESS_SECRET.trim().length < 32 ||
+        data.JWT_ACCESS_SECRET === devAccessSecret
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
-            'JWT_ACCESS_SECRET is required in production environment and must be at least 32 characters long.',
+            'JWT_ACCESS_SECRET is required in production environment and must be a custom secret at least 32 characters long.',
           path: ['JWT_ACCESS_SECRET'],
         });
       }
-      if (!data.JWT_REFRESH_SECRET || data.JWT_REFRESH_SECRET.trim().length < 32) {
+      if (
+        !data.JWT_REFRESH_SECRET ||
+        data.JWT_REFRESH_SECRET.trim().length < 32 ||
+        data.JWT_REFRESH_SECRET === devRefreshSecret
+      ) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
-            'JWT_REFRESH_SECRET is required in production environment and must be at least 32 characters long.',
+            'JWT_REFRESH_SECRET is required in production environment and must be a custom secret at least 32 characters long.',
           path: ['JWT_REFRESH_SECRET'],
         });
       }

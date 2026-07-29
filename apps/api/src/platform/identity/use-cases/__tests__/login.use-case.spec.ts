@@ -1,25 +1,21 @@
-import { User, UserStatus, IRefreshTokenRepository } from '../../domain';
-import { IUserRepository } from '../../domain/user.repository.interface';
-import { ISecurityEventPublisher } from '../../events/security-event-publisher.interface';
+import { LoginUseCase } from '../login.use-case';
+import { IUserRepository, IRefreshTokenRepository, User, UserStatus } from '../../domain';
 import { IPasswordHasher } from '../../password/password-hasher.interface';
+import { ITokenHasher } from '../../tokens/token-hasher.interface';
 import { IAccessTokenService } from '../../tokens/access-token.service';
 import { IRefreshTokenService } from '../../tokens/refresh-token.service';
-import { ITokenConfiguration } from '../../tokens/token-configuration.interface';
-import { Sha256TokenHasher } from '../../tokens/token-hasher.interface';
 import { IClock } from '../../../../shared/common/clock.interface';
+import { ITokenConfiguration } from '../../tokens/token-configuration.interface';
+import { ISecurityEventPublisher } from '../../events/security-event-publisher.interface';
 import { ILoggerPort } from '../../../logging/logger-port.interface';
-import { LoginUseCase } from '../login.use-case';
-import {
-  AccountDisabledException,
-  InvalidCredentialsException,
-} from '../exceptions/auth.exception';
+import { InvalidCredentialsException } from '../exceptions/auth.exception';
 
 describe('LoginUseCase', () => {
   let useCase: LoginUseCase;
   let mockUserRepository: jest.Mocked<IUserRepository>;
   let mockRefreshTokenRepository: jest.Mocked<IRefreshTokenRepository>;
   let mockPasswordHasher: jest.Mocked<IPasswordHasher>;
-  let tokenHasher: Sha256TokenHasher;
+  let mockTokenHasher: jest.Mocked<ITokenHasher>;
   let mockAccessTokenService: jest.Mocked<IAccessTokenService>;
   let mockRefreshTokenService: jest.Mocked<IRefreshTokenService>;
   let mockClock: jest.Mocked<IClock>;
@@ -27,76 +23,64 @@ describe('LoginUseCase', () => {
   let mockSecurityEventPublisher: jest.Mocked<ISecurityEventPublisher>;
   let mockLogger: jest.Mocked<ILoggerPort>;
 
-  const fixedDate = new Date('2026-07-27T12:00:00.000Z');
-
+  const testNow = new Date('2026-07-27T12:00:00.000Z');
   const testUser = new User({
     id: 'usr_123',
     email: 'test@example.com',
-    passwordHash: '$argon2id$v=19$m=65536,t=3,p=4$hashedpassword',
+    passwordHash: 'hashedPassword123',
     status: UserStatus.ACTIVE,
     roles: ['USER'],
     permissions: ['read:profile'],
-    tenantId: 'tenant_1',
     tokenVersion: 1,
+    tenantId: 'tenant_1',
+    createdAt: testNow,
+    updatedAt: testNow,
   });
 
   beforeEach(() => {
     mockUserRepository = {
-      findByEmail: jest.fn(),
       findById: jest.fn(),
-      create: jest.fn(),
-      save: jest.fn().mockResolvedValue(undefined),
-      search: jest.fn(),
-      updateRefreshToken: jest.fn().mockResolvedValue(undefined),
-    };
+      findByEmail: jest.fn(),
+      save: jest.fn(),
+      delete: jest.fn(),
+    } as unknown as jest.Mocked<IUserRepository>;
 
     mockRefreshTokenRepository = {
-      save: jest.fn().mockResolvedValue(undefined),
-      findByHash: jest.fn(),
-      findByFamilyId: jest.fn(),
-      findByUserId: jest.fn(),
-      revokeFamily: jest.fn().mockResolvedValue(undefined),
-      revokeAllForUser: jest.fn().mockResolvedValue(undefined),
-      deleteExpired: jest.fn().mockResolvedValue(0),
-    };
+      findById: jest.fn(),
+      findByTokenHash: jest.fn(),
+      save: jest.fn(),
+      revokeFamily: jest.fn(),
+      deleteExpired: jest.fn(),
+      deleteByUserId: jest.fn(),
+    } as unknown as jest.Mocked<IRefreshTokenRepository>;
 
     mockPasswordHasher = {
-      hash: jest.fn().mockResolvedValue('hashed_password'),
-      verify: jest.fn().mockResolvedValue(true),
+      hash: jest.fn(),
+      verify: jest.fn(),
     };
 
-    tokenHasher = new Sha256TokenHasher();
+    mockTokenHasher = {
+      hashToken: jest.fn(),
+    };
 
     mockAccessTokenService = {
-      generateToken: jest.fn().mockResolvedValue('mock_access_token'),
-      validateToken: jest.fn(),
-    };
+      generateToken: jest.fn(),
+    } as unknown as jest.Mocked<IAccessTokenService>;
 
     mockRefreshTokenService = {
-      generateRefreshToken: jest.fn().mockResolvedValue({
-        token: 'mock_raw_refresh_token',
-        familyId: 'fam_123',
-      }),
+      generateRefreshToken: jest.fn(),
       validateRefreshToken: jest.fn(),
-      generateOpaqueToken: jest.fn().mockReturnValue('opaque_token'),
-    };
+      generateOpaqueToken: jest.fn(),
+    } as unknown as jest.Mocked<IRefreshTokenService>;
 
     mockClock = {
-      now: jest.fn().mockReturnValue(fixedDate),
+      now: jest.fn().mockReturnValue(testNow),
     };
 
     mockTokenConfiguration = {
       getAccessTokenTtlSeconds: jest.fn().mockReturnValue(900),
-      getAccessTokenTtlMs: jest.fn().mockReturnValue(900000),
-      getRefreshTokenTtlSeconds: jest.fn().mockReturnValue(604800),
       getRefreshTokenTtlMs: jest.fn().mockReturnValue(604800000),
-      getAccessTokenExpiresInString: jest.fn().mockReturnValue('15m'),
-      getRefreshTokenExpiresInString: jest.fn().mockReturnValue('7d'),
-      getIssuer: jest.fn().mockReturnValue('kinergy-platform'),
-      getAudience: jest.fn().mockReturnValue('kinergy-api'),
-      getClockSkewSeconds: jest.fn().mockReturnValue(60),
-      getTokenPolicy: jest.fn(),
-    };
+    } as unknown as jest.Mocked<ITokenConfiguration>;
 
     mockSecurityEventPublisher = {
       publish: jest.fn().mockResolvedValue(undefined),
@@ -104,8 +88,8 @@ describe('LoginUseCase', () => {
 
     mockLogger = {
       log: jest.fn(),
-      warn: jest.fn(),
       error: jest.fn(),
+      warn: jest.fn(),
       debug: jest.fn(),
     };
 
@@ -113,7 +97,7 @@ describe('LoginUseCase', () => {
       mockUserRepository,
       mockRefreshTokenRepository,
       mockPasswordHasher,
-      tokenHasher,
+      mockTokenHasher,
       mockAccessTokenService,
       mockRefreshTokenService,
       mockClock,
@@ -123,36 +107,70 @@ describe('LoginUseCase', () => {
     );
   });
 
-  it('should authenticate user successfully and publish LoginSucceeded security event', async () => {
+  it('should authenticate user successfully, save refresh token entity, and publish LoginSucceeded event', async () => {
     mockUserRepository.findByEmail.mockResolvedValue(testUser);
+    mockPasswordHasher.verify.mockResolvedValue(true);
+    mockAccessTokenService.generateToken.mockResolvedValue('mock.access.token');
+    mockRefreshTokenService.generateRefreshToken.mockResolvedValue({
+      token: 'raw_refresh_token_123',
+      familyId: 'family_123',
+      jti: 'jti_123',
+    });
+    mockTokenHasher.hashToken.mockReturnValue('hashed_refresh_token_123');
 
     const result = await useCase.execute({
-      email: 'test@example.com',
-      password: 'CorrectPassword123!',
+      email: 'Test@Example.com ',
+      password: 'Password123!',
     });
 
-    expect(result.accessToken).toBe('mock_access_token');
-    expect(result.refreshToken).toBe('mock_raw_refresh_token');
-    expect(result.tokenType).toBe('Bearer');
-    expect(result.expiresIn).toBe(900);
-    expect(result.user.id).toBe(testUser.id);
-
+    expect(mockUserRepository.findByEmail).toHaveBeenCalledWith('test@example.com');
+    expect(mockPasswordHasher.verify).toHaveBeenCalledWith('Password123!', 'hashedPassword123');
+    expect(mockRefreshTokenRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tokenHash: 'hashed_refresh_token_123',
+        familyId: 'family_123',
+        userId: 'usr_123',
+        isRevoked: false,
+      }),
+    );
     expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'LoginSucceeded',
-        userId: testUser.id,
-        email: testUser.email,
+        userId: 'usr_123',
+        email: 'test@example.com',
+        tenantId: 'tenant_1',
       }),
     );
+    expect(result).toEqual({
+      accessToken: 'mock.access.token',
+      refreshToken: 'raw_refresh_token_123',
+      tokenType: 'Bearer',
+      expiresIn: 900,
+      user: {
+        id: 'usr_123',
+        email: 'test@example.com',
+        status: UserStatus.ACTIVE,
+        roles: ['USER'],
+        permissions: ['read:profile'],
+        tenantId: 'tenant_1',
+        createdAt: testNow,
+        updatedAt: testNow,
+      },
+    });
   });
 
-  it('should publish LoginFailed event and throw InvalidCredentialsException if user is not found', async () => {
+  it('should execute dummy password verification, publish LoginFailed event, and throw InvalidCredentialsException if user is not found', async () => {
     mockUserRepository.findByEmail.mockResolvedValue(null);
+    mockPasswordHasher.verify.mockResolvedValue(false);
 
     await expect(
       useCase.execute({ email: 'nonexistent@example.com', password: 'password' }),
     ).rejects.toThrow(InvalidCredentialsException);
 
+    expect(mockPasswordHasher.verify).toHaveBeenCalledWith(
+      'password',
+      expect.stringContaining('$argon2id$'),
+    );
     expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'LoginFailed',
@@ -162,7 +180,7 @@ describe('LoginUseCase', () => {
     );
   });
 
-  it('should publish LoginFailed event and throw AccountDisabledException if user status is suspended', async () => {
+  it('should publish LoginFailed event and throw InvalidCredentialsException if user status is suspended', async () => {
     const suspendedUser = new User({
       id: 'usr_disabled',
       email: 'disabled@example.com',
@@ -176,18 +194,19 @@ describe('LoginUseCase', () => {
 
     await expect(
       useCase.execute({ email: 'disabled@example.com', password: 'password' }),
-    ).rejects.toThrow(AccountDisabledException);
+    ).rejects.toThrow(InvalidCredentialsException);
 
     expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'LoginFailed',
         userId: 'usr_disabled',
         email: 'disabled@example.com',
+        reason: 'Account status disabled (SUSPENDED)',
       }),
     );
   });
 
-  it('should publish LoginFailed event and throw AccountDisabledException for PENDING, INACTIVE, or BLOCKED status', async () => {
+  it('should publish LoginFailed event and throw InvalidCredentialsException for PENDING, INACTIVE, or BLOCKED status', async () => {
     const pendingUser = new User({
       id: 'usr_pending',
       email: 'pending@example.com',
@@ -201,7 +220,7 @@ describe('LoginUseCase', () => {
 
     await expect(
       useCase.execute({ email: 'pending@example.com', password: 'password' }),
-    ).rejects.toThrow(AccountDisabledException);
+    ).rejects.toThrow(InvalidCredentialsException);
 
     const blockedUser = new User({
       id: 'usr_blocked',
@@ -216,7 +235,7 @@ describe('LoginUseCase', () => {
 
     await expect(
       useCase.execute({ email: 'blocked@example.com', password: 'password' }),
-    ).rejects.toThrow(AccountDisabledException);
+    ).rejects.toThrow(InvalidCredentialsException);
   });
 
   it('should publish LoginFailed event and throw InvalidCredentialsException if password verification fails', async () => {
@@ -230,8 +249,8 @@ describe('LoginUseCase', () => {
     expect(mockSecurityEventPublisher.publish).toHaveBeenCalledWith(
       expect.objectContaining({
         eventType: 'LoginFailed',
-        userId: testUser.id,
-        email: testUser.email,
+        userId: 'usr_123',
+        email: 'test@example.com',
         reason: 'Invalid password',
       }),
     );

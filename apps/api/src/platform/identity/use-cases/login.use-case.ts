@@ -10,11 +10,19 @@ import { IRefreshTokenService } from '../tokens/refresh-token.service';
 import { ITokenConfiguration } from '../tokens/token-configuration.interface';
 import { ITokenHasher } from '../tokens/token-hasher.interface';
 import { AuthenticationResponse, LoginDto, UserProfileDto } from './dtos/auth.dtos';
-import { AccountDisabledException, InvalidCredentialsException } from './exceptions/auth.exception';
+import { InvalidCredentialsException } from './exceptions/auth.exception';
+
+/**
+ * Valid dummy Argon2id hash used to perform constant-time verification on non-existent users.
+ * Mitigates latency-based timing attacks (user enumeration side channels).
+ */
+const DUMMY_ARGON2_HASH =
+  '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHQ$c29tZWhhc2h2YWx1ZXdhc2Rmc2FkZg';
 
 /**
  * Use Case handling user authentication (Login).
- * Emits structured Security Events (LoginSucceeded / LoginFailed) via ISecurityEventPublisher.
+ * Prevents information disclosure by returning generic authentication responses across all failure scenarios
+ * while preserving detailed internal audit event telemetry.
  */
 export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> {
   constructor(
@@ -39,6 +47,9 @@ export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> 
     const user = await this.userRepository.findByEmail(normalizedEmail);
 
     if (!user) {
+      // Execute dummy password verification to neutralize response latency timing attacks
+      await this.passwordHasher.verify(request.password, DUMMY_ARGON2_HASH);
+
       this.logger?.warn(`Login failed: user not found (${normalizedEmail})`, 'LoginUseCase');
       await this.eventPublisher?.publish({
         eventId: randomUUID(),
@@ -64,7 +75,8 @@ export class LoginUseCase implements IUseCase<LoginDto, AuthenticationResponse> 
         tenantId: user.tenantId,
         reason: `Account status disabled (${user.status})`,
       });
-      throw new AccountDisabledException();
+      // Throw generic InvalidCredentialsException to prevent account status enumeration
+      throw new InvalidCredentialsException();
     }
 
     const isPasswordValid = await this.passwordHasher.verify(request.password, user.passwordHash);

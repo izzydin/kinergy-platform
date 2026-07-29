@@ -6,6 +6,8 @@ describe('AccessTokenService', () => {
   let accessTokenService: AccessTokenService;
 
   beforeEach(() => {
+    process.env.JWT_ACCESS_SECRET = 'test-jwt-access-secret-at-least-32-chars-long!';
+    process.env.JWT_REFRESH_SECRET = 'test-jwt-refresh-secret-at-least-32-chars-long!';
     const secretProvider = new ConfigSecretProvider();
     const tokenFactory = new JwtTokenFactory(secretProvider);
     accessTokenService = new AccessTokenService(tokenFactory);

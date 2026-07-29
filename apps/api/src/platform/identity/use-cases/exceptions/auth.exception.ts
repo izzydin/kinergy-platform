@@ -13,7 +13,7 @@ export class InvalidCredentialsException extends AuthException {
 }
 
 export class AccountDisabledException extends AuthException {
-  constructor(message = 'Account is not active or has been disabled.') {
+  constructor(message = 'Invalid email or password.') {
     super(message);
   }
 }

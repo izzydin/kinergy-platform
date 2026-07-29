@@ -7,6 +7,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import {
+  AccountDisabledException,
+  AuthException,
+  InvalidCredentialsException,
+  InvalidTokenException,
+} from '../../platform/identity/use-cases/exceptions/auth.exception';
+import { SecurityConfigurationException } from '../../config/security-configuration.exception';
 
 @Catch()
 export class GlobalExceptionFilter implements ExceptionFilter {
@@ -17,11 +24,32 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const status =
-      exception instanceof HttpException ? exception.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR;
+    let status = HttpStatus.INTERNAL_SERVER_ERROR;
+    let message: string | object = 'Internal server error';
 
-    const message =
-      exception instanceof HttpException ? exception.getResponse() : 'Internal server error';
+    if (
+      exception instanceof InvalidCredentialsException ||
+      exception instanceof AccountDisabledException
+    ) {
+      status = HttpStatus.UNAUTHORIZED;
+      message = { statusCode: 401, error: 'Unauthorized', message: 'Invalid email or password.' };
+    } else if (exception instanceof InvalidTokenException) {
+      status = HttpStatus.UNAUTHORIZED;
+      message = { statusCode: 401, error: 'Unauthorized', message: 'Invalid or expired token.' };
+    } else if (exception instanceof AuthException) {
+      status = HttpStatus.UNAUTHORIZED;
+      message = { statusCode: 401, error: 'Unauthorized', message: 'Authentication failed.' };
+    } else if (exception instanceof SecurityConfigurationException) {
+      status = HttpStatus.INTERNAL_SERVER_ERROR;
+      message = {
+        statusCode: 500,
+        error: 'Internal Server Error',
+        message: 'Security configuration error.',
+      };
+    } else if (exception instanceof HttpException) {
+      status = exception.getStatus();
+      message = exception.getResponse();
+    }
 
     this.logger.error(
       `Http Status: ${status} Error Message: ${JSON.stringify(message)} Path: ${request.url}`,

@@ -1,36 +1,42 @@
-import { Injectable, Logger, Optional } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SecurityConfigurationException } from '../../../config/security-configuration.exception';
 import { ISecretProvider } from './secret-provider.interface';
 
-const DEV_ACCESS_SECRET_FALLBACK = 'kinergy-platform-default-dev-access-secret-min-32-chars!';
-const DEV_REFRESH_SECRET_FALLBACK = 'kinergy-platform-default-dev-refresh-secret-min-32-chars!';
+const DEV_DEFAULT_ACCESS_SECRET = 'kinergy-platform-dev-access-secret-min-32-chars!';
+const DEV_DEFAULT_REFRESH_SECRET = 'kinergy-platform-dev-refresh-secret-min-32-chars!';
 
 @Injectable()
-export class ConfigSecretProvider implements ISecretProvider {
+export class ConfigSecretProvider implements ISecretProvider, OnModuleInit {
   private readonly logger = new Logger(ConfigSecretProvider.name);
 
   constructor(@Optional() private readonly configService?: ConfigService) {}
+
+  /**
+   * Fail-fast application lifecycle hook. Validates security secrets during startup.
+   */
+  onModuleInit(): void {
+    this.logger.log('Validating security environment secrets during application startup...');
+    this.getAccessSecret();
+    this.getRefreshSecret();
+    this.logger.log('Security environment secrets successfully validated.');
+  }
 
   getAccessSecret(): string {
     const nodeEnv = this.getNodeEnv();
     const secret =
       this.configService?.get<string>('JWT_ACCESS_SECRET') || process.env.JWT_ACCESS_SECRET;
 
-    if (nodeEnv === 'production') {
-      if (!secret || secret.trim().length < 32) {
-        throw new SecurityConfigurationException(
-          'FATAL SECURITY CONFIGURATION ERROR: JWT_ACCESS_SECRET environment variable is missing or insecure in production mode. Application startup aborted.',
-        );
-      }
-      return secret;
+    if (!secret || secret.trim().length < 32) {
+      throw new SecurityConfigurationException(
+        'FATAL SECURITY CONFIGURATION ERROR: JWT_ACCESS_SECRET environment variable is missing or shorter than 32 characters. Application startup aborted.',
+      );
     }
 
-    if (!secret) {
-      this.logger.warn(
-        'SECURITY WARNING: JWT_ACCESS_SECRET is missing. Using developer default secret for non-production environment.',
+    if (nodeEnv === 'production' && secret === DEV_DEFAULT_ACCESS_SECRET) {
+      throw new SecurityConfigurationException(
+        'FATAL SECURITY CONFIGURATION ERROR: Insecure developer default JWT_ACCESS_SECRET detected in production environment. Application startup aborted.',
       );
-      return DEV_ACCESS_SECRET_FALLBACK;
     }
 
     return secret;
@@ -41,20 +47,16 @@ export class ConfigSecretProvider implements ISecretProvider {
     const secret =
       this.configService?.get<string>('JWT_REFRESH_SECRET') || process.env.JWT_REFRESH_SECRET;
 
-    if (nodeEnv === 'production') {
-      if (!secret || secret.trim().length < 32) {
-        throw new SecurityConfigurationException(
-          'FATAL SECURITY CONFIGURATION ERROR: JWT_REFRESH_SECRET environment variable is missing or insecure in production mode. Application startup aborted.',
-        );
-      }
-      return secret;
+    if (!secret || secret.trim().length < 32) {
+      throw new SecurityConfigurationException(
+        'FATAL SECURITY CONFIGURATION ERROR: JWT_REFRESH_SECRET environment variable is missing or shorter than 32 characters. Application startup aborted.',
+      );
     }
 
-    if (!secret) {
-      this.logger.warn(
-        'SECURITY WARNING: JWT_REFRESH_SECRET is missing. Using developer default secret for non-production environment.',
+    if (nodeEnv === 'production' && secret === DEV_DEFAULT_REFRESH_SECRET) {
+      throw new SecurityConfigurationException(
+        'FATAL SECURITY CONFIGURATION ERROR: Insecure developer default JWT_REFRESH_SECRET detected in production environment. Application startup aborted.',
       );
-      return DEV_REFRESH_SECRET_FALLBACK;
     }
 
     return secret;
