@@ -3,6 +3,8 @@ packages:
   - 'libs/*'
   - 'libs/*/*'
   - 'packages/*'
+  - 'modules/*'
+  - 'modules/*/*'
 allowBuilds:
   '@nestjs/core': true
   '@prisma/client': true

@@ -22,7 +22,8 @@
       "@kinergy-platform/utils": ["packages/utils/src/index.ts"],
       "@kinergy-platform/config": ["packages/config/src/index.ts"],
       "@kinergy-platform/validation": ["packages/validation/src/index.ts"],
-      "@kinergy-platform/testing": ["packages/testing/src/index.ts"]
+      "@kinergy-platform/testing": ["packages/testing/src/index.ts"],
+      "@kinergy-platform/client-domain": ["modules/client/domain/index.ts"]
     },
     "strict": true,
     "noImplicitAny": true,
@@ -40,6 +41,6 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["apps/**/*", "libs/**/*", "packages/**/*", "prisma/**/*"],
+  "include": ["apps/**/*", "libs/**/*", "packages/**/*", "prisma/**/*", "modules/**/*"],
   "exclude": ["node_modules", "tmp", "dist"]
 }
