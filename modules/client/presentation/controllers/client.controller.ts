@@ -6,26 +6,30 @@ import {
   HttpStatus,
   Param,
   Post,
+  Query,
   Req,
   Res,
   UnauthorizedException,
   UseFilters,
 } from '@nestjs/common';
-
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { RegisterClientUseCase } from '../../application/use-cases/register-client.usecase';
 import { LinkIdentityToClientUseCase } from '../../application/use-cases/link-identity-to-client.usecase';
 import { GetClientProfileUseCase } from '../../application/use-cases/get-client-profile.usecase';
+import { SearchClientsUseCase } from '../../application/use-cases/search-clients.usecase';
 import { RegisterClientCommand } from '../../application/commands/register-client.command';
 import { LinkIdentityCommand } from '../../application/commands/link-identity.command';
 import { GetClientProfileQuery } from '../../application/queries/get-client-profile.query';
+import { SearchClientsQuery } from '../../application/queries/search-clients.query';
 import { ClientProfileDto } from '../../application/dto/client-profile.dto';
+import { PaginatedResultDto } from '../../application/dto/paginated-result.dto';
 import {
   ClientResponseDto,
   LinkIdentityRequestDto,
   PotentialMatchesResponseDto,
   RegisterClientRequestDto,
+  SearchClientsQueryDto,
 } from '../dto';
 import { ClientExceptionFilter } from '../filters/client-exception.filter';
 
@@ -37,7 +41,55 @@ export class ClientController {
     private readonly registerClientUseCase: RegisterClientUseCase,
     private readonly linkIdentityUseCase: LinkIdentityToClientUseCase,
     private readonly getClientProfileUseCase: GetClientProfileUseCase,
+    private readonly searchClientsUseCase: SearchClientsUseCase,
   ) {}
+
+  @Get()
+  @ApiOperation({ summary: 'Search and filter clients' })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated list of clients matching criteria retrieved successfully',
+    type: PaginatedResultDto,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid search query parameters' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async search(
+    @Query() queryDto: SearchClientsQueryDto,
+    @Req() req: Request,
+  ): Promise<PaginatedResultDto<ClientProfileDto>> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userPayload = (req as any).user;
+
+    if (!userPayload) {
+      const authHeader = req.headers?.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedException('Authentication token required.');
+      }
+    }
+
+    const requestingContext = userPayload
+      ? {
+          userId: userPayload.userId ?? userPayload.id,
+          roles: userPayload.roles,
+          permissions: userPayload.permissions,
+        }
+      : undefined;
+
+    const query = new SearchClientsQuery({
+      query: queryDto.query,
+      status: queryDto.status,
+      includeArchived: queryDto.includeArchived,
+      createdFrom: queryDto.createdFrom,
+      createdTo: queryDto.createdTo,
+      sortBy: queryDto.sortBy,
+      sortOrder: queryDto.sortOrder,
+      page: queryDto.page,
+      limit: queryDto.limit,
+      requestingContext,
+    });
+
+    return this.searchClientsUseCase.execute(query);
+  }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get client profile' })
