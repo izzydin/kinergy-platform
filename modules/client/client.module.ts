@@ -7,10 +7,17 @@ import { SearchClientsUseCase } from './application/use-cases/search-clients.use
 import { UpdateClientUseCase } from './application/use-cases/update-client.usecase';
 import { ArchiveClientUseCase } from './application/use-cases/archive-client.usecase';
 import { RestoreClientUseCase } from './application/use-cases/restore-client.usecase';
+import { GetClientHistoryUseCase } from './application/use-cases/get-client-history.usecase';
+import { ClientTimelineProjectionHandler } from './application/events/client-timeline-projection.handler';
 import { ClientDuplicateCheckerService } from './domain/services/client-duplicate-checker.service';
-import { CLIENT_REPOSITORY, CLIENT_SEARCH_REPOSITORY } from './domain/repositories';
+import {
+  CLIENT_REPOSITORY,
+  CLIENT_SEARCH_REPOSITORY,
+  CLIENT_TIMELINE_REPOSITORY,
+} from './domain/repositories';
 import { ClientRepository } from './domain/repositories/client.repository';
 import { ClientSearchRepository } from './domain/repositories/client-search.repository';
+import { ClientTimelineRepository } from './domain/repositories/client-timeline.repository';
 import { PrismaClientRepository } from './infrastructure/persistence/prisma/prisma-client.repository';
 
 @Module({
@@ -68,6 +75,18 @@ import { PrismaClientRepository } from './infrastructure/persistence/prisma/pris
       useFactory: (repo: ClientRepository) => new RestoreClientUseCase(repo),
       inject: [CLIENT_REPOSITORY],
     },
+    {
+      provide: GetClientHistoryUseCase,
+      useFactory: (repo: ClientRepository, timelineRepo: ClientTimelineRepository) =>
+        new GetClientHistoryUseCase(repo, timelineRepo),
+      inject: [CLIENT_REPOSITORY, CLIENT_TIMELINE_REPOSITORY],
+    },
+    {
+      provide: ClientTimelineProjectionHandler,
+      useFactory: (timelineRepo: ClientTimelineRepository) =>
+        new ClientTimelineProjectionHandler(timelineRepo),
+      inject: [CLIENT_TIMELINE_REPOSITORY],
+    },
   ],
   exports: [
     CLIENT_REPOSITORY,
@@ -79,6 +98,8 @@ import { PrismaClientRepository } from './infrastructure/persistence/prisma/pris
     UpdateClientUseCase,
     ArchiveClientUseCase,
     RestoreClientUseCase,
+    GetClientHistoryUseCase,
+    ClientTimelineProjectionHandler,
     ClientDuplicateCheckerService,
   ],
 })

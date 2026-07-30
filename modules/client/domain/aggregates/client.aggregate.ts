@@ -10,8 +10,10 @@ import {
   ClientArchivedEvent,
   ClientCreatedEvent,
   ClientRestoredEvent,
+  ClientUpdatedEvent,
   IdentityLinkedEvent,
 } from '../events';
+
 import {
   ClientId,
   ClientName,
@@ -166,21 +168,29 @@ export class Client extends AggregateRoot<ClientProps> {
       throw new OptimisticLockException(this.id, this.props.version, params.expectedVersion);
     }
 
+    const updatedFields: string[] = [];
     if (params.name) {
       this.props.name = params.name;
       this.props.normalizedSearchName = NormalizedSearchName.create(params.name);
+      updatedFields.push('name');
     }
 
     if (params.email) {
       this.props.email = params.email;
+      updatedFields.push('email');
     }
 
     if (params.phone) {
       this.props.phone = params.phone;
+      updatedFields.push('phone');
     }
 
     this.props.version++;
     this.props.updatedAt = new Date();
+
+    if (updatedFields.length > 0) {
+      this.addDomainEvent(new ClientUpdatedEvent(this.id, updatedFields, this.props.updatedAt));
+    }
   }
 
   /**
