@@ -69,3 +69,19 @@ export class ClientConcurrencyException extends ClientDomainException {
     this.name = 'ClientConcurrencyException';
   }
 }
+
+export class ArchivedClientCannotBeModifiedException extends ClientDomainException {
+  constructor(clientId: string) {
+    super(`Client State Violation: Archived client '${clientId}' cannot be modified.`);
+    this.name = 'ArchivedClientCannotBeModifiedException';
+  }
+}
+
+export class OptimisticLockException extends ClientDomainException {
+  constructor(clientId: string, currentVersion: number, expectedVersion: number) {
+    super(
+      `Optimistic Lock Exception: Client '${clientId}' expected version ${expectedVersion}, but current version is ${currentVersion}.`,
+    );
+    this.name = 'OptimisticLockException';
+  }
+}

@@ -5,8 +5,10 @@ import {
   ClientNotFoundException,
 } from '../../application/exceptions/client-already-exists.exception';
 import {
+  ArchivedClientCannotBeModifiedException,
   ClientAlreadyLinkedException,
   ClientDomainException,
+  OptimisticLockException,
 } from '../../domain/errors/client-domain.exception';
 
 @Catch()
@@ -17,7 +19,9 @@ export class ClientExceptionFilter implements ExceptionFilter {
 
     if (
       exception instanceof ClientAlreadyExistsException ||
-      exception instanceof ClientAlreadyLinkedException
+      exception instanceof ClientAlreadyLinkedException ||
+      exception instanceof ArchivedClientCannotBeModifiedException ||
+      exception instanceof OptimisticLockException
     ) {
       response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,

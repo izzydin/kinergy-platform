@@ -1,8 +1,10 @@
 import { AggregateRoot } from '../kernel';
 import {
+  ArchivedClientCannotBeModifiedException,
   ClientAlreadyActiveException,
   ClientAlreadyArchivedException,
   ClientAlreadyLinkedException,
+  OptimisticLockException,
 } from '../errors/client-domain.exception';
 import {
   ClientArchivedEvent,
@@ -143,6 +145,42 @@ export class Client extends AggregateRoot<ClientProps> {
    */
   public static reconstitute(props: ClientProps, id: ClientId): Client {
     return new Client(props, id);
+  }
+
+  /**
+   * Updates details of the client profile (partial update).
+   * Throws ArchivedClientCannotBeModifiedException if client is ARCHIVED.
+   * Throws OptimisticLockException if current version does not match expectedVersion.
+   */
+  public updateDetails(params: {
+    name?: ClientName;
+    email?: EmailAddress;
+    phone?: E164PhoneNumber;
+    expectedVersion: number;
+  }): void {
+    if (this.props.status === ClientStatus.ARCHIVED) {
+      throw new ArchivedClientCannotBeModifiedException(this.id);
+    }
+
+    if (this.props.version !== params.expectedVersion) {
+      throw new OptimisticLockException(this.id, this.props.version, params.expectedVersion);
+    }
+
+    if (params.name) {
+      this.props.name = params.name;
+      this.props.normalizedSearchName = NormalizedSearchName.create(params.name);
+    }
+
+    if (params.email) {
+      this.props.email = params.email;
+    }
+
+    if (params.phone) {
+      this.props.phone = params.phone;
+    }
+
+    this.props.version++;
+    this.props.updatedAt = new Date();
   }
 
   /**

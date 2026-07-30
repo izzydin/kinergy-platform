@@ -14,18 +14,26 @@ export class ClientDuplicateCheckerService {
     private readonly clientSearchRepository?: ClientSearchRepository,
   ) {}
 
-  /**
-   * Asserts that no active client exists with the given email OR E.164 phone.
-   * Throws ClientAlreadyExistsException if a hard duplicate is detected.
-   */
-  public async checkHardDuplicates(email: EmailAddress, phone: E164PhoneNumber): Promise<void> {
+  public async checkHardDuplicates(
+    email: EmailAddress,
+    phone: E164PhoneNumber,
+    ignoreClientId?: string,
+  ): Promise<void> {
     const existingByEmail = await this.clientRepository.findByEmail(email);
-    if (existingByEmail && existingByEmail.status === ClientStatus.ACTIVE) {
+    if (
+      existingByEmail &&
+      existingByEmail.status === ClientStatus.ACTIVE &&
+      existingByEmail.id !== ignoreClientId
+    ) {
       throw new ClientAlreadyExistsException('email', email.value);
     }
 
     const existingByPhone = await this.clientRepository.findByPhone(phone);
-    if (existingByPhone && existingByPhone.status === ClientStatus.ACTIVE) {
+    if (
+      existingByPhone &&
+      existingByPhone.status === ClientStatus.ACTIVE &&
+      existingByPhone.id !== ignoreClientId
+    ) {
       throw new ClientAlreadyExistsException('phone', phone.value);
     }
   }

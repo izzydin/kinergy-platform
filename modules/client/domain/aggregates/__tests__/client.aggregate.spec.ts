@@ -1,7 +1,9 @@
 import {
+  ArchivedClientCannotBeModifiedException,
   ClientAlreadyActiveException,
   ClientAlreadyArchivedException,
   ClientAlreadyLinkedException,
+  OptimisticLockException,
 } from '../../errors';
 import {
   ClientArchivedEvent,
@@ -45,6 +47,52 @@ describe('Client Aggregate Root Unit Tests', () => {
 
     expect(client.domainEvents).toHaveLength(1);
     expect(client.domainEvents[0]).toBeInstanceOf(ClientCreatedEvent);
+  });
+
+  it('should update client details, update normalizedSearchName, increment version, and set updatedAt', () => {
+    const client = Client.register(createSampleRegisterProps());
+    const initialUpdatedAt = client.updatedAt;
+
+    const newName = ClientName.create('Maria Jose', 'Gomez');
+    const newEmail = EmailAddress.create('maria.jose@kinergy.com');
+    const newPhone = E164PhoneNumber.create('+14155559999');
+
+    client.updateDetails({
+      name: newName,
+      email: newEmail,
+      phone: newPhone,
+      expectedVersion: 1,
+    });
+
+    expect(client.name.fullName).toBe('Maria Jose Gomez');
+    expect(client.email.value).toBe('maria.jose@kinergy.com');
+    expect(client.phone.value).toBe('+14155559999');
+    expect(client.normalizedSearchName.value).toBe('maria jose gomez');
+    expect(client.version).toBe(2);
+    expect(client.updatedAt.getTime()).toBeGreaterThanOrEqual(initialUpdatedAt.getTime());
+  });
+
+  it('should throw ArchivedClientCannotBeModifiedException when updating an archived client', () => {
+    const client = Client.register(createSampleRegisterProps());
+    client.archive();
+
+    expect(() =>
+      client.updateDetails({
+        name: ClientName.create('Updated', 'Name'),
+        expectedVersion: 2,
+      }),
+    ).toThrow(ArchivedClientCannotBeModifiedException);
+  });
+
+  it('should throw OptimisticLockException when expectedVersion does not match aggregate version', () => {
+    const client = Client.register(createSampleRegisterProps());
+
+    expect(() =>
+      client.updateDetails({
+        name: ClientName.create('Updated', 'Name'),
+        expectedVersion: 99,
+      }),
+    ).toThrow(OptimisticLockException);
   });
 
   it('should link identity credentials, increment version to 2, and emit IdentityLinkedEvent', () => {
