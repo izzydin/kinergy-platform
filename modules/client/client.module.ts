@@ -5,6 +5,8 @@ import { LinkIdentityToClientUseCase } from './application/use-cases/link-identi
 import { GetClientProfileUseCase } from './application/use-cases/get-client-profile.usecase';
 import { SearchClientsUseCase } from './application/use-cases/search-clients.usecase';
 import { UpdateClientUseCase } from './application/use-cases/update-client.usecase';
+import { ArchiveClientUseCase } from './application/use-cases/archive-client.usecase';
+import { RestoreClientUseCase } from './application/use-cases/restore-client.usecase';
 import { ClientDuplicateCheckerService } from './domain/services/client-duplicate-checker.service';
 import { CLIENT_REPOSITORY, CLIENT_SEARCH_REPOSITORY } from './domain/repositories';
 import { ClientRepository } from './domain/repositories/client.repository';
@@ -56,6 +58,16 @@ import { PrismaClientRepository } from './infrastructure/persistence/prisma/pris
         new UpdateClientUseCase(repo, checker),
       inject: [CLIENT_REPOSITORY, ClientDuplicateCheckerService],
     },
+    {
+      provide: ArchiveClientUseCase,
+      useFactory: (repo: ClientRepository) => new ArchiveClientUseCase(repo),
+      inject: [CLIENT_REPOSITORY],
+    },
+    {
+      provide: RestoreClientUseCase,
+      useFactory: (repo: ClientRepository) => new RestoreClientUseCase(repo),
+      inject: [CLIENT_REPOSITORY],
+    },
   ],
   exports: [
     CLIENT_REPOSITORY,
@@ -65,6 +77,8 @@ import { PrismaClientRepository } from './infrastructure/persistence/prisma/pris
     GetClientProfileUseCase,
     SearchClientsUseCase,
     UpdateClientUseCase,
+    ArchiveClientUseCase,
+    RestoreClientUseCase,
     ClientDuplicateCheckerService,
   ],
 })

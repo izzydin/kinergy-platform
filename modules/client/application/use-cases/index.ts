@@ -3,3 +3,5 @@ export * from './register-client.usecase';
 export * from './get-client-profile.usecase';
 export * from './search-clients.usecase';
 export * from './update-client.usecase';
+export * from './archive-client.usecase';
+export * from './restore-client.usecase';

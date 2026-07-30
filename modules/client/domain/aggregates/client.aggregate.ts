@@ -207,9 +207,13 @@ export class Client extends AggregateRoot<ClientProps> {
   /**
    * Archives the client profile.
    */
-  public archive(): void {
+  public archive(expectedVersion?: number): void {
     if (this.props.status === ClientStatus.ARCHIVED) {
       throw new ClientAlreadyArchivedException(this.id);
+    }
+
+    if (expectedVersion !== undefined && this.props.version !== expectedVersion) {
+      throw new OptimisticLockException(this.id, this.props.version, expectedVersion);
     }
 
     this.props.status = ClientStatus.ARCHIVED;
@@ -222,9 +226,13 @@ export class Client extends AggregateRoot<ClientProps> {
   /**
    * Restores an archived client profile back to ACTIVE status.
    */
-  public restore(): void {
+  public restore(expectedVersion?: number): void {
     if (this.props.status === ClientStatus.ACTIVE) {
       throw new ClientAlreadyActiveException(this.id);
+    }
+
+    if (expectedVersion !== undefined && this.props.version !== expectedVersion) {
+      throw new OptimisticLockException(this.id, this.props.version, expectedVersion);
     }
 
     this.props.status = ClientStatus.ACTIVE;
