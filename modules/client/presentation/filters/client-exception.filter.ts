@@ -6,6 +6,8 @@ import {
 } from '../../application/exceptions/client-already-exists.exception';
 import {
   ArchivedClientCannotBeModifiedException,
+  ClientAlreadyActiveException,
+  ClientAlreadyArchivedException,
   ClientAlreadyLinkedException,
   ClientDomainException,
   OptimisticLockException,
@@ -37,7 +39,9 @@ export class ClientExceptionFilter implements ExceptionFilter {
 
     if (
       exception instanceof ClientAlreadyExistsException ||
-      exception instanceof ClientAlreadyLinkedException
+      exception instanceof ClientAlreadyLinkedException ||
+      exception instanceof ClientAlreadyArchivedException ||
+      exception instanceof ClientAlreadyActiveException
     ) {
       response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,

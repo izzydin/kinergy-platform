@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -21,9 +22,13 @@ import { LinkIdentityToClientUseCase } from '../../application/use-cases/link-id
 import { GetClientProfileUseCase } from '../../application/use-cases/get-client-profile.usecase';
 import { SearchClientsUseCase } from '../../application/use-cases/search-clients.usecase';
 import { UpdateClientUseCase } from '../../application/use-cases/update-client.usecase';
+import { ArchiveClientUseCase } from '../../application/use-cases/archive-client.usecase';
+import { RestoreClientUseCase } from '../../application/use-cases/restore-client.usecase';
 import { RegisterClientCommand } from '../../application/commands/register-client.command';
 import { LinkIdentityCommand } from '../../application/commands/link-identity.command';
 import { UpdateClientCommand } from '../../application/commands/update-client.command';
+import { ArchiveClientCommand } from '../../application/commands/archive-client.command';
+import { RestoreClientCommand } from '../../application/commands/restore-client.command';
 import { GetClientProfileQuery } from '../../application/queries/get-client-profile.query';
 import { SearchClientsQuery } from '../../application/queries/search-clients.query';
 import { ClientProfileDto } from '../../application/dto/client-profile.dto';
@@ -48,6 +53,8 @@ export class ClientController {
     private readonly getClientProfileUseCase: GetClientProfileUseCase,
     private readonly searchClientsUseCase: SearchClientsUseCase,
     private readonly updateClientUseCase: UpdateClientUseCase,
+    private readonly archiveClientUseCase: ArchiveClientUseCase,
+    private readonly restoreClientUseCase: RestoreClientUseCase,
   ) {}
 
   @Get()
@@ -188,6 +195,114 @@ export class ClientController {
     });
 
     const updatedProfile = await this.updateClientUseCase.execute(command);
+    res.setHeader('ETag', `"${updatedProfile.version}"`);
+    return updatedProfile;
+  }
+
+  @Patch(':id/archive')
+  @ApiOperation({ summary: 'Archive client profile' })
+  @ApiResponse({
+    status: 200,
+    description: 'Client profile archived successfully',
+    type: ClientProfileDto,
+  })
+  @ApiResponse({ status: 404, description: 'Client profile not found' })
+  @ApiResponse({ status: 409, description: 'Conflict (client is already archived)' })
+  @ApiResponse({ status: 403, description: 'Forbidden (insufficient permissions)' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async archive(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ClientProfileDto> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userPayload = (req as any).user;
+
+    if (!userPayload) {
+      const authHeader = req.headers?.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedException('Authentication token required.');
+      }
+    }
+
+    const roles: string[] = userPayload?.roles ?? [];
+    const isStaffOrAdmin = roles.includes('ADMIN') || roles.includes('STAFF');
+    if (userPayload && !isStaffOrAdmin) {
+      throw new ForbiddenException('Only administrative staff can archive client profiles.');
+    }
+
+    let expectedVersion: number | undefined;
+    const ifMatchHeader = req.headers['if-match'];
+    if (ifMatchHeader) {
+      const rawVersionStr = Array.isArray(ifMatchHeader) ? ifMatchHeader[0] : ifMatchHeader;
+      const cleanVersionStr = rawVersionStr.replace(/"/g, '').trim();
+      const parsedVersion = parseInt(cleanVersionStr, 10);
+      if (!isNaN(parsedVersion)) {
+        expectedVersion = parsedVersion;
+      }
+    }
+
+    const command = new ArchiveClientCommand({
+      clientId: id,
+      expectedVersion,
+    });
+
+    const updatedProfile = await this.archiveClientUseCase.execute(command);
+    res.setHeader('ETag', `"${updatedProfile.version}"`);
+    return updatedProfile;
+  }
+
+  @Patch(':id/restore')
+  @ApiOperation({ summary: 'Restore archived client profile' })
+  @ApiResponse({
+    status: 200,
+    description: 'Client profile restored successfully',
+    type: ClientProfileDto,
+  })
+  @ApiResponse({ status: 404, description: 'Client profile not found' })
+  @ApiResponse({ status: 409, description: 'Conflict (client is already active)' })
+  @ApiResponse({ status: 403, description: 'Forbidden (insufficient permissions)' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async restore(
+    @Param('id') id: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ClientProfileDto> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userPayload = (req as any).user;
+
+    if (!userPayload) {
+      const authHeader = req.headers?.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedException('Authentication token required.');
+      }
+    }
+
+    const roles: string[] = userPayload?.roles ?? [];
+    const isStaffOrAdmin = roles.includes('ADMIN') || roles.includes('STAFF');
+    if (userPayload && !isStaffOrAdmin) {
+      throw new ForbiddenException(
+        'Only administrative staff can restore archived client profiles.',
+      );
+    }
+
+    let expectedVersion: number | undefined;
+    const ifMatchHeader = req.headers['if-match'];
+    if (ifMatchHeader) {
+      const rawVersionStr = Array.isArray(ifMatchHeader) ? ifMatchHeader[0] : ifMatchHeader;
+      const cleanVersionStr = rawVersionStr.replace(/"/g, '').trim();
+      const parsedVersion = parseInt(cleanVersionStr, 10);
+      if (!isNaN(parsedVersion)) {
+        expectedVersion = parsedVersion;
+      }
+    }
+
+    const command = new RestoreClientCommand({
+      clientId: id,
+      expectedVersion,
+    });
+
+    const updatedProfile = await this.restoreClientUseCase.execute(command);
     res.setHeader('ETag', `"${updatedProfile.version}"`);
     return updatedProfile;
   }
