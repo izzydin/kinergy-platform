@@ -15,7 +15,7 @@ import {
   UnauthorizedException,
   UseFilters,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { RegisterClientUseCase } from '../../application/use-cases/register-client.usecase';
 import { LinkIdentityToClientUseCase } from '../../application/use-cases/link-identity-to-client.usecase';
@@ -24,6 +24,7 @@ import { SearchClientsUseCase } from '../../application/use-cases/search-clients
 import { UpdateClientUseCase } from '../../application/use-cases/update-client.usecase';
 import { ArchiveClientUseCase } from '../../application/use-cases/archive-client.usecase';
 import { RestoreClientUseCase } from '../../application/use-cases/restore-client.usecase';
+import { GetClientHistoryUseCase } from '../../application/use-cases/get-client-history.usecase';
 import { RegisterClientCommand } from '../../application/commands/register-client.command';
 import { LinkIdentityCommand } from '../../application/commands/link-identity.command';
 import { UpdateClientCommand } from '../../application/commands/update-client.command';
@@ -31,7 +32,9 @@ import { ArchiveClientCommand } from '../../application/commands/archive-client.
 import { RestoreClientCommand } from '../../application/commands/restore-client.command';
 import { GetClientProfileQuery } from '../../application/queries/get-client-profile.query';
 import { SearchClientsQuery } from '../../application/queries/search-clients.query';
+import { GetClientHistoryQuery } from '../../application/queries/get-client-history.query';
 import { ClientProfileDto } from '../../application/dto/client-profile.dto';
+import { ClientTimelineEntryDto } from '../../application/dto/client-timeline-entry.dto';
 import { PaginatedResultDto } from '../../application/dto/paginated-result.dto';
 import {
   ClientResponseDto,
@@ -55,6 +58,7 @@ export class ClientController {
     private readonly updateClientUseCase: UpdateClientUseCase,
     private readonly archiveClientUseCase: ArchiveClientUseCase,
     private readonly restoreClientUseCase: RestoreClientUseCase,
+    private readonly getClientHistoryUseCase: GetClientHistoryUseCase,
   ) {}
 
   @Get()
@@ -102,6 +106,42 @@ export class ClientController {
     });
 
     return this.searchClientsUseCase.execute(query);
+  }
+
+  @Get(':id/history')
+  @ApiOperation({ summary: 'Get client activity feed / timeline history' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated client timeline entries retrieved successfully',
+    type: PaginatedResultDto,
+  })
+  @ApiResponse({ status: 404, description: 'Client not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getHistory(
+    @Param('id') id: string,
+    @Query('page') page: string,
+    @Query('limit') limit: string,
+    @Req() req: Request,
+  ): Promise<PaginatedResultDto<ClientTimelineEntryDto>> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userPayload = (req as any).user;
+
+    if (!userPayload) {
+      const authHeader = req.headers?.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedException('Authentication token required.');
+      }
+    }
+
+    const query = new GetClientHistoryQuery({
+      clientId: id,
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 20,
+    });
+
+    return this.getClientHistoryUseCase.execute(query);
   }
 
   @Get(':id')

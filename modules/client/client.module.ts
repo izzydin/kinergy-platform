@@ -19,11 +19,13 @@ import { ClientRepository } from './domain/repositories/client.repository';
 import { ClientSearchRepository } from './domain/repositories/client-search.repository';
 import { ClientTimelineRepository } from './domain/repositories/client-timeline.repository';
 import { PrismaClientRepository } from './infrastructure/persistence/prisma/prisma-client.repository';
+import { PrismaClientTimelineRepository } from './infrastructure/persistence/prisma/prisma-client-timeline.repository';
 
 @Module({
   controllers: [ClientController],
   providers: [
     PrismaClientRepository,
+    PrismaClientTimelineRepository,
     {
       provide: CLIENT_REPOSITORY,
       useClass: PrismaClientRepository,
@@ -31,6 +33,10 @@ import { PrismaClientRepository } from './infrastructure/persistence/prisma/pris
     {
       provide: CLIENT_SEARCH_REPOSITORY,
       useClass: PrismaClientRepository,
+    },
+    {
+      provide: CLIENT_TIMELINE_REPOSITORY,
+      useClass: PrismaClientTimelineRepository,
     },
     {
       provide: ClientDuplicateCheckerService,
@@ -91,6 +97,7 @@ import { PrismaClientRepository } from './infrastructure/persistence/prisma/pris
   exports: [
     CLIENT_REPOSITORY,
     CLIENT_SEARCH_REPOSITORY,
+    CLIENT_TIMELINE_REPOSITORY,
     RegisterClientUseCase,
     LinkIdentityToClientUseCase,
     GetClientProfileUseCase,
