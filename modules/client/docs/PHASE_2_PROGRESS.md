@@ -89,14 +89,14 @@ graph TD
 
 ## Key Files Reference
 
-| Area | File |
-|---|---|
-| Aggregate Root | `modules/client/domain/aggregates/client.aggregate.ts` |
-| Timeline Read Model | `modules/client/domain/read-models/client-timeline-entry.entity.ts` |
-| Timeline Repository Interface | `modules/client/domain/repositories/client-timeline.repository.ts` |
-| Projection Handler | `modules/client/application/events/client-timeline-projection.handler.ts` |
-| History Use Case | `modules/client/application/use-cases/get-client-history.usecase.ts` |
-| Prisma Timeline Repository | `modules/client/infrastructure/persistence/prisma/prisma-client-timeline.repository.ts` |
-| REST Controller | `modules/client/presentation/controllers/client.controller.ts` |
-| Prisma Schema | `prisma/schema.prisma` |
-| Timeline Migration | `prisma/migrations/20260730000001_add_client_timeline_entries/migration.sql` |
+| Area                          | File                                                                                    |
+| ----------------------------- | --------------------------------------------------------------------------------------- |
+| Aggregate Root                | `modules/client/domain/aggregates/client.aggregate.ts`                                  |
+| Timeline Read Model           | `modules/client/domain/read-models/client-timeline-entry.entity.ts`                     |
+| Timeline Repository Interface | `modules/client/domain/repositories/client-timeline.repository.ts`                      |
+| Projection Handler            | `modules/client/application/events/client-timeline-projection.handler.ts`               |
+| History Use Case              | `modules/client/application/use-cases/get-client-history.usecase.ts`                    |
+| Prisma Timeline Repository    | `modules/client/infrastructure/persistence/prisma/prisma-client-timeline.repository.ts` |
+| REST Controller               | `modules/client/presentation/controllers/client.controller.ts`                          |
+| Prisma Schema                 | `prisma/schema.prisma`                                                                  |
+| Timeline Migration            | `prisma/migrations/20260730000001_add_client_timeline_entries/migration.sql`            |

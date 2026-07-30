@@ -9,6 +9,7 @@ import { ArchiveClientUseCase } from './application/use-cases/archive-client.use
 import { RestoreClientUseCase } from './application/use-cases/restore-client.usecase';
 import { GetClientHistoryUseCase } from './application/use-cases/get-client-history.usecase';
 import { ClientTimelineProjectionHandler } from './application/events/client-timeline-projection.handler';
+import { DomainEventDispatcher } from './application/events/domain-event-dispatcher';
 import { ClientDuplicateCheckerService } from './domain/services/client-duplicate-checker.service';
 import {
   CLIENT_REPOSITORY,
@@ -39,6 +40,17 @@ import { PrismaClientTimelineRepository } from './infrastructure/persistence/pri
       useClass: PrismaClientTimelineRepository,
     },
     {
+      provide: ClientTimelineProjectionHandler,
+      useFactory: (timelineRepo: ClientTimelineRepository) =>
+        new ClientTimelineProjectionHandler(timelineRepo),
+      inject: [CLIENT_TIMELINE_REPOSITORY],
+    },
+    {
+      provide: DomainEventDispatcher,
+      useFactory: (handler: ClientTimelineProjectionHandler) => new DomainEventDispatcher(handler),
+      inject: [ClientTimelineProjectionHandler],
+    },
+    {
       provide: ClientDuplicateCheckerService,
       useFactory: (repo: ClientRepository, searchRepo: ClientSearchRepository) =>
         new ClientDuplicateCheckerService(repo, searchRepo),
@@ -46,14 +58,18 @@ import { PrismaClientTimelineRepository } from './infrastructure/persistence/pri
     },
     {
       provide: RegisterClientUseCase,
-      useFactory: (repo: ClientRepository, checker: ClientDuplicateCheckerService) =>
-        new RegisterClientUseCase(repo, checker),
-      inject: [CLIENT_REPOSITORY, ClientDuplicateCheckerService],
+      useFactory: (
+        repo: ClientRepository,
+        checker: ClientDuplicateCheckerService,
+        dispatcher: DomainEventDispatcher,
+      ) => new RegisterClientUseCase(repo, checker, dispatcher),
+      inject: [CLIENT_REPOSITORY, ClientDuplicateCheckerService, DomainEventDispatcher],
     },
     {
       provide: LinkIdentityToClientUseCase,
-      useFactory: (repo: ClientRepository) => new LinkIdentityToClientUseCase(repo),
-      inject: [CLIENT_REPOSITORY],
+      useFactory: (repo: ClientRepository, dispatcher: DomainEventDispatcher) =>
+        new LinkIdentityToClientUseCase(repo, dispatcher),
+      inject: [CLIENT_REPOSITORY, DomainEventDispatcher],
     },
     {
       provide: GetClientProfileUseCase,
@@ -67,31 +83,30 @@ import { PrismaClientTimelineRepository } from './infrastructure/persistence/pri
     },
     {
       provide: UpdateClientUseCase,
-      useFactory: (repo: ClientRepository, checker: ClientDuplicateCheckerService) =>
-        new UpdateClientUseCase(repo, checker),
-      inject: [CLIENT_REPOSITORY, ClientDuplicateCheckerService],
+      useFactory: (
+        repo: ClientRepository,
+        checker: ClientDuplicateCheckerService,
+        dispatcher: DomainEventDispatcher,
+      ) => new UpdateClientUseCase(repo, checker, dispatcher),
+      inject: [CLIENT_REPOSITORY, ClientDuplicateCheckerService, DomainEventDispatcher],
     },
     {
       provide: ArchiveClientUseCase,
-      useFactory: (repo: ClientRepository) => new ArchiveClientUseCase(repo),
-      inject: [CLIENT_REPOSITORY],
+      useFactory: (repo: ClientRepository, dispatcher: DomainEventDispatcher) =>
+        new ArchiveClientUseCase(repo, dispatcher),
+      inject: [CLIENT_REPOSITORY, DomainEventDispatcher],
     },
     {
       provide: RestoreClientUseCase,
-      useFactory: (repo: ClientRepository) => new RestoreClientUseCase(repo),
-      inject: [CLIENT_REPOSITORY],
+      useFactory: (repo: ClientRepository, dispatcher: DomainEventDispatcher) =>
+        new RestoreClientUseCase(repo, dispatcher),
+      inject: [CLIENT_REPOSITORY, DomainEventDispatcher],
     },
     {
       provide: GetClientHistoryUseCase,
       useFactory: (repo: ClientRepository, timelineRepo: ClientTimelineRepository) =>
         new GetClientHistoryUseCase(repo, timelineRepo),
       inject: [CLIENT_REPOSITORY, CLIENT_TIMELINE_REPOSITORY],
-    },
-    {
-      provide: ClientTimelineProjectionHandler,
-      useFactory: (timelineRepo: ClientTimelineRepository) =>
-        new ClientTimelineProjectionHandler(timelineRepo),
-      inject: [CLIENT_TIMELINE_REPOSITORY],
     },
   ],
   exports: [
@@ -107,6 +122,7 @@ import { PrismaClientTimelineRepository } from './infrastructure/persistence/pri
     RestoreClientUseCase,
     GetClientHistoryUseCase,
     ClientTimelineProjectionHandler,
+    DomainEventDispatcher,
     ClientDuplicateCheckerService,
   ],
 })

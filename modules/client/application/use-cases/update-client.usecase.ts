@@ -8,11 +8,13 @@ import { ClientName } from '../../domain/value-objects/client-name.vo';
 import { EmailAddress } from '../../domain/value-objects/email-address.vo';
 import { E164PhoneNumber } from '../../domain/value-objects/e164-phone-number.vo';
 import { ClientMapper } from '../../infrastructure/persistence/prisma/client.mapper';
+import { DomainEventDispatcher } from '../events/domain-event-dispatcher';
 
 export class UpdateClientUseCase {
   constructor(
     private readonly clientRepository: ClientRepository,
     private readonly duplicateChecker: ClientDuplicateCheckerService,
+    private readonly eventDispatcher?: DomainEventDispatcher,
   ) {}
 
   public async execute(command: UpdateClientCommand): Promise<ClientProfileDto> {
@@ -60,6 +62,11 @@ export class UpdateClientUseCase {
 
     // Save updated aggregate
     await this.clientRepository.save(client);
+
+    // Dispatch domain events to projection handlers
+    if (this.eventDispatcher) {
+      await this.eventDispatcher.dispatch(client);
+    }
 
     return ClientMapper.toProfileDto(client, true);
   }

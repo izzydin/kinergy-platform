@@ -9,11 +9,13 @@ import {
 } from '../../domain/value-objects';
 import { RegisterClientCommand } from '../commands/register-client.command';
 import { RegisterClientResult } from '../dto/register-client-result.dto';
+import { DomainEventDispatcher } from '../events/domain-event-dispatcher';
 
 export class RegisterClientUseCase {
   constructor(
     private readonly clientRepository: ClientRepository,
     private readonly duplicateCheckerService: ClientDuplicateCheckerService,
+    private readonly eventDispatcher?: DomainEventDispatcher,
   ) {}
 
   public async execute(command: RegisterClientCommand): Promise<RegisterClientResult> {
@@ -49,6 +51,11 @@ export class RegisterClientUseCase {
 
     // 5. Persist aggregate using repository contract
     await this.clientRepository.save(client);
+
+    // 6. Dispatch domain events to projection handlers
+    if (this.eventDispatcher) {
+      await this.eventDispatcher.dispatch(client);
+    }
 
     return RegisterClientResult.success(client);
   }

@@ -157,9 +157,8 @@ model ClientTimelineEntry {
 
   client Client @relation("ClientToTimeline", fields: [clientId], references: [id], onDelete: Cascade)
 
-  @@index([clientId])
+  @@index([clientId, occurredAt(sort: Desc)])
   @@index([eventType])
-  @@index([occurredAt])
   @@map("client_timeline_entries")
 }
 

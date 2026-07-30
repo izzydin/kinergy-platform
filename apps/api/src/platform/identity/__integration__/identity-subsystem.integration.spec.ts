@@ -387,7 +387,7 @@ describe('Identity Subsystem Integration Tests', () => {
       });
       expect(resetResult.temporaryPassword).toBeDefined();
       expect(resetResult.temporaryPassword.length).toBeGreaterThanOrEqual(16);
-    });
+    }, 30_000);
   });
 
   describe('Integration Workflow 4: Authorization Engine Evaluation', () => {

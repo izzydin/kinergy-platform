@@ -4,11 +4,15 @@ import { ClientAlreadyLinkedSpecification } from '../../domain/specifications/cl
 import { ClientId } from '../../domain/value-objects/client-id.vo';
 import { LinkIdentityCommand } from '../commands/link-identity.command';
 import { ClientNotFoundException } from '../exceptions/client-already-exists.exception';
+import { DomainEventDispatcher } from '../events/domain-event-dispatcher';
 
 export class LinkIdentityToClientUseCase {
   private readonly clientAlreadyLinkedSpec: ClientAlreadyLinkedSpecification;
 
-  constructor(private readonly clientRepository: ClientRepository) {
+  constructor(
+    private readonly clientRepository: ClientRepository,
+    private readonly eventDispatcher?: DomainEventDispatcher,
+  ) {
     this.clientAlreadyLinkedSpec = new ClientAlreadyLinkedSpecification();
   }
 
@@ -31,6 +35,11 @@ export class LinkIdentityToClientUseCase {
 
     // 4. Save updated aggregate to persistence repository
     await this.clientRepository.save(client);
+
+    // 5. Dispatch domain events to projection handlers
+    if (this.eventDispatcher) {
+      await this.eventDispatcher.dispatch(client);
+    }
 
     return client;
   }

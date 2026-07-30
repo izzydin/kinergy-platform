@@ -43,6 +43,7 @@ import {
   RegisterClientRequestDto,
   SearchClientsQueryDto,
   UpdateClientRequestDto,
+  GetClientHistoryQueryDto,
 } from '../dto';
 import { ClientExceptionFilter } from '../filters/client-exception.filter';
 
@@ -109,7 +110,7 @@ export class ClientController {
   }
 
   @Get(':id/history')
-  @ApiOperation({ summary: 'Get client activity feed / timeline history' })
+  @ApiOperation({ summary: 'Get client activity timeline history' })
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
   @ApiResponse({
@@ -121,8 +122,7 @@ export class ClientController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getHistory(
     @Param('id') id: string,
-    @Query('page') page: string,
-    @Query('limit') limit: string,
+    @Query() queryDto: GetClientHistoryQueryDto,
     @Req() req: Request,
   ): Promise<PaginatedResultDto<ClientTimelineEntryDto>> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -137,8 +137,8 @@ export class ClientController {
 
     const query = new GetClientHistoryQuery({
       clientId: id,
-      page: page ? parseInt(page, 10) : 1,
-      limit: limit ? parseInt(limit, 10) : 20,
+      page: queryDto.page ?? 1,
+      limit: queryDto.limit ?? 20,
     });
 
     return this.getClientHistoryUseCase.execute(query);
