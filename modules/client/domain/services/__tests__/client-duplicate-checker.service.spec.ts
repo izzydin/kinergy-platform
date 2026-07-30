@@ -37,6 +37,7 @@ describe('ClientDuplicateCheckerService Unit Tests', () => {
     mockClientSearchRepository = {
       searchByName: jest.fn(),
       searchByStatus: jest.fn(),
+      search: jest.fn(),
     };
 
     service = new ClientDuplicateCheckerService(mockClientRepository, mockClientSearchRepository);

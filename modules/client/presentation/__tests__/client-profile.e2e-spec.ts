@@ -13,7 +13,10 @@ import {
   CLIENT_SEARCH_REPOSITORY,
   ClientRepository,
   ClientSearchRepository,
+  SearchClientsCriteria,
 } from '../../domain/repositories';
+import { PaginatedResultDto } from '../../application/dto/paginated-result.dto';
+
 import {
   ClientId,
   ClientName,
@@ -111,6 +114,11 @@ class InMemoryClientRepository implements ClientRepository, ClientSearchReposito
       }
     }
     return results;
+  }
+
+  async search(criteria: SearchClientsCriteria): Promise<PaginatedResultDto<Client>> {
+    const items = Array.from(this.clients.values());
+    return PaginatedResultDto.create(items, items.length, criteria.page, criteria.limit);
   }
 
   clear(): void {

@@ -7,7 +7,9 @@ import {
   CLIENT_SEARCH_REPOSITORY,
   ClientRepository,
   ClientSearchRepository,
+  SearchClientsCriteria,
 } from '../../domain/repositories';
+
 import {
   ClientId,
   ClientName,
@@ -17,6 +19,7 @@ import {
   EmailAddress,
   NormalizedSearchName,
 } from '../../domain/value-objects';
+import { PaginatedResultDto } from '../../application/dto/paginated-result.dto';
 import { ClientController } from '../controllers/client.controller';
 import { RegisterClientUseCase } from '../../application/use-cases/register-client.usecase';
 import { LinkIdentityToClientUseCase } from '../../application/use-cases/link-identity-to-client.usecase';
@@ -79,6 +82,11 @@ class InMemoryClientRepository implements ClientRepository, ClientSearchReposito
       }
     }
     return results;
+  }
+
+  async search(criteria: SearchClientsCriteria): Promise<PaginatedResultDto<Client>> {
+    const items = Array.from(this.clients.values());
+    return PaginatedResultDto.create(items, items.length, criteria.page, criteria.limit);
   }
 
   clear(): void {

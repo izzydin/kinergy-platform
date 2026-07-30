@@ -11,6 +11,7 @@ import {
 } from '../../../../domain/value-objects';
 
 import { PrismaClientRepository } from '../prisma-client.repository';
+import { ClientMapper } from '../client.mapper';
 
 describe('PrismaClientRepository Integration Tests', () => {
   let repository: PrismaClientRepository;
@@ -194,6 +195,26 @@ describe('PrismaClientRepository Integration Tests', () => {
     it('should search clients by status', async () => {
       const results = await repository.searchByStatus(ClientStatus.ACTIVE);
       expect(results.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('should execute paginated search criteria query', async () => {
+      mockPrismaClient.client.findMany = jest
+        .fn()
+        .mockResolvedValue([ClientMapper.toPersistence(client)]);
+      mockPrismaClient.client.count = jest.fn().mockResolvedValue(1);
+
+      const result = await repository.search({
+        query: 'diana',
+        status: ClientStatus.ACTIVE,
+        page: 1,
+        limit: 10,
+      });
+
+      expect(result).toBeDefined();
+      expect(result.items).toHaveLength(1);
+      expect(result.total).toBe(1);
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(10);
     });
   });
 });
