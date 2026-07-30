@@ -1,5 +1,6 @@
 import { Client as ClientPrismaModel } from '@prisma/client';
 import { Client } from '../../../domain/aggregates/client.aggregate';
+import { ClientProfileDto } from '../../../application/dto/client-profile.dto';
 import {
   ClientId,
   ClientName,
@@ -53,5 +54,22 @@ export class ClientMapper {
       createdAt: client.createdAt,
       updatedAt: client.updatedAt,
     };
+  }
+
+  public static toProfileDto(client: Client, includeIdentity = false): ClientProfileDto {
+    const dto = new ClientProfileDto();
+    dto.id = client.id;
+    dto.referenceNumber = client.referenceNumber.value;
+    dto.firstName = client.name.firstName;
+    dto.lastName = client.name.lastName;
+    dto.fullName = client.name.fullName;
+    dto.email = client.email.value;
+    dto.phone = client.phone.value;
+    dto.status = client.status;
+    dto.version = client.version;
+    dto.createdAt = client.createdAt;
+    dto.updatedAt = client.updatedAt;
+    dto.identityId = includeIdentity ? client.identityId : null;
+    return dto;
   }
 }

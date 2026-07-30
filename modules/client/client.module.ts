@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ClientController } from './presentation/controllers/client.controller';
 import { RegisterClientUseCase } from './application/use-cases/register-client.usecase';
 import { LinkIdentityToClientUseCase } from './application/use-cases/link-identity-to-client.usecase';
+import { GetClientProfileUseCase } from './application/use-cases/get-client-profile.usecase';
 import { ClientDuplicateCheckerService } from './domain/services/client-duplicate-checker.service';
 import { CLIENT_REPOSITORY, CLIENT_SEARCH_REPOSITORY } from './domain/repositories';
 import { ClientRepository } from './domain/repositories/client.repository';
@@ -37,12 +38,18 @@ import { PrismaClientRepository } from './infrastructure/persistence/prisma/pris
       useFactory: (repo: ClientRepository) => new LinkIdentityToClientUseCase(repo),
       inject: [CLIENT_REPOSITORY],
     },
+    {
+      provide: GetClientProfileUseCase,
+      useFactory: (repo: ClientRepository) => new GetClientProfileUseCase(repo),
+      inject: [CLIENT_REPOSITORY],
+    },
   ],
   exports: [
     CLIENT_REPOSITORY,
     CLIENT_SEARCH_REPOSITORY,
     RegisterClientUseCase,
     LinkIdentityToClientUseCase,
+    GetClientProfileUseCase,
     ClientDuplicateCheckerService,
   ],
 })

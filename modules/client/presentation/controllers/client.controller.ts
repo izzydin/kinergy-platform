@@ -1,19 +1,26 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Param,
   Post,
+  Req,
   Res,
+  UnauthorizedException,
   UseFilters,
 } from '@nestjs/common';
+
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { RegisterClientUseCase } from '../../application/use-cases/register-client.usecase';
 import { LinkIdentityToClientUseCase } from '../../application/use-cases/link-identity-to-client.usecase';
+import { GetClientProfileUseCase } from '../../application/use-cases/get-client-profile.usecase';
 import { RegisterClientCommand } from '../../application/commands/register-client.command';
 import { LinkIdentityCommand } from '../../application/commands/link-identity.command';
+import { GetClientProfileQuery } from '../../application/queries/get-client-profile.query';
+import { ClientProfileDto } from '../../application/dto/client-profile.dto';
 import {
   ClientResponseDto,
   LinkIdentityRequestDto,
@@ -29,7 +36,44 @@ export class ClientController {
   constructor(
     private readonly registerClientUseCase: RegisterClientUseCase,
     private readonly linkIdentityUseCase: LinkIdentityToClientUseCase,
+    private readonly getClientProfileUseCase: GetClientProfileUseCase,
   ) {}
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get client profile' })
+  @ApiResponse({
+    status: 200,
+    description: 'Client profile retrieved successfully',
+    type: ClientProfileDto,
+  })
+  @ApiResponse({ status: 404, description: 'Client profile not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getProfile(@Param('id') id: string, @Req() req: Request): Promise<ClientProfileDto> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userPayload = (req as any).user;
+
+    if (!userPayload) {
+      const authHeader = req.headers?.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedException('Authentication token required.');
+      }
+    }
+
+    const requestingContext = userPayload
+      ? {
+          userId: userPayload.userId ?? userPayload.id,
+          roles: userPayload.roles,
+          permissions: userPayload.permissions,
+        }
+      : undefined;
+
+    const query = new GetClientProfileQuery({
+      clientId: id,
+      requestingContext,
+    });
+
+    return this.getClientProfileUseCase.execute(query);
+  }
 
   @Post()
   @ApiOperation({ summary: 'Register a new client profile' })
