@@ -9,3 +9,5 @@ export interface ClientRepository {
   findByIdentityId(identityId: string): Promise<Client | null>;
   findByReferenceNumber(ref: ClientReferenceNumber): Promise<Client | null>;
 }
+
+export const CLIENT_REPOSITORY = Symbol('ClientRepository');

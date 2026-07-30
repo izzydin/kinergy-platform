@@ -5,5 +5,5 @@
     "module": "commonjs",
     "types": ["jest", "node"]
   },
-  "include": ["**/*.spec.ts", "**/*.test.ts", "jest.config.ts"]
+  "include": ["**/*.spec.ts", "**/*.test.ts", "**/*.e2e-spec.ts", "jest.config.ts"]
 }

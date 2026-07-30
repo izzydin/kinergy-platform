@@ -60,3 +60,12 @@ export class ClientAlreadyActiveException extends ClientDomainException {
     this.name = 'ClientAlreadyActiveException';
   }
 }
+
+export class ClientConcurrencyException extends ClientDomainException {
+  constructor(clientId: string, expectedVersion: number) {
+    super(
+      `Optimistic Concurrency Failure: Client '${clientId}' version mismatch. Expected prior version ${expectedVersion - 1}.`,
+    );
+    this.name = 'ClientConcurrencyException';
+  }
+}

@@ -115,3 +115,31 @@ model RolePermission {
   @@index([permissionId])
   @@map("role_permissions")
 }
+
+// ==========================================
+// CLIENT BOUNDED CONTEXT
+// ==========================================
+
+model Client {
+  id                   String   @id @default(uuid())
+  referenceNumber      String   @unique @map("reference_number")
+  identityId           String?  @unique @map("identity_id")
+  firstName            String   @map("first_name")
+  lastName             String   @map("last_name")
+  email                String   @map("email")
+  phone                String   @map("phone")
+  normalizedEmail      String   @map("normalized_email")
+  normalizedPhone      String   @map("normalized_phone")
+  normalizedSearchName String   @map("normalized_search_name")
+  status               String   @default("ACTIVE") @map("status")
+  version              Int      @default(1) @map("version")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@index([normalizedEmail])
+  @@index([normalizedPhone])
+  @@index([normalizedSearchName])
+  @@index([status])
+  @@map("clients")
+}
+

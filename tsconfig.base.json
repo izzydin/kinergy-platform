@@ -23,7 +23,10 @@
       "@kinergy-platform/config": ["packages/config/src/index.ts"],
       "@kinergy-platform/validation": ["packages/validation/src/index.ts"],
       "@kinergy-platform/testing": ["packages/testing/src/index.ts"],
-      "@kinergy-platform/client-domain": ["modules/client/index.ts"]
+      "@kinergy-platform/client-domain": [
+        "dist/modules/client/index.d.ts",
+        "modules/client/index.ts"
+      ]
     },
     "strict": true,
     "noImplicitAny": true,

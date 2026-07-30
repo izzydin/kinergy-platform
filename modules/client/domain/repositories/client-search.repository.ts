@@ -5,3 +5,5 @@ export interface ClientSearchRepository {
   searchByName(normalizedQuery: NormalizedSearchName): Promise<Client[]>;
   searchByStatus(status: ClientStatus): Promise<Client[]>;
 }
+
+export const CLIENT_SEARCH_REPOSITORY = Symbol('ClientSearchRepository');
