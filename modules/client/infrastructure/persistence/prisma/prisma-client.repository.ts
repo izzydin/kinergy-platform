@@ -13,7 +13,8 @@ import {
   EmailAddress,
   NormalizedSearchName,
 } from '../../../domain/value-objects';
-import { ClientConcurrencyException } from '../../../domain/errors/client-domain.exception';
+import { OptimisticLockException } from '../../../domain/errors/client-domain.exception';
+
 import { ClientMapper } from './client.mapper';
 
 interface PrismaClientProvider {
@@ -53,7 +54,7 @@ export class PrismaClientRepository implements ClientRepository, ClientSearchRep
       });
 
       if (result.count === 0) {
-        throw new ClientConcurrencyException(client.id, client.version);
+        throw new OptimisticLockException(client.id, client.version - 1, priorVersion);
       }
     }
   }

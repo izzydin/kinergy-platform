@@ -17,11 +17,27 @@ export class ClientExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
 
+    if (exception instanceof OptimisticLockException) {
+      response.status(HttpStatus.PRECONDITION_FAILED).json({
+        statusCode: HttpStatus.PRECONDITION_FAILED,
+        error: 'Precondition Failed',
+        message: exception.message,
+      });
+      return;
+    }
+
+    if (exception instanceof ArchivedClientCannotBeModifiedException) {
+      response.status(HttpStatus.UNPROCESSABLE_ENTITY).json({
+        statusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+        error: 'Unprocessable Entity',
+        message: exception.message,
+      });
+      return;
+    }
+
     if (
       exception instanceof ClientAlreadyExistsException ||
-      exception instanceof ClientAlreadyLinkedException ||
-      exception instanceof ArchivedClientCannotBeModifiedException ||
-      exception instanceof OptimisticLockException
+      exception instanceof ClientAlreadyLinkedException
     ) {
       response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,

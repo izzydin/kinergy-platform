@@ -1,10 +1,12 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
   HttpCode,
   HttpStatus,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -18,8 +20,10 @@ import { RegisterClientUseCase } from '../../application/use-cases/register-clie
 import { LinkIdentityToClientUseCase } from '../../application/use-cases/link-identity-to-client.usecase';
 import { GetClientProfileUseCase } from '../../application/use-cases/get-client-profile.usecase';
 import { SearchClientsUseCase } from '../../application/use-cases/search-clients.usecase';
+import { UpdateClientUseCase } from '../../application/use-cases/update-client.usecase';
 import { RegisterClientCommand } from '../../application/commands/register-client.command';
 import { LinkIdentityCommand } from '../../application/commands/link-identity.command';
+import { UpdateClientCommand } from '../../application/commands/update-client.command';
 import { GetClientProfileQuery } from '../../application/queries/get-client-profile.query';
 import { SearchClientsQuery } from '../../application/queries/search-clients.query';
 import { ClientProfileDto } from '../../application/dto/client-profile.dto';
@@ -30,6 +34,7 @@ import {
   PotentialMatchesResponseDto,
   RegisterClientRequestDto,
   SearchClientsQueryDto,
+  UpdateClientRequestDto,
 } from '../dto';
 import { ClientExceptionFilter } from '../filters/client-exception.filter';
 
@@ -42,6 +47,7 @@ export class ClientController {
     private readonly linkIdentityUseCase: LinkIdentityToClientUseCase,
     private readonly getClientProfileUseCase: GetClientProfileUseCase,
     private readonly searchClientsUseCase: SearchClientsUseCase,
+    private readonly updateClientUseCase: UpdateClientUseCase,
   ) {}
 
   @Get()
@@ -125,6 +131,65 @@ export class ClientController {
     });
 
     return this.getClientProfileUseCase.execute(query);
+  }
+
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update client profile details' })
+  @ApiResponse({
+    status: 200,
+    description: 'Client profile updated successfully',
+    type: ClientProfileDto,
+  })
+  @ApiResponse({ status: 409, description: 'Conflict (e.g. duplicate email or phone)' })
+  @ApiResponse({ status: 412, description: 'Precondition Failed (optimistic version mismatch)' })
+  @ApiResponse({ status: 422, description: 'Unprocessable Entity (archived client)' })
+  @ApiResponse({ status: 404, description: 'Client profile not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async update(
+    @Param('id') id: string,
+    @Body() body: UpdateClientRequestDto,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<ClientProfileDto> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const userPayload = (req as any).user;
+
+    if (!userPayload) {
+      const authHeader = req.headers?.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedException('Authentication token required.');
+      }
+    }
+
+    let expectedVersion = body.expectedVersion;
+    const ifMatchHeader = req.headers['if-match'];
+    if (ifMatchHeader) {
+      const rawVersionStr = Array.isArray(ifMatchHeader) ? ifMatchHeader[0] : ifMatchHeader;
+      const cleanVersionStr = rawVersionStr.replace(/"/g, '').trim();
+      const parsedVersion = parseInt(cleanVersionStr, 10);
+      if (!isNaN(parsedVersion)) {
+        expectedVersion = parsedVersion;
+      }
+    }
+
+    if (expectedVersion === undefined || expectedVersion === null) {
+      throw new BadRequestException(
+        'Expected version must be specified via If-Match header or expectedVersion body parameter.',
+      );
+    }
+
+    const command = new UpdateClientCommand({
+      clientId: id,
+      expectedVersion,
+      firstName: body.firstName,
+      lastName: body.lastName,
+      email: body.email,
+      phone: body.phone,
+    });
+
+    const updatedProfile = await this.updateClientUseCase.execute(command);
+    res.setHeader('ETag', `"${updatedProfile.version}"`);
+    return updatedProfile;
   }
 
   @Post()

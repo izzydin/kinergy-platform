@@ -77,11 +77,10 @@ export class ArchivedClientCannotBeModifiedException extends ClientDomainExcepti
   }
 }
 
-export class OptimisticLockException extends ClientDomainException {
+export class OptimisticLockException extends ClientConcurrencyException {
   constructor(clientId: string, currentVersion: number, expectedVersion: number) {
-    super(
-      `Optimistic Lock Exception: Client '${clientId}' expected version ${expectedVersion}, but current version is ${currentVersion}.`,
-    );
+    super(clientId, expectedVersion);
+    this.message = `Optimistic Lock Exception: Client '${clientId}' expected version ${expectedVersion}, but current version is ${currentVersion}.`;
     this.name = 'OptimisticLockException';
   }
 }
