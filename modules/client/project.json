@@ -1,0 +1,27 @@
+{
+  "name": "client-domain",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "modules/client",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/modules/client",
+        "main": "modules/client/index.ts",
+        "tsConfig": "modules/client/tsconfig.lib.json"
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/modules/client"],
+      "options": {
+        "jestConfig": "modules/client/jest.config.ts"
+      }
+    }
+  }
+}
