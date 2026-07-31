@@ -21,6 +21,8 @@ import { ClientSearchRepository } from './domain/repositories/client-search.repo
 import { ClientTimelineRepository } from './domain/repositories/client-timeline.repository';
 import { PrismaClientRepository } from './infrastructure/persistence/prisma/prisma-client.repository';
 import { PrismaClientTimelineRepository } from './infrastructure/persistence/prisma/prisma-client-timeline.repository';
+import { ClientFacade } from './public/client.facade';
+import { CLIENT_FACADE_TOKEN } from './public/interfaces/client-facade.interface';
 
 @Module({
   controllers: [ClientController],
@@ -108,6 +110,18 @@ import { PrismaClientTimelineRepository } from './infrastructure/persistence/pri
         new GetClientHistoryUseCase(repo, timelineRepo),
       inject: [CLIENT_REPOSITORY, CLIENT_TIMELINE_REPOSITORY],
     },
+    {
+      provide: ClientFacade,
+      useFactory: (
+        getProfileUseCase: GetClientProfileUseCase,
+        searchUseCase: SearchClientsUseCase,
+      ) => new ClientFacade(getProfileUseCase, searchUseCase),
+      inject: [GetClientProfileUseCase, SearchClientsUseCase],
+    },
+    {
+      provide: CLIENT_FACADE_TOKEN,
+      useExisting: ClientFacade,
+    },
   ],
   exports: [
     CLIENT_REPOSITORY,
@@ -124,6 +138,9 @@ import { PrismaClientTimelineRepository } from './infrastructure/persistence/pri
     ClientTimelineProjectionHandler,
     DomainEventDispatcher,
     ClientDuplicateCheckerService,
+    // Public API — the only stable cross-module contract for the Client context
+    ClientFacade,
+    CLIENT_FACADE_TOKEN,
   ],
 })
 export class ClientModule {}
