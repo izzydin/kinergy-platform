@@ -3,6 +3,9 @@ import { DomainEvent } from '../shared/domain-event';
 import { RoomId } from './room-id.vo';
 import { RoomStatus } from '../value-objects/room-status.enum';
 
+/**
+ * Properties required to instantiate a new Room aggregate.
+ */
 export interface CreateRoomProps {
   id?: RoomId;
   name: string;
@@ -11,6 +14,9 @@ export interface CreateRoomProps {
   features?: Iterable<string>;
 }
 
+/**
+ * Properties required to reconstitute a Room aggregate from persistence storage.
+ */
 export interface ReconstituteRoomProps {
   id: RoomId;
   version: number;
@@ -21,6 +27,12 @@ export interface ReconstituteRoomProps {
   maintenanceReason?: string;
 }
 
+/**
+ * Room Aggregate Root controlling spatial availability, capacity bounds, and facility features.
+ *
+ * Invariant: Room reservations never mutate the Room aggregate root. Mutations occur
+ * strictly on operational status, capacity, or feature updates.
+ */
 export class Room implements AggregateRoot<RoomId> {
   private readonly _id: RoomId;
   private _version: number;
@@ -48,6 +60,12 @@ export class Room implements AggregateRoot<RoomId> {
     this._maintenanceReason = props.maintenanceReason;
   }
 
+  /**
+   * Factory method to create a new Room aggregate root.
+   *
+   * @param props Construction properties for the room
+   * @returns Newly initialized Room aggregate with version 1 and default AVAILABLE status
+   */
   public static create(props: CreateRoomProps): Room {
     return new Room({
       id: props.id ?? RoomId.create(),
@@ -59,40 +77,56 @@ export class Room implements AggregateRoot<RoomId> {
     });
   }
 
+  /**
+   * Reconstitutes an existing Room aggregate root from database hydration state.
+   *
+   * @param props Persistence DTO properties
+   * @returns Reconstituted Room instance
+   */
   public static reconstitute(props: ReconstituteRoomProps): Room {
     return new Room(props);
   }
 
-  // Getters
+  /** Gets the unique RoomId identifier */
   public get id(): RoomId {
     return this._id;
   }
 
+  /** Gets the optimistic locking version counter */
   public get version(): number {
     return this._version;
   }
 
+  /** Gets the display name of the room */
   public get name(): string {
     return this._name;
   }
 
+  /** Gets the maximum client capacity of the room */
   public get capacity(): number {
     return this._capacity;
   }
 
+  /** Gets the current operational status of the room */
   public get status(): RoomStatus {
     return this._status;
   }
 
+  /** Gets a read-only copy of the room's feature capabilities */
   public get features(): ReadonlySet<string> {
     return new Set(this._features);
   }
 
+  /** Gets the maintenance reason if currently in MAINTENANCE or UNAVAILABLE status */
   public get maintenanceReason(): string | undefined {
     return this._maintenanceReason;
   }
 
-  // Behaviors
+  /**
+   * Renames the room and increments the aggregate version counter.
+   *
+   * @param newName Non-empty new display name
+   */
   public rename(newName: string): void {
     if (!newName || newName.trim().length === 0) {
       throw new Error('New room name cannot be empty.');
@@ -101,6 +135,11 @@ export class Room implements AggregateRoot<RoomId> {
     this._version += 1;
   }
 
+  /**
+   * Updates room capacity ensuring capacity > 0 invariant.
+   *
+   * @param newCapacity Positive integer capacity
+   */
   public changeCapacity(newCapacity: number): void {
     if (!Number.isInteger(newCapacity) || newCapacity <= 0) {
       throw new Error('Room capacity must be a positive integer strictly greater than zero.');
@@ -109,6 +148,11 @@ export class Room implements AggregateRoot<RoomId> {
     this._version += 1;
   }
 
+  /**
+   * Places the room under MAINTENANCE status with an explanation reason.
+   *
+   * @param reason Mandatory maintenance explanation
+   */
   public markMaintenance(reason: string): void {
     if (!reason || reason.trim().length === 0) {
       throw new Error('Maintenance reason is required.');
@@ -118,18 +162,31 @@ export class Room implements AggregateRoot<RoomId> {
     this._version += 1;
   }
 
+  /**
+   * Marks the room as AVAILABLE for scheduling and clears maintenance reasons.
+   */
   public markAvailable(): void {
     this._status = RoomStatus.AVAILABLE;
     this._maintenanceReason = undefined;
     this._version += 1;
   }
 
+  /**
+   * Marks the room as UNAVAILABLE.
+   *
+   * @param reason Optional unavailability explanation
+   */
   public markUnavailable(reason?: string): void {
     this._status = RoomStatus.UNAVAILABLE;
     this._maintenanceReason = reason ? reason.trim() : undefined;
     this._version += 1;
   }
 
+  /**
+   * Adds an equipment or facility feature tag to the room.
+   *
+   * @param feature Feature tag string (e.g. 'hydrotherapy_tub')
+   */
   public addFeature(feature: string): void {
     if (!feature || feature.trim().length === 0) {
       throw new Error('Feature name cannot be empty.');
@@ -141,6 +198,11 @@ export class Room implements AggregateRoot<RoomId> {
     }
   }
 
+  /**
+   * Removes a feature tag from the room.
+   *
+   * @param feature Feature tag to remove
+   */
   public removeFeature(feature: string): void {
     if (!feature || feature.trim().length === 0) {
       return;
@@ -152,6 +214,12 @@ export class Room implements AggregateRoot<RoomId> {
     }
   }
 
+  /**
+   * Evaluates if the room supports all specified required features.
+   *
+   * @param requiredFeatures Array of required feature tags
+   * @returns True if all required features are present in the room's feature set
+   */
   public supportsFeatures(requiredFeatures: string[]): boolean {
     if (!requiredFeatures || requiredFeatures.length === 0) {
       return true;
@@ -159,15 +227,23 @@ export class Room implements AggregateRoot<RoomId> {
     return requiredFeatures.every((feat) => this._features.has(feat.trim().toLowerCase()));
   }
 
-  // Event Store Operations
+  /**
+   * Retrieves uncommitted domain events recorded by this aggregate.
+   */
   public getUncommittedEvents(): ReadonlyArray<DomainEvent> {
     return Object.freeze([...this.uncommittedEvents]);
   }
 
+  /**
+   * Clears all recorded uncommitted domain events.
+   */
   public clearEvents(): void {
     this.uncommittedEvents = [];
   }
 
+  /**
+   * Atomically pulls and clears uncommitted domain events.
+   */
   public pullEvents(): ReadonlyArray<DomainEvent> {
     const events = [...this.uncommittedEvents];
     this.uncommittedEvents = [];

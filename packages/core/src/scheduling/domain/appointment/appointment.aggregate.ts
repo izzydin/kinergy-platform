@@ -14,6 +14,7 @@ import { AppointmentRescheduledEvent } from '../events/appointment-rescheduled.e
 import { RoomAssignedEvent } from '../events/room-assigned.event';
 import { TherapistAssignedEvent } from '../events/therapist-assigned.event';
 
+/** Properties required to create a new Appointment aggregate */
 export interface CreateAppointmentProps {
   id?: AppointmentId;
   clientId: string;
@@ -23,6 +24,7 @@ export interface CreateAppointmentProps {
   timeRange: TimeRange;
 }
 
+/** Properties required to reconstitute an Appointment aggregate from persistence */
 export interface ReconstituteAppointmentProps {
   id: AppointmentId;
   version: number;
@@ -37,6 +39,10 @@ export interface ReconstituteAppointmentProps {
   updatedAt: Date;
 }
 
+/**
+ * Appointment Aggregate Root enforcing state machine transitions, domain event recording,
+ * and optimistic concurrency version control.
+ */
 export class Appointment implements AggregateRoot<AppointmentId> {
   private readonly _id: AppointmentId;
   private _version: number;
@@ -75,6 +81,13 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this._updatedAt = props.updatedAt;
   }
 
+  /**
+   * Factory method to create a new Appointment in SCHEDULED status and record AppointmentCreatedEvent.
+   *
+   * @param props Appointment creation parameters
+   * @param clock Optional Clock abstraction for deterministic time handling
+   * @returns Newly initialized Appointment aggregate root
+   */
   public static create(props: CreateAppointmentProps, clock?: Clock): Appointment {
     const apptId = props.id ?? AppointmentId.create();
     const now = clock ? clock.now() : new Date();
@@ -108,56 +121,67 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     return appointment;
   }
 
+  /** Reconstitutes an existing Appointment aggregate from database storage DTO */
   public static reconstitute(props: ReconstituteAppointmentProps): Appointment {
     return new Appointment(props);
   }
 
-  // Getters
+  /** Gets the unique AppointmentId */
   public get id(): AppointmentId {
     return this._id;
   }
 
+  /** Gets the optimistic concurrency version counter */
   public get version(): number {
     return this._version;
   }
 
+  /** Gets the current appointment status */
   public get status(): AppointmentStatus {
     return this._status;
   }
 
+  /** Gets the appointment classification type */
   public get type(): AppointmentType {
     return this._type;
   }
 
+  /** Gets the scalar string ID of the client */
   public get clientId(): string {
     return this._clientId;
   }
 
+  /** Gets the scalar string ID of the therapist */
   public get therapistId(): string {
     return this._therapistId;
   }
 
+  /** Gets the scalar string ID of the room */
   public get roomId(): string {
     return this._roomId;
   }
 
+  /** Gets the TimeRange temporal interval */
   public get timeRange(): TimeRange {
     return this._timeRange;
   }
 
+  /** Gets the cancellation reason if in CANCELLED status */
   public get cancellationReason(): string | undefined {
     return this._cancellationReason;
   }
 
+  /** Gets the creation Date timestamp */
   public get createdAt(): Date {
     return new Date(this._createdAt.getTime());
   }
 
+  /** Gets the last updated Date timestamp */
   public get updatedAt(): Date {
     return new Date(this._updatedAt.getTime());
   }
 
-  // Behaviors & Transitions
+  /** Transitions status from SCHEDULED -> CONFIRMED */
   public confirm(clock?: Clock): void {
     if (this._status !== AppointmentStatus.SCHEDULED) {
       throw new InvalidAppointmentTransitionException(this._status, AppointmentStatus.CONFIRMED);
@@ -166,6 +190,7 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this.touch(clock);
   }
 
+  /** Transitions status from CONFIRMED -> CHECKED_IN */
   public checkIn(clock?: Clock): void {
     if (this._status !== AppointmentStatus.CONFIRMED) {
       throw new InvalidAppointmentTransitionException(this._status, AppointmentStatus.CHECKED_IN);
@@ -174,6 +199,7 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this.touch(clock);
   }
 
+  /** Transitions status from CHECKED_IN -> IN_PROGRESS */
   public start(clock?: Clock): void {
     if (this._status !== AppointmentStatus.CHECKED_IN) {
       throw new InvalidAppointmentTransitionException(this._status, AppointmentStatus.IN_PROGRESS);
@@ -182,6 +208,7 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this.touch(clock);
   }
 
+  /** Transitions status from IN_PROGRESS -> COMPLETED */
   public complete(clock?: Clock): void {
     if (this._status !== AppointmentStatus.IN_PROGRESS) {
       throw new InvalidAppointmentTransitionException(this._status, AppointmentStatus.COMPLETED);
@@ -190,6 +217,12 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this.touch(clock);
   }
 
+  /**
+   * Cancels the appointment with a mandatory reason and records AppointmentCancelledEvent.
+   *
+   * @param reason Explanation for cancellation
+   * @param clock Optional Clock abstraction
+   */
   public cancel(reason: string, clock?: Clock): void {
     if (!reason || reason.trim().length === 0) {
       throw new Error('Cancellation reason is required.');
@@ -220,6 +253,12 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     );
   }
 
+  /**
+   * Reschedules the appointment to a new TimeRange and records AppointmentRescheduledEvent.
+   *
+   * @param newTimeRange Target new time range
+   * @param clock Optional Clock abstraction
+   */
   public reschedule(newTimeRange: TimeRange, clock?: Clock): void {
     if (
       this._status !== AppointmentStatus.SCHEDULED &&
@@ -249,6 +288,7 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     );
   }
 
+  /** Reassigns room and records RoomAssignedEvent */
   public assignRoom(newRoomId: string, clock?: Clock): void {
     if (!newRoomId || newRoomId.trim().length === 0) {
       throw new Error('Room ID cannot be empty.');
@@ -265,6 +305,7 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     );
   }
 
+  /** Reassigns therapist and records TherapistAssignedEvent */
   public assignTherapist(newTherapistId: string, clock?: Clock): void {
     if (!newTherapistId || newTherapistId.trim().length === 0) {
       throw new Error('Therapist ID cannot be empty.');
@@ -287,15 +328,17 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     );
   }
 
-  // Event Store Operations
+  /** Gets uncommitted domain events */
   public getUncommittedEvents(): ReadonlyArray<DomainEvent> {
     return Object.freeze([...this.uncommittedEvents]);
   }
 
+  /** Clears uncommitted domain events */
   public clearEvents(): void {
     this.uncommittedEvents = [];
   }
 
+  /** Atomically pulls and clears uncommitted domain events */
   public pullEvents(): ReadonlyArray<DomainEvent> {
     const events = [...this.uncommittedEvents];
     this.uncommittedEvents = [];
