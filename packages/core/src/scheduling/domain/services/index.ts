@@ -4,3 +4,6 @@ export * from './availability.service';
 export * from './therapist-availability-evaluator.service';
 export * from './room-availability-evaluator.service';
 export * from './client-availability-evaluator.service';
+export * from './slot-finder.engine';
+export * from './dtos/slot-search-query.vo';
+export * from './dtos/available-slot-result.vo';
