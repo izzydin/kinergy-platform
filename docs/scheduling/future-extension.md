@@ -1,5 +1,19 @@
 # Scheduling Bounded Context — Future Extension Blueprints
 
+## Executive Summary
+
+This document outlines future architectural expansion blueprints for recurring appointments (RRULE), bi-directional external calendar synchronization (Google Calendar / Microsoft Outlook), and multi-facility location hierarchy expansion.
+
+---
+
+## Table of Contents
+
+- [1. Recurrence Engine Integration (iCalendar RRULE)](#1-recurrence-engine-integration-icalendar-rrule)
+- [2. Bi-Directional External Calendar Sync (Google Calendar / Microsoft Outlook)](#2-bi-directional-external-calendar-sync-google-calendar--microsoft-outlook)
+- [3. Multi-Location & Facility Hierarchy Expansion](#3-multi-location--facility-hierarchy-expansion)
+
+---
+
 ## 1. Recurrence Engine Integration (iCalendar RRULE)
 
 ### Architectural Design

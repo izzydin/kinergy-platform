@@ -1,8 +1,20 @@
 # Scheduling Application Layer Architecture & CQRS Pattern
 
-## Overview
+## Executive Summary
 
-The Application Layer inside `packages/core/src/scheduling/application` orchestrates use cases, handles commands and queries, enforces application-level validation rules, and maps domain aggregates to read DTOs.
+The Application Layer inside `packages/core/src/scheduling/application` orchestrates use cases, handles commands and queries, enforces application-level validation rules, and maps domain aggregates to read DTOs using CQRS and the Result pattern.
+
+---
+
+## Table of Contents
+
+- [CQRS Overview Diagram](#cqrs-overview-diagram)
+- [Directory Hierarchy](#directory-hierarchy)
+- [Key Design Patterns & Guidelines](#key-design-patterns--guidelines)
+
+---
+
+## CQRS Overview Diagram
 
 ```
                   +-----------------------------------------------+
@@ -26,7 +38,7 @@ The Application Layer inside `packages/core/src/scheduling/application` orchestr
                   |           +-----------+-----------+           |
                   |                       |                       |
                   |                       v                       |
-                  |            [ ApplicationResult<T, E> ]        |
+                  |            [ ApplicationResult<T> ]           |
                   +-----------------------+-----------------------+
                                           |
                                           v
@@ -48,6 +60,7 @@ packages/core/src/scheduling/application/
 │   ├── dtos/           # Pure TypeScript read DTOs (AppointmentDTO, AppointmentNoteDTO, etc.)
 │   ├── handlers/       # Command/Query handler implementations
 │   └── mappers/        # Pure converters (AppointmentMapper)
+├── availability/       # Availability & Slot Discovery queries, DTOs, and handlers
 ├── shared/             # Base CQRS contracts (Command, CommandHandler, ApplicationResult)
 └── common/             # Common cross-cutting application utilities
 ```
@@ -58,13 +71,13 @@ packages/core/src/scheduling/application/
 
 ### 1. CQRS (Command Query Responsibility Segregation)
 
-- **Commands**: Represent intent to mutate state. Must implement `Command` (`commandId`, `timestamp`). Handlers return `Promise<ApplicationResult<T, E>>`.
-- **Queries**: Represent request to read data without side effects. Handlers fetch data directly or via CQRS read models.
+- **Commands**: Represent intent to mutate state. Must implement `Command` (`commandId`, `timestamp`). Handlers return `Promise<ApplicationResult<T>>`.
+- **Queries**: Represent request to read data without side effects. Handlers return `Promise<ApplicationResult<T>>`.
 
-### 2. Functional Error Handling (`ApplicationResult<T, E>`)
+### 2. Functional Error Handling (`ApplicationResult<T>`)
 
-- Expected business validation errors (e.g., booking window lead-time violation, room conflict) return a `ApplicationResult.fail(error)` container rather than throwing runtime exceptions.
-- Prevents standard exception control-flow overhead and guarantees explicit, typed error branches.
+- Business validation errors return an `ApplicationResult.fail(error)` container rather than throwing runtime exceptions.
+- Guarantees explicit, typed error handling across application handlers.
 
 ### 3. DTO Mapping (`AppointmentMapper`)
 

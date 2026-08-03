@@ -1,8 +1,20 @@
 # Scheduling Bounded Context — Hexagonal Architecture & Boundary Rules
 
-## Architectural Overview
+## Executive Summary
 
 The Scheduling Bounded Context follows **Hexagonal (Ports & Adapters) Architecture** and **Domain-Driven Design (DDD)** principles. The architecture isolates pure business logic at the core, protecting domain invariants from external infrastructure concerns, database schemas, framework dependencies, or UI details.
+
+---
+
+## Table of Contents
+
+- [Architectural Overview](#architectural-overview)
+- [Layer Definitions & Boundary Rules](#layer-definitions--boundary-rules)
+- [Dependency Hierarchy Enforcement](#dependency-hierarchy-enforcement)
+
+---
+
+## Architectural Overview
 
 ```
                           +-----------------------------------+
@@ -43,12 +55,7 @@ The Scheduling Bounded Context follows **Hexagonal (Ports & Adapters) Architectu
   - Implements use-case flows by interacting with domain repository interfaces and domain services.
   - Translates input commands/queries into domain calls and returns DTO responses.
 
-### 3. Presentation Layer (`packages/core/src/scheduling/presentation/`)
-
-- **Responsibility**: Exposes HTTP/REST APIs, GraphQL resolvers, or CLI commands.
-- **Boundary Rules**: Validates request payloads and maps DTOs to Application commands.
-
-### 4. Infrastructure Layer (`packages/core/src/scheduling/infrastructure/`)
+### 3. Infrastructure Layer (`packages/core/src/scheduling/infrastructure/`)
 
 - **Responsibility**: Implements secondary ports (e.g., Prisma repository persistence, RabbitMQ/Redis event dispatchers, external calendar APIs).
 - **Boundary Rules**: Implements domain repository contracts defined in `domain/repositories/`. Infrastructure depends on Domain, never vice-versa.

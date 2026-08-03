@@ -1,4 +1,18 @@
-# Application Layer Sequence Diagrams
+# Application Layer Command Execution Sequence Diagrams
+
+## Executive Summary
+
+This document presents the CQRS command execution sequence diagrams for appointment creation, check-in/completion operational workflows, and reschedule/resource reassignment execution flows.
+
+---
+
+## Table of Contents
+
+- [1. Appointment Creation & Conflict Check Sequence](#1-appointment-creation--conflict-check-sequence)
+- [2. Reception Desk Check-In & Completion Workflow](#2-reception-desk-check-in--completion-workflow)
+- [3. Reschedule & Resource Reassignment Execution Flow](#3-reschedule--resource-reassignment-execution-flow)
+
+---
 
 ## 1. Appointment Creation & Conflict Check Sequence
 
@@ -8,33 +22,34 @@ sequenceDiagram
     actor Client/Reception
     participant Handler as CreateAppointmentHandler
     participant Idempotency as BookingIdempotencyPolicy
+    participant DurationPolicy as DefaultAppointmentDurationPolicy
     participant WindowPolicy as BookingWindowPolicy
     participant ConflictService as ConflictDetectionService
     participant ApptRepo as AppointmentRepository
-    participant EventBus as EventPublisher
+    participant Clock as Clock
 
     Client/Reception->>Handler: execute(CreateAppointmentCommand)
-    Handler->>Idempotency: checkAndRecord(requestToken)
-    alt Duplicate Request
-        Idempotency-->>Handler: False (Duplicate)
+    Handler->>Idempotency: registerRequest(requestToken)
+    alt Duplicate Request Token
+        Idempotency-->>Handler: false
         Handler-->>Client/Reception: ApplicationResult.fail("Duplicate request")
     end
 
+    Handler->>DurationPolicy: validateDuration(apptType, duration)
     Handler->>WindowPolicy: validateBookingWindow(startTime, clock)
-    alt Invalid Window
-        WindowPolicy-->>Handler: False
+    alt Window Violation
+        WindowPolicy-->>Handler: false
         Handler-->>Client/Reception: ApplicationResult.fail("Outside booking window")
     end
 
-    Handler->>ConflictService: detectConflicts(therapistId, roomId, clientId, range)
+    Handler->>ConflictService: detectConflicts({ therapistId, roomId, clientId, requestedRange, appointmentType })
     alt Conflict Detected
-        ConflictService-->>Handler: [SchedulingConflict(THERAPIST/ROOM/CLIENT)]
-        Handler-->>Client/Reception: Throws AppointmentConflictException
+        ConflictService-->>Handler: SchedulingConflict[]
+        Handler-->>Client/Reception: throw AppointmentConflictException(conflicts)
     end
 
     Handler->>ApptRepo: save(new Appointment)
     ApptRepo-->>Handler: Promise<void>
-    Handler->>EventBus: publish(AppointmentCreatedEvent)
     Handler-->>Client/Reception: ApplicationResult.ok(AppointmentDTO)
 ```
 
@@ -50,7 +65,7 @@ sequenceDiagram
     participant CheckInH as CheckInAppointmentHandler
     participant CompleteH as CompleteAppointmentHandler
     participant ApptRepo as AppointmentRepository
-    participant EventBus as EventPublisher
+    participant Clock as Clock
 
     Receptionist->>CheckInH: execute(CheckInAppointmentCommand)
     CheckInH->>ApptRepo: findById(appointmentId)
@@ -58,10 +73,9 @@ sequenceDiagram
     CheckInH->>CheckInH: assert expectedVersion === appt.version
     CheckInH->>CheckInH: appt.checkIn(clock)
     CheckInH->>ApptRepo: save(appt)
-    CheckInH->>EventBus: publish(AppointmentCheckedInEvent)
     CheckInH-->>Receptionist: ApplicationResult.ok(AppointmentDTO)
 
-    Note over Therapist, ApptRepo: Therapist starts session -> appt.start(clock)
+    Note over Therapist, ApptRepo: Session starts -> appt.start(clock)
 
     Therapist->>CompleteH: execute(CompleteAppointmentCommand)
     CompleteH->>ApptRepo: findById(appointmentId)
@@ -69,7 +83,6 @@ sequenceDiagram
     CompleteH->>CompleteH: assert expectedVersion === appt.version
     CompleteH->>CompleteH: appt.complete(clock)
     CompleteH->>ApptRepo: save(appt)
-    CompleteH->>EventBus: publish(AppointmentCompletedEvent)
     CompleteH-->>Therapist: ApplicationResult.ok(AppointmentDTO)
 ```
 
@@ -88,12 +101,13 @@ sequenceDiagram
     participant ConflictService as ConflictDetectionService
     participant ApptRepo as AppointmentRepository
     participant RoomRepo as RoomRepository
+    participant Clock as Clock
 
     Receptionist->>RescheduleH: execute(RescheduleAppointmentCommand)
     RescheduleH->>ApptRepo: findById(appointmentId)
     ApptRepo-->>RescheduleH: Appointment aggregate
-    RescheduleH->>Policy: validateRescheduleNotice(appt, newRange, clock)
-    RescheduleH->>ConflictService: detectConflicts(...)
+    RescheduleH->>Policy: validateReschedule(0, appt.timeRange.start, newRange.start, clock)
+    RescheduleH->>ConflictService: detectConflicts({ ..., requestedRange: newRange, appointmentType, ignoreAppointmentId })
     RescheduleH->>RescheduleH: appt.reschedule(newRange, clock)
     RescheduleH->>ApptRepo: save(appt)
     RescheduleH-->>Receptionist: ApplicationResult.ok(AppointmentDTO)
@@ -101,7 +115,7 @@ sequenceDiagram
     Receptionist->>AssignRoomH: execute(AssignRoomCommand)
     AssignRoomH->>ApptRepo: findById(appointmentId)
     AssignRoomH->>RoomRepo: findById(newRoomId)
-    AssignRoomH->>RoomSpec: isSatisfiedBy(room, requiredCapacity, features)
+    AssignRoomH->>RoomSpec: isSatisfiedBy(room)
     AssignRoomH->>ConflictService: detectConflicts(...)
     AssignRoomH->>AssignRoomH: appt.assignRoom(newRoomId, clock)
     AssignRoomH->>ApptRepo: save(appt)
