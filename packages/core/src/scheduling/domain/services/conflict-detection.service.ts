@@ -1,50 +1,104 @@
-import { SchedulingConflict } from '../value-objects/scheduling-conflict.vo';
+import { SchedulingConflict, ConflictType } from '../value-objects/scheduling-conflict.vo';
 import { TimeRange } from '../value-objects/time-range.vo';
-import { AppointmentStatus } from '../value-objects/appointment-status.enum';
-import { RoomStatus } from '../value-objects/room-status.enum';
+import { AppointmentType } from '../value-objects/appointment-type.vo';
+import { TurnaroundBuffer } from '../value-objects/turnaround-buffer.vo';
 import { BusinessCalendarService } from './business-calendar.service';
 import { AppointmentRepository } from '../repositories/appointment.repository';
 import { TherapistScheduleRepository } from '../repositories/therapist-schedule.repository';
 import { RoomRepository } from '../repositories/room.repository';
+import { TherapistAvailabilityEvaluator } from './therapist-availability-evaluator.service';
+import { RoomAvailabilityEvaluator } from './room-availability-evaluator.service';
+import { ClientAvailabilityEvaluator } from './client-availability-evaluator.service';
+import { TurnaroundBufferPolicy } from '../policies/turnaround-buffer.policy';
 
+/** Input parameters for conflict detection */
 export interface CheckConflictParams {
   readonly therapistId: string;
   readonly roomId: string;
   readonly clientId: string;
   readonly requestedRange: TimeRange;
+  readonly appointmentType?: AppointmentType;
   readonly excludeAppointmentId?: string;
+  readonly ignoreAppointmentId?: string;
   readonly requiredCapacity?: number;
   readonly requiredFeatures?: string[];
 }
 
+/** Diagnostic report returned by conflict evaluation */
+export interface ConflictDetectionResult {
+  readonly hasConflicts: boolean;
+  readonly conflicts: SchedulingConflict[];
+}
+
+/**
+ * Senior 4-Dimensional Conflict Detection Engine validating booking requests
+ * across Therapist, Room, Client, and Clinic Calendar vectors with turnaround buffers.
+ */
 export class ConflictDetectionService {
+  private readonly therapistEvaluator: TherapistAvailabilityEvaluator;
+  private readonly roomEvaluator: RoomAvailabilityEvaluator;
+  private readonly clientEvaluator: ClientAvailabilityEvaluator;
+  private readonly bufferPolicy: TurnaroundBufferPolicy;
+
   constructor(
     private readonly calendarService: BusinessCalendarService,
     private readonly appointmentRepo: AppointmentRepository,
     private readonly scheduleRepo: TherapistScheduleRepository,
     private readonly roomRepo: RoomRepository,
-  ) {}
+    bufferPolicy?: TurnaroundBufferPolicy,
+  ) {
+    this.therapistEvaluator = new TherapistAvailabilityEvaluator();
+    this.roomEvaluator = new RoomAvailabilityEvaluator();
+    this.clientEvaluator = new ClientAvailabilityEvaluator();
+    this.bufferPolicy = bufferPolicy ?? TurnaroundBufferPolicy.createDefault();
+  }
 
+  /**
+   * Evaluates 4D conflicts and returns a structured diagnostic report.
+   */
+  public async evaluateConflicts(params: CheckConflictParams): Promise<ConflictDetectionResult> {
+    const conflicts = await this.detectConflicts(params);
+    return {
+      hasConflicts: conflicts.length > 0,
+      conflicts,
+    };
+  }
+
+  /**
+   * Main conflict detection engine running matrix evaluations across 4 dimensions.
+   */
   public async detectConflicts(params: CheckConflictParams): Promise<SchedulingConflict[]> {
     const conflicts: SchedulingConflict[] = [];
-    const { therapistId, roomId, clientId, requestedRange, excludeAppointmentId } = params;
+    const { therapistId, roomId, clientId, requestedRange, appointmentType } = params;
+    const excludeId = params.excludeAppointmentId ?? params.ignoreAppointmentId;
 
-    // 1. Business Calendar / Clinic Open Check
+    // 1. Vector 1: Clinic Calendar & Facility Closure Check
     if (!this.calendarService.isClinicOpen(requestedRange)) {
+      const isHoliday = this.calendarService.isHoliday(requestedRange);
       conflicts.push(
         SchedulingConflict.create({
-          conflictType: this.calendarService.isHoliday(requestedRange)
-            ? 'HOLIDAY'
-            : 'WORKING_HOURS',
+          conflictType: (isHoliday ? 'HOLIDAY' : 'WORKING_HOURS') as ConflictType,
           conflictingEntityId: 'CLINIC',
           requestedRange,
-          reason: 'Facility is closed or observing a public holiday.',
+          reason: isHoliday
+            ? 'Facility is closed observing a public holiday.'
+            : 'Requested interval falls outside clinic operating hours.',
         }),
       );
     }
 
-    // 2. Therapist Schedule Check
+    // Determine Turnaround Buffer
+    const buffer = appointmentType
+      ? this.bufferPolicy.getBufferFor({ appointmentType, roomId, therapistId })
+      : TurnaroundBuffer.empty();
+
+    // 2. Vector 2: Therapist Schedule & Appointment Overlap Check
     const schedule = await this.scheduleRepo.findByTherapistId(therapistId);
+    const therapistAppts = await this.appointmentRepo.findAppointmentsForTherapist(
+      therapistId,
+      requestedRange,
+    );
+
     if (!schedule) {
       conflicts.push(
         SchedulingConflict.create({
@@ -55,123 +109,85 @@ export class ConflictDetectionService {
         }),
       );
     } else {
-      if (schedule.isVacation(requestedRange)) {
+      const therapistResult = this.therapistEvaluator.evaluate({
+        schedule,
+        existingAppointments: therapistAppts,
+        targetRange: requestedRange,
+        buffer,
+        excludeAppointmentId: excludeId,
+      });
+
+      if (!therapistResult.isAvailable) {
+        const conflictType: ConflictType = schedule.isVacation(requestedRange)
+          ? 'VACATION'
+          : 'THERAPIST';
         conflicts.push(
           SchedulingConflict.create({
-            conflictType: 'VACATION',
+            conflictType,
             conflictingEntityId: therapistId,
             requestedRange,
-            reason: 'Therapist is on scheduled vacation.',
-          }),
-        );
-      } else if (!schedule.isAvailable(requestedRange)) {
-        conflicts.push(
-          SchedulingConflict.create({
-            conflictType: 'WORKING_HOURS',
-            conflictingEntityId: therapistId,
-            requestedRange,
-            reason: 'Therapist is unavailable during requested hours or break period.',
+            reason: therapistResult.reason ?? 'Therapist is unavailable.',
           }),
         );
       }
     }
 
-    // 3. Therapist Booking Overlap Check
-    const therapistAppts = await this.appointmentRepo.findAppointmentsForTherapist(
-      therapistId,
-      requestedRange,
-    );
-    const conflictingTherapistAppt = therapistAppts.find(
-      (a) =>
-        a.id.getValue() !== excludeAppointmentId &&
-        a.status !== AppointmentStatus.CANCELLED &&
-        a.timeRange.overlaps(requestedRange),
-    );
-
-    if (conflictingTherapistAppt) {
-      conflicts.push(
-        SchedulingConflict.create({
-          conflictType: 'THERAPIST',
-          conflictingEntityId: therapistId,
-          requestedRange,
-          reason: 'Therapist has a conflicting active appointment.',
-        }),
-      );
-    }
-
-    // 4. Room Operational Status & Booking Overlap Check
+    // 3. Vector 3: Room Availability, Features, Capacity & Booking Overlap Check
     const room = await this.roomRepo.findById(roomId);
-    if (!room || room.status !== RoomStatus.AVAILABLE) {
+    const roomAppts = await this.appointmentRepo.findAppointmentsForRoom(roomId, requestedRange);
+
+    if (!room) {
       conflicts.push(
         SchedulingConflict.create({
           conflictType: 'ROOM',
           conflictingEntityId: roomId,
           requestedRange,
-          reason: `Room '${roomId}' is not available (status: ${room ? room.status : 'NOT_FOUND'}).`,
+          reason: `Room '${roomId}' not found in facility records.`,
         }),
       );
     } else {
-      if (params.requiredCapacity && room.capacity < params.requiredCapacity) {
+      const roomResult = this.roomEvaluator.evaluate({
+        room,
+        existingAppointments: roomAppts,
+        targetRange: requestedRange,
+        buffer,
+        requiredFeatures: params.requiredFeatures,
+        requiredCapacity: params.requiredCapacity,
+        excludeAppointmentId: excludeId,
+      });
+
+      if (!roomResult.isAvailable) {
         conflicts.push(
           SchedulingConflict.create({
             conflictType: 'ROOM',
             conflictingEntityId: roomId,
             requestedRange,
-            reason: `Room capacity (${room.capacity}) is less than required (${params.requiredCapacity}).`,
-          }),
-        );
-      }
-
-      if (params.requiredFeatures && !room.supportsFeatures(params.requiredFeatures)) {
-        conflicts.push(
-          SchedulingConflict.create({
-            conflictType: 'ROOM',
-            conflictingEntityId: roomId,
-            requestedRange,
-            reason: 'Room does not support all required features.',
+            reason: roomResult.reason ?? 'Room is unavailable.',
           }),
         );
       }
     }
 
-    const roomAppts = await this.appointmentRepo.findAppointmentsForRoom(roomId, requestedRange);
-    const conflictingRoomAppt = roomAppts.find(
-      (a) =>
-        a.id.getValue() !== excludeAppointmentId &&
-        a.status !== AppointmentStatus.CANCELLED &&
-        a.timeRange.overlaps(requestedRange),
-    );
-
-    if (conflictingRoomAppt) {
-      conflicts.push(
-        SchedulingConflict.create({
-          conflictType: 'ROOM',
-          conflictingEntityId: roomId,
-          requestedRange,
-          reason: 'Room is already booked during requested time.',
-        }),
-      );
-    }
-
-    // 5. Client Booking Overlap Check
+    // 4. Vector 4: Client Multi-Booking Overlap Check
     const clientAppts = await this.appointmentRepo.findAppointmentsForClient(
       clientId,
       requestedRange,
     );
-    const conflictingClientAppt = clientAppts.find(
-      (a) =>
-        a.id.getValue() !== excludeAppointmentId &&
-        a.status !== AppointmentStatus.CANCELLED &&
-        a.timeRange.overlaps(requestedRange),
-    );
 
-    if (conflictingClientAppt) {
+    const clientResult = this.clientEvaluator.evaluate({
+      clientId,
+      existingAppointments: clientAppts,
+      targetRange: requestedRange,
+      excludeAppointmentId: excludeId,
+    });
+
+    if (!clientResult.isAvailable) {
       conflicts.push(
         SchedulingConflict.create({
           conflictType: 'CLIENT',
           conflictingEntityId: clientId,
           requestedRange,
-          reason: 'Client has an overlapping active appointment.',
+          reason: clientResult.reason ?? 'Client has an overlapping active appointment.',
         }),
       );
     }

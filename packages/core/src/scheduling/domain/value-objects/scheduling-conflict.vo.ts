@@ -2,13 +2,14 @@ import { ValueObject } from '../shared/value-object';
 import { TimeRange } from './time-range.vo';
 
 export type ConflictType =
-  'THERAPIST' | 'ROOM' | 'CLIENT' | 'WORKING_HOURS' | 'VACATION' | 'HOLIDAY';
+  'THERAPIST' | 'ROOM' | 'CLIENT' | 'WORKING_HOURS' | 'VACATION' | 'HOLIDAY' | 'BUFFER';
 
 export interface SchedulingConflictProps {
   readonly conflictType: ConflictType;
   readonly conflictingEntityId: string;
   readonly requestedRange: TimeRange;
   readonly reason: string;
+  readonly suggestedAlternativeRange?: TimeRange;
 }
 
 export class SchedulingConflict implements ValueObject<SchedulingConflictProps> {
@@ -33,6 +34,7 @@ export class SchedulingConflict implements ValueObject<SchedulingConflictProps> 
       conflictingEntityId: props.conflictingEntityId,
       requestedRange: props.requestedRange,
       reason: props.reason,
+      suggestedAlternativeRange: props.suggestedAlternativeRange,
     };
     Object.freeze(this);
   }
@@ -42,6 +44,10 @@ export class SchedulingConflict implements ValueObject<SchedulingConflictProps> 
   }
 
   public get conflictType(): ConflictType {
+    return this.props.conflictType;
+  }
+
+  public get category(): ConflictType {
     return this.props.conflictType;
   }
 
@@ -57,12 +63,17 @@ export class SchedulingConflict implements ValueObject<SchedulingConflictProps> 
     return this.props.reason;
   }
 
+  public get suggestedAlternativeRange(): TimeRange | undefined {
+    return this.props.suggestedAlternativeRange;
+  }
+
   public getValue(): SchedulingConflictProps {
     return {
       conflictType: this.conflictType,
       conflictingEntityId: this.conflictingEntityId,
       requestedRange: this.requestedRange,
       reason: this.reason,
+      suggestedAlternativeRange: this.suggestedAlternativeRange,
     };
   }
 

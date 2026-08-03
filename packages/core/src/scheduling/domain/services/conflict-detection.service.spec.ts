@@ -76,6 +76,29 @@ describe('ConflictDetectionService', () => {
     expect(conflicts).toHaveLength(0);
   });
 
+  it('should return diagnostic report via evaluateConflicts()', async () => {
+    const monday9to17 = WorkingHours.fromTimeStrings(1, '09:00', '17:00');
+    const schedule = TherapistSchedule.create({
+      therapistId: 'therapist_1',
+      workingHours: [monday9to17],
+    });
+    const room = Room.create({ name: 'Suite 1', capacity: 2 });
+
+    scheduleRepo.findByTherapistId.mockResolvedValue(schedule);
+    roomRepo.findById.mockResolvedValue(room);
+
+    const report = await service.evaluateConflicts({
+      therapistId: 'therapist_1',
+      roomId: 'room_1',
+      clientId: 'client_1',
+      requestedRange: mondayWorkRange,
+      appointmentType: apptType,
+    });
+
+    expect(report.hasConflicts).toBe(false);
+    expect(report.conflicts).toHaveLength(0);
+  });
+
   it('should detect HOLIDAY conflict when facility is closed', async () => {
     calendarService.addHoliday(new Date('2026-08-03T00:00:00.000Z'), 'Civic Holiday');
 
@@ -87,6 +110,7 @@ describe('ConflictDetectionService', () => {
     });
 
     expect(conflicts.some((c) => c.conflictType === 'HOLIDAY')).toBe(true);
+    expect(conflicts[0]?.category).toBe('HOLIDAY');
   });
 
   it('should detect VACATION conflict when therapist is on vacation', async () => {
