@@ -19,9 +19,10 @@ describe('AvailabilityService', () => {
     calendarService = new BusinessCalendarService();
     appointmentRepo = {
       findById: jest.fn(),
-      findByTherapistId: jest.fn().mockResolvedValue([]),
-      findByRoomId: jest.fn().mockResolvedValue([]),
-      findByClientId: jest.fn().mockResolvedValue([]),
+      findConflictingAppointments: jest.fn().mockResolvedValue([]),
+      findAppointmentsForTherapist: jest.fn().mockResolvedValue([]),
+      findAppointmentsForRoom: jest.fn().mockResolvedValue([]),
+      findAppointmentsForClient: jest.fn().mockResolvedValue([]),
       save: jest.fn(),
     };
     scheduleRepo = {
@@ -30,7 +31,8 @@ describe('AvailabilityService', () => {
     };
     roomRepo = {
       findById: jest.fn(),
-      findAll: jest.fn(),
+      findAvailableRooms: jest.fn().mockResolvedValue([]),
+      findAll: jest.fn().mockResolvedValue([]),
       save: jest.fn(),
     };
 

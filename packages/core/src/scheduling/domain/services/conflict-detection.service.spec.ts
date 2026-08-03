@@ -29,9 +29,10 @@ describe('ConflictDetectionService', () => {
     calendarService = new BusinessCalendarService();
     appointmentRepo = {
       findById: jest.fn(),
-      findByTherapistId: jest.fn().mockResolvedValue([]),
-      findByRoomId: jest.fn().mockResolvedValue([]),
-      findByClientId: jest.fn().mockResolvedValue([]),
+      findConflictingAppointments: jest.fn().mockResolvedValue([]),
+      findAppointmentsForTherapist: jest.fn().mockResolvedValue([]),
+      findAppointmentsForRoom: jest.fn().mockResolvedValue([]),
+      findAppointmentsForClient: jest.fn().mockResolvedValue([]),
       save: jest.fn(),
     };
     scheduleRepo = {
@@ -40,7 +41,8 @@ describe('ConflictDetectionService', () => {
     };
     roomRepo = {
       findById: jest.fn(),
-      findAll: jest.fn(),
+      findAvailableRooms: jest.fn().mockResolvedValue([]),
+      findAll: jest.fn().mockResolvedValue([]),
       save: jest.fn(),
     };
 
@@ -149,7 +151,7 @@ describe('ConflictDetectionService', () => {
 
     scheduleRepo.findByTherapistId.mockResolvedValue(schedule);
     roomRepo.findById.mockResolvedValue(room);
-    appointmentRepo.findByClientId.mockResolvedValue([existingClientAppt]);
+    appointmentRepo.findAppointmentsForClient.mockResolvedValue([existingClientAppt]);
 
     const conflicts = await service.detectConflicts({
       therapistId: 'therapist_1',

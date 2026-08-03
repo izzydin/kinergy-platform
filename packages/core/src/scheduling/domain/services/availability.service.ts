@@ -50,9 +50,11 @@ export class AvailabilityService {
     const [schedule, room, therapistAppts, roomAppts, clientAppts] = await Promise.all([
       this.scheduleRepo.findByTherapistId(therapistId),
       this.roomRepo.findById(roomId),
-      this.appointmentRepo.findByTherapistId(therapistId, searchRange),
-      this.appointmentRepo.findByRoomId(roomId, searchRange),
-      clientId ? this.appointmentRepo.findByClientId(clientId, searchRange) : Promise.resolve([]),
+      this.appointmentRepo.findAppointmentsForTherapist(therapistId, searchRange),
+      this.appointmentRepo.findAppointmentsForRoom(roomId, searchRange),
+      clientId
+        ? this.appointmentRepo.findAppointmentsForClient(clientId, searchRange)
+        : Promise.resolve([]),
     ]);
 
     if (!schedule || !room || room.status !== RoomStatus.AVAILABLE) {

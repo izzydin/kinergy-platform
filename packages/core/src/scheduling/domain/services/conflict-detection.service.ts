@@ -77,7 +77,7 @@ export class ConflictDetectionService {
     }
 
     // 3. Therapist Booking Overlap Check
-    const therapistAppts = await this.appointmentRepo.findByTherapistId(
+    const therapistAppts = await this.appointmentRepo.findAppointmentsForTherapist(
       therapistId,
       requestedRange,
     );
@@ -134,7 +134,7 @@ export class ConflictDetectionService {
       }
     }
 
-    const roomAppts = await this.appointmentRepo.findByRoomId(roomId, requestedRange);
+    const roomAppts = await this.appointmentRepo.findAppointmentsForRoom(roomId, requestedRange);
     const conflictingRoomAppt = roomAppts.find(
       (a) =>
         a.id.getValue() !== excludeAppointmentId &&
@@ -154,7 +154,10 @@ export class ConflictDetectionService {
     }
 
     // 5. Client Booking Overlap Check
-    const clientAppts = await this.appointmentRepo.findByClientId(clientId, requestedRange);
+    const clientAppts = await this.appointmentRepo.findAppointmentsForClient(
+      clientId,
+      requestedRange,
+    );
     const conflictingClientAppt = clientAppts.find(
       (a) =>
         a.id.getValue() !== excludeAppointmentId &&
