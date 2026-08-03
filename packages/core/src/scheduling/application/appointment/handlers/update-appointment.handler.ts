@@ -83,7 +83,9 @@ export class UpdateAppointmentHandler implements CommandHandler<
           roomId: targetRoomId,
           clientId: appointment.clientId,
           requestedRange: targetTimeRange,
+          appointmentType: appointment.type,
           excludeAppointmentId: appointment.id.getValue(),
+          ignoreAppointmentId: appointment.id.getValue(),
         });
 
         if (conflicts.length > 0) {

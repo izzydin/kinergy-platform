@@ -81,13 +81,15 @@ export class RescheduleAppointmentHandler implements CommandHandler<
         );
       }
 
-      // 6. Detect Conflicts for New TimeRange
+      // 6. Detect Conflicts for New TimeRange with Turnaround Buffer & Self-Exclusion
       const conflicts = await this.conflictDetectionService.detectConflicts({
         therapistId: appointment.therapistId,
         roomId: appointment.roomId,
         clientId: appointment.clientId,
         requestedRange: newTimeRange,
+        appointmentType: appointment.type,
         excludeAppointmentId: appointment.id.getValue(),
+        ignoreAppointmentId: appointment.id.getValue(),
       });
 
       if (conflicts.length > 0) {

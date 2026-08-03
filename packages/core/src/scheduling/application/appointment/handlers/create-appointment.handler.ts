@@ -83,12 +83,13 @@ export class CreateAppointmentHandler implements CommandHandler<
         );
       }
 
-      // 5. Detect Multi-Aggregate Conflicts
+      // 5. Detect Multi-Aggregate Conflicts with Turnaround Buffer
       const conflicts = await this.conflictDetectionService.detectConflicts({
         therapistId: input.therapistId,
         roomId: input.roomId,
         clientId: input.clientId,
         requestedRange: timeRange,
+        appointmentType: apptType,
       });
 
       if (conflicts.length > 0) {
