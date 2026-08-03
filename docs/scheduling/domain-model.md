@@ -1,24 +1,33 @@
-# Scheduling Bounded Context - Ubiquitous Language Glossary
+# Scheduling Bounded Context — Domain Model & Ubiquitous Language
 
-## 1. Domain Terminology & Concepts
+## Ubiquitous Language Glossary
 
-| Term                     | Definition                                                                                                            | Ubiquitous Language Context                                                           |
-| :----------------------- | :-------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ |
-| **Appointment**          | A reserved time slot binding a client, therapist, and physical room for a treatment session.                          | Aggregate Root representing the core transactional record of a scheduled session.     |
-| **TherapistSchedule**    | The temporal availability definition for a therapist, including recurring working hours and explicit time-off blocks. | Aggregate Root managing therapist availability constraints.                           |
-| **Room**                 | A physical room or facility space where therapy sessions occur.                                                       | Aggregate Root enforcing spatial capacity and maintenance blackout periods.           |
-| **TimeSlot**             | An immutable value object representing a start time and end time window in UTC.                                       | Core value object used for overlap checks and duration calculations.                  |
-| **Clock**                | An abstracted time source providing current UTC time (`now()`) and midnight UTC date (`today()`).                     | Primary port for time inquiries, enabling deterministic unit testing via `TestClock`. |
-| **Double-Booking Guard** | A domain service or policy rule ensuring no therapist or room is assigned to overlapping active appointments.         | Domain Invariant enforced prior to committing an appointment booking or update.       |
-| **Working Hours**        | Time windows during which a therapist is normally available to take appointments.                                     | Domain entity owned by `TherapistSchedule`.                                           |
-| **Time-Off**             | Time windows during which a therapist is unavailable (vacation, sick leave, training).                                | Domain entity owned by `TherapistSchedule`.                                           |
-| **Reschedule Window**    | The minimum lead time policy required before an appointment start time to allow rescheduling without penalty.         | Business Policy enforced by `ReschedulePolicy`.                                       |
-| **Cancellation Policy**  | Business rules governing appointment cancellation deadlines, fees, and status transitions.                            | Business Policy enforced by `CancellationPolicy`.                                     |
+| Term                   | Domain Definition                                                                                                                                       |
+| :--------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Appointment**        | An encapsulated booking agreement between a Client and a Therapist for a specific service in a physical Room over a precise `TimeRange`.                |
+| **TherapistSchedule**  | Aggregate Root representing a therapist's base working hours, daily breaks, vacations, and date-specific availability overrides.                        |
+| **Room**               | Aggregate Root managing a physical space's operational capacity, maintenance state (`AVAILABLE`, `MAINTENANCE`, `UNAVAILABLE`), and equipment features. |
+| **TimeRange**          | Immutable Value Object encapsulating a continuous temporal interval `[start, end)` in UTC with invariant `start < end`.                                 |
+| **Duration**           | Immutable Value Object encapsulating a non-negative quantity of time in milliseconds, minutes, or hours.                                                |
+| **AppointmentType**    | Value Object encapsulating clinical booking classifications (`ASSESSMENT`, `FOLLOW_UP`, `TREATMENT`, `EVALUATION`, `RENTAL`, `GROUP_CLASS`).            |
+| **SchedulingConflict** | Immutable Value Object detailing double-booking or policy violations (`conflictType`, `conflictingEntityId`, `requestedRange`, `reason`).               |
 
 ---
 
-## 2. Invariants & Rules
+## Domain Specifications
 
-1. **TimeSlot Validity**: A `TimeSlot` must have `startTime < endTime`. Zero-duration or negative-duration slots are invalid.
-2. **Non-Overlapping Aggregate Boundaries**: `Appointment`, `TherapistSchedule`, and `Room` manage distinct state trees without direct ORM database joins.
-3. **UTC Uniformity**: All timestamps stored and evaluated within domain entities MUST be normalized to Coordinated Universal Time (UTC).
+- `WorkingHoursSpecification`: Evaluates if candidate range falls completely inside work shifts.
+- `TherapistAvailabilitySpecification`: Evaluates 4-level priority availability (Vacations $\rightarrow$ Overrides $\rightarrow$ Breaks $\rightarrow$ Working Hours).
+- `RoomAvailabilitySpecification`: Verifies room status is `AVAILABLE`, capacity is sufficient, and required equipment features are supported.
+- `AppointmentOverlapSpecification`: Asserts candidate range has zero intersection with active existing appointments.
+- `ClientAvailabilitySpecification`: Asserts client has zero conflicting active appointments.
+
+---
+
+## Configurable Business Policies
+
+- `DefaultAppointmentDurationPolicy`: Enforces min/max duration bounds and standard duration per appointment type.
+- `BookingWindowPolicy`: Enforces advance lead time notice (e.g., 2 hours) and maximum advance booking horizon (e.g., 90 days out).
+- `CancellationPolicy`: Evaluates late cancellation boundaries (e.g., 24-hour cutoff) and penalty applicability.
+- `ReschedulePolicy`: Limits maximum reschedules allowed per appointment (max 3) and notice notice lead time.
+- `BookingIdempotencyPolicy`: Validates client request tokens to prevent duplicate booking on network retries.
