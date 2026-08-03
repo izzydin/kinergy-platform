@@ -1,5 +1,6 @@
 import { ValueObject } from '../shared/value-object';
 import { Duration } from './duration.vo';
+import { TurnaroundBuffer } from './turnaround-buffer.vo';
 import { InvalidTimeRangeException } from '../exceptions/invalid-time-range.exception';
 
 export class TimeRange implements ValueObject<{ start: Date; end: Date }> {
@@ -38,6 +39,29 @@ export class TimeRange implements ValueObject<{ start: Date; end: Date }> {
     return (
       this._start.getTime() < other._end.getTime() && this._end.getTime() > other._start.getTime()
     );
+  }
+
+  /**
+   * Expands the TimeRange by subtracting prepDuration from start and adding cleanupDuration to end.
+   *
+   * @param buffer TurnaroundBuffer containing prep & cleanup durations
+   * @returns Expanded TimeRange primitive
+   */
+  public toBufferedRange(buffer: TurnaroundBuffer): TimeRange {
+    const bufferedStart = new Date(this._start.getTime() - buffer.prepDuration.toMilliseconds());
+    const bufferedEnd = new Date(this._end.getTime() + buffer.cleanupDuration.toMilliseconds());
+    return TimeRange.create(bufferedStart, bufferedEnd);
+  }
+
+  /**
+   * Evaluates if this range, expanded by the given buffer, overlaps with another range.
+   *
+   * @param other Target TimeRange to check against
+   * @param buffer TurnaroundBuffer to apply
+   * @returns True if buffered range overlaps with target range
+   */
+  public overlapsWithBuffer(other: TimeRange, buffer: TurnaroundBuffer): boolean {
+    return this.toBufferedRange(buffer).overlaps(other);
   }
 
   public intersects(other: TimeRange): boolean {
