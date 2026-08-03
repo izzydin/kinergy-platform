@@ -1,21 +1,16 @@
-import { AppointmentStatus } from '../value-objects/appointment-status.enum';
+import { SchedulingDomainException } from './scheduling.exception';
 
-export class InvalidAppointmentTransitionException extends Error {
-  public readonly currentStatus: AppointmentStatus;
-  public readonly targetStatus?: AppointmentStatus;
+export class InvalidAppointmentTransitionException extends SchedulingDomainException {
+  public readonly code = 'INVALID_APPOINTMENT_TRANSITION';
 
   constructor(
-    currentStatus: AppointmentStatus,
-    targetStatus?: AppointmentStatus,
+    public readonly currentStatus: string,
+    public readonly targetStatus: string,
     message?: string,
   ) {
-    const defaultMsg = targetStatus
-      ? `Invalid appointment transition from status '${currentStatus}' to '${targetStatus}'.`
-      : `Action is invalid for appointment in status '${currentStatus}'.`;
-    super(message ?? defaultMsg);
-    this.name = 'InvalidAppointmentTransitionException';
-    this.currentStatus = currentStatus;
-    this.targetStatus = targetStatus;
-    Object.setPrototypeOf(this, InvalidAppointmentTransitionException.prototype);
+    super(
+      message ??
+        `Cannot transition appointment status from '${currentStatus}' to '${targetStatus}'.`,
+    );
   }
 }

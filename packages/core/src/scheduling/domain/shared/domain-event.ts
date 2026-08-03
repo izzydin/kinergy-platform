@@ -4,7 +4,10 @@
 export interface DomainEvent<T = unknown> {
   readonly eventId: string;
   readonly eventName: string;
+  readonly name: string;
   readonly aggregateId: string;
+  readonly version: number;
   readonly occurredOn: Date;
+  readonly occurredAt: Date;
   readonly payload: T;
 }

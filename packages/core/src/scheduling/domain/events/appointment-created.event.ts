@@ -15,8 +15,11 @@ export interface AppointmentCreatedPayload {
 export class AppointmentCreatedEvent implements DomainEvent<AppointmentCreatedPayload> {
   public readonly eventId: string;
   public readonly eventName = 'AppointmentCreated';
+  public readonly name = 'AppointmentCreated';
   public readonly aggregateId: string;
+  public readonly version: number;
   public readonly occurredOn: Date;
+  public readonly occurredAt: Date;
   public readonly payload: AppointmentCreatedPayload;
 
   constructor(
@@ -26,11 +29,14 @@ export class AppointmentCreatedEvent implements DomainEvent<AppointmentCreatedPa
     roomId: string,
     type: AppointmentType,
     timeRange: TimeRange,
-    occurredOn: Date = new Date(),
+    version: number = 1,
+    occurredAt: Date = new Date(),
   ) {
     this.eventId = `evt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     this.aggregateId = appointmentId;
-    this.occurredOn = occurredOn;
+    this.version = version;
+    this.occurredOn = occurredAt;
+    this.occurredAt = occurredAt;
     this.payload = {
       appointmentId,
       clientId,
@@ -38,7 +44,7 @@ export class AppointmentCreatedEvent implements DomainEvent<AppointmentCreatedPa
       roomId,
       type: type.getValue(),
       timeRange: timeRange.getValue(),
-      createdAt: occurredOn,
+      createdAt: occurredAt,
     };
     Object.freeze(this);
   }

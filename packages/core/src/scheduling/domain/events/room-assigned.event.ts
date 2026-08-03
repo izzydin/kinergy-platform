@@ -2,7 +2,7 @@ import { DomainEvent } from '../shared/domain-event';
 
 export interface RoomAssignedPayload {
   readonly appointmentId: string;
-  readonly previousRoomId: string;
+  readonly oldRoomId: string;
   readonly newRoomId: string;
   readonly assignedAt: Date;
 }
@@ -10,25 +10,35 @@ export interface RoomAssignedPayload {
 export class RoomAssignedEvent implements DomainEvent<RoomAssignedPayload> {
   public readonly eventId: string;
   public readonly eventName = 'RoomAssigned';
+  public readonly name = 'RoomAssigned';
   public readonly aggregateId: string;
+  public readonly version: number;
   public readonly occurredOn: Date;
+  public readonly occurredAt: Date;
   public readonly payload: RoomAssignedPayload;
 
   constructor(
     appointmentId: string,
-    previousRoomId: string,
+    oldRoomId: string,
     newRoomId: string,
-    assignedAt: Date = new Date(),
+    version: number = 1,
+    occurredAt: Date = new Date(),
   ) {
     this.eventId = `evt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     this.aggregateId = appointmentId;
-    this.occurredOn = assignedAt;
+    this.version = version;
+    this.occurredOn = occurredAt;
+    this.occurredAt = occurredAt;
     this.payload = {
       appointmentId,
-      previousRoomId,
+      oldRoomId,
       newRoomId,
-      assignedAt,
+      assignedAt: occurredAt,
     };
     Object.freeze(this);
+  }
+
+  public get roomId(): string {
+    return this.payload.newRoomId;
   }
 }

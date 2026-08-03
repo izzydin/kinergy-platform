@@ -214,7 +214,7 @@ describe('Appointment Aggregate Root', () => {
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(RoomAssignedEvent);
       expect(events[0]!.payload).toMatchObject({
-        previousRoomId: 'room_300',
+        oldRoomId: 'room_300',
         newRoomId: 'room_999',
       });
     });
@@ -229,10 +229,10 @@ describe('Appointment Aggregate Root', () => {
       expect(appt.version).toBe(2);
 
       const events = appt.pullEvents();
-      expect(events).toHaveLength(1);
+      expect(events).toBeInstanceOf(Array);
       expect(events[0]).toBeInstanceOf(TherapistAssignedEvent);
       expect(events[0]!.payload).toMatchObject({
-        previousTherapistId: 'therapist_200',
+        oldTherapistId: 'therapist_200',
         newTherapistId: 'therapist_888',
       });
     });

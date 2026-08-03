@@ -1,18 +1,18 @@
 import { AggregateRoot } from '../shared/aggregate-root';
 import { DomainEvent } from '../shared/domain-event';
-import { Clock } from '../shared/clock';
 import { AppointmentId } from './appointment-id.vo';
-import { AppointmentStatus } from '../value-objects/appointment-status.enum';
 import { AppointmentType } from '../value-objects/appointment-type.vo';
 import { TimeRange } from '../value-objects/time-range.vo';
+import { AppointmentStatus } from '../value-objects/appointment-status.enum';
+import { Clock } from '../shared/clock';
 import { InvalidAppointmentTransitionException } from '../exceptions/invalid-appointment-transition.exception';
-import {
-  AppointmentCreatedEvent,
-  AppointmentCancelledEvent,
-  AppointmentRescheduledEvent,
-  RoomAssignedEvent,
-  TherapistAssignedEvent,
-} from '../events';
+
+// Domain Events
+import { AppointmentCreatedEvent } from '../events/appointment-created.event';
+import { AppointmentCancelledEvent } from '../events/appointment-cancelled.event';
+import { AppointmentRescheduledEvent } from '../events/appointment-rescheduled.event';
+import { RoomAssignedEvent } from '../events/room-assigned.event';
+import { TherapistAssignedEvent } from '../events/therapist-assigned.event';
 
 export interface CreateAppointmentProps {
   id?: AppointmentId;
@@ -42,7 +42,7 @@ export class Appointment implements AggregateRoot<AppointmentId> {
   private _version: number;
   private _status: AppointmentStatus;
   private _type: AppointmentType;
-  private _clientId: string;
+  private readonly _clientId: string;
   private _therapistId: string;
   private _roomId: string;
   private _timeRange: TimeRange;
@@ -52,17 +52,27 @@ export class Appointment implements AggregateRoot<AppointmentId> {
   private uncommittedEvents: DomainEvent[] = [];
 
   private constructor(props: ReconstituteAppointmentProps) {
+    if (!props.clientId || props.clientId.trim().length === 0) {
+      throw new Error('Client ID cannot be empty.');
+    }
+    if (!props.therapistId || props.therapistId.trim().length === 0) {
+      throw new Error('Therapist ID cannot be empty.');
+    }
+    if (!props.roomId || props.roomId.trim().length === 0) {
+      throw new Error('Room ID cannot be empty.');
+    }
+
     this._id = props.id;
     this._version = props.version;
     this._status = props.status;
     this._type = props.type;
-    this._clientId = props.clientId;
-    this._therapistId = props.therapistId;
-    this._roomId = props.roomId;
+    this._clientId = props.clientId.trim();
+    this._therapistId = props.therapistId.trim();
+    this._roomId = props.roomId.trim();
     this._timeRange = props.timeRange;
     this._cancellationReason = props.cancellationReason;
-    this._createdAt = new Date(props.createdAt.getTime());
-    this._updatedAt = new Date(props.updatedAt.getTime());
+    this._createdAt = props.createdAt;
+    this._updatedAt = props.updatedAt;
   }
 
   public static create(props: CreateAppointmentProps, clock?: Clock): Appointment {
@@ -90,6 +100,7 @@ export class Appointment implements AggregateRoot<AppointmentId> {
         props.roomId,
         props.type,
         props.timeRange,
+        appointment.version,
         now,
       ),
     );
@@ -200,7 +211,12 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this.touch(clock);
 
     this.recordEvent(
-      new AppointmentCancelledEvent(this._id.getValue(), this._cancellationReason, now),
+      new AppointmentCancelledEvent(
+        this._id.getValue(),
+        this._cancellationReason,
+        this._version,
+        now,
+      ),
     );
   }
 
@@ -223,7 +239,13 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this.touch(clock);
 
     this.recordEvent(
-      new AppointmentRescheduledEvent(this._id.getValue(), oldRange, newTimeRange, now),
+      new AppointmentRescheduledEvent(
+        this._id.getValue(),
+        oldRange,
+        newTimeRange,
+        this._version,
+        now,
+      ),
     );
   }
 
@@ -238,7 +260,9 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     const now = clock ? clock.now() : new Date();
     this.touch(clock);
 
-    this.recordEvent(new RoomAssignedEvent(this._id.getValue(), oldRoomId, this._roomId, now));
+    this.recordEvent(
+      new RoomAssignedEvent(this._id.getValue(), oldRoomId, this._roomId, this._version, now),
+    );
   }
 
   public assignTherapist(newTherapistId: string, clock?: Clock): void {
@@ -253,7 +277,13 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this.touch(clock);
 
     this.recordEvent(
-      new TherapistAssignedEvent(this._id.getValue(), oldTherapistId, this._therapistId, now),
+      new TherapistAssignedEvent(
+        this._id.getValue(),
+        oldTherapistId,
+        this._therapistId,
+        this._version,
+        now,
+      ),
     );
   }
 
@@ -272,10 +302,9 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     return Object.freeze(events);
   }
 
-  // Private Helper Methods
   private touch(clock?: Clock): void {
-    this._version += 1;
     this._updatedAt = clock ? clock.now() : new Date();
+    this._version += 1;
   }
 
   private recordEvent(event: DomainEvent): void {
@@ -289,7 +318,7 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     ) {
       throw new InvalidAppointmentTransitionException(
         this._status,
-        undefined,
+        'TERMINAL',
         `Cannot ${actionName} for appointment in terminal '${this._status}' status.`,
       );
     }

@@ -1,7 +1,9 @@
-export class InvalidDurationException extends Error {
-  constructor(message = 'Invalid duration: duration cannot be negative.') {
+import { SchedulingDomainException } from './scheduling.exception';
+
+export class InvalidDurationException extends SchedulingDomainException {
+  public readonly code = 'INVALID_DURATION';
+
+  constructor(message: string = 'Duration cannot be negative.') {
     super(message);
-    this.name = 'InvalidDurationException';
-    Object.setPrototypeOf(this, InvalidDurationException.prototype);
   }
 }
