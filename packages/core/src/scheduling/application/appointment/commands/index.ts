@@ -6,3 +6,6 @@ export * from './confirm-appointment.command';
 export * from './check-in-appointment.command';
 export * from './complete-appointment.command';
 export * from './mark-no-show.command';
+export * from './assign-therapist.command';
+export * from './assign-room.command';
+export * from './add-appointment-note.command';

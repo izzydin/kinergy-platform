@@ -6,3 +6,6 @@ export * from './confirm-appointment.handler';
 export * from './check-in-appointment.handler';
 export * from './complete-appointment.handler';
 export * from './mark-no-show.handler';
+export * from './assign-therapist.handler';
+export * from './assign-room.handler';
+export * from './add-appointment-note.handler';

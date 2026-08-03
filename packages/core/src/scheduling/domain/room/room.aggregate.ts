@@ -56,7 +56,7 @@ export class Room implements AggregateRoot<RoomId> {
     this._name = props.name.trim();
     this._capacity = props.capacity;
     this._status = props.status;
-    this._features = new Set(props.features);
+    this._features = new Set(Array.from(props.features).map((f) => f.trim().toLowerCase()));
     this._maintenanceReason = props.maintenanceReason;
   }
 
