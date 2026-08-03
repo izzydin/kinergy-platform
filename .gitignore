@@ -56,5 +56,6 @@ coverage/
 # Temporary & Cache files
 .cache/
 .tmp/
+tmp/
 *.tmp
 *.bak

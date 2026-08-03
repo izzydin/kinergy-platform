@@ -2,5 +2,10 @@
   "extends": "./tsconfig.base.json",
   "files": [],
   "include": ["apps/**/*", "libs/**/*", "packages/**/*", "prisma/**/*"],
-  "references": []
+  "references": [],
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS"
+    }
+  }
 }

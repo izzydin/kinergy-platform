@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { UNIT_OF_WORK } from '../persistence/unit-of-work.interface';
 import { IDENTITY_CONTEXT } from './identity-context.interface';
 import { PlaceholderIdentityContextService } from './placeholder-identity-context.service';
 import {
@@ -49,7 +50,16 @@ import {
   UpdateUserUseCase,
 } from './use-cases';
 
+import { AuthController } from './controllers/auth.controller';
+import {
+  LoginUseCase,
+  RefreshTokenUseCase,
+  LogoutUseCase,
+  GetCurrentUserUseCase,
+} from './use-cases';
+
 @Module({
+  controllers: [AuthController],
   providers: [
     PlaceholderIdentityContextService,
     {
@@ -140,6 +150,95 @@ import {
       provide: REQUEST_CONTEXT_ACCESSOR,
       useClass: AsyncLocalStorageRequestContextAccessor,
     },
+    {
+      provide: LoginUseCase,
+      useFactory: (
+        userRepo,
+        refreshRepo,
+        hasher,
+        tokenHasher,
+        accessSvc,
+        refreshSvc,
+        clock,
+        tokenConfig,
+        eventPub,
+      ) =>
+        new LoginUseCase(
+          userRepo,
+          refreshRepo,
+          hasher,
+          tokenHasher,
+          accessSvc,
+          refreshSvc,
+          clock,
+          tokenConfig,
+          eventPub,
+        ),
+      inject: [
+        USER_REPOSITORY,
+        REFRESH_TOKEN_REPOSITORY,
+        PASSWORD_HASHER,
+        TOKEN_HASHER,
+        ACCESS_TOKEN_SERVICE,
+        REFRESH_TOKEN_SERVICE,
+        CLOCK,
+        TOKEN_CONFIGURATION,
+        SECURITY_EVENT_PUBLISHER,
+      ],
+    },
+    {
+      provide: RefreshTokenUseCase,
+      useFactory: (
+        userRepo,
+        refreshRepo,
+        tokenHasher,
+        accessSvc,
+        refreshSvc,
+        clock,
+        uow,
+        tokenConfig,
+        eventPub,
+      ) =>
+        new RefreshTokenUseCase(
+          userRepo,
+          refreshRepo,
+          tokenHasher,
+          accessSvc,
+          refreshSvc,
+          clock,
+          uow,
+          tokenConfig,
+          eventPub,
+        ),
+      inject: [
+        USER_REPOSITORY,
+        REFRESH_TOKEN_REPOSITORY,
+        TOKEN_HASHER,
+        ACCESS_TOKEN_SERVICE,
+        REFRESH_TOKEN_SERVICE,
+        CLOCK,
+        UNIT_OF_WORK,
+        TOKEN_CONFIGURATION,
+        SECURITY_EVENT_PUBLISHER,
+      ],
+    },
+    {
+      provide: LogoutUseCase,
+      useFactory: (userRepo, refreshRepo, refreshSvc, tokenHasher, eventPub) =>
+        new LogoutUseCase(userRepo, refreshRepo, refreshSvc, tokenHasher, eventPub),
+      inject: [
+        USER_REPOSITORY,
+        REFRESH_TOKEN_REPOSITORY,
+        REFRESH_TOKEN_SERVICE,
+        TOKEN_HASHER,
+        SECURITY_EVENT_PUBLISHER,
+      ],
+    },
+    {
+      provide: GetCurrentUserUseCase,
+      useFactory: (userRepo) => new GetCurrentUserUseCase(userRepo),
+      inject: [USER_REPOSITORY],
+    },
     CreateUserUseCase,
     UpdateUserUseCase,
     ActivateUserUseCase,
@@ -188,6 +287,10 @@ import {
     AuthorizationGuard,
     AsyncLocalStorageRequestContextAccessor,
     REQUEST_CONTEXT_ACCESSOR,
+    LoginUseCase,
+    RefreshTokenUseCase,
+    LogoutUseCase,
+    GetCurrentUserUseCase,
     CreateUserUseCase,
     UpdateUserUseCase,
     ActivateUserUseCase,
