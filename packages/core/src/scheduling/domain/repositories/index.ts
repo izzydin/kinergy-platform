@@ -1,2 +1,3 @@
-// Placeholder exports for domain repositories
-export {};
+export * from './appointment.repository';
+export * from './therapist-schedule.repository';
+export * from './room.repository';
