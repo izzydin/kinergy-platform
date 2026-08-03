@@ -74,7 +74,8 @@ export class RoomAvailabilityEvaluator {
         continue;
       }
 
-      if (candidateBufferedRange.overlaps(appt.timeRange)) {
+      const apptBufferedRange = appt.timeRange.toBufferedRange(effectiveBuffer);
+      if (candidateBufferedRange.overlaps(apptBufferedRange)) {
         return {
           isAvailable: false,
           reason: `Room '${room.name}' has conflicting appointment '${appt.id.toString()}' from ${appt.timeRange.start.toISOString()} to ${appt.timeRange.end.toISOString()}.`,
