@@ -44,6 +44,7 @@ describe('Resource Assignment & Note Command Handlers', () => {
       findAppointmentsForTherapist: jest.fn(),
       findAppointmentsForRoom: jest.fn(),
       findAppointmentsForClient: jest.fn(),
+      findAppointmentsByRange: jest.fn().mockResolvedValue([]),
     };
 
     mockScheduleRepo = {

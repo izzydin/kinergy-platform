@@ -33,6 +33,7 @@ describe('ConflictDetectionService', () => {
       findAppointmentsForTherapist: jest.fn().mockResolvedValue([]),
       findAppointmentsForRoom: jest.fn().mockResolvedValue([]),
       findAppointmentsForClient: jest.fn().mockResolvedValue([]),
+      findAppointmentsByRange: jest.fn().mockResolvedValue([]),
       save: jest.fn(),
     };
     scheduleRepo = {

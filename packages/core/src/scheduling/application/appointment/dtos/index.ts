@@ -5,3 +5,4 @@ export * from './reschedule-appointment.dto';
 export * from './cancel-appointment.dto';
 export * from './assign-therapist.dto';
 export * from './assign-room.dto';
+export * from './reception-daily-schedule.dto';

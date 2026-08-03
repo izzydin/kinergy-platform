@@ -31,6 +31,7 @@ describe('CancelAppointmentHandler', () => {
       findAppointmentsForTherapist: jest.fn(),
       findAppointmentsForRoom: jest.fn(),
       findAppointmentsForClient: jest.fn(),
+      findAppointmentsByRange: jest.fn().mockResolvedValue([]),
     };
 
     mockPolicy = new CancellationPolicy();

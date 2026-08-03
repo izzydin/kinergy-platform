@@ -9,3 +9,6 @@ export * from './mark-no-show.handler';
 export * from './assign-therapist.handler';
 export * from './assign-room.handler';
 export * from './add-appointment-note.handler';
+export * from './get-appointment-by-id.handler';
+export * from './find-appointments-by-range.handler';
+export * from './get-reception-daily-schedule.handler';

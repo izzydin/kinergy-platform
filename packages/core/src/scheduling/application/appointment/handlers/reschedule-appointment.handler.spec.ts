@@ -21,7 +21,6 @@ describe('RescheduleAppointmentHandler', () => {
   const clock = new TestClock(new Date('2026-08-03T10:00:00.000Z'));
   const apptType = AppointmentType.create(AppointmentTypeEnum.TREATMENT);
 
-  // Initial appointment at 2026-08-04 10:00 (24h in advance)
   const initialTimeRange = TimeRange.create(
     new Date('2026-08-04T10:00:00.000Z'),
     new Date('2026-08-04T11:00:00.000Z'),
@@ -35,6 +34,7 @@ describe('RescheduleAppointmentHandler', () => {
       findAppointmentsForTherapist: jest.fn(),
       findAppointmentsForRoom: jest.fn(),
       findAppointmentsForClient: jest.fn(),
+      findAppointmentsByRange: jest.fn().mockResolvedValue([]),
     };
 
     mockConflictService = {

@@ -31,6 +31,7 @@ describe('UpdateAppointmentHandler', () => {
       findAppointmentsForTherapist: jest.fn(),
       findAppointmentsForRoom: jest.fn(),
       findAppointmentsForClient: jest.fn(),
+      findAppointmentsByRange: jest.fn().mockResolvedValue([]),
     };
 
     mockConflictService = {
