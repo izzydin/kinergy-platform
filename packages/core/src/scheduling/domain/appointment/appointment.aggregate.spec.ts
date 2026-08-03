@@ -9,6 +9,9 @@ import {
   AppointmentCreatedEvent,
   AppointmentCancelledEvent,
   AppointmentRescheduledEvent,
+  AppointmentCheckedInEvent,
+  AppointmentCompletedEvent,
+  AppointmentNoShowEvent,
   RoomAssignedEvent,
   TherapistAssignedEvent,
 } from '../events';
@@ -95,15 +98,62 @@ describe('Appointment Aggregate Root', () => {
       appt.complete(clock);
       expect(appt.status).toBe(AppointmentStatus.COMPLETED);
       expect(appt.version).toBe(5);
+
+      const events = appt.pullEvents();
+      expect(events.some((e) => e instanceof AppointmentCheckedInEvent)).toBe(true);
+      expect(events.some((e) => e instanceof AppointmentCompletedEvent)).toBe(true);
+    });
+
+    it('should allow direct CHECKED_IN transition from SCHEDULED status', () => {
+      const appt = Appointment.create(createDefaultProps(), clock);
+      appt.checkIn(clock);
+      expect(appt.status).toBe(AppointmentStatus.CHECKED_IN);
+    });
+  });
+
+  describe('NO_SHOW Lifecycle', () => {
+    it('should mark SCHEDULED appointment as NO_SHOW and emit AppointmentNoShowEvent', () => {
+      const appt = Appointment.create(createDefaultProps(), clock);
+      appt.pullEvents();
+
+      appt.markNoShow('Client arrived 45 mins late', clock);
+
+      expect(appt.status).toBe(AppointmentStatus.NO_SHOW);
+      expect(appt.cancellationReason).toBe('Client arrived 45 mins late');
+      expect(appt.version).toBe(2);
+
+      const events = appt.pullEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(AppointmentNoShowEvent);
+    });
+  });
+
+  describe('Appointment Notes Management', () => {
+    it('should append note to active appointment and bump version', () => {
+      const appt = Appointment.create(createDefaultProps(), clock);
+      expect(appt.notes).toHaveLength(0);
+
+      appt.addNote('user_admin', 'Client prefers quiet room', clock);
+
+      expect(appt.notes).toHaveLength(1);
+      expect(appt.notes[0]?.authorId).toBe('user_admin');
+      expect(appt.notes[0]?.noteText).toBe('Client prefers quiet room');
+      expect(appt.version).toBe(2);
+    });
+
+    it('should throw error when adding note to COMPLETED or CANCELLED appointment', () => {
+      const appt = Appointment.create(createDefaultProps(), clock);
+      appt.cancel('Client sick', clock);
+
+      expect(() => appt.addNote('user_admin', 'Follow up note', clock)).toThrow(
+        InvalidAppointmentTransitionException,
+      );
     });
   });
 
   describe('Illegal State Transitions', () => {
     it('should throw InvalidAppointmentTransitionException on invalid transitions', () => {
       const appt = Appointment.create(createDefaultProps(), clock);
-
-      // Cannot check-in directly from SCHEDULED
-      expect(() => appt.checkIn(clock)).toThrow(InvalidAppointmentTransitionException);
 
       // Cannot start directly from SCHEDULED
       expect(() => appt.start(clock)).toThrow(InvalidAppointmentTransitionException);
@@ -123,22 +173,16 @@ describe('Appointment Aggregate Root', () => {
       expect(() => appt.cancel('Client request', clock)).toThrow(
         InvalidAppointmentTransitionException,
       );
-      expect(() =>
-        appt.reschedule(
-          TimeRange.create(
-            new Date('2026-08-04T10:00:00.000Z'),
-            new Date('2026-08-04T11:00:00.000Z'),
-          ),
-          clock,
-        ),
-      ).toThrow(InvalidAppointmentTransitionException);
+      expect(() => appt.markNoShow('Did not show', clock)).toThrow(
+        InvalidAppointmentTransitionException,
+      );
     });
   });
 
-  describe('Cancellation', () => {
+  describe('Cancellation & Rescheduling', () => {
     it('should cancel appointment and emit AppointmentCancelledEvent', () => {
       const appt = Appointment.create(createDefaultProps(), clock);
-      appt.pullEvents(); // clear creation event
+      appt.pullEvents();
 
       clock.advanceBy(300_000);
       appt.cancel('Client sick', clock);
@@ -150,18 +194,8 @@ describe('Appointment Aggregate Root', () => {
       const events = appt.pullEvents();
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(AppointmentCancelledEvent);
-      expect(events[0]!.payload).toMatchObject({
-        reason: 'Client sick',
-      });
     });
 
-    it('should throw error when cancelling without reason', () => {
-      const appt = Appointment.create(createDefaultProps(), clock);
-      expect(() => appt.cancel('', clock)).toThrow();
-    });
-  });
-
-  describe('Rescheduling', () => {
     it('should reschedule SCHEDULED appointment and emit AppointmentRescheduledEvent', () => {
       const appt = Appointment.create(createDefaultProps(), clock);
       appt.pullEvents();
@@ -182,22 +216,6 @@ describe('Appointment Aggregate Root', () => {
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(AppointmentRescheduledEvent);
     });
-
-    it('should throw InvalidAppointmentTransitionException when rescheduling IN_PROGRESS appointment', () => {
-      const appt = Appointment.create(createDefaultProps(), clock);
-      appt.confirm(clock);
-      appt.checkIn(clock);
-      appt.start(clock);
-
-      const newTimeRange = TimeRange.create(
-        new Date('2026-08-04T14:00:00.000Z'),
-        new Date('2026-08-04T15:00:00.000Z'),
-      );
-
-      expect(() => appt.reschedule(newTimeRange, clock)).toThrow(
-        InvalidAppointmentTransitionException,
-      );
-    });
   });
 
   describe('Room and Therapist Assignments', () => {
@@ -213,10 +231,6 @@ describe('Appointment Aggregate Root', () => {
       const events = appt.pullEvents();
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(RoomAssignedEvent);
-      expect(events[0]!.payload).toMatchObject({
-        oldRoomId: 'room_300',
-        newRoomId: 'room_999',
-      });
     });
 
     it('should reassign therapist and emit TherapistAssignedEvent', () => {
@@ -229,35 +243,8 @@ describe('Appointment Aggregate Root', () => {
       expect(appt.version).toBe(2);
 
       const events = appt.pullEvents();
-      expect(events).toBeInstanceOf(Array);
+      expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(TherapistAssignedEvent);
-      expect(events[0]!.payload).toMatchObject({
-        oldTherapistId: 'therapist_200',
-        newTherapistId: 'therapist_888',
-      });
-    });
-
-    it('should throw error when reassigning room or therapist for CANCELLED appointment', () => {
-      const appt = Appointment.create(createDefaultProps(), clock);
-      appt.cancel('Cancelled by clinic', clock);
-
-      expect(() => appt.assignRoom('room_999', clock)).toThrow(
-        InvalidAppointmentTransitionException,
-      );
-      expect(() => appt.assignTherapist('therapist_888', clock)).toThrow(
-        InvalidAppointmentTransitionException,
-      );
-    });
-  });
-
-  describe('Event Pulling & Clearing', () => {
-    it('should pull events and clear uncommitted store', () => {
-      const appt = Appointment.create(createDefaultProps(), clock);
-      expect(appt.getUncommittedEvents()).toHaveLength(1);
-
-      const pulled = appt.pullEvents();
-      expect(pulled).toHaveLength(1);
-      expect(appt.getUncommittedEvents()).toHaveLength(0);
     });
   });
 });

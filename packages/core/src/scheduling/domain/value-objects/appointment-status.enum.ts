@@ -1,3 +1,6 @@
+/**
+ * Domain Enum representing the operational lifecycle statuses of an Appointment.
+ */
 export enum AppointmentStatus {
   SCHEDULED = 'SCHEDULED',
   CONFIRMED = 'CONFIRMED',
@@ -6,4 +9,5 @@ export enum AppointmentStatus {
   COMPLETED = 'COMPLETED',
   CANCELLED = 'CANCELLED',
   RESCHEDULED = 'RESCHEDULED',
+  NO_SHOW = 'NO_SHOW',
 }

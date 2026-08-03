@@ -6,11 +6,15 @@ import { TimeRange } from '../value-objects/time-range.vo';
 import { AppointmentStatus } from '../value-objects/appointment-status.enum';
 import { Clock } from '../shared/clock';
 import { InvalidAppointmentTransitionException } from '../exceptions/invalid-appointment-transition.exception';
+import { AppointmentNote } from './value-objects/appointment-note.vo';
 
 // Domain Events
 import { AppointmentCreatedEvent } from '../events/appointment-created.event';
 import { AppointmentCancelledEvent } from '../events/appointment-cancelled.event';
 import { AppointmentRescheduledEvent } from '../events/appointment-rescheduled.event';
+import { AppointmentCheckedInEvent } from '../events/appointment-checked-in.event';
+import { AppointmentCompletedEvent } from '../events/appointment-completed.event';
+import { AppointmentNoShowEvent } from '../events/appointment-no-show.event';
 import { RoomAssignedEvent } from '../events/room-assigned.event';
 import { TherapistAssignedEvent } from '../events/therapist-assigned.event';
 
@@ -22,6 +26,7 @@ export interface CreateAppointmentProps {
   roomId: string;
   type: AppointmentType;
   timeRange: TimeRange;
+  notes?: AppointmentNote[];
 }
 
 /** Properties required to reconstitute an Appointment aggregate from persistence */
@@ -35,13 +40,14 @@ export interface ReconstituteAppointmentProps {
   roomId: string;
   timeRange: TimeRange;
   cancellationReason?: string;
+  notes?: AppointmentNote[];
   createdAt: Date;
   updatedAt: Date;
 }
 
 /**
  * Appointment Aggregate Root enforcing state machine transitions, domain event recording,
- * and optimistic concurrency version control.
+ * notes management, and optimistic concurrency version control.
  */
 export class Appointment implements AggregateRoot<AppointmentId> {
   private readonly _id: AppointmentId;
@@ -53,6 +59,7 @@ export class Appointment implements AggregateRoot<AppointmentId> {
   private _roomId: string;
   private _timeRange: TimeRange;
   private _cancellationReason?: string;
+  private _notes: AppointmentNote[];
   private readonly _createdAt: Date;
   private _updatedAt: Date;
   private uncommittedEvents: DomainEvent[] = [];
@@ -77,16 +84,13 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this._roomId = props.roomId.trim();
     this._timeRange = props.timeRange;
     this._cancellationReason = props.cancellationReason;
+    this._notes = props.notes ? [...props.notes] : [];
     this._createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
   }
 
   /**
    * Factory method to create a new Appointment in SCHEDULED status and record AppointmentCreatedEvent.
-   *
-   * @param props Appointment creation parameters
-   * @param clock Optional Clock abstraction for deterministic time handling
-   * @returns Newly initialized Appointment aggregate root
    */
   public static create(props: CreateAppointmentProps, clock?: Clock): Appointment {
     const apptId = props.id ?? AppointmentId.create();
@@ -101,6 +105,7 @@ export class Appointment implements AggregateRoot<AppointmentId> {
       therapistId: props.therapistId,
       roomId: props.roomId,
       timeRange: props.timeRange,
+      notes: props.notes ?? [],
       createdAt: now,
       updatedAt: now,
     });
@@ -171,6 +176,11 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     return this._cancellationReason;
   }
 
+  /** Gets a read-only list of attached AppointmentNote VOs */
+  public get notes(): ReadonlyArray<AppointmentNote> {
+    return Object.freeze([...this._notes]);
+  }
+
   /** Gets the creation Date timestamp */
   public get createdAt(): Date {
     return new Date(this._createdAt.getTime());
@@ -190,13 +200,22 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this.touch(clock);
   }
 
-  /** Transitions status from CONFIRMED -> CHECKED_IN */
+  /**
+   * Transitions status from SCHEDULED or CONFIRMED -> CHECKED_IN.
+   * Records AppointmentCheckedInEvent.
+   */
   public checkIn(clock?: Clock): void {
-    if (this._status !== AppointmentStatus.CONFIRMED) {
+    if (
+      this._status !== AppointmentStatus.SCHEDULED &&
+      this._status !== AppointmentStatus.CONFIRMED
+    ) {
       throw new InvalidAppointmentTransitionException(this._status, AppointmentStatus.CHECKED_IN);
     }
     this._status = AppointmentStatus.CHECKED_IN;
+    const now = clock ? clock.now() : new Date();
     this.touch(clock);
+
+    this.recordEvent(new AppointmentCheckedInEvent(this._id.getValue(), this._version, now));
   }
 
   /** Transitions status from CHECKED_IN -> IN_PROGRESS */
@@ -208,35 +227,29 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this.touch(clock);
   }
 
-  /** Transitions status from IN_PROGRESS -> COMPLETED */
+  /**
+   * Transitions status from IN_PROGRESS -> COMPLETED.
+   * Records AppointmentCompletedEvent.
+   */
   public complete(clock?: Clock): void {
     if (this._status !== AppointmentStatus.IN_PROGRESS) {
       throw new InvalidAppointmentTransitionException(this._status, AppointmentStatus.COMPLETED);
     }
     this._status = AppointmentStatus.COMPLETED;
+    const now = clock ? clock.now() : new Date();
     this.touch(clock);
+
+    this.recordEvent(new AppointmentCompletedEvent(this._id.getValue(), this._version, now));
   }
 
   /**
    * Cancels the appointment with a mandatory reason and records AppointmentCancelledEvent.
-   *
-   * @param reason Explanation for cancellation
-   * @param clock Optional Clock abstraction
    */
   public cancel(reason: string, clock?: Clock): void {
     if (!reason || reason.trim().length === 0) {
       throw new Error('Cancellation reason is required.');
     }
-    if (
-      this._status === AppointmentStatus.COMPLETED ||
-      this._status === AppointmentStatus.CANCELLED
-    ) {
-      throw new InvalidAppointmentTransitionException(
-        this._status,
-        AppointmentStatus.CANCELLED,
-        `Cannot cancel appointment in '${this._status}' status.`,
-      );
-    }
+    this.assertNonTerminalState('cancel');
 
     this._status = AppointmentStatus.CANCELLED;
     this._cancellationReason = reason.trim();
@@ -254,10 +267,35 @@ export class Appointment implements AggregateRoot<AppointmentId> {
   }
 
   /**
+   * Marks the appointment as NO_SHOW and records AppointmentNoShowEvent.
+   * Allowed from SCHEDULED or CONFIRMED status.
+   */
+  public markNoShow(reason?: string, clock?: Clock): void {
+    if (
+      this._status !== AppointmentStatus.SCHEDULED &&
+      this._status !== AppointmentStatus.CONFIRMED
+    ) {
+      throw new InvalidAppointmentTransitionException(
+        this._status,
+        AppointmentStatus.NO_SHOW,
+        `Marking NO_SHOW is only allowed for SCHEDULED or CONFIRMED appointments. Current status: '${this._status}'.`,
+      );
+    }
+
+    this._status = AppointmentStatus.NO_SHOW;
+    if (reason && reason.trim().length > 0) {
+      this._cancellationReason = reason.trim();
+    }
+    const now = clock ? clock.now() : new Date();
+    this.touch(clock);
+
+    this.recordEvent(
+      new AppointmentNoShowEvent(this._id.getValue(), this._cancellationReason, this._version, now),
+    );
+  }
+
+  /**
    * Reschedules the appointment to a new TimeRange and records AppointmentRescheduledEvent.
-   *
-   * @param newTimeRange Target new time range
-   * @param clock Optional Clock abstraction
    */
   public reschedule(newTimeRange: TimeRange, clock?: Clock): void {
     if (
@@ -328,6 +366,23 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     );
   }
 
+  /**
+   * Appends an immutable AppointmentNote VO to the appointment.
+   * Asserts non-terminal state and bumps version counter.
+   *
+   * @param authorId User ID of author
+   * @param content Note content text
+   * @param clock Optional Clock abstraction
+   */
+  public addNote(authorId: string, content: string, clock?: Clock): void {
+    this.assertNonTerminalState('add note');
+    const now = clock ? clock.now() : new Date();
+    const note = AppointmentNote.create(authorId, content, now);
+
+    this._notes.push(note);
+    this.touch(clock);
+  }
+
   /** Gets uncommitted domain events */
   public getUncommittedEvents(): ReadonlyArray<DomainEvent> {
     return Object.freeze([...this.uncommittedEvents]);
@@ -357,7 +412,8 @@ export class Appointment implements AggregateRoot<AppointmentId> {
   private assertNonTerminalState(actionName: string): void {
     if (
       this._status === AppointmentStatus.COMPLETED ||
-      this._status === AppointmentStatus.CANCELLED
+      this._status === AppointmentStatus.CANCELLED ||
+      this._status === AppointmentStatus.NO_SHOW
     ) {
       throw new InvalidAppointmentTransitionException(
         this._status,

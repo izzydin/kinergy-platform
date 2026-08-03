@@ -2,5 +2,8 @@ export * from './domain-event.interface';
 export * from './appointment-created.event';
 export * from './appointment-cancelled.event';
 export * from './appointment-rescheduled.event';
+export * from './appointment-checked-in.event';
+export * from './appointment-completed.event';
+export * from './appointment-no-show.event';
 export * from './therapist-assigned.event';
 export * from './room-assigned.event';

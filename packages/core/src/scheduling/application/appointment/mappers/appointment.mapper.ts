@@ -23,6 +23,12 @@ export class AppointmentMapper {
       endTime: appointment.timeRange.end.toISOString(),
       durationMinutes: appointment.timeRange.duration().toMinutes(),
       cancellationReason: appointment.cancellationReason,
+      notes: appointment.notes.map((note) => ({
+        id: note.id,
+        noteText: note.noteText,
+        authorId: note.authorId,
+        createdAt: note.createdAt.toISOString(),
+      })),
       version: appointment.version,
       createdAt: appointment.createdAt.toISOString(),
       updatedAt: appointment.updatedAt.toISOString(),
