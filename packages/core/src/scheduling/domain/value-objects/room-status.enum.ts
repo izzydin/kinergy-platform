@@ -1,0 +1,5 @@
+export enum RoomStatus {
+  AVAILABLE = 'AVAILABLE',
+  MAINTENANCE = 'MAINTENANCE',
+  UNAVAILABLE = 'UNAVAILABLE',
+}

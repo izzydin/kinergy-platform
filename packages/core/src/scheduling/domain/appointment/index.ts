@@ -1,6 +1,5 @@
 import { AggregateRoot } from '../shared/aggregate-root';
-
-export type AppointmentStatus = 'SCHEDULED' | 'CONFIRMED' | 'CANCELLED' | 'COMPLETED' | 'NO_SHOW';
+import { AppointmentStatus } from '../value-objects/appointment-status.enum';
 
 /**
  * Placeholder Aggregate Root contract for Appointment.
