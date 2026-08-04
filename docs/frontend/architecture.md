@@ -330,3 +330,12 @@ To support the future expansion into a multi-tenant SaaS platform, the frontend 
    - Feature components use standard permission guards (`<HasPermission name="client:write">`) aligning with backend `@RequirePermissions()` decorators.
 4. **Real-time Event Integration Strategy**:
    - TanStack Query cache invalidation pipeline is designed to subscribe to SSE/WebSocket events to instantly refetch modified domain aggregates.
+
+---
+
+## 12. Related Documentation
+
+- [Frontend Engineering Principles](./principles.md)
+- [Frontend Folder Structure & Architectural Boundaries](./folder-structure.md)
+- [Frontend Technical Glossary](./glossary.md)
+- [Master Platform Documentation Index](../README.md)

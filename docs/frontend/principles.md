@@ -338,3 +338,12 @@ Before any frontend pull request is approved, it must pass all mandatory quality
 4. **Test Gate**: `pnpm test` (100% unit and component test suites passing).
 5. **Build Gate**: `pnpm build` (Successful Vite production bundle compilation).
 6. **Validate Pipeline Gate**: `pnpm validate` (Full continuous integration baseline execution).
+
+---
+
+## 5. Related Documentation
+
+- [Frontend Architecture Vision](./architecture.md)
+- [Frontend Folder Structure & Architectural Boundaries](./folder-structure.md)
+- [Frontend Technical Glossary](./glossary.md)
+- [Master Platform Documentation Index](../README.md)
