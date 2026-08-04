@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import React from 'react';
+import { NavigationProvider } from '../navigation';
 import { AuthProvider } from './auth-provider';
 import { FeatureFlagProvider } from './feature-flag-provider';
 import { LocaleProvider } from './locale-provider';
@@ -25,7 +26,8 @@ export interface AppProviderProps {
  * 5. AuthProvider               (Identity Context: User session & permission claims placeholder)
  * 6. LocaleProvider             (Localization: i18n multi-language locale placeholder)
  * 7. FeatureFlagProvider        (SaaS Feature Flags: Dynamic flag evaluation placeholder)
- * 8. RouterProvider             (Innermost: React Router browser navigation context)
+ * 8. RouterProvider             (Browser Navigation Context)
+ * 9. NavigationProvider          (Innermost: Navigation Framework & dynamic section registry)
  */
 export const AppProvider: React.FC<AppProviderProps> = ({ children, queryClient }) => {
   return (
@@ -36,7 +38,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, queryClient 
             <AuthProvider>
               <LocaleProvider>
                 <FeatureFlagProvider>
-                  <RouterProvider>{children}</RouterProvider>
+                  <RouterProvider>
+                    <NavigationProvider>{children}</NavigationProvider>
+                  </RouterProvider>
                 </FeatureFlagProvider>
               </LocaleProvider>
             </AuthProvider>

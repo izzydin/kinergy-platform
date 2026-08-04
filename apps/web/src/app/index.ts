@@ -1,6 +1,18 @@
 export { type AppConfig, getAppConfig } from './config';
 export { AuthLayout, BlankLayout, DashboardLayout, MainLayout } from './layouts';
 export {
+  NavigationBuilder,
+  NavigationProvider,
+  defaultNavigationItems,
+  navigationRegistry,
+  useNavigation,
+  type NavigationBuilderOptions,
+  type NavigationContextState,
+  type NavigationItem,
+  type NavigationProviderProps,
+  type NavigationSection,
+} from './navigation';
+export {
   AppProvider,
   type AppProviderProps,
   AuthProvider,
