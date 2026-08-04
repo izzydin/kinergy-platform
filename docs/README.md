@@ -42,6 +42,7 @@ docs/
 - **[Frontend Routing Architecture](file:///c:/Projects/kinergy-platform/docs/frontend/routing.md)**: Hybrid feature routing strategy, app shell vs module routers, protected routes, nested layout inheritance, lazy loading, multi-tenant & SaaS compatibility.
 - **[Frontend State Management Architecture](file:///c:/Projects/kinergy-platform/docs/frontend/state-management.md)**: Single-responsibility state taxonomy (Server, URL, Local, Form, Global Context, Theme, Auth, Toast Notifications), decision matrix, and anti-patterns.
 - **[Frontend API Architecture](file:///c:/Projects/kinergy-platform/docs/frontend/api.md)**: Transport client, TanStack Query conventions, Query Key Factory, optimistic updates & rollback, DTO mapping/Zod parsing, MSW testing, and module decoupling.
+- **[Frontend UI Architecture](file:///c:/Projects/kinergy-platform/docs/frontend/ui-architecture.md)**: Design system philosophy, atomic primitives vs business components, Component Location Decision Tree, shared UI frameworks, 4-State UI Contract, and Rule of Three.
 - **[Frontend Technical Glossary](file:///c:/Projects/kinergy-platform/docs/frontend/glossary.md)**: Terminology index for frontend state taxonomy, UI contracts, routing, and design system abstractions.
 
 ### 4. Security Infrastructure
