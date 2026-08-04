@@ -1,40 +1,231 @@
-import { MainLayout } from '@app/layouts/main-layout';
 import React from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
+import { AuthLayout, DashboardLayout, MainLayout } from '../layouts';
+import {
+  ForbiddenView,
+  NotFoundView,
+  PlaceholderView,
+  UnauthenticatedView,
+} from './fallback-views';
+import { LazyView, SuspenseFallback } from './lazy-loading';
+import { moduleRegistry } from './module-registry';
+import { ProtectedRoute } from './protected-route';
+import { PublicRoute } from './public-route';
 
-const WelcomeView: React.FC = () => {
-  return (
-    <div className="container flex flex-col items-center justify-center gap-6 py-24 text-center">
-      <div className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-        Nx Monorepo Ready
-      </div>
-      <h1 className="text-4xl font-extrabold tracking-tight sm:text-5xl md:text-6xl">
-        Enterprise Energy Management Baseline
-      </h1>
-      <p className="max-w-[42rem] leading-normal text-muted-foreground sm:text-xl sm:leading-8">
-        Clean Architecture, Domain-Driven Design, TanStack Query, React Router, and Tailwind CSS
-        scaffolded cleanly.
-      </p>
-    </div>
-  );
-};
+// ------------------------------------------------------------------------------
+// Placeholder Sub-Routers for Domain Modules (Infrastructure Only - No UI Features)
+// ------------------------------------------------------------------------------
+const AuthSubRouter: React.FC = () => (
+  <Routes>
+    <Route
+      path="login"
+      element={
+        <PlaceholderView
+          title="Login View Placeholder"
+          subtitle="Public Authentication Route Boundary (/auth/login)"
+        />
+      }
+    />
+    <Route
+      path="reset-password"
+      element={
+        <PlaceholderView
+          title="Password Reset View Placeholder"
+          subtitle="Public Authentication Route Boundary (/auth/reset-password)"
+        />
+      }
+    />
+    <Route path="unauthorized" element={<ForbiddenView />} />
+    <Route path="unauthenticated" element={<UnauthenticatedView />} />
+    <Route path="*" element={<Navigate to="login" replace />} />
+  </Routes>
+);
 
-const NotFoundView: React.FC = () => {
-  return (
-    <div className="container flex flex-col items-center justify-center gap-4 py-24 text-center">
-      <h2 className="text-3xl font-bold">404 - Page Not Found</h2>
-      <p className="text-muted-foreground">The requested view does not exist.</p>
-    </div>
-  );
-};
+const ClientSubRouter: React.FC = () => (
+  <Routes>
+    <Route
+      path="/"
+      element={
+        <PlaceholderView
+          title="Client Profiles Directory"
+          subtitle="Client Module Route Boundary (/clients)"
+        />
+      }
+    />
+    <Route
+      path=":clientId"
+      element={
+        <PlaceholderView
+          title="Client Detail View"
+          subtitle="Client Module Sub-route Boundary (/clients/:clientId)"
+        />
+      }
+    />
+    <Route path="*" element={<NotFoundView message="Client view not found." />} />
+  </Routes>
+);
 
+const EnergySubRouter: React.FC = () => (
+  <Routes>
+    <Route
+      path="/"
+      element={
+        <PlaceholderView
+          title="Energy Telemetry Monitoring"
+          subtitle="Energy Module Route Boundary (/energy)"
+        />
+      }
+    />
+    <Route
+      path="meters"
+      element={
+        <PlaceholderView
+          title="Smart Meter Telemetry"
+          subtitle="Energy Module Sub-route Boundary (/energy/meters)"
+        />
+      }
+    />
+    <Route path="*" element={<NotFoundView message="Energy view not found." />} />
+  </Routes>
+);
+
+const AnalyticsSubRouter: React.FC = () => (
+  <Routes>
+    <Route
+      path="/"
+      element={
+        <PlaceholderView
+          title="Energy Analytics & Trends"
+          subtitle="Analytics Module Route Boundary (/analytics)"
+        />
+      }
+    />
+    <Route path="*" element={<NotFoundView message="Analytics view not found." />} />
+  </Routes>
+);
+
+// Register Feature Module Route Contracts
+moduleRegistry.register({
+  id: 'auth',
+  prefix: '/auth',
+  title: 'Identity & Authentication',
+  isProtected: false,
+  component: AuthSubRouter,
+});
+
+moduleRegistry.register({
+  id: 'client',
+  prefix: '/clients',
+  title: 'Client Management',
+  isProtected: true,
+  requiredPermissions: ['client:read'],
+  component: ClientSubRouter,
+});
+
+moduleRegistry.register({
+  id: 'energy',
+  prefix: '/energy',
+  title: 'Energy Telemetry',
+  isProtected: true,
+  requiredPermissions: ['energy:read'],
+  component: EnergySubRouter,
+});
+
+moduleRegistry.register({
+  id: 'analytics',
+  prefix: '/analytics',
+  title: 'Analytics & Reporting',
+  isProtected: true,
+  requiredPermissions: ['analytics:read'],
+  component: AnalyticsSubRouter,
+});
+
+/**
+ * Hybrid Feature Application Router Shell
+ *
+ * Top-level application router orchestrating top-level routing, layout wrapping,
+ * public/protected security boundaries, lazy-loading suspense, catch-all 404 routes,
+ * and dynamic module route delegation.
+ */
 export const AppRouter: React.FC = () => {
+  const publicModules = moduleRegistry.getPublicModules();
+  const protectedModules = moduleRegistry.getProtectedModules();
+
   return (
-    <Routes>
-      <Route path="/" element={<MainLayout />}>
-        <Route index element={<WelcomeView />} />
+    <React.Suspense fallback={<SuspenseFallback label="Initializing Hybrid Router..." />}>
+      <Routes>
+        {/* 1. Public Authentication Routes (AuthLayout) */}
+        <Route element={<PublicRoute />}>
+          <Route element={<AuthLayout />}>
+            {publicModules.map((module) => {
+              const ModuleComponent = module.component;
+              const pathPattern = `${module.prefix.replace(/^\//, '')}/*`;
+              return (
+                <Route
+                  key={module.id}
+                  path={pathPattern}
+                  element={
+                    <LazyView fallbackLabel={`Loading ${module.title}...`}>
+                      <ModuleComponent />
+                    </LazyView>
+                  }
+                />
+              );
+            })}
+          </Route>
+        </Route>
+
+        {/* 2. Protected Application Routes (DashboardLayout / MainLayout) */}
+        <Route element={<ProtectedRoute />}>
+          <Route element={<DashboardLayout />}>
+            {/* Overview / Home Dashboard View */}
+            <Route
+              path="/"
+              element={
+                <PlaceholderView
+                  title="Enterprise Overview"
+                  subtitle="Central Application Dashboard View Boundary (/)"
+                />
+              }
+            />
+
+            {/* Dynamic Protected Domain Feature Routes */}
+            {protectedModules.map((module) => {
+              const ModuleComponent = module.component;
+              const pathPattern = `${module.prefix.replace(/^\//, '')}/*`;
+              return (
+                <Route
+                  key={module.id}
+                  path={pathPattern}
+                  element={
+                    <ProtectedRoute requiredPermissions={module.requiredPermissions}>
+                      <LazyView fallbackLabel={`Loading ${module.title}...`}>
+                        <ModuleComponent />
+                      </LazyView>
+                    </ProtectedRoute>
+                  }
+                />
+              );
+            })}
+          </Route>
+
+          {/* Alternative MainLayout Shell for Full-width Views */}
+          <Route path="/shell" element={<MainLayout />}>
+            <Route
+              index
+              element={
+                <PlaceholderView
+                  title="Full Width Main Layout Shell"
+                  subtitle="Alternative Layout View Boundary (/shell)"
+                />
+              }
+            />
+          </Route>
+        </Route>
+
+        {/* 3. Catch-all 404 View */}
         <Route path="*" element={<NotFoundView />} />
-      </Route>
-    </Routes>
+      </Routes>
+    </React.Suspense>
   );
 };

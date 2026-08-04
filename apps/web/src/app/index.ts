@@ -1,5 +1,5 @@
 export { type AppConfig, getAppConfig } from './config';
-export { MainLayout } from './layouts/main-layout';
+export { AuthLayout, DashboardLayout, MainLayout } from './layouts';
 export {
   AppProvider,
   type AppProviderProps,
@@ -12,4 +12,22 @@ export {
   useTheme,
   useToast,
 } from './providers';
-export { AppRouter } from './routes/app-router';
+export {
+  AppRouter,
+  ForbiddenView,
+  HasPermission,
+  type HasPermissionProps,
+  LazyView,
+  moduleRegistry,
+  type ModuleRouteDefinition,
+  NotFoundView,
+  PlaceholderView,
+  ProtectedRoute,
+  type ProtectedRouteProps,
+  PublicRoute,
+  type PublicRouteProps,
+  SuspenseFallback,
+  UnauthenticatedView,
+  type UserSession,
+  withLazy,
+} from './routes';
