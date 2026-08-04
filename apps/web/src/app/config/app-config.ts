@@ -8,6 +8,7 @@ export interface AppConfig {
   readonly apiBaseUrl: string;
   readonly appTitle: string;
   readonly enableTelemetry: boolean;
+  readonly enableMsw: boolean;
   readonly queryDefaultStaleTimeMs: number;
   readonly queryMaxRetries: number;
 }
@@ -24,6 +25,7 @@ export function getAppConfig(overrides?: Partial<AppConfig>): AppConfig {
     apiBaseUrl: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api/v1',
     appTitle: import.meta.env.VITE_APP_TITLE || 'Kinergy Platform',
     enableTelemetry: import.meta.env.VITE_ENABLE_TELEMETRY === 'true',
+    enableMsw: import.meta.env.VITE_ENABLE_MSW !== 'false',
     queryDefaultStaleTimeMs: 1000 * 60 * 5, // 5 minutes default stale time
     queryMaxRetries: 3, // Max 3 exponential backoff retries for 5xx/network errors
   };

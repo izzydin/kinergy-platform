@@ -12,5 +12,6 @@ allowBuilds:
   '@scarf/scarf': true
   argon2: true
   esbuild: true
+  msw: true
   nx: true
   prisma: true

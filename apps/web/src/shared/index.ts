@@ -1,4 +1,6 @@
+export { initDebugHelpers, type KinergyDebugGlobal } from './debug/debug-helper';
 export { cn } from './lib/utils';
+export { LogEntry, LogLevel, PlatformLogger, logger } from './logger/platform-logger';
 export {
   AppError,
   AuthenticationError,
