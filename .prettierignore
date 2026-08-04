@@ -7,3 +7,4 @@ node_modules
 coverage
 pnpm-lock.yaml
 *.min.js
+apps/web/public/mockServiceWorker.js
