@@ -1,13 +1,20 @@
 import React from 'react';
 import { Outlet } from 'react-router-dom';
+import { Header } from '../../shared/components/header';
 import { Sidebar } from '../../shared/components/sidebar';
 
 export interface DashboardLayoutProps {
   children?: React.ReactNode;
-  /** Extension point: Header toolbar extra widgets (user menu, notifications, system status) */
-  headerExtra?: React.ReactNode;
-  /** Extension point: Dynamic breadcrumb bar */
+  /** Extension point: Dynamic breadcrumb bar slot */
   breadcrumbs?: React.ReactNode;
+  /** Extension point: Global search component slot */
+  search?: React.ReactNode;
+  /** Extension point: Notification drawer trigger slot */
+  notifications?: React.ReactNode;
+  /** Extension point: User profile menu slot */
+  userMenu?: React.ReactNode;
+  /** Extension point: Header toolbar extra widgets */
+  headerExtra?: React.ReactNode;
   /** Extension point: Custom sidebar footer controls */
   sidebarFooter?: React.ReactNode;
 }
@@ -16,7 +23,7 @@ export interface DashboardLayoutProps {
  * DashboardLayout Shell Component
  *
  * Enterprise layout composition root for authenticated dashboard views.
- * Integrates the responsive, configuration-driven `<Sidebar />` component.
+ * Integrates the responsive `<Sidebar />` and slot-based `<Header />` framework.
  *
  * Responsibilities:
  * - Layout structure & responsive grid composition
@@ -26,8 +33,11 @@ export interface DashboardLayoutProps {
  */
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children,
-  headerExtra,
   breadcrumbs,
+  search,
+  notifications,
+  userMenu,
+  headerExtra,
   sidebarFooter,
 }) => {
   return (
@@ -37,22 +47,14 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col min-w-0">
-        {/* Header Extension Point */}
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-border/50 bg-background/80 px-6 backdrop-blur-md">
-          <div className="flex items-center gap-4">
-            {/* Breadcrumb Extension Slot */}
-            {breadcrumbs || <h1 className="font-semibold text-lg">Enterprise Energy Dashboard</h1>}
-          </div>
-
-          {/* Header Extra Widgets Slot */}
-          <div className="flex items-center gap-4">
-            {headerExtra || (
-              <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 font-medium text-emerald-500 text-xs">
-                System Operational
-              </span>
-            )}
-          </div>
-        </header>
+        {/* Header Framework Extension Points */}
+        <Header
+          breadcrumbs={breadcrumbs}
+          search={search}
+          notifications={notifications}
+          userMenu={userMenu}
+          extra={headerExtra}
+        />
 
         {/* Module Content Extension Point */}
         <main className="flex-1 p-6 overflow-x-hidden">{children || <Outlet />}</main>
