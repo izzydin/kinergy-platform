@@ -66,3 +66,4 @@
 - [Frontend Folder Structure & Architectural Boundaries](./folder-structure.md)
 - [Frontend Routing Architecture & Navigation Strategy](./routing.md)
 - [Frontend State Management Architecture & State Governance](./state-management.md)
+- [Frontend API Architecture & Data Fetching Strategy](./api.md)
