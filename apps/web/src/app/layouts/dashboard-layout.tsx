@@ -2,26 +2,57 @@ import { Activity, BarChart3, LayoutDashboard, Shield, Users, Zap } from 'lucide
 import React, { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 
-/**
- * DashboardLayout Shell
- *
- * Enterprise Dashboard Layout Wrapper.
- * Provides a responsive sidebar, sticky top header bar, and main content area.
- */
-export const DashboardLayout: React.FC = () => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+export interface NavItemDefinition {
+  to: string;
+  label: string;
+  icon?: React.ComponentType<{ className?: string }>;
+  badge?: string | number;
+}
 
-  const navItems = [
-    { to: '/', label: 'Overview', icon: LayoutDashboard },
-    { to: '/clients', label: 'Client Profiles', icon: Users },
-    { to: '/energy', label: 'Energy Telemetry', icon: Activity },
-    { to: '/analytics', label: 'Analytics', icon: BarChart3 },
-    { to: '/admin', label: 'Administration', icon: Shield },
-  ];
+export interface DashboardLayoutProps {
+  children?: React.ReactNode;
+  /** Extension point: Custom or dynamically registered navigation items */
+  navigationItems?: NavItemDefinition[];
+  /** Extension point: Header toolbar extra widgets (user menu, notifications, system status) */
+  headerExtra?: React.ReactNode;
+  /** Extension point: Dynamic breadcrumb bar */
+  breadcrumbs?: React.ReactNode;
+  /** Extension point: Custom sidebar footer controls */
+  sidebarFooter?: React.ReactNode;
+}
+
+const defaultNavItems: NavItemDefinition[] = [
+  { to: '/', label: 'Overview', icon: LayoutDashboard },
+  { to: '/clients', label: 'Client Profiles', icon: Users },
+  { to: '/energy', label: 'Energy Telemetry', icon: Activity },
+  { to: '/analytics', label: 'Analytics', icon: BarChart3 },
+  { to: '/admin', label: 'Administration', icon: Shield },
+];
+
+/**
+ * DashboardLayout Shell Component
+ *
+ * Enterprise layout composition root for authenticated dashboard views.
+ * Provides a responsive collapsible sidebar, sticky top header bar, breadcrumb slot, and content container.
+ *
+ * Responsibilities:
+ * - Layout structure & responsive grid composition
+ * - Exposes stable extension points for Navigation, Header extra widgets, Breadcrumbs, and Module Content
+ * - Zero business domain logic
+ * - Zero authentication check execution
+ */
+export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
+  children,
+  navigationItems = defaultNavItems,
+  headerExtra,
+  breadcrumbs,
+  sidebarFooter,
+}) => {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   return (
     <div className="flex min-h-screen bg-background text-foreground">
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation Extension Point */}
       <aside
         className={`${
           isSidebarOpen ? 'w-64' : 'w-20'
@@ -39,9 +70,9 @@ export const DashboardLayout: React.FC = () => {
           )}
         </div>
 
-        {/* Navigation Items */}
+        {/* Navigation Items Extension Slot */}
         <nav className="flex-1 space-y-1 p-3">
-          {navItems.map((item) => {
+          {navigationItems.map((item) => {
             const Icon = item.icon;
             return (
               <NavLink
@@ -56,19 +87,25 @@ export const DashboardLayout: React.FC = () => {
                   }`
                 }
               >
-                <Icon className="h-5 w-5 shrink-0" />
-                {isSidebarOpen && <span>{item.label}</span>}
+                {Icon && <Icon className="h-5 w-5 shrink-0" />}
+                {isSidebarOpen && <span className="flex-1 truncate">{item.label}</span>}
+                {isSidebarOpen && item.badge !== undefined && (
+                  <span className="rounded-full bg-primary/20 px-2 py-0.5 font-semibold text-primary text-xs">
+                    {item.badge}
+                  </span>
+                )}
               </NavLink>
             );
           })}
         </nav>
 
-        {/* Sidebar Toggle Button */}
-        <div className="border-t border-border/50 p-3">
+        {/* Sidebar Footer Extension Point */}
+        <div className="border-t border-border/50 p-3 space-y-2">
+          {sidebarFooter}
           <button
             type="button"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className="flex w-full items-center justify-center rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+            className="flex w-full items-center justify-center rounded-lg border border-border p-2 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground text-xs"
             aria-label="Toggle Sidebar"
           >
             {isSidebarOpen ? '← Collapse' : '→'}
@@ -76,22 +113,26 @@ export const DashboardLayout: React.FC = () => {
         </div>
       </aside>
 
-      {/* Main Container */}
+      {/* Main Column */}
       <div className="flex flex-1 flex-col">
-        {/* Sticky Header */}
+        {/* Header Extension Point */}
         <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-border/50 bg-background/95 px-6 backdrop-blur">
-          <h1 className="font-semibold text-lg">Enterprise Energy Dashboard</h1>
           <div className="flex items-center gap-4">
-            <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 font-medium text-emerald-500 text-xs">
-              System Operational
-            </span>
+            {/* Breadcrumb Extension Slot */}
+            {breadcrumbs || <h1 className="font-semibold text-lg">Enterprise Energy Dashboard</h1>}
+          </div>
+          {/* Header Extra Widgets Slot */}
+          <div className="flex items-center gap-4">
+            {headerExtra || (
+              <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 font-medium text-emerald-500 text-xs">
+                System Operational
+              </span>
+            )}
           </div>
         </header>
 
-        {/* Content Outlet */}
-        <main className="flex-1 p-6">
-          <Outlet />
-        </main>
+        {/* Module Content Extension Point */}
+        <main className="flex-1 p-6">{children || <Outlet />}</main>
       </div>
     </div>
   );

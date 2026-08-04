@@ -1,5 +1,5 @@
 export { type AppConfig, getAppConfig } from './config';
-export { AuthLayout, DashboardLayout, MainLayout } from './layouts';
+export { AuthLayout, BlankLayout, DashboardLayout, MainLayout } from './layouts';
 export {
   AppProvider,
   type AppProviderProps,
