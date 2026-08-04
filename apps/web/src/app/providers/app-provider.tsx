@@ -1,27 +1,36 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import React, { useState } from 'react';
-import { BrowserRouter } from 'react-router-dom';
+import type { QueryClient } from '@tanstack/react-query';
+import React from 'react';
+import { RootErrorBoundaryProvider } from './root-error-boundary-provider';
+import { QueryProvider } from './query-provider';
+import { RouterProvider } from './router-provider';
+import { ThemeProvider } from './theme-provider';
+import { ToastProvider } from './toast-provider';
 
-interface AppProviderProps {
+export interface AppProviderProps {
   children: React.ReactNode;
+  queryClient?: QueryClient;
 }
 
-export const AppProvider: React.FC<AppProviderProps> = ({ children }) => {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 1000 * 60 * 5,
-            refetchOnWindowFocus: false,
-          },
-        },
-      }),
-  );
-
+/**
+ * Application Provider Composition Root
+ *
+ * Enforces the authoritative Provider Hierarchy Order:
+ * 1. RootErrorBoundaryProvider (Outermost: Catches uncaught runtime exceptions across all providers)
+ * 2. QueryProvider              (Server State: Manages TanStack Query client & cache reset boundaries)
+ * 3. ThemeProvider              (UI State: Manages visual theme HSL tokens & dark mode class)
+ * 4. ToastProvider              (Notification State: Provides non-blocking alert context)
+ * 5. RouterProvider             (URL Navigation: Provides browser routing context for views & links)
+ */
+export const AppProvider: React.FC<AppProviderProps> = ({ children, queryClient }) => {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>{children}</BrowserRouter>
-    </QueryClientProvider>
+    <RootErrorBoundaryProvider>
+      <QueryProvider queryClient={queryClient}>
+        <ThemeProvider>
+          <ToastProvider>
+            <RouterProvider>{children}</RouterProvider>
+          </ToastProvider>
+        </ThemeProvider>
+      </QueryProvider>
+    </RootErrorBoundaryProvider>
   );
 };

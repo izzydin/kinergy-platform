@@ -315,6 +315,14 @@ The following core architectural decisions govern the frontend platform:
 - **Consequences**: Requires explicit component handling for edge cases in every feature view.
 - **Future Evolution**: Reusable `FeatureStateGuard` wrappers will automate 4-state fallback rendering.
 
+### [ADR-FE-0033] Scalable Provider Composition & Composition Root
+
+- **Decision**: Enforce a centralized Application Composition Root inside `apps/web/src/app/` with a strict top-down Provider Ordering Hierarchy (`RootErrorBoundary` -> `QueryProvider` -> `ThemeProvider` -> `ToastProvider` -> `RouterProvider`).
+- **Context**: Unstructured or ad-hoc provider nesting creates global state pollution, circular initialization dependencies, and unhandled provider crashes.
+- **Rationale**: Strict ordering ensures system-critical error boundaries wrap all lower providers, server state is available to UI and routing layers, and visual theme tokens decorate all rendered components.
+- **Consequences**: Centralizes bootstrap wiring, enforces "Composition over Inheritance", and eliminates global singleton service locators.
+- **Future Evolution**: Supports dynamic provider injection for multi-tenant SaaS features or Micro-Frontend sub-app shells.
+
 ---
 
 ## 11. Future SaaS Considerations
