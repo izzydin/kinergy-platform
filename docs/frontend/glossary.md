@@ -69,3 +69,4 @@
 - [Frontend API Architecture & Data Fetching Strategy](./api.md)
 - [Frontend UI Architecture & Design System Strategy](./ui-architecture.md)
 - [Frontend Testing Strategy & Quality Assurance Architecture](./testing.md)
+- [Frontend Error Handling Strategy & Fault Tolerance Architecture](./error-handling.md)

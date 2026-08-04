@@ -342,5 +342,6 @@ To support the future expansion into a multi-tenant SaaS platform, the frontend 
 - [Frontend API Architecture & Data Fetching Strategy](./api.md)
 - [Frontend UI Architecture & Design System Strategy](./ui-architecture.md)
 - [Frontend Testing Strategy & Quality Assurance Architecture](./testing.md)
+- [Frontend Error Handling Strategy & Fault Tolerance Architecture](./error-handling.md)
 - [Frontend Technical Glossary](./glossary.md)
 - [Master Platform Documentation Index](../README.md)

@@ -344,5 +344,6 @@ graph TD
 - [Frontend State Management Architecture & State Governance](./state-management.md)
 - [Frontend UI Architecture & Design System Strategy](./ui-architecture.md)
 - [Frontend Testing Strategy & Quality Assurance Architecture](./testing.md)
+- [Frontend Error Handling Strategy & Fault Tolerance Architecture](./error-handling.md)
 - [Frontend Technical Glossary](./glossary.md)
 - [Master Platform Documentation Index](../README.md)

@@ -44,6 +44,7 @@ docs/
 - **[Frontend API Architecture](file:///c:/Projects/kinergy-platform/docs/frontend/api.md)**: Transport client, TanStack Query conventions, Query Key Factory, optimistic updates & rollback, DTO mapping/Zod parsing, MSW testing, and module decoupling.
 - **[Frontend UI Architecture](file:///c:/Projects/kinergy-platform/docs/frontend/ui-architecture.md)**: Design system philosophy, atomic primitives vs business components, Component Location Decision Tree, shared UI frameworks, 4-State UI Contract, and Rule of Three.
 - **[Frontend Testing Strategy](file:///c:/Projects/kinergy-platform/docs/frontend/testing.md)**: Testing pyramid (Vitest, RTL, MSW v2, Playwright), folder conventions, coverage expectations, 4-state contract testing, mocking strategy, and CI integration.
+- **[Frontend Error Handling Strategy](file:///c:/Projects/kinergy-platform/docs/frontend/error-handling.md)**: API errors, NestJS exception alignment, error boundaries, recoverable vs flow-terminating matrix, retry policies, and logging/telemetry.
 - **[Frontend Technical Glossary](file:///c:/Projects/kinergy-platform/docs/frontend/glossary.md)**: Terminology index for frontend state taxonomy, UI contracts, routing, and design system abstractions.
 
 ### 4. Security Infrastructure
