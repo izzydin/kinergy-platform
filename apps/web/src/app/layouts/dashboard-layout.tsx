@@ -2,10 +2,11 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Header } from '../../shared/components/header';
 import { Sidebar } from '../../shared/components/sidebar';
+import { Breadcrumb } from '../breadcrumbs';
 
 export interface DashboardLayoutProps {
   children?: React.ReactNode;
-  /** Extension point: Dynamic breadcrumb bar slot */
+  /** Extension point: Dynamic breadcrumb bar slot (defaults to auto-generated <Breadcrumb />) */
   breadcrumbs?: React.ReactNode;
   /** Extension point: Global search component slot */
   search?: React.ReactNode;
@@ -23,7 +24,7 @@ export interface DashboardLayoutProps {
  * DashboardLayout Shell Component
  *
  * Enterprise layout composition root for authenticated dashboard views.
- * Integrates the responsive `<Sidebar />` and slot-based `<Header />` framework.
+ * Integrates responsive `<Sidebar />`, metadata-driven `<Breadcrumb />`, and slot-based `<Header />`.
  *
  * Responsibilities:
  * - Layout structure & responsive grid composition
@@ -33,7 +34,7 @@ export interface DashboardLayoutProps {
  */
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children,
-  breadcrumbs,
+  breadcrumbs = <Breadcrumb />,
   search,
   notifications,
   userMenu,

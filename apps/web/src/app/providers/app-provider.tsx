@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import React from 'react';
+import { BreadcrumbProvider } from '../breadcrumbs';
 import { NavigationProvider } from '../navigation';
 import { AuthProvider } from './auth-provider';
 import { FeatureFlagProvider } from './feature-flag-provider';
@@ -27,7 +28,8 @@ export interface AppProviderProps {
  * 6. LocaleProvider             (Localization: i18n multi-language locale placeholder)
  * 7. FeatureFlagProvider        (SaaS Feature Flags: Dynamic flag evaluation placeholder)
  * 8. RouterProvider             (Browser Navigation Context)
- * 9. NavigationProvider          (Innermost: Navigation Framework & dynamic section registry)
+ * 9. NavigationProvider          (Navigation Framework & dynamic section registry)
+ * 10. BreadcrumbProvider        (Innermost: Auto-generated route metadata breadcrumb context)
  */
 export const AppProvider: React.FC<AppProviderProps> = ({ children, queryClient }) => {
   return (
@@ -39,7 +41,9 @@ export const AppProvider: React.FC<AppProviderProps> = ({ children, queryClient 
               <LocaleProvider>
                 <FeatureFlagProvider>
                   <RouterProvider>
-                    <NavigationProvider>{children}</NavigationProvider>
+                    <NavigationProvider>
+                      <BreadcrumbProvider>{children}</BreadcrumbProvider>
+                    </NavigationProvider>
                   </RouterProvider>
                 </FeatureFlagProvider>
               </LocaleProvider>

@@ -1,3 +1,14 @@
+export {
+  Breadcrumb,
+  BreadcrumbGenerator,
+  BreadcrumbProvider,
+  useBreadcrumbs,
+  type BreadcrumbContextState,
+  type BreadcrumbItem,
+  type BreadcrumbProps,
+  type BreadcrumbProviderProps,
+  type RouteBreadcrumbHandle,
+} from './breadcrumbs';
 export { type AppConfig, getAppConfig } from './config';
 export { AuthLayout, BlankLayout, DashboardLayout, MainLayout } from './layouts';
 export {
