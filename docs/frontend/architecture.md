@@ -338,5 +338,6 @@ To support the future expansion into a multi-tenant SaaS platform, the frontend 
 - [Frontend Engineering Principles](./principles.md)
 - [Frontend Folder Structure & Architectural Boundaries](./folder-structure.md)
 - [Frontend Routing Architecture & Navigation Strategy](./routing.md)
+- [Frontend State Management Architecture & State Governance](./state-management.md)
 - [Frontend Technical Glossary](./glossary.md)
 - [Master Platform Documentation Index](../README.md)

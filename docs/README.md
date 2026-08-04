@@ -40,6 +40,7 @@ docs/
 - **[Frontend Engineering Principles](file:///c:/Projects/kinergy-platform/docs/frontend/principles.md)**: Bounded context fidelity, feature-first structure, hybrid routing, zero business logic in shared, composition, 4-state UI contract, anti-patterns.
 - **[Frontend Folder Structure](file:///c:/Projects/kinergy-platform/docs/frontend/folder-structure.md)**: Directory taxonomy (`src/`, `app/`, `modules/`, `shared/`, `assets/`, `test/`), ownership rules, import boundaries, `index.ts` public contracts, and import examples.
 - **[Frontend Routing Architecture](file:///c:/Projects/kinergy-platform/docs/frontend/routing.md)**: Hybrid feature routing strategy, app shell vs module routers, protected routes, nested layout inheritance, lazy loading, multi-tenant & SaaS compatibility.
+- **[Frontend State Management Architecture](file:///c:/Projects/kinergy-platform/docs/frontend/state-management.md)**: Single-responsibility state taxonomy (Server, URL, Local, Form, Global Context, Theme, Auth, Toast Notifications), decision matrix, and anti-patterns.
 - **[Frontend Technical Glossary](file:///c:/Projects/kinergy-platform/docs/frontend/glossary.md)**: Terminology index for frontend state taxonomy, UI contracts, routing, and design system abstractions.
 
 ### 4. Security Infrastructure
