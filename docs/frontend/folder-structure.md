@@ -337,5 +337,6 @@ module.exports = [
 
 - [Frontend Architecture Vision](./architecture.md)
 - [Frontend Engineering Principles](./principles.md)
+- [Frontend Routing Architecture & Navigation Strategy](./routing.md)
 - [Frontend Technical Glossary](./glossary.md)
 - [Master Platform Documentation Index](../README.md)

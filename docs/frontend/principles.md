@@ -345,5 +345,6 @@ Before any frontend pull request is approved, it must pass all mandatory quality
 
 - [Frontend Architecture Vision](./architecture.md)
 - [Frontend Folder Structure & Architectural Boundaries](./folder-structure.md)
+- [Frontend Routing Architecture & Navigation Strategy](./routing.md)
 - [Frontend Technical Glossary](./glossary.md)
 - [Master Platform Documentation Index](../README.md)
