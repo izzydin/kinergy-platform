@@ -1,47 +1,71 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
-export type Theme = 'dark' | 'light' | 'system';
+export type Theme = 'light' | 'dark' | 'system';
+export type ResolvedTheme = 'light' | 'dark';
 
-interface ThemeProviderProps {
+export interface ThemeContextState {
+  theme: Theme;
+  resolvedTheme: ResolvedTheme;
+  setTheme: (theme: Theme) => void;
+}
+
+const STORAGE_KEY = 'kinergy_theme';
+
+const ThemeContext = createContext<ThemeContextState | undefined>(undefined);
+
+export interface ThemeProviderProps {
   children: React.ReactNode;
   defaultTheme?: Theme;
   storageKey?: string;
 }
 
-interface ThemeProviderState {
-  theme: Theme;
-  setTheme: (theme: Theme) => void;
-}
-
-const initialState: ThemeProviderState = {
-  theme: 'dark',
-  setTheme: () => null,
-};
-
-const ThemeProviderContext = createContext<ThemeProviderState>(initialState);
-
+/**
+ * Theme Provider Component
+ *
+ * Manages visual theme mode ('light' | 'dark' | 'system'), persists choices in localStorage,
+ * listens to OS system color scheme preference media queries, and applies the '.dark' CSS class
+ * to the root HTML element.
+ */
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   children,
   defaultTheme = 'dark',
-  storageKey = 'kinergy-ui-theme',
+  storageKey = STORAGE_KEY,
 }) => {
-  const [theme, setThemeState] = useState<Theme>(
-    () => (localStorage.getItem(storageKey) as Theme) || defaultTheme,
-  );
+  const [theme, setThemeState] = useState<Theme>(() => {
+    if (typeof window === 'undefined') return defaultTheme;
+    return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
+  });
+
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('dark');
 
   useEffect(() => {
     const root = window.document.documentElement;
-    root.classList.remove('light', 'dark');
+
+    const applyTheme = () => {
+      const currentResolved: ResolvedTheme =
+        theme === 'system'
+          ? window.matchMedia('(prefers-color-scheme: dark)').matches
+            ? 'dark'
+            : 'light'
+          : theme;
+
+      root.classList.remove('light', 'dark');
+      root.classList.add(currentResolved);
+      setResolvedTheme(currentResolved);
+    };
+
+    applyTheme();
 
     if (theme === 'system') {
-      const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches
-        ? 'dark'
-        : 'light';
-      root.classList.add(systemTheme);
-      return;
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const listener = () => applyTheme();
+      mediaQuery.addEventListener('change', listener);
+      return () => {
+        mediaQuery.removeEventListener('change', listener);
+      };
     }
 
-    root.classList.add(theme);
+    return undefined;
   }, [theme]);
 
   const setTheme = (newTheme: Theme) => {
@@ -50,14 +74,14 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   };
 
   return (
-    <ThemeProviderContext.Provider value={{ theme, setTheme }}>
+    <ThemeContext.Provider value={{ theme, resolvedTheme, setTheme }}>
       {children}
-    </ThemeProviderContext.Provider>
+    </ThemeContext.Provider>
   );
 };
 
-export const useTheme = (): ThemeProviderState => {
-  const context = useContext(ThemeProviderContext);
+export const useTheme = (): ThemeContextState => {
+  const context = useContext(ThemeContext);
   if (!context) {
     throw new Error('useTheme must be used within a ThemeProvider');
   }
