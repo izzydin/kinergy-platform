@@ -12,6 +12,7 @@
     "lint": "nx run-many -t lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "write": "prettier --write .",
     "typecheck": "tsc --noEmit -p tsconfig.base.json",
     "validate": "run-s format:check lint typecheck test build",
     "prepare": "husky",

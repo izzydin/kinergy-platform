@@ -10,6 +10,7 @@ Welcome to the centralized documentation hub for the **Kinergy Platform**. This 
 docs/
 ├── getting-started/      ◄── Onboarding, Local Setup & Quick Start
 ├── architecture/         ◄── System Overview, C4 Models, Clean Architecture & DDD
+├── frontend/             ◄── Frontend Architecture Vision, Principles & Glossary
 ├── security/             ◄── OWASP Specifications, Auth, Tokens, Web Security & Audit
 ├── testing/              ◄── Quality Gates, Harnesses, Unit, Integration & E2E Testing
 ├── configuration/        ◄── Centralized Zod Environment Variables & Secrets Reference
@@ -33,7 +34,13 @@ docs/
 - **[Domain-Driven Design Strategy](file:///c:/Projects/kinergy-platform/docs/architecture/domain-driven-design.md)**: Shared Kernel primitives (`Entity`, `ValueObject`, `Result`), aggregate boundaries, and domain rules.
 - **[Bounded Contexts](file:///c:/Projects/kinergy-platform/docs/architecture/bounded-contexts.md)**: Identity, User Management, and Sustainability context maps.
 
-### 3. Security Infrastructure
+### 3. Frontend Architecture Vision & Principles
+
+- **[Frontend Architecture Vision](file:///c:/Projects/kinergy-platform/docs/frontend/architecture.md)**: SPA architecture, backend alignment, feature modules, design system, shared package rules, state discipline, and future SaaS goals.
+- **[Frontend Engineering Principles](file:///c:/Projects/kinergy-platform/docs/frontend/principles.md)**: Bounded context fidelity, feature-first structure, hybrid routing, zero business logic in shared, composition, 4-state UI contract, anti-patterns.
+- **[Frontend Technical Glossary](file:///c:/Projects/kinergy-platform/docs/frontend/glossary.md)**: Terminology index for frontend state taxonomy, UI contracts, routing, and design system abstractions.
+
+### 4. Security Infrastructure
 
 - **[Security Architecture Index](file:///c:/Projects/kinergy-platform/docs/security/README.md)**: Overview of platform security controls.
 - **[Authentication Specification](file:///c:/Projects/kinergy-platform/docs/security/authentication.md)**: Dual-token JWT architecture, Refresh Token Rotation (RTR), generic error handling, and Argon2id timing attack defenses.
@@ -42,18 +49,18 @@ docs/
 - **[Web Security, CORS & Helmet](file:///c:/Projects/kinergy-platform/docs/security/web-security-cors-and-headers.md)**: Production Helmet options, OWASP security headers, and environment-driven CORS.
 - **[Audit Logging Architecture](file:///c:/Projects/kinergy-platform/docs/security/audit-logging-architecture.md)**: `IAuditEventPublisher` port, `LoggerAuditEventPublisher` adapter, and `SecurityAuditHookService`.
 
-### 4. Testing & Quality Gates
+### 5. Testing & Quality Gates
 
 - **[Enterprise Testing Strategy](file:///c:/Projects/kinergy-platform/docs/testing/README.md)**: Testing philosophy, `@kinergy/testing` harness usage, and edge case matrix.
 - **[Integration Testing Strategy](file:///c:/Projects/kinergy-platform/docs/testing/integration-testing-strategy.md)**: Multi-layer workflow verification and state isolation guidelines.
 - **[End-to-End (E2E) Testing Strategy](file:///c:/Projects/kinergy-platform/docs/testing/e2e-testing-strategy.md)**: Complete HTTP pipeline testing with NestJS and Supertest.
 - **[Technical Quality Report](file:///c:/Projects/kinergy-platform/docs/testing/technical-quality-report.md)**: Automated quality gate metrics and 100% test pass verification.
 
-### 5. Environment Configuration & API Reference
+### 6. Environment Configuration & API Reference
 
 - **[Environment Configuration Guide](file:///c:/Projects/kinergy-platform/docs/configuration/README.md)**: Zod `envSchema` variable reference, required secrets, and production fail-fast rules.
 - **[API Reference Guide](file:///c:/Projects/kinergy-platform/docs/api/README.md)**: OpenAPI / Swagger setup (`/api/docs`), standard response envelopes (`Result<T>`), and endpoint catalog.
 
-### 6. Architectural Decision Records (ADRs)
+### 7. Architectural Decision Records (ADRs)
 
 - **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 40 Architectural Decision Records documenting all major platform design choices.

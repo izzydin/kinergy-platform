@@ -1,7 +1,8 @@
 # Platform Glossary & Terminology Index
 
 - **Status:** Active
-- **Scope:** Technical, Architectural, Security, and Sustainability Domain Terms
+- **Scope:** Technical, Architectural, Security, Sustainability, and Frontend Domain Terms
+- **Frontend Glossary:** [Frontend Architecture Glossary](./frontend/glossary.md)
 
 ---
 
@@ -29,12 +30,18 @@
 
 ## Domain & Platform Terminology
 
-| Term                         | Domain Context      | Definition                                                                                                          |
-| :--------------------------- | :------------------ | :------------------------------------------------------------------------------------------------------------------ |
-| **Aggregate Root**           | DDD Kernel          | The root domain entity (`User`) encapsulating internal domain objects and enforcing transactional invariants.       |
-| **Bounded Context**          | DDD Architecture    | Explicit boundary within which a domain model applies (`platform/identity`, `sustainability`).                      |
-| **Dummy Argon2id Execution** | Security            | Constant-time execution of Argon2id password hashing on missing users to prevent timing attack account enumeration. |
-| **Input Sanitizer**          | Validation          | Global security component stripping control bytes, trimming whitespace, and neutralizing XSS payloads.              |
-| **Modular Monolith**         | System Architecture | Architectural pattern organizing code into distinct, decoupled bounded contexts within a single deployment unit.    |
-| **Security Event Hook**      | Platform Security   | Reusable event adapter mapping domain security events into normalized audit event records.                          |
-| **Token Family**             | Identity            | Grouping of refresh tokens issued sequentially in a single session to detect and mitigate token replay attacks.     |
+| Term                           | Domain Context      | Definition                                                                                                             |
+| :----------------------------- | :------------------ | :--------------------------------------------------------------------------------------------------------------------- |
+| **4-State UI Contract**        | Frontend UI         | Mandatory component design pattern enforcing explicit visual handling for Loading, Empty, Error, and Populated states. |
+| **Aggregate Root**             | DDD Kernel          | The root domain entity (`User`) encapsulating internal domain objects and enforcing transactional invariants.          |
+| **Bounded Context**            | DDD Architecture    | Explicit boundary within which a domain model applies (`platform/identity`, `sustainability`, `features/client`).      |
+| **Design Tokens**              | Frontend Design     | Centralized HSL CSS custom variables defining color channels, typography, spacing, and dark mode themes.               |
+| **Dummy Argon2id Execution**   | Security            | Constant-time execution of Argon2id password hashing on missing users to prevent timing attack account enumeration.    |
+| **Feature-First Architecture** | Frontend Arch       | Structuring frontend code by domain feature modules (`features/<domain>`) rather than global layer folders.            |
+| **Hybrid Feature Routing**     | Frontend Arch       | Pattern where central router shell delegates sub-routes to co-located feature route registries.                        |
+| **Input Sanitizer**            | Validation          | Global security component stripping control bytes, trimming whitespace, and neutralizing XSS payloads.                 |
+| **Modular Monolith**           | System Architecture | Architectural pattern organizing code into distinct, decoupled bounded contexts within a single deployment unit.       |
+| **Security Event Hook**        | Platform Security   | Reusable event adapter mapping domain security events into normalized audit event records.                             |
+| **Server State**               | Frontend State      | Asynchronous server data cached, updated, and invalidated via TanStack Query (`@tanstack/react-query`).                |
+| **Token Family**               | Identity            | Grouping of refresh tokens issued sequentially in a single session to detect and mitigate token replay attacks.        |
+| **URL State**                  | Frontend State      | State persisted in browser URL query string (search, filters, sorting, pagination) for bookmarkable views.             |
