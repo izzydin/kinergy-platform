@@ -53,6 +53,15 @@
 | **Zod** (`zod`)                              | TypeScript-first schema declaration and validation library used for form validation resolvers and runtime environment variable validation. |
 | **Vite** (`vite`)                            | Next-generation frontend build tool providing lightning-fast HMR during development and optimized Rollup production bundling.              |
 | **Tailwind CSS** (`tailwindcss`)             | Utility-first CSS framework integrated with design tokens for consistent spacing, colors, and dark mode theme switching.                   |
+| **Vitest** (`vitest`)                        | Next-generation Vite-native unit and component test runner for fast parallel test execution.                                               |
+| **React Testing Library (RTL)**              | Behavior-driven component testing framework verifying user interaction (`userEvent`) and screen reader accessibility roles (`getByRole`).  |
+| **Mock Service Worker (MSW v2)**             | Transport-level network interception library mocking REST API contracts in Node.js and browser environments.                               |
+| **Playwright** (`@playwright/test`)          | Cross-browser End-to-End (E2E) automation framework testing multi-page user journeys, authentication flows, and visual regression.         |
+| **ApiExceptionFilter**                       | Backend NestJS global exception filter standardizing REST API JSON error payloads (`{ statusCode, error, message, timestamp, path }`).     |
+| **AppError**                                 | Client base error class normalizing HTTP status codes, error codes, and field validation details into strongly-typed domain exceptions.    |
+| **Recoverable Error**                        | Error category allowing user retry or input correction (form validation, transient 5xx network backoff, 401 token refresh).                |
+| **Flow-Terminating Error**                   | Error category halting current view navigation or terminating user session (403 Forbidden, 404 Entity Not Found, uncaught React crash).    |
+| **Rule of Three**                            | Architecture guideline mandating that UI components remain co-located within feature modules until repeated across 3+ distinct domains.    |
 | **Optimistic UI**                            | UI pattern where the client interface immediately updates assuming an asynchronous API mutation will succeed, rolling back if it fails.    |
 | **Error Boundary**                           | React component boundary catching JavaScript runtime errors anywhere in child component trees to render fallback error UIs.                |
 
