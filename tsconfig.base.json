@@ -17,6 +17,9 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["apps/web/src/*"],
+      "@app/*": ["apps/web/src/app/*"],
+      "@modules/*": ["apps/web/src/modules/*"],
+      "@shared/*": ["apps/web/src/shared/*"],
       "@kinergy-platform/ui": ["packages/ui/src/index.ts"],
       "@kinergy-platform/types": ["packages/types/src/index.ts"],
       "@kinergy-platform/utils": ["packages/utils/src/index.ts"],

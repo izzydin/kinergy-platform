@@ -1,6 +1,5 @@
-import { AppProvider } from '@/providers/app-provider';
-import { AppRouter } from '@/routes/app-router';
-import '@/styles/globals.css';
+import { AppProvider, AppRouter } from '@app/index';
+import '@shared/styles/globals.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 

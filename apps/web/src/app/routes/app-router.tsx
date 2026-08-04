@@ -1,4 +1,4 @@
-import { MainLayout } from '@/layouts/main-layout';
+import { MainLayout } from '@app/layouts/main-layout';
 import React from 'react';
 import { Route, Routes } from 'react-router-dom';
 
