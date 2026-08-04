@@ -349,5 +349,6 @@ Before any frontend pull request is approved, it must pass all mandatory quality
 - [Frontend State Management Architecture & State Governance](./state-management.md)
 - [Frontend API Architecture & Data Fetching Strategy](./api.md)
 - [Frontend UI Architecture & Design System Strategy](./ui-architecture.md)
+- [Frontend Testing Strategy & Quality Assurance Architecture](./testing.md)
 - [Frontend Technical Glossary](./glossary.md)
 - [Master Platform Documentation Index](../README.md)

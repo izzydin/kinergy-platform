@@ -341,5 +341,6 @@ To support the future expansion into a multi-tenant SaaS platform, the frontend 
 - [Frontend State Management Architecture & State Governance](./state-management.md)
 - [Frontend API Architecture & Data Fetching Strategy](./api.md)
 - [Frontend UI Architecture & Design System Strategy](./ui-architecture.md)
+- [Frontend Testing Strategy & Quality Assurance Architecture](./testing.md)
 - [Frontend Technical Glossary](./glossary.md)
 - [Master Platform Documentation Index](../README.md)

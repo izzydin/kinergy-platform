@@ -240,5 +240,6 @@ graph TD
 - [Frontend Routing Architecture & Navigation Strategy](./routing.md)
 - [Frontend API Architecture & Data Fetching Strategy](./api.md)
 - [Frontend UI Architecture & Design System Strategy](./ui-architecture.md)
+- [Frontend Testing Strategy & Quality Assurance Architecture](./testing.md)
 - [Frontend Technical Glossary](./glossary.md)
 - [Master Platform Documentation Index](../README.md)
