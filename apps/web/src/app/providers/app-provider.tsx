@@ -1,10 +1,13 @@
 import type { QueryClient } from '@tanstack/react-query';
 import React from 'react';
-import { RootErrorBoundaryProvider } from './root-error-boundary-provider';
+import { AuthProvider } from './auth-provider';
+import { FeatureFlagProvider } from './feature-flag-provider';
+import { LocaleProvider } from './locale-provider';
+import { NotificationProvider } from './notification-provider';
 import { QueryProvider } from './query-provider';
+import { RootErrorBoundaryProvider } from './root-error-boundary-provider';
 import { RouterProvider } from './router-provider';
 import { ThemeProvider } from './theme-provider';
-import { ToastProvider } from './toast-provider';
 
 export interface AppProviderProps {
   children: React.ReactNode;
@@ -14,21 +17,30 @@ export interface AppProviderProps {
 /**
  * Application Provider Composition Root
  *
- * Enforces the authoritative Provider Hierarchy Order:
- * 1. RootErrorBoundaryProvider (Outermost: Catches uncaught runtime exceptions across all providers)
- * 2. QueryProvider              (Server State: Manages TanStack Query client & cache reset boundaries)
- * 3. ThemeProvider              (UI State: Manages visual theme HSL tokens & dark mode class)
- * 4. ToastProvider              (Notification State: Provides non-blocking alert context)
- * 5. RouterProvider             (URL Navigation: Provides browser routing context for views & links)
+ * Master Provider Hierarchy Ordering:
+ * 1. RootErrorBoundaryProvider (Outermost: Prevents application crashes from unhandled runtime errors)
+ * 2. QueryProvider              (Server State: TanStack Query client & cache reset boundary)
+ * 3. ThemeProvider              (UI Visual State: HSL tokens & dark mode class management)
+ * 4. NotificationProvider       (Ephemeral Alerts: Toast & alert notification channel)
+ * 5. AuthProvider               (Identity Context: User session & permission claims placeholder)
+ * 6. LocaleProvider             (Localization: i18n multi-language locale placeholder)
+ * 7. FeatureFlagProvider        (SaaS Feature Flags: Dynamic flag evaluation placeholder)
+ * 8. RouterProvider             (Innermost: React Router browser navigation context)
  */
 export const AppProvider: React.FC<AppProviderProps> = ({ children, queryClient }) => {
   return (
     <RootErrorBoundaryProvider>
       <QueryProvider queryClient={queryClient}>
         <ThemeProvider>
-          <ToastProvider>
-            <RouterProvider>{children}</RouterProvider>
-          </ToastProvider>
+          <NotificationProvider>
+            <AuthProvider>
+              <LocaleProvider>
+                <FeatureFlagProvider>
+                  <RouterProvider>{children}</RouterProvider>
+                </FeatureFlagProvider>
+              </LocaleProvider>
+            </AuthProvider>
+          </NotificationProvider>
         </ThemeProvider>
       </QueryProvider>
     </RootErrorBoundaryProvider>
