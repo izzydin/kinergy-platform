@@ -18,14 +18,16 @@ Shared Primitive UI Component Library & Design System Foundation for the Kinergy
 
 ## 2. Primitive Component Catalog (Milestone A4.2)
 
-| Component    | Responsibility / Scope                                       | Key Props / Extension                                                                                                                        | Polymorphic `asChild` |
-| :----------- | :----------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------: |
-| **`Button`** | Accessible, theme-aware trigger control                      | `variant` (`default`, `secondary`, `destructive`, `outline`, `ghost`, `link`), `size` (`sm`, `md`, `lg`, `icon`), `isLoading`, `loadingText` |        **YES**        |
-| **`Input`**  | Theme-aware native text input control                        | `type`, `placeholder`, `disabled`, `isInvalid` (sets `aria-invalid="true"` & red border)                                                     |        **NO**         |
-| **`Card`**   | Compound content container primitive                         | Sub-components: `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`                                            |        **NO**         |
-| **`Avatar`** | User profile avatar container with image load error fallback | Sub-components: `Avatar`, `AvatarImage`, `AvatarFallback`                                                                                    |        **NO**         |
-| **`Badge`**  | Compact status indicator primitive                           | `variant` (`default`, `secondary`, `destructive`, `outline`), `size` (`sm`, `md`)                                                            |        **YES**        |
-| **`Alert`**  | Accessible WAI-ARIA status alert (`role="alert"`)            | Sub-components: `Alert`, `AlertTitle`, `AlertDescription`. Variants: `default`, `destructive`, `warning`, `success`                          |        **NO**         |
+| Component           | Responsibility / Scope                                                 | Key Props / Extension                                                                                                                        | Polymorphic `asChild` |
+| :------------------ | :--------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------: |
+| **`Button`**        | Accessible, theme-aware trigger control                                | `variant` (`default`, `secondary`, `destructive`, `outline`, `ghost`, `link`), `size` (`sm`, `md`, `lg`, `icon`), `isLoading`, `loadingText` |        **YES**        |
+| **`Input`**         | Theme-aware native text input control                                  | `type`, `placeholder`, `disabled`, `isInvalid` (sets `aria-invalid="true"` & red border)                                                     |        **NO**         |
+| **`PasswordInput`** | Password input primitive with accessible show/hide toggle              | `disabled`, `isInvalid`, native input props                                                                                                  |        **NO**         |
+| **`FormField`**     | Form field composition container providing context IDs & accessibility | Sub-components: `FormField`, `FormLabel`, `FormControl`, `FormHelperText`, `FormErrorMessage`                                                |        **NO**         |
+| **`Card`**          | Compound content container primitive                                   | Sub-components: `Card`, `CardHeader`, `CardTitle`, `CardDescription`, `CardContent`, `CardFooter`                                            |        **NO**         |
+| **`Avatar`**        | User profile avatar container with image load error fallback           | Sub-components: `Avatar`, `AvatarImage`, `AvatarFallback`                                                                                    |        **NO**         |
+| **`Badge`**         | Compact status indicator primitive                                     | `variant` (`default`, `secondary`, `destructive`, `outline`), `size` (`sm`, `md`)                                                            |        **YES**        |
+| **`Alert`**         | Accessible WAI-ARIA status alert (`role="alert"`)                      | Sub-components: `Alert`, `AlertTitle`, `AlertDescription`. Variants: `default`, `destructive`, `warning`, `success`                          |        **NO**         |
 
 ---
 
