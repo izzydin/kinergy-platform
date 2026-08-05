@@ -62,7 +62,26 @@ export function ExampleForm() {
 
 ---
 
-## 4. Quality Gates & Validation
+## 4. Design System Testing Strategy & Coverage Matrix (Milestone A4.6)
+
+`@kinergy-platform/ui` includes automated component, accessibility (axe), interaction, and visual behavior test suites (`src/components/__tests__/design-system-components.spec.tsx`):
+
+| Component           |         Component Tests         | WAI-ARIA Accessibility (`jest-axe`) |     Interaction & Keyboard Tests      | Visual & Token Behavior Tests  |
+| :------------------ | :-----------------------------: | :---------------------------------: | :-----------------------------------: | :----------------------------: |
+| **`Button`**        |   Variants, Sizes, `asChild`    |   **PASS** (zero axe violations)    | Click handlers, `isLoading` disabling | Focus rings, spinner alignment |
+| **`Input`**         |  Native props, Ref forwarding   |   **PASS** (zero axe violations)    |   Text typing, `onBlur`, `onChange`   | `isInvalid` red border styling |
+| **`PasswordInput`** |  Native props, Ref forwarding   |   **PASS** (zero axe violations)    |   Show/hide visibility toggle click   |    Eye/EyeOff icon swapping    |
+| **`Dialog`**        | Portal container, Compound tree |   **PASS** (zero axe violations)    |   Trigger click, `Escape` key close   |   Focus trap, backdrop blur    |
+| **`Toast`**         |      Viewport positioning       |   **PASS** (zero axe violations)    |  Close trigger, `aria-live` regions   | Destructive assertive styling  |
+| **`Skeleton`**      |       Content placeholder       |   **PASS** (zero axe violations)    |    Non-interactive (`aria-hidden`)    |    `animate-pulse` shimmer     |
+| **`Spinner`**       |          SVG indicator          |   **PASS** (zero axe violations)    |     Non-interactive (`aria-busy`)     |  `sr-only` announcement text   |
+| **`Alert`**         |  Compound title & description   |   **PASS** (zero axe violations)    |   Non-interactive (`role="alert"`)    |   Variant background borders   |
+| **`Badge`**         |      Variant & Size scale       |   **PASS** (zero axe violations)    |    Non-interactive, `asChild` slot    |   Rounded-full token styling   |
+| **`Avatar`**        |    Image & Fallback initials    |   **PASS** (zero axe violations)    |     `onError` image load failure      | Aspect square avatar container |
+
+---
+
+## 5. Quality Gates & Validation
 
 Run quality gate commands:
 
