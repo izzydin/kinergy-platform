@@ -1,5 +1,10 @@
 import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
+
+// Import Mock Feature Modules (registers module route contracts with moduleRegistry)
+import '../../modules/dashboard';
+import '../../modules/settings';
+
 import { AuthLayout, DashboardLayout, MainLayout } from '../layouts';
 import {
   ForbiddenView,
@@ -104,7 +109,7 @@ const AnalyticsSubRouter: React.FC = () => (
   </Routes>
 );
 
-// Register Feature Module Route Contracts
+// Register Infrastructure Module Route Contracts
 moduleRegistry.register({
   id: 'auth',
   prefix: '/auth',

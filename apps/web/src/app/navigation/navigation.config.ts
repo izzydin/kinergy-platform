@@ -1,16 +1,24 @@
-import { Activity, BarChart3, LayoutDashboard, Shield, Users } from 'lucide-react';
+import { Activity, BarChart3, LayoutDashboard, Settings, Shield, Users } from 'lucide-react';
 import type { NavigationItem } from './navigation.types';
 
 /**
  * Baseline Core Navigation Configuration
  *
- * Registered baseline navigation entries for default platform infrastructure.
+ * Registered baseline navigation entries for platform infrastructure and mock feature modules.
  */
 export const defaultNavigationItems: NavigationItem[] = [
   {
     id: 'overview',
     label: 'Overview',
     path: '/',
+    icon: LayoutDashboard,
+    order: 5,
+    section: 'overview',
+  },
+  {
+    id: 'dashboard',
+    label: 'Dashboard',
+    path: '/dashboard',
     icon: LayoutDashboard,
     order: 10,
     section: 'overview',
@@ -52,5 +60,13 @@ export const defaultNavigationItems: NavigationItem[] = [
     order: 90,
     section: 'admin',
     requiredPermissions: ['admin:read'],
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    path: '/settings',
+    icon: Settings,
+    order: 95,
+    section: 'system',
   },
 ];
