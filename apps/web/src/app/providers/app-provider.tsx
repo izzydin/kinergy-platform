@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import React from 'react';
+import { SlotProvider } from '../../shared/ui/slots';
 import { BreadcrumbProvider } from '../breadcrumbs';
 import { NavigationProvider } from '../navigation';
 import { AuthProvider } from './auth-provider';
@@ -23,32 +24,35 @@ export interface AppProviderProps {
  * 1. RootErrorBoundaryProvider (Outermost: Prevents application crashes from unhandled runtime errors)
  * 2. QueryProvider              (Server State: TanStack Query client & cache reset boundary)
  * 3. ThemeProvider              (UI Visual State: HSL tokens & dark mode class management)
- * 4. NotificationProvider       (Ephemeral Alerts: Toast & alert notification channel)
- * 5. AuthProvider               (Identity Context: User session & permission claims placeholder)
- * 6. LocaleProvider             (Localization: i18n multi-language locale placeholder)
- * 7. FeatureFlagProvider        (SaaS Feature Flags: Dynamic flag evaluation placeholder)
- * 8. RouterProvider             (Browser Navigation Context)
- * 9. NavigationProvider          (Navigation Framework & dynamic section registry)
- * 10. BreadcrumbProvider        (Innermost: Auto-generated route metadata breadcrumb context)
+ * 4. SlotProvider               (UI Portal Context: Teleportation architecture for layout slot injection)
+ * 5. NotificationProvider       (Ephemeral Alerts: Toast & alert notification channel)
+ * 6. AuthProvider               (Identity Context: User session & permission claims placeholder)
+ * 7. LocaleProvider             (Localization: i18n multi-language locale placeholder)
+ * 8. FeatureFlagProvider        (SaaS Feature Flags: Dynamic flag evaluation placeholder)
+ * 9. RouterProvider             (Browser Navigation Context)
+ * 10. NavigationProvider         (Navigation Framework & dynamic section registry)
+ * 11. BreadcrumbProvider        (Innermost: Auto-generated route metadata breadcrumb context)
  */
 export const AppProvider: React.FC<AppProviderProps> = ({ children, queryClient }) => {
   return (
     <RootErrorBoundaryProvider>
       <QueryProvider queryClient={queryClient}>
         <ThemeProvider>
-          <NotificationProvider>
-            <AuthProvider>
-              <LocaleProvider>
-                <FeatureFlagProvider>
-                  <RouterProvider>
-                    <NavigationProvider>
-                      <BreadcrumbProvider>{children}</BreadcrumbProvider>
-                    </NavigationProvider>
-                  </RouterProvider>
-                </FeatureFlagProvider>
-              </LocaleProvider>
-            </AuthProvider>
-          </NotificationProvider>
+          <SlotProvider>
+            <NotificationProvider>
+              <AuthProvider>
+                <LocaleProvider>
+                  <FeatureFlagProvider>
+                    <RouterProvider>
+                      <NavigationProvider>
+                        <BreadcrumbProvider>{children}</BreadcrumbProvider>
+                      </NavigationProvider>
+                    </RouterProvider>
+                  </FeatureFlagProvider>
+                </LocaleProvider>
+              </AuthProvider>
+            </NotificationProvider>
+          </SlotProvider>
         </ThemeProvider>
       </QueryProvider>
     </RootErrorBoundaryProvider>

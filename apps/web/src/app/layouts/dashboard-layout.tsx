@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { Header } from '../../shared/components/header';
 import { Sidebar } from '../../shared/components/sidebar';
+import { SlotTarget } from '../../shared/ui/slots';
 import { Breadcrumb } from '../breadcrumbs';
 
 export interface DashboardLayoutProps {
@@ -24,13 +25,15 @@ export interface DashboardLayoutProps {
  * DashboardLayout Shell Component
  *
  * Enterprise layout composition root for authenticated dashboard views.
- * Integrates responsive `<Sidebar />`, metadata-driven `<Breadcrumb />`, and slot-based `<Header />`.
- *
- * Responsibilities:
- * - Layout structure & responsive grid composition
- * - Exposes stable extension points for Navigation, Header extra widgets, Breadcrumbs, and Module Content
- * - Zero hardcoded navigation lists
- * - Zero business domain logic
+ * Exposes predefined `<SlotTarget />` insertion points:
+ * - `header-breadcrumbs`
+ * - `header-search`
+ * - `header-actions`
+ * - `page-status`
+ * - `page-toolbar`
+ * - `page-tabs`
+ * - `sidebar-footer`
+ * - `footer-actions`
  */
 export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   children,
@@ -44,7 +47,7 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
   return (
     <div className="flex min-h-screen bg-background text-foreground">
       {/* Responsive, Accessible, Configuration-Driven Sidebar */}
-      <Sidebar footer={sidebarFooter} />
+      <Sidebar footer={<SlotTarget name="sidebar-footer">{sidebarFooter}</SlotTarget>} />
 
       {/* Main Content Area */}
       <div className="flex flex-1 flex-col min-w-0">
@@ -57,8 +60,18 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
           extra={headerExtra}
         />
 
+        {/* Dynamic Contextual Toolbar & Status Slots */}
+        <div className="flex flex-col gap-2 px-6 pt-4">
+          <SlotTarget name="page-status" />
+          <SlotTarget name="page-toolbar" />
+          <SlotTarget name="page-tabs" />
+        </div>
+
         {/* Module Content Extension Point */}
         <main className="flex-1 p-6 overflow-x-hidden">{children || <Outlet />}</main>
+
+        {/* Footer Actions Slot */}
+        <SlotTarget name="footer-actions" className="px-6 py-3 border-t border-border/40" />
       </div>
     </div>
   );

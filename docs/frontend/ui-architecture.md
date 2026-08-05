@@ -250,6 +250,25 @@ graph TD
 
 ---
 
+### [ADR-FE-0025] Declarative Layout Slot Injection Framework via React Teleportation Portals
+
+- **Decision**: Adopt a declarative **Slot Injection Framework** using `React.createPortal` (`<SlotTarget />` and `<SlotInject />` exported from `src/shared/ui/slots`) as the platform's standardized mechanism for contextual UI composition into application layout shells.
+- **Context**: Feature views frequently require injecting contextual action buttons, page status banners, toolbar filters, or custom breadcrumbs into the application shell header or layout wrappers. Imperative registries, JSON configuration schemas, or global mutable slot stores break React component state, lifecycle, and context hierarchy.
+- **Rationale**:
+  - **Portal Teleportation Architecture**: `<SlotInject target="...">` projects DOM elements into predefined layout `<SlotTarget name="...">` containers using `ReactDOM.createPortal`.
+  - **State & Context Preservation**: Because React Portals preserve the React component tree hierarchy, injected components retain full access to local React state, `useForm`, `useQuery`, local custom hooks, React context providers, error boundaries, and Suspense boundaries.
+  - **Shell Decoupling**: Layout shells (`DashboardLayout`, `Header`) only define `<SlotTarget name="..." />` insertion points. Shells NEVER import or know about business domain feature components.
+  - **Feature Decoupling**: Feature modules inject UI declaratively using `<SlotInject target="...">`. Feature modules NEVER import layout shell internals.
+- **Responsibilities**:
+  - **Application Shell**: Exposes predefined insertion targets (`header-breadcrumbs`, `header-actions`, `header-search`, `page-toolbar`, `page-tabs`, `page-status`, `footer-actions`, `sidebar-footer`).
+  - **Feature Modules**: Declaratively inject contextual UI into predefined targets while maintaining 100% ownership of business logic, callbacks, refs, and query state.
+- **Allowed Dependencies**: `<SlotTarget>` and `<SlotInject>` are imported strictly from `@shared/ui/slots` (or `@shared`).
+- **Forbidden Dependencies**: Layout shells MUST NOT import business module components. Feature modules MUST NOT import layout shell internals or imperatively manipulate slot DOM nodes.
+- **Rendering Lifecycle & Cleanup**: When a feature component unmounts, its React Portal unmounts automatically, and `<SlotTarget>` seamlessly restores its default fallback content.
+- **Testing Approach**: Test slot target rendering, portal teleportation, state preservation, context inheritance, multiple injections, and unmount fallback restoration using `@testing-library/react`.
+
+---
+
 ## 8. Cross-References & Related Documentation
 
 - [Frontend Architecture Vision](./architecture.md)

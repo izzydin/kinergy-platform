@@ -1,4 +1,5 @@
 import React from 'react';
+import { SlotTarget } from '../../ui/slots';
 import {
   BreadcrumbsPlaceholder,
   NotificationsPlaceholder,
@@ -10,17 +11,13 @@ import type { HeaderProps } from './header.types';
 /**
  * Application Header Component
  *
- * Presentation-only layout shell exposing extension slots for future modules:
- * - Breadcrumbs slot (`breadcrumbs`)
- * - Global search slot (`search`)
- * - Notifications drawer trigger slot (`notifications`)
- * - User account menu slot (`userMenu`)
- * - Extra custom action widgets slot (`extra`)
+ * Presentation-only layout shell exposing predefined `<SlotTarget />` insertion points:
+ * - `header-breadcrumbs` (Left slot)
+ * - `header-search` (Center slot)
+ * - `header-actions` (Right slot)
  *
- * Responsive & Accessibility Features (Milestone A3.6):
- * - Mobile offset padding (`pl-14 md:pl-6`) to accommodate mobile navigation drawer toggle
- * - WAI-ARIA landmark `role="banner"`
- * - High-contrast design tokens & backdrop blur shell
+ * Feature modules inject UI declaratively using `<SlotInject target="...">`.
+ * The Header shell remains 100% unaware of business domain components.
  */
 export const Header: React.FC<HeaderProps> = ({
   breadcrumbs = <BreadcrumbsPlaceholder />,
@@ -35,20 +32,25 @@ export const Header: React.FC<HeaderProps> = ({
       className={`sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border/50 bg-background/80 pl-14 pr-4 md:px-6 backdrop-blur-md transition-colors ${className}`}
       role="banner"
     >
-      {/* Left Slot: Dynamic Breadcrumb Navigation */}
-      <div className="flex items-center gap-4 min-w-0">{breadcrumbs}</div>
+      {/* Left Slot Target: Dynamic Breadcrumb Navigation */}
+      <SlotTarget name="header-breadcrumbs" className="flex items-center gap-4 min-w-0">
+        {breadcrumbs}
+      </SlotTarget>
 
-      {/* Center Slot: Global Search Input */}
-      <div className="hidden md:flex items-center justify-center flex-1 max-w-md mx-4">
+      {/* Center Slot Target: Global Search Input */}
+      <SlotTarget
+        name="header-search"
+        className="hidden md:flex items-center justify-center flex-1 max-w-md mx-4"
+      >
         {search}
-      </div>
+      </SlotTarget>
 
-      {/* Right Slot: Actions, Notifications, User Profile & Extras */}
-      <div className="flex items-center gap-2 md:gap-3">
+      {/* Right Slot Target: Actions, Notifications, User Profile & Extras */}
+      <SlotTarget name="header-actions" className="flex items-center gap-2 md:gap-3">
         {notifications}
         {userMenu}
         {extra}
-      </div>
+      </SlotTarget>
     </header>
   );
 };

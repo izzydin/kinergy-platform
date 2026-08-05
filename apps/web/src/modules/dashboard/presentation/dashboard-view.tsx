@@ -1,20 +1,59 @@
-import { Activity, ArrowUpRight, BarChart2, ShieldCheck, Zap } from 'lucide-react';
-import React from 'react';
+import { Activity, ArrowUpRight, BarChart2, RefreshCw, ShieldCheck, Zap } from 'lucide-react';
+import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { SlotInject } from '../../../shared';
 
 /**
  * Mock Dashboard View Component
  *
- * Presentation-only view used strictly to validate:
+ * Presentation-only view used to validate:
  * - Routing & layout shell composition
  * - Breadcrumb metadata resolution
- * - Responsive grid container behavior
+ * - Declarative Slot Injection (`SlotInject`) into layout targets with local React state preservation
  *
  * Contains zero production business logic.
  */
 export const DashboardView: React.FC = () => {
+  const [refreshCount, setRefreshCount] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleRefresh = () => {
+    setIsRefreshing(true);
+    setTimeout(() => {
+      setRefreshCount((prev) => prev + 1);
+      setIsRefreshing(false);
+    }, 600);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Declarative Slot Injection into Header Actions */}
+      <SlotInject target="header-actions">
+        <button
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 bg-card px-3 py-1.5 text-xs font-medium text-foreground shadow-sm hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+          title="Refresh Operational Metrics (Declarative Slot Injection)"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin text-primary' : ''}`} />
+          <span>Sync Data ({refreshCount})</span>
+        </button>
+      </SlotInject>
+
+      {/* Declarative Slot Injection into Page Status Bar */}
+      <SlotInject target="page-status">
+        <div className="flex items-center justify-between rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-xs font-medium text-emerald-600 dark:text-emerald-400 backdrop-blur-sm">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            <span>Realtime Operational Engine: All Telemetry Feeds Active</span>
+          </div>
+          <span className="text-[11px] opacity-80">Slot Target: page-status</span>
+        </div>
+      </SlotInject>
+
       {/* View Header */}
       <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
         <div>
@@ -92,8 +131,8 @@ export const DashboardView: React.FC = () => {
             <span>Breadcrumb trails generated dynamically from route metadata.</span>
           </div>
           <div className="rounded-xl border border-border/40 bg-muted/20 p-3 text-xs">
-            <span className="font-bold block text-foreground mb-1">3. Responsive Layout</span>
-            <span>Adapts gracefully across mobile drawers, tablet grids, and desktop views.</span>
+            <span className="font-bold block text-foreground mb-1">3. Slot Teleportation</span>
+            <span>Injected UI retains local React state and context seamlessly.</span>
           </div>
         </div>
       </div>
