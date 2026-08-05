@@ -111,8 +111,11 @@ export const FormControl = React.forwardRef<HTMLElement, FormControlProps>(({ ch
   const describedBy =
     [field.helperId, field.isInvalid ? field.errorId : null].filter(Boolean).join(' ') || undefined;
 
+  const childRef =
+    (children as React.ReactElement & { ref?: React.Ref<unknown> }).ref || children.props?.ref;
+
   return React.cloneElement(children, {
-    ref,
+    ...(ref || childRef ? { ref: ref || childRef } : {}),
     id: children.props.id || field.id || undefined,
     'aria-describedby': children.props['aria-describedby'] || describedBy,
     'aria-invalid': children.props['aria-invalid'] ?? (field.isInvalid ? true : undefined),

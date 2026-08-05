@@ -1,13 +1,15 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { moduleRegistry } from '../../app/routes/module-registry';
 import { SlotProvider } from '../../shared/ui/slots/SlotProvider';
 import { SlotTarget } from '../../shared/ui/slots/SlotTarget';
 import { DashboardOverviewPage, DashboardRouter } from '../dashboard';
 import { SettingsLayoutPage, SettingsRouter } from '../settings';
+import { GeneralSettingsForm } from '../settings/components/general-settings-form';
+import { SecuritySettingsForm } from '../settings/components/security-settings-form';
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -30,7 +32,7 @@ function renderWithProviders(ui: React.ReactElement, { initialEntries = ['/'] } 
   );
 }
 
-describe('Milestone A5.2 — Dashboard Overview Validation Screen', () => {
+describe('Step A5 Architectural Validation Modules', () => {
   describe('1. Module Route Registration', () => {
     it('registers dashboard and settings modules with central moduleRegistry', () => {
       const registered = moduleRegistry.getRegisteredModules();
@@ -47,7 +49,7 @@ describe('Milestone A5.2 — Dashboard Overview Validation Screen', () => {
     });
   });
 
-  describe('2. Dashboard Overview Validation Screen & 4-State UI', () => {
+  describe('2. Dashboard Overview Validation Screen (Milestone A5.2)', () => {
     it('renders DashboardOverviewPage with initial success state and layout slot injections', async () => {
       renderWithProviders(
         <div>
@@ -103,7 +105,7 @@ describe('Milestone A5.2 — Dashboard Overview Validation Screen', () => {
     });
   });
 
-  describe('3. Settings Validation Feature Module', () => {
+  describe('3. Settings Validation Screen (Milestone A5.3)', () => {
     it('renders SettingsLayoutPage with navigation tab controls', () => {
       renderWithProviders(<SettingsLayoutPage />, { initialEntries: ['/settings/general'] });
 
@@ -112,18 +114,89 @@ describe('Milestone A5.2 — Dashboard Overview Validation Screen', () => {
       expect(screen.getByText('Security Controls')).toBeInTheDocument();
     });
 
-    it('renders SettingsRouter sub-routes and general settings form', () => {
-      renderWithProviders(<SettingsRouter />, { initialEntries: ['/general'] });
+    it('validates GeneralSettingsForm React Hook Form + Zod submit & error state', async () => {
+      const { container } = renderWithProviders(<GeneralSettingsForm />);
 
-      expect(screen.getByText('General Workspace Settings')).toBeInTheDocument();
-      expect(screen.getByLabelText(/workspace name/i)).toBeInTheDocument();
+      const emailInput = screen.getByTestId('contact-email-input');
+      fireEvent.change(emailInput, { target: { value: 'invalid-email' } });
+
+      const form = container.querySelector('form')!;
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(screen.getByText(/please enter a valid email address/i)).toBeInTheDocument();
+      });
+
+      // Fix email
+      fireEvent.change(emailInput, { target: { value: 'valid@kinergy-platform.io' } });
+      fireEvent.submit(form);
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('general-form-success')).toBeInTheDocument();
+        },
+        { timeout: 3000 },
+      );
     });
 
-    it('renders security settings sub-route (/security)', () => {
-      renderWithProviders(<SettingsRouter />, { initialEntries: ['/security'] });
+    it('handles simulated server error state in GeneralSettingsForm', async () => {
+      const { container } = renderWithProviders(<GeneralSettingsForm />);
 
-      expect(screen.getByText('Security Policy Active')).toBeInTheDocument();
-      expect(screen.getByText('Update Security Keys')).toBeInTheDocument();
+      const simulateErrorCheckbox = screen.getByTestId('simulate-error-checkbox');
+      fireEvent.click(simulateErrorCheckbox);
+
+      const form = container.querySelector('form')!;
+      fireEvent.submit(form);
+
+      await waitFor(
+        () => {
+          expect(screen.getByTestId('general-form-error')).toBeInTheDocument();
+        },
+        { timeout: 3000 },
+      );
+    });
+
+    it('validates SecuritySettingsForm password mismatch Zod refinement', async () => {
+      const { container } = renderWithProviders(<SecuritySettingsForm />);
+
+      const currentPasswordInput = screen.getByTestId('current-password-input');
+      const newPasswordInput = screen.getByTestId('new-password-input');
+      const confirmPasswordInput = screen.getByTestId('confirm-password-input');
+
+      fireEvent.change(currentPasswordInput, { target: { value: 'CurrentPassword123' } });
+      fireEvent.change(newPasswordInput, { target: { value: 'ValidPass123' } });
+      fireEvent.change(confirmPasswordInput, { target: { value: 'MismatchPass123' } });
+
+      const form = container.querySelector('form')!;
+      fireEvent.submit(form);
+
+      await waitFor(() => {
+        expect(screen.getByText(/new passwords do not match/i)).toBeInTheDocument();
+      });
+    });
+
+    it('opens session revocation modal dialog in SecuritySettingsForm', async () => {
+      renderWithProviders(<SecuritySettingsForm />);
+
+      const revokeModalBtn = screen.getByRole('button', { name: /revoke all sessions/i });
+      fireEvent.click(revokeModalBtn);
+
+      expect(await screen.findByText(/confirm global session revocation/i)).toBeInTheDocument();
+
+      const confirmBtn = screen.getByRole('button', { name: /confirm revocation/i });
+      fireEvent.click(confirmBtn);
+
+      expect(
+        await screen.findByText(/all active platform refresh tokens have been revoked/i),
+      ).toBeInTheDocument();
+    });
+
+    it('renders SettingsRouter sub-routes correctly', () => {
+      renderWithProviders(<SettingsRouter />, { initialEntries: ['/general'] });
+      expect(screen.getByText('General Workspace Preferences')).toBeInTheDocument();
+
+      renderWithProviders(<SettingsRouter />, { initialEntries: ['/security'] });
+      expect(screen.getByText('Security & Password Policy')).toBeInTheDocument();
     });
   });
 });
