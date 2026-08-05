@@ -6,6 +6,7 @@
  * accessibility standards inherited by all UI components.
  */
 
+export * from './components';
 export * from './contracts';
 export * from './primitives';
 export * from './tokens';

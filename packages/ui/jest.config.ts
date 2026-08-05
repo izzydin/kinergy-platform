@@ -1,7 +1,8 @@
 export default {
   displayName: 'ui',
   preset: '../../jest.preset.js',
-  testEnvironment: 'node',
+  testEnvironment: 'jsdom',
+  setupFilesAfterEnv: ['<rootDir>/src/test-setup.ts'],
   transform: {
     '^.+\\.[tj]sx?$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }],
   },
