@@ -6,3 +6,4 @@ export * from './card/card';
 export * from './feedback';
 export * from './form';
 export * from './input/input';
+export * from './overlay';

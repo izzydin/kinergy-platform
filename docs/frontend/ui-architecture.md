@@ -285,6 +285,22 @@ graph TD
 
 ---
 
+### [ADR-FE-0027] Accessible Modal Overlay & Dialog Architecture
+
+- **Decision**: Standardize all modal dialogs, drawers, and overlay surfaces on `@kinergy-platform/ui` Dialog primitives (`Dialog`, `DialogContent`, `DialogPortal`, `DialogOverlay`) backed by Radix UI primitive foundations.
+- **Context**: Imperative modal management, custom `z-index` hacks, un-trapped focus loops, missing `Escape` key handlers, or background body scrolling break accessibility and user experience across complex workflows.
+- **Rationale**:
+  - **Portal Teleportation**: Overlays are rendered via `DialogPortal` into `document.body` to prevent CSS stack context clipping (`overflow: hidden` parent boundaries).
+  - **WAI-ARIA Compliance**: Automatic `role="dialog"`, `aria-modal="true"`, `aria-labelledby` (via `DialogTitle`), and `aria-describedby` (via `DialogDescription`).
+  - **Focus Trapping & Restoration**: Focus is automatically trapped within `DialogContent` while open and seamlessly restored to the `DialogTrigger` element upon closure.
+  - **Body Scroll Lock**: Background document scrolling is automatically locked while modal overlays are active.
+  - **Polymorphic Triggers**: `DialogTrigger` supports `asChild` composition to wrap any primitive button or interactive link without wrapper DOM node pollution.
+- **Responsibilities**:
+  - `packages/ui`: Exposes accessible presentational `Dialog` primitive suite.
+  - Domain Feature Modules: Consume `<Dialog>` compound components for modal workflows (confirmation dialogs, edit modal forms, detail drawers).
+
+---
+
 ## 8. Cross-References & Related Documentation
 
 - [Component Architecture Contracts](./component-contracts.md)
