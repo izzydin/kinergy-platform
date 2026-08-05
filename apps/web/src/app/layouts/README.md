@@ -13,13 +13,25 @@ The `apps/web/src/app/layouts/` directory defines the **Layout Shell Architectur
 Layouts in Clean Architecture operate strictly as **Structural Composition Wrappers**:
 
 1. **Composition Only**: Responsible exclusively for grid positioning, responsive viewports, sidebar collapses, and container padding.
-2. **Zero Business Logic**: Layouts MUST NOT contain domain data fetching, state mutations, or business business rules.
+2. **Zero Business Logic**: Layouts MUST NOT contain domain data fetching, state mutations, or business rules.
 3. **Zero Security Execution**: Authentication and authorization checks are enforced by higher-level route guards (`<ProtectedRoute />`, `<PublicRoute />`), NOT by layout components.
 4. **Zero Feature-Specific Imports**: Layouts render dynamic feature content via React Router `<Outlet />` or explicit extension props.
 
 ---
 
-## 2. Layout Catalog & Responsibilities
+## 2. Responsive Application Shell Specifications (Milestone A3.6)
+
+The application shell provides responsive viewport behavior across Desktop, Tablet, and Mobile breakpoints:
+
+| Viewport Breakpoint       | Layout & Sidebar Behavior                                                                        | Overlay & Navigation Drawer                                                         | Accessibility & Shortcuts                                                                     |
+| :------------------------ | :----------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------- |
+| **Desktop (`>= lg`)**     | Sidebar fixed/static (`w-64` expanded or `w-20` collapsed). Main content area flexes (`flex-1`). | N/A (Persistent sidebar).                                                           | Toggle shortcut: `Ctrl+B` / `Cmd+B`. Full WAI-ARIA `role="navigation"`.                       |
+| **Tablet (`md` to `lg`)** | Sidebar auto-collapses or flexes responsively. Header slots resize gracefully.                   | N/A (Static sidebar).                                                               | Focus ring management (`focus-visible:ring-2`).                                               |
+| **Mobile (`< md`)**       | Sidebar hidden off-screen (`-translate-x-full`). Top bar displays floating toggle menu button.   | Slide-over drawer overlay (`fixed inset-0 z-40 bg-background/80 backdrop-blur-sm`). | `Escape` key close listener. Body scroll locking (`overflow-hidden`). Focus trap restoration. |
+
+---
+
+## 3. Layout Catalog & Responsibilities
 
 | Layout Component      | Visual / Structural Scope     | Primary Responsibilities                                                                                  | Standard Extension Points                                                      |
 | :-------------------- | :---------------------------- | :-------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------- |
@@ -30,7 +42,7 @@ Layouts in Clean Architecture operate strictly as **Structural Composition Wrapp
 
 ---
 
-## 3. Composition Strategy & Extension Points
+## 4. Composition Strategy & Extension Points
 
 ### Stable Extension Points
 
@@ -56,8 +68,9 @@ Layouts accept explicit React node props to customize header widgets, breadcrumb
 
 ---
 
-## 4. Governance & Rules
+## 5. Governance & Rules
 
 - **Rule 1**: Never import feature domain hooks (`useClient`, `useTelemetry`) inside layout files.
 - **Rule 2**: Keep layouts purely responsive using Tailwind CSS flex/grid primitives (`flex-col`, `md:flex-row`, `w-64`).
 - **Rule 3**: All interactive layout controls (e.g. sidebar toggle) must remain local to component state (`useState`).
+- **Rule 4**: Mobile drawers MUST lock body scrolling and support `Escape` key close handlers with focus restoration.

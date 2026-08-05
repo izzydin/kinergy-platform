@@ -17,10 +17,10 @@ import type { HeaderProps } from './header.types';
  * - User account menu slot (`userMenu`)
  * - Extra custom action widgets slot (`extra`)
  *
- * Rules:
- * - Zero authentication logic
- * - Zero business domain logic
- * - Strictly presentation & slot composition
+ * Responsive & Accessibility Features (Milestone A3.6):
+ * - Mobile offset padding (`pl-14 md:pl-6`) to accommodate mobile navigation drawer toggle
+ * - WAI-ARIA landmark `role="banner"`
+ * - High-contrast design tokens & backdrop blur shell
  */
 export const Header: React.FC<HeaderProps> = ({
   breadcrumbs = <BreadcrumbsPlaceholder />,
@@ -32,7 +32,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <header
-      className={`sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border/50 bg-background/80 px-4 md:px-6 backdrop-blur-md transition-colors ${className}`}
+      className={`sticky top-0 z-30 flex h-16 w-full items-center justify-between border-b border-border/50 bg-background/80 pl-14 pr-4 md:px-6 backdrop-blur-md transition-colors ${className}`}
       role="banner"
     >
       {/* Left Slot: Dynamic Breadcrumb Navigation */}
