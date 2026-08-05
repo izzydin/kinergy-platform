@@ -1,13 +1,11 @@
 /**
- * Shared UI Tokens & Component Contracts
+ * Shared Design System Foundation Package (`@kinergy-platform/ui`)
+ *
+ * Provides design tokens, component API contracts, style composition utilities (`cn`),
+ * polymorphic composition primitives (`Slot`, `asChild`), CVA variant helpers, and
+ * accessibility standards inherited by all UI components.
  */
 
-export interface ComponentProps {
-  className?: string;
-  id?: string;
-}
-
-export interface ButtonVariantProps {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive';
-  size?: 'sm' | 'md' | 'lg';
-}
+export * from './contracts';
+export * from './primitives';
+export * from './tokens';

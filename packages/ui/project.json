@@ -15,6 +15,13 @@
     },
     "lint": {
       "executor": "@nx/eslint:lint"
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/packages/ui"],
+      "options": {
+        "jestConfig": "packages/ui/jest.config.ts"
+      }
     }
   }
 }
