@@ -1,7 +1,7 @@
 import { moduleRegistry } from '../../app/routes/module-registry';
-import { SettingsRouter } from './settings.router';
+import { SettingsRouter } from './routes/settings.router';
 
-// Register Settings Module Contract with central router shell
+// Register Settings Feature Module Contract with central router shell
 moduleRegistry.register({
   id: 'settings',
   prefix: '/settings',
@@ -11,4 +11,5 @@ moduleRegistry.register({
 });
 
 export { SettingsRouter };
-export { SettingsView } from './presentation/settings-view';
+export { SettingsLayoutPage } from './routes/settings-layout-page';
+export type { GeneralSettingsFormValues, SecuritySettingsFormValues } from './types';

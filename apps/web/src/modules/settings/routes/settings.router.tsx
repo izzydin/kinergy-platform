@@ -1,30 +1,29 @@
 import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import { GeneralSettingsView } from './presentation/general-settings-view';
-import { SecuritySettingsView } from './presentation/security-settings-view';
-import { SettingsView } from './presentation/settings-view';
+import { GeneralSettingsPage } from './general-settings-page';
+import { SecuritySettingsPage } from './security-settings-page';
+import { SettingsLayoutPage } from './settings-layout-page';
 
 /**
  * Settings Sub-Router
- *
- * Encapsulates settings sub-routes (`/settings/general`, `/settings/security`)
- * and specifies route handle breadcrumb metadata.
+ * Encapsulates sub-routes (/settings/general, /settings/security)
+ * and specifies breadcrumb handle metadata.
  */
 export const SettingsRouter: React.FC = () => {
   return (
     <Routes>
-      <Route element={<SettingsView />}>
+      <Route element={<SettingsLayoutPage />}>
         <Route index element={<Navigate to="general" replace />} />
         <Route
           path="general"
-          element={<GeneralSettingsView />}
+          element={<GeneralSettingsPage />}
           handle={{
             breadcrumb: 'General Settings',
           }}
         />
         <Route
           path="security"
-          element={<SecuritySettingsView />}
+          element={<SecuritySettingsPage />}
           handle={{
             breadcrumb: 'Security Settings',
           }}

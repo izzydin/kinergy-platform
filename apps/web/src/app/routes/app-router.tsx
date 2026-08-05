@@ -184,15 +184,7 @@ export const AppRouter: React.FC = () => {
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
             {/* Overview / Home Dashboard View */}
-            <Route
-              path="/"
-              element={
-                <PlaceholderView
-                  title="Enterprise Overview"
-                  subtitle="Central Application Dashboard View Boundary (/)"
-                />
-              }
-            />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
             {/* Dynamic Protected Domain Feature Routes */}
             {protectedModules.map((module) => {

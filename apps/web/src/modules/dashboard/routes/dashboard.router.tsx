@@ -1,27 +1,26 @@
 import React from 'react';
 import { Route, Routes } from 'react-router-dom';
-import { DashboardMetricsView } from './presentation/dashboard-metrics-view';
-import { DashboardView } from './presentation/dashboard-view';
+import { DashboardMetricsPage } from './dashboard-metrics-page';
+import { DashboardOverviewPage } from './dashboard-overview-page';
 
 /**
  * Dashboard Sub-Router
- *
- * Encapsulates module-specific sub-routes and specifies route handle metadata
- * for automatic breadcrumb generation.
+ * Encapsulates module sub-routes (/dashboard, /dashboard/metrics)
+ * and specifies breadcrumb metadata.
  */
 export const DashboardRouter: React.FC = () => {
   return (
     <Routes>
       <Route
         path="/"
-        element={<DashboardView />}
+        element={<DashboardOverviewPage />}
         handle={{
           breadcrumb: 'Dashboard Overview',
         }}
       />
       <Route
         path="metrics"
-        element={<DashboardMetricsView />}
+        element={<DashboardMetricsPage />}
         handle={{
           breadcrumb: 'Metrics & Performance',
         }}

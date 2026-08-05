@@ -1,7 +1,7 @@
 import { moduleRegistry } from '../../app/routes/module-registry';
-import { DashboardRouter } from './dashboard.router';
+import { DashboardRouter } from './routes/dashboard.router';
 
-// Register Dashboard Module Contract with central router shell
+// Register Dashboard Feature Module Contract with central router shell
 moduleRegistry.register({
   id: 'dashboard',
   prefix: '/dashboard',
@@ -11,4 +11,5 @@ moduleRegistry.register({
 });
 
 export { DashboardRouter };
-export { DashboardView } from './presentation/dashboard-view';
+export { DashboardOverviewPage } from './routes/dashboard-overview-page';
+export type { DashboardMetricItem, DashboardStatusSummary } from './types';
