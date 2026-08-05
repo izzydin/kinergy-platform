@@ -3,7 +3,6 @@ import { useLocation } from 'react-router-dom';
 import { useAuth } from '../providers/auth-provider';
 import { useFeatureFlags } from '../providers/feature-flag-provider';
 import { navigationRegistry } from './navigation-registry';
-import { defaultNavigationItems } from './navigation.config';
 import { NavigationBuilder } from './navigation.builder';
 import type { NavigationItem, NavigationSection } from './navigation.types';
 
@@ -29,7 +28,7 @@ export interface NavigationProviderProps {
  */
 export const NavigationProvider: React.FC<NavigationProviderProps> = ({
   children,
-  initialItems = defaultNavigationItems,
+  initialItems,
 }) => {
   const location = useLocation();
   const { hasPermission } = useAuth();
@@ -38,14 +37,23 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
   // Track dynamic registrations state version
   const [registryVersion, setRegistryVersion] = useState(0);
 
-  // Initialize baseline navigation configuration in registry
+  // Initialize custom baseline navigation configuration if explicitly provided
   useEffect(() => {
-    navigationRegistry.registerMany(initialItems);
+    if (initialItems && initialItems.length > 0) {
+      navigationRegistry.registerMany(initialItems);
+    }
   }, [initialItems]);
+
+  // Subscribe to navigationRegistry changes (dynamic registrations, module additions)
+  useEffect(() => {
+    const unsubscribe = navigationRegistry.subscribe(() => {
+      setRegistryVersion((prev) => prev + 1);
+    });
+    return unsubscribe;
+  }, []);
 
   const registerNavItem = (item: NavigationItem) => {
     navigationRegistry.register(item);
-    setRegistryVersion((prev) => prev + 1);
   };
 
   // Re-build navigation tree whenever auth, feature flags, or registry version updates

@@ -1,3 +1,4 @@
+import { defaultNavigationItems } from './navigation.config';
 import type { NavigationItem } from './navigation.types';
 
 /**
@@ -8,6 +9,32 @@ import type { NavigationItem } from './navigation.types';
  */
 class NavigationRegistry {
   private readonly items = new Map<string, NavigationItem>();
+  private readonly listeners = new Set<() => void>();
+
+  constructor() {
+    // Pre-populate with baseline configuration items
+    this.registerMany(defaultNavigationItems);
+  }
+
+  /**
+   * Subscribe to registry mutations (additions, removals, updates)
+   */
+  public subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  private notify(): void {
+    this.listeners.forEach((listener) => {
+      try {
+        listener();
+      } catch (err) {
+        console.error('[NavigationRegistry] Error in subscriber listener:', err);
+      }
+    });
+  }
 
   /**
    * Registers a single navigation entry.
@@ -19,13 +46,15 @@ class NavigationRegistry {
       );
     }
     this.items.set(item.id, item);
+    this.notify();
   }
 
   /**
    * Registers multiple navigation entries at once.
    */
   public registerMany(items: NavigationItem[]): void {
-    items.forEach((item) => this.register(item));
+    items.forEach((item) => this.items.set(item.id, item));
+    this.notify();
   }
 
   /**
@@ -33,6 +62,7 @@ class NavigationRegistry {
    */
   public unregister(id: string): void {
     this.items.delete(id);
+    this.notify();
   }
 
   /**
@@ -47,6 +77,7 @@ class NavigationRegistry {
    */
   public clear(): void {
     this.items.clear();
+    this.notify();
   }
 }
 
