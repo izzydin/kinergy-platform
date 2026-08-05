@@ -66,6 +66,17 @@ Layouts accept explicit React node props to customize header widgets, breadcrumb
 </DashboardLayout>
 ```
 
+#### C. Declarative Layout Slot Injection (`<SlotTarget />` & `<SlotInject />`)
+
+Feature modules project contextual UI into layout slots using React Portals (`@shared/ui/slots`):
+
+```tsx
+// Inside Feature Module Page View (e.g. DashboardView):
+<SlotInject target="header-actions">
+  <button onClick={handleSync}>Sync Data</button>
+</SlotInject>
+```
+
 ---
 
 ## 5. Governance & Rules
