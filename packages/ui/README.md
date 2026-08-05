@@ -13,6 +13,7 @@ Shared Primitive UI Component Library & Design System Foundation for the Kinergy
 - **Presentation & Interaction Only**: Primitive components strictly own rendering, keyboard navigation, focus management, and WAI-ARIA states.
 - **Zero Domain Dependencies**: Primitives MUST NOT import domain DTOs, API hooks, state stores, or route guards.
 - **Contract Enforcement**: Every primitive implements [Component Architecture Contracts](../../docs/frontend/component-contracts.md) (DOM ref forwarding, `cn()` style composition, polymorphic `asChild` rendering via `Slot`, and semantic HSL design tokens).
+- **Design System Specification**: Detailed architectural guidelines, API contracts, accessibility rules, anti-patterns, and usage examples are maintained in the [Frontend Design System Specification](../../docs/frontend/design-system.md).
 
 ---
 

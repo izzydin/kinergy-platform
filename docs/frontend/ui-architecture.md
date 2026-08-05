@@ -303,6 +303,7 @@ graph TD
 
 ## 8. Cross-References & Related Documentation
 
+- [Frontend Design System Specification & Usage Guide](./design-system.md)
 - [Component Architecture Contracts](./component-contracts.md)
 - [Frontend Architecture Vision](./architecture.md)
 - [Frontend Engineering Principles](./principles.md)
