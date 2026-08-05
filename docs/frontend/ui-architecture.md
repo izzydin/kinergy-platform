@@ -269,8 +269,25 @@ graph TD
 
 ---
 
+### [ADR-FE-0026] Mandatory Component Architecture Contracts
+
+- **Decision**: Adopt [Component Architecture Contracts](./component-contracts.md) as the platform's single authoritative specification for public API design, DOM ref forwarding, polymorphic `asChild` composition, `cn()` style merging, design token enforcement, WAI-ARIA accessibility, and unit testing across all UI components.
+- **Context**: As the frontend monorepo grows, inconsistent prop naming (e.g. `isDisabled` vs `disabled`), manual string style concatenation, inline styling props, and un-forwarded refs lead to design system fragmentation, broken accessibility, and high refactoring costs.
+- **Rationale**:
+  - **Standardized API**: Enforces native HTML prop names (`disabled`, `required`), semantic custom boolean prefixes (`isLoading`, `isInvalid`), uniform event handlers (`onClick`, `onChange`), standard variants (`default`, `secondary`, `destructive`), and size scales (`sm`, `md`, `lg`).
+  - **Polymorphic `asChild` Pattern**: Standardizes `@radix-ui/react-slot` integration to allow components to render as custom elements (e.g. `<Button asChild><Link to="..." /></Button>`).
+  - **Design Token & Style Governance**: Mandates `cn()` style merging (`clsx` + `tailwind-merge`) and forbids arbitrary inline styles or custom color props (`color="#ff0000"`).
+  - **Built-in Accessibility**: Mandates keyboard support, visible focus rings, ARIA state attributes, and accessible loading state announcements out-of-the-box.
+- **Responsibilities**:
+  - `packages/ui` & `src/shared/components`: Implement atomic and shared primitives strictly complying with component contracts.
+  - Domain Feature Modules: Consume contract-compliant components without reinventing presentational primitives.
+- **Consequences**: Every new or refactored UI component in the repository MUST pass code review verification against [component-contracts.md](./component-contracts.md).
+
+---
+
 ## 8. Cross-References & Related Documentation
 
+- [Component Architecture Contracts](./component-contracts.md)
 - [Frontend Architecture Vision](./architecture.md)
 - [Frontend Engineering Principles](./principles.md)
 - [Frontend Folder Structure & Architectural Boundaries](./folder-structure.md)
