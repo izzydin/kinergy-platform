@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
+  Badge,
   Button,
   Card,
   CardContent,
@@ -9,98 +10,103 @@ import {
   CardTitle,
 } from '@kinergy-platform/ui';
 import { SlotInject } from '../../../shared/ui/slots';
+import { DashboardActivitySection } from '../components/dashboard-activity-section';
+import { DashboardMetricsSection } from '../components/dashboard-metrics-section';
 import { DashboardQuickActions } from '../components/dashboard-quick-actions';
-import { DashboardSummaryCards } from '../components/dashboard-summary-cards';
-import type { DashboardMetricItem, DashboardStatusSummary } from '../types';
-
-const INITIAL_METRICS: readonly DashboardMetricItem[] = [
-  {
-    id: 'm-1',
-    title: 'Active Energy Monitors',
-    value: '1,420',
-    change: '+12%',
-    trend: 'up',
-    category: 'Telemetry',
-  },
-  {
-    id: 'm-2',
-    title: 'System Throughput',
-    value: '99.98%',
-    change: 'Stable',
-    trend: 'neutral',
-    category: 'Infrastructure',
-  },
-  {
-    id: 'm-3',
-    title: 'Pending Audit Tasks',
-    value: '3',
-    change: '-25%',
-    trend: 'down',
-    category: 'Compliance',
-  },
-  {
-    id: 'm-4',
-    title: 'Active Tenant Sessions',
-    value: '348',
-    change: '+8%',
-    trend: 'up',
-    category: 'Identity',
-  },
-];
-
-const INITIAL_STATUS: DashboardStatusSummary = {
-  systemStatus: 'operational',
-  activeServices: 18,
-  totalServices: 18,
-  lastUpdated: new Date().toLocaleTimeString(),
-};
+import { DashboardSystemHealthSection } from '../components/dashboard-system-health-section';
 
 export const DashboardOverviewPage: React.FC = () => {
-  const [metrics] = useState<readonly DashboardMetricItem[]>(INITIAL_METRICS);
-  const [status] = useState<DashboardStatusSummary>(INITIAL_STATUS);
+  const [simulationState, setSimulationState] = useState<'success' | 'loading' | 'empty' | 'error'>(
+    'success',
+  );
 
   return (
     <div className="space-y-6 p-6">
-      {/* Declarative Slot Injection into Shell Header Actions */}
+      {/* 1. Declarative Header Action Slot Injection */}
       <SlotInject target="header-actions">
         <div className="flex items-center gap-2">
           <DashboardQuickActions />
           <Button asChild variant="outline" size="sm">
-            <Link to="/dashboard/metrics">View Detailed Metrics</Link>
+            <Link to="/dashboard/metrics">Metrics Detail</Link>
           </Button>
         </div>
       </SlotInject>
 
-      <div>
-        <h1 className="font-bold text-3xl tracking-tight text-foreground">Dashboard Overview</h1>
-        <p className="text-muted-foreground text-sm">
-          Architectural validation module verifying layout slot injections, routing, and design
-          system contracts.
-        </p>
+      {/* 2. Header & Title Block */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="font-bold text-3xl tracking-tight text-foreground">
+              Dashboard Overview
+            </h1>
+            <Badge variant="outline" className="hidden sm:inline-flex">
+              Step A5.2 Validation
+            </Badge>
+          </div>
+          <p className="text-muted-foreground text-sm">
+            Architectural validation screen verifying layout, header, breadcrumbs, slot injection,
+            cards, buttons, badges, skeletons, spinner, toasts, theme tokens, and 4-State UI.
+          </p>
+        </div>
       </div>
 
-      <DashboardSummaryCards metrics={metrics} status={status} />
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Architecture Validation Specifications</CardTitle>
+      {/* 3. Interactive 4-State UI Control Panel */}
+      <Card className="border-primary/20 bg-muted/20">
+        <CardHeader className="pb-3">
+          <CardTitle className="font-semibold text-base text-foreground">
+            4-State UI Simulation Controller
+          </CardTitle>
           <CardDescription>
-            Verified module boundaries, route registration, and slot injection capabilities.
+            Toggle state below to validate Loading, Empty, Error, and Success behaviors across all
+            asynchronous dashboard sections.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-2 text-sm">
-          <p className="text-foreground font-medium">
-            ✓ Module Decoupling: Zero direct imports of internal feature components.
-          </p>
-          <p className="text-foreground font-medium">
-            ✓ Layout Slot Injection: Declares header action slot injections from local state.
-          </p>
-          <p className="text-foreground font-medium">
-            ✓ Design System Contracts: Exclusively consumes @kinergy-platform/ui presentational
-            primitives.
-          </p>
+        <CardContent className="flex flex-wrap items-center gap-2">
+          <Button
+            variant={simulationState === 'success' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSimulationState('success')}
+          >
+            State: Success
+          </Button>
+          <Button
+            variant={simulationState === 'loading' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSimulationState('loading')}
+          >
+            State: Loading
+          </Button>
+          <Button
+            variant={simulationState === 'empty' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setSimulationState('empty')}
+          >
+            State: Empty
+          </Button>
+          <Button
+            variant={simulationState === 'error' ? 'destructive' : 'outline'}
+            size="sm"
+            onClick={() => setSimulationState('error')}
+          >
+            State: Error
+          </Button>
         </CardContent>
       </Card>
+
+      {/* 4. Asynchronous Metrics Section (4-State Contract) */}
+      <DashboardMetricsSection
+        simulationState={simulationState}
+        onRetry={() => setSimulationState('success')}
+      />
+
+      {/* 5. System Health & Toast Notification Verification Section */}
+      <DashboardSystemHealthSection simulationState={simulationState} />
+
+      {/* 6. Asynchronous Activity Feed Section (4-State Contract) */}
+      <DashboardActivitySection
+        simulationState={simulationState}
+        onRetry={() => setSimulationState('success')}
+      />
     </div>
   );
 };
