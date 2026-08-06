@@ -17,3 +17,26 @@ export interface DashboardStatusSummary {
   readonly totalServices: number;
   readonly lastUpdated: string;
 }
+
+/**
+ * Activity item that supports optimistic bookmarking (A5.4 mutation demo)
+ */
+export interface DashboardActivity {
+  readonly id: string;
+  readonly title: string;
+  readonly timestamp: string;
+  readonly type: 'info' | 'warning' | 'error' | 'success';
+  readonly bookmarked: boolean;
+}
+
+/**
+ * User profile ViewModel returned by /api/v1/settings/profile
+ */
+export interface UserProfileViewModel {
+  readonly id: string;
+  readonly displayName: string;
+  readonly email: string;
+  readonly avatarUrl: string | null;
+  readonly role: string;
+  readonly createdAt: string;
+}

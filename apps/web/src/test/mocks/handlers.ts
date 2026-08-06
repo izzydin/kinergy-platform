@@ -1,4 +1,6 @@
-import { http, HttpResponse, RequestHandler } from 'msw';
+import { http, HttpResponse, type RequestHandler } from 'msw';
+import { dashboardHandlers } from '../../modules/dashboard/mocks/dashboard-handlers';
+import { settingsHandlers } from '../../modules/settings/mocks/settings-handlers';
 
 /**
  * Platform Infrastructure Mock Handlers
@@ -17,17 +19,30 @@ export const infrastructureHandlers: RequestHandler[] = [
   }),
 ];
 
+/**
+ * Domain Feature Module Handlers
+ *
+ * Each feature module registers its own MSW handlers in its `mocks/` directory.
+ * They are imported here once and composed into the final handler array.
+ * When future modules (Clients, Scheduling, Sales) are added, only this file
+ * changes — no test setup or browser worker configuration requires modification.
+ */
+const featureHandlers: RequestHandler[] = [...dashboardHandlers, ...settingsHandlers];
+
 const dynamicHandlers: RequestHandler[] = [];
 
 /**
- * Public Handler Registry
+ * Complete Handler Registry
  *
- * Combines baseline infrastructure handlers with dynamic feature module handlers registered at runtime.
+ * Combines baseline infrastructure handlers with all feature module handlers.
+ * Used by both the browser Service Worker (init-msw.ts) and the Vitest Node
+ * server (server.ts) to provide a unified mock API surface.
  */
-export const handlers: RequestHandler[] = [...infrastructureHandlers];
+export const handlers: RequestHandler[] = [...infrastructureHandlers, ...featureHandlers];
 
 /**
- * Allows future feature modules (src/modules/*) to register their mock handlers dynamically.
+ * Allows additional feature modules to register mock handlers dynamically at
+ * runtime (e.g., lazily loaded modules or Storybook stories).
  */
 export function registerHandlers(...newHandlers: RequestHandler[]): void {
   dynamicHandlers.push(...newHandlers);

@@ -1,24 +1,38 @@
 import { useQuery } from '@tanstack/react-query';
-import type { DashboardMetricItem, DashboardStatusSummary } from '../types';
+import {
+  fetchDashboardActivities,
+  fetchDashboardMetrics,
+  fetchDashboardStatus,
+} from './dashboard-api';
+import { dashboardKeys } from './dashboard-query-keys';
+import type { DashboardActivity, DashboardMetricItem, DashboardStatusSummary } from '../types';
+
+// Re-export for backward-compat with components that still import from this file
+export { dashboardKeys };
 
 /**
- * Centralized Query Key Factory for Dashboard Feature Module
+ * @deprecated Import DashboardActivityItem from ../types as DashboardActivity.
+ * Kept temporarily for components created in A5.2 that reference DashboardActivityItem.
  */
-export const dashboardQueryKeys = {
-  all: ['dashboard'] as const,
-  metrics: (state: string) => [...dashboardQueryKeys.all, 'metrics', state] as const,
-  status: (state: string) => [...dashboardQueryKeys.all, 'status', state] as const,
-  activities: (state: string) => [...dashboardQueryKeys.all, 'activities', state] as const,
-};
+export type DashboardActivityItem = DashboardActivity;
 
-export interface DashboardActivityItem {
-  readonly id: string;
-  readonly title: string;
-  readonly timestamp: string;
-  readonly type: 'info' | 'warning' | 'error' | 'success';
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Simulation State
+//
+// SimulationState drives the Dashboard dev panel (A5.2) 4-State UI validation.
+//
+// Architecture decision: the simulated hooks use in-memory data rather than
+// real network requests. This ensures:
+//  1. Tests work deterministically without MSW setup.
+//  2. The dev panel works even before MSW initializes on first load.
+//  3. Real data flow is exercised by the non-simulated hooks (useDashboardMetricsQuery)
+//     which call the actual API layer (dashboard-api.ts → MSW in dev, real API in prod).
+// ─────────────────────────────────────────────────────────────────────────────
 
-// Mock Data Generators for 4-State UI Validation
+export type SimulationState = 'success' | 'loading' | 'empty' | 'error';
+
+// ─── In-memory mock data for simulated hooks ──────────────────────────────────
+
 const MOCK_METRICS: readonly DashboardMetricItem[] = [
   {
     id: 'm-1',
@@ -61,35 +75,50 @@ const MOCK_STATUS: DashboardStatusSummary = {
   lastUpdated: 'Just now',
 };
 
-const MOCK_ACTIVITIES: readonly DashboardActivityItem[] = [
+const MOCK_ACTIVITIES: readonly DashboardActivity[] = [
   {
     id: 'act-1',
     title: 'Security audit completed for Tenant #42',
     timestamp: '5 mins ago',
     type: 'success',
+    bookmarked: false,
   },
   {
     id: 'act-2',
     title: 'Energy meter telemetry batch ingested (10k items)',
     timestamp: '12 mins ago',
     type: 'info',
+    bookmarked: false,
   },
   {
     id: 'act-3',
     title: 'High memory consumption spike detected on API node 2',
     timestamp: '34 mins ago',
     type: 'warning',
+    bookmarked: true,
   },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Simulated Query Hooks (used by Dashboard dev panel A5.2)
+//
+// These hooks use in-memory data and simulate async behavior with a short delay.
+// They never fire real network requests, so they work in all environments
+// (tests, Storybook, dev panel, CI). The MSW layer validates the real API flow.
+// ─────────────────────────────────────────────────────────────────────────────
+
 /**
- * Custom Query Hook fetching Dashboard Metrics supporting 4-State UI
+ * useDashboardMetrics — Simulation hook for 4-State UI dev panel.
+ *
+ * Uses in-memory data. Real network flow is validated by useDashboardMetricsQuery.
  */
-export function useDashboardMetrics(simulationState: 'success' | 'loading' | 'empty' | 'error') {
+export function useDashboardMetrics(simulationState: SimulationState) {
   return useQuery<readonly DashboardMetricItem[], Error>({
-    queryKey: dashboardQueryKeys.metrics(simulationState),
+    queryKey: [...dashboardKeys.metrics(), 'sim', simulationState],
     queryFn: async () => {
+      // Short delay to simulate realistic async latency
       await new Promise((resolve) => setTimeout(resolve, 300));
+
       if (simulationState === 'error') {
         throw new Error('Failed to load dashboard metrics from remote API gateway.');
       }
@@ -100,17 +129,19 @@ export function useDashboardMetrics(simulationState: 'success' | 'loading' | 'em
     },
     enabled: simulationState !== 'loading',
     retry: false,
+    staleTime: 1000 * 60 * 2,
   });
 }
 
 /**
- * Custom Query Hook fetching Dashboard Status Summary
+ * useDashboardStatus — Simulation hook for 4-State UI dev panel.
  */
-export function useDashboardStatus(simulationState: 'success' | 'loading' | 'empty' | 'error') {
+export function useDashboardStatus(simulationState: SimulationState) {
   return useQuery<DashboardStatusSummary, Error>({
-    queryKey: dashboardQueryKeys.status(simulationState),
+    queryKey: [...dashboardKeys.status(), 'sim', simulationState],
     queryFn: async () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
+
       if (simulationState === 'error') {
         throw new Error('System health service unavailable.');
       }
@@ -118,17 +149,19 @@ export function useDashboardStatus(simulationState: 'success' | 'loading' | 'emp
     },
     enabled: simulationState !== 'loading',
     retry: false,
+    staleTime: 1000 * 60,
   });
 }
 
 /**
- * Custom Query Hook fetching Recent Activity Feed supporting 4-State UI
+ * useDashboardActivities — Simulation hook for 4-State UI dev panel.
  */
-export function useDashboardActivities(simulationState: 'success' | 'loading' | 'empty' | 'error') {
-  return useQuery<readonly DashboardActivityItem[], Error>({
-    queryKey: dashboardQueryKeys.activities(simulationState),
+export function useDashboardActivities(simulationState: SimulationState) {
+  return useQuery<readonly DashboardActivity[], Error>({
+    queryKey: [...dashboardKeys.activities(), 'sim', simulationState],
     queryFn: async () => {
       await new Promise((resolve) => setTimeout(resolve, 300));
+
       if (simulationState === 'error') {
         throw new Error('Activity logging service returned HTTP 500.');
       }
@@ -139,5 +172,47 @@ export function useDashboardActivities(simulationState: 'success' | 'loading' | 
     },
     enabled: simulationState !== 'loading',
     retry: false,
+    staleTime: 1000 * 30,
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Real API Hooks (non-simulated — call the actual transport layer)
+//
+// These hooks call dashboard-api.ts which fires real fetch requests.
+// In development, MSW intercepts them. In production, they hit the real backend.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * useDashboardMetricsQuery — Fetches live metrics from /api/v1/dashboard/metrics.
+ * Used by integration tests (mock-backend-transport.spec) and future production pages.
+ */
+export function useDashboardMetricsQuery() {
+  return useQuery<readonly DashboardMetricItem[], Error>({
+    queryKey: dashboardKeys.metrics(),
+    queryFn: fetchDashboardMetrics,
+    staleTime: 1000 * 60 * 2,
+  });
+}
+
+/**
+ * useDashboardStatusQuery — Fetches live system status from /api/v1/dashboard/status.
+ */
+export function useDashboardStatusQuery() {
+  return useQuery<DashboardStatusSummary, Error>({
+    queryKey: dashboardKeys.status(),
+    queryFn: fetchDashboardStatus,
+    staleTime: 1000 * 60,
+  });
+}
+
+/**
+ * useDashboardActivitiesQuery — Fetches live activity feed from /api/v1/dashboard/activities.
+ */
+export function useDashboardActivitiesQuery() {
+  return useQuery<readonly DashboardActivity[], Error>({
+    queryKey: dashboardKeys.activities(),
+    queryFn: fetchDashboardActivities,
+    staleTime: 1000 * 30,
   });
 }
