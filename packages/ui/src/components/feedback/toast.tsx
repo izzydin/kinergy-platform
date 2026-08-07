@@ -71,7 +71,7 @@ export const Toast = React.forwardRef<HTMLDivElement, ToastProps>(
     return (
       <div
         ref={ref}
-        role={isAssertive ? 'alert' : role}
+        role={role}
         aria-live={isAssertive ? 'assertive' : 'polite'}
         className={cn(toastVariants({ variant, className }))}
         {...props}
