@@ -103,7 +103,7 @@ export const GeneralSettingsForm: React.FC = () => {
                   <AvatarFallback className="font-bold text-lg">KP</AvatarFallback>
                 </Avatar>
                 <div>
-                  <h4 className="font-semibold text-foreground text-sm">Workspace Brand Mark</h4>
+                  <h3 className="font-semibold text-foreground text-sm">Workspace Brand Mark</h3>
                   <p className="text-xs text-muted-foreground">JPG, PNG, or GIF up to 2MB.</p>
                 </div>
               </div>

@@ -15,6 +15,7 @@ import { SettingsLayoutPage } from '../settings/routes/settings-layout-page';
 import { AuthProvider } from '../../app/providers/auth-provider';
 import { FeatureFlagProvider } from '../../app/providers/feature-flag-provider';
 import { NavigationProvider } from '../../app/navigation';
+import { BreadcrumbProvider } from '../../app/breadcrumbs';
 
 expect.extend(toHaveNoViolations);
 
@@ -36,7 +37,9 @@ function renderWithProviders(ui: React.ReactElement, { initialEntries = ['/'] } 
         <AuthProvider>
           <FeatureFlagProvider>
             <NavigationProvider>
-              <SlotProvider>{ui}</SlotProvider>
+              <BreadcrumbProvider>
+                <SlotProvider>{ui}</SlotProvider>
+              </BreadcrumbProvider>
             </NavigationProvider>
           </FeatureFlagProvider>
         </AuthProvider>

@@ -164,7 +164,7 @@ export const SecuritySettingsForm: React.FC = () => {
             {/* 5. Session Revocation Modal Trigger */}
             <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 p-4">
               <div>
-                <h4 className="font-semibold text-foreground text-sm">Active Session Control</h4>
+                <h3 className="font-semibold text-foreground text-sm">Active Session Control</h3>
                 <p className="text-xs text-muted-foreground">
                   Revoke all active JWT bearer sessions across secondary browsers and mobile
                   devices.

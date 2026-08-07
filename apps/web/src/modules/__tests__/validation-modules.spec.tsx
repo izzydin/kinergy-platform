@@ -14,6 +14,7 @@ import { SecuritySettingsForm } from '../settings/components/security-settings-f
 import { NavigationProvider } from '../../app/navigation';
 import { AuthProvider } from '../../app/providers/auth-provider';
 import { FeatureFlagProvider } from '../../app/providers/feature-flag-provider';
+import { BreadcrumbProvider } from '../../app/breadcrumbs';
 
 function createTestQueryClient() {
   return new QueryClient({
@@ -33,7 +34,9 @@ function renderWithProviders(ui: React.ReactElement, { initialEntries = ['/'] } 
         <AuthProvider>
           <FeatureFlagProvider>
             <NavigationProvider>
-              <SlotProvider>{ui}</SlotProvider>
+              <BreadcrumbProvider>
+                <SlotProvider>{ui}</SlotProvider>
+              </BreadcrumbProvider>
             </NavigationProvider>
           </FeatureFlagProvider>
         </AuthProvider>
