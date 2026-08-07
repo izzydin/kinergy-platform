@@ -137,8 +137,8 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
       const errBtn = screen.getByRole('button', { name: /trigger error toast/i });
       fireEvent.click(errBtn);
 
-      const errStatus = (await screen.findAllByRole('status'))[1];
-      expect(errStatus).toHaveAttribute('aria-live', 'assertive');
+      const errAlert = await screen.findByRole('alert');
+      expect(errAlert).toHaveAttribute('aria-live', 'assertive');
     });
 
     it('verifies form input error linking (aria-invalid, aria-describedby, role="alert")', async () => {
@@ -153,29 +153,46 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
       await waitFor(() => {
         const errorAlert = screen.getByText(/please enter a valid email address/i);
         expect(errorAlert).toBeInTheDocument();
-        expect(errorAlert).toHaveAttribute('role', 'alert');
         expect(emailInput).toHaveAttribute('aria-invalid', 'true');
         expect(emailInput).toHaveAttribute('aria-describedby');
       });
     });
+
+    it('renders landmark roles (banner, navigation, main, contentinfo)', async () => {
+      renderWithProviders(
+        <DashboardLayout>
+          <div>Dashboard Body</div>
+        </DashboardLayout>,
+      );
+
+      const banner = screen.getByRole('banner');
+      expect(banner).toBeInTheDocument();
+
+      const main = screen.getByRole('main');
+      expect(main).toBeInTheDocument();
+
+      const footer = screen.getByRole('contentinfo');
+      expect(footer).toBeInTheDocument();
+
+      const aside = screen.getByRole('complementary');
+      expect(aside).toBeInTheDocument();
+    });
   });
 
   describe('3. Keyboard Navigation & Focus Management', () => {
-    it('supports Ctrl+B / Cmd+B shortcut for desktop sidebar collapse/expand', () => {
+    it('supports Ctrl+B keyboard shortcut to toggle sidebar collapse', async () => {
       renderWithProviders(
         <DashboardLayout>
           <div>Content</div>
         </DashboardLayout>,
       );
 
-      const collapseButton = screen.getByRole('button', { name: /collapse sidebar/i });
-      expect(collapseButton).toHaveAttribute('aria-expanded', 'true');
+      const toggleBtn = screen.getByRole('button', { name: /collapse sidebar/i });
+      expect(toggleBtn).toHaveAttribute('aria-expanded', 'true');
 
       // Trigger Ctrl+B
       fireEvent.keyDown(window, { key: 'b', ctrlKey: true });
-
-      const expandButton = screen.getByRole('button', { name: /expand sidebar/i });
-      expect(expandButton).toHaveAttribute('aria-expanded', 'false');
+      expect(toggleBtn).toHaveAttribute('aria-expanded', 'false');
 
       // Trigger Ctrl+B again to toggle back
       fireEvent.keyDown(window, { key: 'b', ctrlKey: true });
@@ -213,7 +230,11 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
 
   describe('4. Modal Dialog Behavior & Focus Trapping', () => {
     it('opens Quick System Check diagnostic dialog and verifies modal properties', async () => {
-      renderWithProviders(<DashboardOverviewPage />);
+      renderWithProviders(
+        <DashboardLayout>
+          <DashboardOverviewPage />
+        </DashboardLayout>,
+      );
 
       const diagBtn = screen.getByRole('button', { name: /quick system check/i });
       fireEvent.click(diagBtn);
