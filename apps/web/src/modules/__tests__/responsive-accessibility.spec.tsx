@@ -13,6 +13,7 @@ import { SecuritySettingsForm } from '../settings/components/security-settings-f
 import { SettingsLayoutPage } from '../settings/routes/settings-layout-page';
 
 import { AuthProvider } from '../../app/providers/auth-provider';
+import { FeatureFlagProvider } from '../../app/providers/feature-flag-provider';
 import { NavigationProvider } from '../../app/navigation';
 
 expect.extend(toHaveNoViolations);
@@ -33,9 +34,11 @@ function renderWithProviders(ui: React.ReactElement, { initialEntries = ['/'] } 
     <QueryClientProvider client={testQueryClient}>
       <MemoryRouter initialEntries={initialEntries}>
         <AuthProvider>
-          <NavigationProvider>
-            <SlotProvider>{ui}</SlotProvider>
-          </NavigationProvider>
+          <FeatureFlagProvider>
+            <NavigationProvider>
+              <SlotProvider>{ui}</SlotProvider>
+            </NavigationProvider>
+          </FeatureFlagProvider>
         </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>,
