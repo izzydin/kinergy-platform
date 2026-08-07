@@ -21,7 +21,7 @@ export const DashboardOverviewPage: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       {/* 1. Declarative Header Action Slot Injection */}
       <SlotInject target="header-actions">
         <div className="flex items-center gap-2">

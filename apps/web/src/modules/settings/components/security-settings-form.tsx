@@ -208,7 +208,7 @@ export const SecuritySettingsForm: React.FC = () => {
                   type="checkbox"
                   checked={simulateError}
                   onChange={(e) => setSimulateError(e.target.checked)}
-                  className="rounded border-border"
+                  className="rounded border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
                 <span>Simulate Invalid Credential Server Error</span>
               </label>

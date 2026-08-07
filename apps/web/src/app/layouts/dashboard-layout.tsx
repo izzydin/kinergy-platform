@@ -61,17 +61,17 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         />
 
         {/* Dynamic Contextual Toolbar & Status Slots */}
-        <div className="flex flex-col gap-2 px-6 pt-4">
+        <div className="flex flex-col gap-2 px-4 md:px-6 pt-4">
           <SlotTarget name="page-status" />
           <SlotTarget name="page-toolbar" />
           <SlotTarget name="page-tabs" />
         </div>
 
         {/* Module Content Extension Point */}
-        <main className="flex-1 p-6 overflow-x-hidden">{children || <Outlet />}</main>
+        <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children || <Outlet />}</main>
 
         {/* Footer Actions Slot */}
-        <SlotTarget name="footer-actions" className="px-6 py-3 border-t border-border/40" />
+        <SlotTarget name="footer-actions" className="px-4 md:px-6 py-3 border-t border-border/40" />
       </div>
     </div>
   );

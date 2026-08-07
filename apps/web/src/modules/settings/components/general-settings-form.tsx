@@ -124,7 +124,7 @@ export const GeneralSettingsForm: React.FC = () => {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-3 py-4">
-                    <FormField>
+                    <FormField controlId="avatar-url-input-field">
                       <FormLabel>Avatar Image URL</FormLabel>
                       <FormControl>
                         <Input
@@ -222,7 +222,7 @@ export const GeneralSettingsForm: React.FC = () => {
                   type="checkbox"
                   checked={simulateError}
                   onChange={(e) => setSimulateError(e.target.checked)}
-                  className="rounded border-border"
+                  className="rounded border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   data-testid="simulate-error-checkbox"
                 />
                 <span>Simulate Server Submission Failure</span>

@@ -5,7 +5,7 @@ import { SettingsNavTabs } from '../components/settings-nav-tabs';
 
 export const SettingsLayoutPage: React.FC = () => {
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-6">
       {/* 1. Header & Title */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
