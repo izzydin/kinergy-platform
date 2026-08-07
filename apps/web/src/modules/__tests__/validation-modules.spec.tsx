@@ -11,6 +11,9 @@ import { SettingsLayoutPage, SettingsRouter } from '../settings';
 import { GeneralSettingsForm } from '../settings/components/general-settings-form';
 import { SecuritySettingsForm } from '../settings/components/security-settings-form';
 
+import { NavigationProvider } from '../../app/navigation';
+import { AuthProvider } from '../../app/providers/auth-provider';
+
 function createTestQueryClient() {
   return new QueryClient({
     defaultOptions: {
@@ -26,7 +29,11 @@ function renderWithProviders(ui: React.ReactElement, { initialEntries = ['/'] } 
   return render(
     <QueryClientProvider client={testQueryClient}>
       <MemoryRouter initialEntries={initialEntries}>
-        <SlotProvider>{ui}</SlotProvider>
+        <AuthProvider>
+          <NavigationProvider>
+            <SlotProvider>{ui}</SlotProvider>
+          </NavigationProvider>
+        </AuthProvider>
       </MemoryRouter>
     </QueryClientProvider>,
   );

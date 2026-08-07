@@ -34,4 +34,3 @@ export const SettingsNavTabs: React.FC = () => {
     </nav>
   );
 };
-

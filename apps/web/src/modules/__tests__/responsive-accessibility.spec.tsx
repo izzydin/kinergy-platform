@@ -113,7 +113,8 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
       expect(screen.getByRole('main')).toBeInTheDocument();
 
       // Aside navigation landmark
-      const aside = screen.getByRole('complementary', { name: /main navigation/i }) ||
+      const aside =
+        screen.getByRole('complementary', { name: /main navigation/i }) ||
         document.querySelector('aside[aria-label="Main Navigation"]');
       expect(aside).toBeInTheDocument();
     });
