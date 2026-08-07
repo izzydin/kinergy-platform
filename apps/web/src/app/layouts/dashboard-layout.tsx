@@ -70,8 +70,10 @@ export const DashboardLayout: React.FC<DashboardLayoutProps> = ({
         {/* Module Content Extension Point */}
         <main className="flex-1 p-4 md:p-6 overflow-x-hidden">{children || <Outlet />}</main>
 
-        {/* Footer Actions Slot */}
-        <SlotTarget name="footer-actions" className="px-4 md:px-6 py-3 border-t border-border/40" />
+        {/* Footer Landmark & Extension Point */}
+        <footer className="px-4 md:px-6 py-3 border-t border-border/40 text-xs text-muted-foreground">
+          <SlotTarget name="footer-actions" />
+        </footer>
       </div>
     </div>
   );

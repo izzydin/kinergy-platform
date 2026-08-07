@@ -137,8 +137,9 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
       const errBtn = screen.getByRole('button', { name: /trigger error toast/i });
       fireEvent.click(errBtn);
 
-      const errStatus = (await screen.findAllByRole('status'))[1];
-      expect(errStatus).toHaveAttribute('aria-live', 'assertive');
+      await waitFor(() => {
+        expect(toastStatus).toHaveAttribute('aria-live', 'assertive');
+      });
     });
 
     it('verifies form input error linking (aria-invalid, aria-describedby, role="alert")', async () => {
