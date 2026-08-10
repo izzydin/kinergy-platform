@@ -14,6 +14,7 @@ import { SlotInject } from '../../../shared/ui/slots';
 import { SettingsProfileSection } from '../../settings/components/settings-profile-section';
 import { DashboardActivitySection } from '../components/dashboard-activity-section';
 import { DashboardMetricsSection } from '../components/dashboard-metrics-section';
+import { InfrastructureIntegrationPanel } from '../components/infrastructure-integration-panel';
 
 // Re-use the SimulationState type defined in dashboard-queries
 type SimulationState = 'success' | 'loading' | 'empty' | 'error';
@@ -225,6 +226,14 @@ export const DashboardUiStatesPage: React.FC = () => {
           Section 4 — Settings Profile (useUserProfileQuery + StateView)
         </p>
         <SettingsProfileSection simulationState={globalState} />
+      </section>
+
+      {/* ── Section 5: A6 Shared Infrastructure Integration (A6.8) ──────── */}
+      <section aria-label="Step A6.8 Shared Infrastructure Integration">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">
+          Section 5 — Step A6.8 Shared Infrastructure Integration
+        </p>
+        <InfrastructureIntegrationPanel />
       </section>
     </div>
   );

@@ -25,9 +25,11 @@ import { MemoryRouter } from 'react-router-dom';
 import { StateView } from '@kinergy-platform/ui';
 import { AuthProvider } from '../../app/providers/auth-provider';
 import { FeatureFlagProvider } from '../../app/providers/feature-flag-provider';
+import { NotificationProvider } from '../../app/providers/notification-provider';
 import { NavigationProvider } from '../../app/navigation';
 import { BreadcrumbProvider } from '../../app/breadcrumbs';
 import { SlotProvider } from '../../shared/ui/slots/SlotProvider';
+
 import { DashboardActivitySection } from '../dashboard/components/dashboard-activity-section';
 import { DashboardMetricsSection } from '../dashboard/components/dashboard-metrics-section';
 import { DashboardUiStatesPage } from '../dashboard/routes/dashboard-ui-states-page';
@@ -57,17 +59,19 @@ function renderWithProviders(
 ) {
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={initialEntries}>
-        <AuthProvider>
-          <FeatureFlagProvider>
-            <NavigationProvider>
-              <BreadcrumbProvider>
-                <SlotProvider>{ui}</SlotProvider>
-              </BreadcrumbProvider>
-            </NavigationProvider>
-          </FeatureFlagProvider>
-        </AuthProvider>
-      </MemoryRouter>
+      <NotificationProvider>
+        <MemoryRouter initialEntries={initialEntries}>
+          <AuthProvider>
+            <FeatureFlagProvider>
+              <NavigationProvider>
+                <BreadcrumbProvider>
+                  <SlotProvider>{ui}</SlotProvider>
+                </BreadcrumbProvider>
+              </NavigationProvider>
+            </FeatureFlagProvider>
+          </AuthProvider>
+        </MemoryRouter>
+      </NotificationProvider>
     </QueryClientProvider>,
   );
 }
