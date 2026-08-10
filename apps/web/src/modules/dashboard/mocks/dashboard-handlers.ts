@@ -118,18 +118,7 @@ export function __resetDashboardMockState(): void {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const dashboardHandlers: RequestHandler[] = [
-  /**
-   * GET /api/v1/dashboard/metrics
-   *
-   * Supports X-Sim-State header for 4-state UI development:
-   *  - 'error'  → 500 Internal Server Error
-   *  - 'empty'  → { items: [] }
-   *  - default  → MOCK_METRICS (with artificial 200ms network latency)
-   *
-   * Also supports retry simulation: fails `metricsRetryFailCount` times with 503
-   * before returning success — exercises TanStack Query exponential retry logic.
-   */
-  http.get('/api/v1/dashboard/metrics', async ({ request }) => {
+  http.get('*/api/v1/dashboard/metrics', async ({ request }) => {
     await delay(200);
 
     const simState = request.headers.get('X-Sim-State');
@@ -157,10 +146,7 @@ export const dashboardHandlers: RequestHandler[] = [
     return HttpResponse.json({ items: MOCK_METRICS });
   }),
 
-  /**
-   * GET /api/v1/dashboard/status
-   */
-  http.get('/api/v1/dashboard/status', async ({ request }) => {
+  http.get('*/api/v1/dashboard/status', async ({ request }) => {
     await delay(150);
 
     const simState = request.headers.get('X-Sim-State');
@@ -175,10 +161,7 @@ export const dashboardHandlers: RequestHandler[] = [
     });
   }),
 
-  /**
-   * GET /api/v1/dashboard/activities
-   */
-  http.get('/api/v1/dashboard/activities', async ({ request }) => {
+  http.get('*/api/v1/dashboard/activities', async ({ request }) => {
     await delay(180);
 
     const simState = request.headers.get('X-Sim-State');
@@ -197,13 +180,7 @@ export const dashboardHandlers: RequestHandler[] = [
     return HttpResponse.json({ items: MOCK_ACTIVITIES });
   }),
 
-  /**
-   * POST /api/v1/dashboard/activities/:id/bookmark
-   *
-   * Toggles bookmark on a specific activity. Target for optimistic mutation tests.
-   * Returns updated bookmark state for cache reconciliation.
-   */
-  http.post('/api/v1/dashboard/activities/:id/bookmark', async ({ request, params }) => {
+  http.post('*/api/v1/dashboard/activities/:id/bookmark', async ({ request, params }) => {
     await delay(100);
 
     const id = params['id'] as string;

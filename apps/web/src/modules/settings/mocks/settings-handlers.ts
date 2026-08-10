@@ -31,23 +31,12 @@ export function __resetSettingsMockState(): void {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const settingsHandlers: RequestHandler[] = [
-  /**
-   * GET /api/v1/settings/profile
-   *
-   * Returns current user profile. Artificial 180ms delay simulates network latency.
-   */
-  http.get('/api/v1/settings/profile', async () => {
+  http.get('*/api/v1/settings/profile', async () => {
     await delay(180);
     return HttpResponse.json(MOCK_PROFILE);
   }),
 
-  /**
-   * PATCH /api/v1/settings/profile
-   *
-   * Accepts partial profile update (displayName, email).
-   * Validates that required fields are present, returns 422 with detail if not.
-   */
-  http.patch('/api/v1/settings/profile', async ({ request }) => {
+  http.patch('*/api/v1/settings/profile', async ({ request }) => {
     await delay(250);
 
     const body = (await request.json()) as {
@@ -79,15 +68,7 @@ export const settingsHandlers: RequestHandler[] = [
     return HttpResponse.json(MOCK_PROFILE);
   }),
 
-  /**
-   * POST /api/v1/settings/security/change-password
-   *
-   * Simulates password change validation:
-   *  - Returns 422 if newPassword equals currentPassword (no-op)
-   *  - Returns 422 if currentPassword is the known-bad test value 'wrong-password'
-   *  - Returns 200 { success: true } otherwise
-   */
-  http.post('/api/v1/settings/security/change-password', async ({ request }) => {
+  http.post('*/api/v1/settings/security/change-password', async ({ request }) => {
     await delay(300);
 
     const body = (await request.json()) as {

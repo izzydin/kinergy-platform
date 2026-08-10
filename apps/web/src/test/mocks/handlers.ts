@@ -11,7 +11,7 @@ import { settingsHandlers } from '../../modules/settings/mocks/settings-handlers
  */
 export const infrastructureHandlers: RequestHandler[] = [
   // Platform Health & Infrastructure Verification Endpoint
-  http.get('/api/v1/health', () => {
+  http.get('*/api/v1/health', () => {
     return HttpResponse.json({
       status: 'ok',
       timestamp: new Date().toISOString(),
@@ -20,7 +20,7 @@ export const infrastructureHandlers: RequestHandler[] = [
   }),
 
   // Infrastructure Integration Test Endpoints (Step A6.8)
-  http.post('/api/v1/test/mutation-success', async () => {
+  http.post('*/api/v1/test/mutation-success', async () => {
     await delay(100);
     return HttpResponse.json({
       status: 'ok',
@@ -29,7 +29,7 @@ export const infrastructureHandlers: RequestHandler[] = [
     });
   }),
 
-  http.post('/api/v1/test/mutation-failure', async () => {
+  http.post('*/api/v1/test/mutation-failure', async () => {
     await delay(100);
     return HttpResponse.json(
       {
@@ -41,7 +41,7 @@ export const infrastructureHandlers: RequestHandler[] = [
     );
   }),
 
-  http.post('/api/v1/test/auth-failure', async () => {
+  http.post('*/api/v1/test/auth-failure', async () => {
     await delay(100);
     return HttpResponse.json({ message: 'Session expired or invalid token' }, { status: 401 });
   }),
