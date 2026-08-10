@@ -132,6 +132,22 @@ Production-ready React error boundary strategy catching uncaught rendering excep
   - Normal API errors, form validations, expected mutation failures, and 401 auth failures are handled by transport/query infrastructure and MUST NOT trigger error boundaries.
   - Stack traces are rendered in collapsible developer diagnostics in development mode (`isDev`), and strictly hidden in production mode (`isProd`).
 
+### Standard Mutation Pipeline Architecture (`shared/api/mutation-pipeline.ts`)
+
+Standardized mutation abstraction (`useStandardMutation`) encapsulating the full mutation lifecycle for feature modules:
+
+- **Lifecycle Pipeline**:
+  - `onMutate`: Performs opt-in optimistic cache updates and snapshots previous state for rollback.
+  - `mutationFn`: Executes API transport call, automatically normalizing raw errors via `normalizeApiError()`.
+  - `onSuccess`: Invalidates target query keys (`invalidates`), dispatches success toast notification via `notificationService`, and invokes user callback.
+  - `onError`: Restores previous snapshot on optimistic failure, invalidates affected keys to force cache re-sync, dispatches error toast notification (suppressed for `RequestCanceledError`), and invokes user error recovery callback.
+- **Opt-In Optimistic Updates**:
+  - Configured via `optimistic: { queryKey, update }`.
+  - Cancels outgoing queries for target key prior to snapshotting to eliminate race conditions.
+- **Query Key & Toast Strategy**:
+  - Feature modules own their domain query keys; zero business query keys exist in shared infrastructure.
+  - Custom user-facing success/error toast messages or message functions are fully supported while preventing duplicate notifications.
+
 ### Normalized Error Hierarchy Model
 
 All HTTP failures, validation errors, network drops, and cancellations are mapped via `normalizeApiError()` into typed `ApiError` subclasses matching NestJS `ApiExceptionFilter` contracts:

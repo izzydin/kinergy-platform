@@ -23,3 +23,11 @@ export {
   type RequestInterceptor,
   type ResponseInterceptor,
 } from './http-client';
+
+export {
+  useStandardMutation,
+  type StandardMutationOptions,
+  type OptimisticConfig,
+  type MutationNotificationConfig,
+  type NotificationMessageConfig,
+} from './mutation-pipeline';
