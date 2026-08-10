@@ -29,6 +29,9 @@ export const DashboardOverviewPage: React.FC = () => {
           <Button asChild variant="outline" size="sm">
             <Link to="/dashboard/metrics">Metrics Detail</Link>
           </Button>
+          <Button asChild variant="default" size="sm">
+            <Link to="/dashboard/ui-states">UI States & A6 Showcase</Link>
+          </Button>
         </div>
       </SlotInject>
 
