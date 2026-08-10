@@ -1,4 +1,5 @@
 export * from './api';
+export * from './auth';
 export { initDebugHelpers, type KinergyDebugGlobal } from './debug/debug-helper';
 export { cn } from './lib/utils';
 export { PlatformLogger, logger, type LogEntry, type LogLevel } from './logger/platform-logger';

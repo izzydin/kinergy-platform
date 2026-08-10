@@ -62,6 +62,24 @@ graph TD
 - **Request Cancellation**: Accepts `options.signal` (`AbortSignal`), normalizing `AbortError` into `RequestCanceledError`.
 - **Pluggable Interceptor Pipeline**: Supports registering `addRequestInterceptor` and `addResponseInterceptor` handlers.
 
+### Authentication Transport Architecture (`shared/auth`)
+
+Shared authentication transport infrastructure (`shared/auth/`) handles credential injection, silent Refresh Token Rotation (RTR), 401 interception, and session state events:
+
+- **In-Memory Token Store (`AuthTokenStore`)**:
+  - Access tokens are stored **exclusively in memory** (`let accessToken: string | null = null`) to eliminate XSS exfiltration risks.
+  - Access tokens are NEVER stored in `localStorage`, `sessionStorage`, or unencrypted cookies.
+  - Tokens are never logged to console, telemetry, or diagnostic dumps.
+  - Exposes `subscribe(listener)` emitting `login`, `logout`, and `unauthorized` session state events.
+- **Concurrency-Safe Refresh Engine (`AuthTransportManager`)**:
+  - Intercepts HTTP `401 Unauthorized` responses on `HttpClient`.
+  - Queues concurrent failing requests onto a **single shared refresh promise** (`acquireRefreshedToken()`), preventing refresh storms against `/api/v1/auth/refresh`.
+  - Retried requests carry `X-Retry-Attempt: 1` headers to enforce a strict single-attempt limit and prevent infinite retry loops.
+  - If silent refresh fails (401/403/network error), `clearSession()` is invoked, `unauthorized` event is emitted, and normalized `AuthenticationError` is thrown to transition the app to unauthenticated state.
+- **Zero-UI Transport Boundary**:
+  - Transport layer contains zero login screens, forms, user management logic, or JWT decoding.
+  - Feature components remain completely agnostic of authentication transport mechanics.
+
 ### Normalized Error Hierarchy Model
 
 All HTTP failures, validation errors, network drops, and cancellations are mapped via `normalizeApiError()` into typed `ApiError` subclasses matching NestJS `ApiExceptionFilter` contracts:

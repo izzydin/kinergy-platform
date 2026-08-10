@@ -1,4 +1,6 @@
 import { AppProvider, AppRouter, getAppConfig } from '@app/index';
+import { httpClient } from '@shared/api';
+import { setupAuthTransport } from '@shared/auth';
 import { initDebugHelpers } from '@shared/debug/debug-helper';
 import '@shared/styles/globals.css';
 import React from 'react';
@@ -9,16 +11,19 @@ async function bootstrap(): Promise<void> {
   // 1. Resolve typed application configuration
   getAppConfig();
 
-  // 2. Conditionally initialize Mock Service Worker (MSW) in development mode
+  // 2. Wire authentication transport onto shared HttpClient
+  setupAuthTransport(httpClient);
+
+  // 3. Conditionally initialize Mock Service Worker (MSW) in development mode
   await initMsw();
 
-  // 3. Attach window.__KINERGY_DEBUG__ helpers
+  // 4. Attach window.__KINERGY_DEBUG__ helpers
   initDebugHelpers();
 
-  // 4. Locate HTML DOM mounting node
+  // 5. Locate HTML DOM mounting node
   const rootElement = document.getElementById('root');
 
-  // 5. Mount Application Composition Root
+  // 6. Mount Application Composition Root
   if (rootElement) {
     ReactDOM.createRoot(rootElement).render(
       <React.StrictMode>
