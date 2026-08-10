@@ -112,6 +112,26 @@ Centralized user feedback and notification abstraction binding application state
   - Maps `ApiError` subclasses (`ValidationError`, `AuthenticationError`, `AuthorizationError`, `NotFoundError`, `RateLimitError`, `ServerError`) into user-friendly titles and descriptions.
   - Sanitizes raw server errors, ensuring stack traces, database details, and internal exceptions are NEVER exposed in UI toasts.
 
+### Error Boundary & Recovery Architecture (`shared/ui/error-boundary.tsx`)
+
+Production-ready React error boundary strategy catching uncaught rendering exceptions without unmounting the Application Shell:
+
+- **Boundary Hierarchy**:
+  - **Root-level Error Boundary (`RootErrorBoundaryProvider`)**: Top-level composition root boundary preventing application process unmount on unhandled crashes.
+  - **Module-level Error Boundary (`ErrorBoundary`)**: Layout slot / feature module boundary (`<ErrorBoundary name={module.title}>`) isolating feature rendering crashes to content regions while preserving Application Shell navigation.
+- **Smart Error Recovery**:
+  - Component Retry (`resetErrorBoundary()`): Resets local boundary state to attempt re-rendering children.
+  - Route Navigation (`Return to Dashboard`): Navigates user back to `/dashboard` without forcing blind hard page reloads.
+  - Hard Refresh: Secondary resort button on root-level boundary.
+- **Infrastructure Integrations**:
+  - **Logger**: Logs uncaught exceptions with `componentStack` and boundary metadata via `PlatformLogger`.
+  - **Notifications**: Triggers `notificationService.error()` to notify users of trapped rendering exceptions.
+  - **Design System UI**: Fallback views consume `@kinergy-platform/ui` (`Card`, `Alert`, `Button`) primitives.
+- **Boundary Governance & Non-Scope**:
+  - Traps ONLY uncaught React rendering crashes.
+  - Normal API errors, form validations, expected mutation failures, and 401 auth failures are handled by transport/query infrastructure and MUST NOT trigger error boundaries.
+  - Stack traces are rendered in collapsible developer diagnostics in development mode (`isDev`), and strictly hidden in production mode (`isProd`).
+
 ### Normalized Error Hierarchy Model
 
 All HTTP failures, validation errors, network drops, and cancellations are mapped via `normalizeApiError()` into typed `ApiError` subclasses matching NestJS `ApiExceptionFilter` contracts:

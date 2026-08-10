@@ -1,94 +1,132 @@
-import React, { Component, type ReactNode } from 'react';
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@kinergy-platform/ui';
 
-interface Props {
+import { getAppConfig } from '../config/app-config';
+import { notificationService } from './notification-provider';
+import { logger } from '../../shared/logger/platform-logger';
+import React, { Component, type ErrorInfo, type ReactNode } from 'react';
+
+export interface RootErrorBoundaryProps {
   children: ReactNode;
   fallback?: ReactNode | ((error: Error, reset: () => void) => ReactNode);
+  onReset?: () => void;
+  onError?: (error: Error, info: ErrorInfo) => void;
 }
 
-interface State {
+export interface RootErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
 }
 
-const DefaultRootErrorFallback: React.FC<{ error: Error | null; reset: () => void }> = ({
+/**
+ * Fullscreen System Critical Error Fallback Component
+ */
+export const DefaultRootErrorFallback: React.FC<{ error: Error | null; reset: () => void }> = ({
   error,
   reset,
 }) => {
+  const isDev = getAppConfig().isDev;
+
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-background p-6 text-foreground">
-      <div className="w-full max-w-md rounded-xl border border-destructive/30 bg-destructive/5 p-8 text-center shadow-lg">
-        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-          <svg
-            className="h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth="2"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-            />
-          </svg>
-        </div>
-        <h2 className="mb-2 font-bold text-2xl tracking-tight text-destructive">
-          System Critical Exception
-        </h2>
-        <p className="mb-6 text-muted-foreground text-sm">
-          An unexpected application-level exception occurred. The runtime boundary prevented the
-          application process from unmounting.
-        </p>
-
-        {error?.message && (
-          <div className="mb-6 max-h-24 overflow-y-auto rounded-md bg-background/80 p-3 font-mono text-xs text-muted-foreground">
-            {error.message}
+      <Card className="w-full max-w-lg border-destructive/40 bg-destructive/5 shadow-2xl">
+        <CardHeader className="text-center">
+          <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 font-bold text-destructive text-xl">
+            🚨
           </div>
-        )}
+          <CardTitle className="font-bold text-destructive text-xl">
+            System Critical Exception
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-center text-muted-foreground text-sm">
+            An unexpected application-level exception occurred. The runtime boundary prevented the
+            application process from unmounting.
+          </p>
 
-        <div className="flex items-center justify-center gap-3">
-          <button
-            type="button"
-            onClick={reset}
-            className="rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90"
+          {isDev && error && (
+            <details className="mt-3 rounded-md border border-border bg-background p-3 font-mono text-xs text-muted-foreground">
+              <summary className="cursor-pointer font-semibold text-foreground">
+                Developer Diagnostics ({error.name}: {error.message})
+              </summary>
+              <pre className="mt-2 overflow-x-auto text-[11px] leading-tight whitespace-pre-wrap">
+                {error.stack}
+              </pre>
+            </details>
+          )}
+
+          {!isDev && (
+            <Alert variant="destructive" className="border-destructive/30 bg-destructive/10">
+              <AlertTitle>Critical Application Failure</AlertTitle>
+              <AlertDescription>
+                A core system exception was caught. You may attempt to recover the session or return
+                to the main dashboard.
+              </AlertDescription>
+            </Alert>
+          )}
+        </CardContent>
+        <CardFooter className="flex justify-center gap-3">
+          <Button variant="default" size="sm" onClick={reset}>
+            Attempt Session Recovery
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              window.location.href = '/dashboard';
+            }}
           >
-            Try Reloading Component
-          </button>
-          <button
-            type="button"
-            onClick={() => window.location.reload()}
-            className="rounded-lg border border-border bg-background px-4 py-2 font-medium text-foreground text-sm transition-colors hover:bg-accent"
-          >
+            Return to Dashboard
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => window.location.reload()}>
             Hard Refresh
-          </button>
-        </div>
-      </div>
+          </Button>
+        </CardFooter>
+      </Card>
     </div>
   );
 };
 
-import { logger } from '@shared/logger/platform-logger';
-
-export class RootErrorBoundaryProvider extends Component<Props, State> {
+export class RootErrorBoundaryProvider extends Component<
+  RootErrorBoundaryProps,
+  RootErrorBoundaryState
+> {
   private readonly log = logger.withContext('RootErrorBoundary');
 
-  public override state: State = {
+  public override state: RootErrorBoundaryState = {
     hasError: false,
     error: null,
   };
 
-  public static getDerivedStateFromError(error: Error): State {
+  public static getDerivedStateFromError(error: Error): RootErrorBoundaryState {
     return { hasError: true, error };
   }
 
-  public override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    // Diagnostic logging via PlatformLogger
+  public override componentDidCatch(error: Error, errorInfo: ErrorInfo): void {
     this.log.error('Uncaught Application Exception', error, {
       componentStack: errorInfo.componentStack,
     });
+
+    try {
+      notificationService.error('System Critical Exception trapped by Root Error Boundary.');
+    } catch {
+      // Ignore notification failures during root boundary recovery
+    }
+
+    this.props.onError?.(error, errorInfo);
   }
 
   public resetErrorBoundary = (): void => {
+    this.props.onReset?.();
     this.setState({ hasError: false, error: null });
   };
 

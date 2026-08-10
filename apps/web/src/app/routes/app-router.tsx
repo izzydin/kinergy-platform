@@ -109,6 +109,8 @@ const AnalyticsSubRouter: React.FC = () => (
   </Routes>
 );
 
+import { ErrorBoundary } from '../../shared/ui/error-boundary';
+
 // Register Infrastructure Module Route Contracts
 moduleRegistry.register({
   id: 'auth',
@@ -170,9 +172,11 @@ export const AppRouter: React.FC = () => {
                   key={module.id}
                   path={pathPattern}
                   element={
-                    <LazyView fallbackLabel={`Loading ${module.title}...`}>
-                      <ModuleComponent />
-                    </LazyView>
+                    <ErrorBoundary name={module.title}>
+                      <LazyView fallbackLabel={`Loading ${module.title}...`}>
+                        <ModuleComponent />
+                      </LazyView>
+                    </ErrorBoundary>
                   }
                 />
               );
@@ -196,9 +200,11 @@ export const AppRouter: React.FC = () => {
                   path={pathPattern}
                   element={
                     <ProtectedRoute requiredPermissions={module.requiredPermissions}>
-                      <LazyView fallbackLabel={`Loading ${module.title}...`}>
-                        <ModuleComponent />
-                      </LazyView>
+                      <ErrorBoundary name={module.title}>
+                        <LazyView fallbackLabel={`Loading ${module.title}...`}>
+                          <ModuleComponent />
+                        </LazyView>
+                      </ErrorBoundary>
                     </ProtectedRoute>
                   }
                 />
