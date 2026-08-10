@@ -98,6 +98,20 @@ Structured, environment-aware logging abstraction (`shared/logger/platform-logge
 - **Usage Governance**:
   - Direct `console.log`, `console.warn`, or `console.error` calls in production application code are strictly prohibited in favor of `logger` or `logger.withContext('ModuleName')`.
 
+### Notification Infrastructure Architecture (`app/providers/notification-provider.tsx`)
+
+Centralized user feedback and notification abstraction binding application state to Design System UI primitives:
+
+- **Public API Boundary**:
+  - React hook: `useNotification()` exposing `success()`, `error()`, `warning()`, `info()`, `dismiss()`, `clearAll()`.
+  - Imperative service: `notificationService` / `notify` allowing infrastructure modules (e.g. mutation handlers or transport interceptors) to trigger notifications outside React component render trees.
+- **Design System Toast Integration**:
+  - Consumes presentational primitives (`Toast`, `ToastViewport`, `ToastTitle`, `ToastDescription`, `ToastClose`) directly from `@kinergy-platform/ui`.
+  - Feature modules and infrastructure remain completely decoupled from Toast UI implementation details.
+- **Normalized Error Message Sanitization (`formatNotificationError`)**:
+  - Maps `ApiError` subclasses (`ValidationError`, `AuthenticationError`, `AuthorizationError`, `NotFoundError`, `RateLimitError`, `ServerError`) into user-friendly titles and descriptions.
+  - Sanitizes raw server errors, ensuring stack traces, database details, and internal exceptions are NEVER exposed in UI toasts.
+
 ### Normalized Error Hierarchy Model
 
 All HTTP failures, validation errors, network drops, and cancellations are mapped via `normalizeApiError()` into typed `ApiError` subclasses matching NestJS `ApiExceptionFilter` contracts:
