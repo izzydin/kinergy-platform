@@ -21,6 +21,8 @@ export interface AuthTransportConfig {
  * - Session clearance: If silent refresh fails, in-memory tokens are cleared and `unauthorized` event is emitted.
  * - Framework agnostic: Pure TypeScript transport infrastructure.
  */
+import { getAppConfig } from '../../app/config/app-config';
+
 export class AuthTransportManager {
   private isRefreshing = false;
   private refreshPromise: Promise<string | null> | null = null;
@@ -28,7 +30,8 @@ export class AuthTransportManager {
   private readonly tokenStore: AuthTokenStore;
 
   constructor(config?: AuthTransportConfig) {
-    this.refreshEndpoint = config?.refreshEndpoint ?? '/api/v1/auth/refresh';
+    const baseUrl = getAppConfig().apiBaseUrl.replace(/\/+$/, '');
+    this.refreshEndpoint = config?.refreshEndpoint ?? `${baseUrl}/auth/refresh`;
     this.tokenStore = config?.tokenStore ?? authTokenStore;
   }
 

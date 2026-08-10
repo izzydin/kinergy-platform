@@ -105,7 +105,7 @@ describe('Step A6.8 — Shared Infrastructure Integration Suite', () => {
             <SlotProvider>
               <NotificationProvider>
                 <MemoryRouter initialEntries={['/dashboard/ui-states']}>
-                  <AuthProvider>
+                  <AuthProvider skipBootstrap>
                     <FeatureFlagProvider>
                       <NavigationProvider>
                         <BreadcrumbProvider>{ui}</BreadcrumbProvider>

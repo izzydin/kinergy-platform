@@ -1,5 +1,6 @@
 import { delay, http, HttpResponse, type RequestHandler } from 'msw';
 
+import { authHandlers } from '../../modules/auth/mocks/auth-handlers';
 import { dashboardHandlers } from '../../modules/dashboard/mocks/dashboard-handlers';
 import { settingsHandlers } from '../../modules/settings/mocks/settings-handlers';
 
@@ -55,7 +56,11 @@ export const infrastructureHandlers: RequestHandler[] = [
  * When future modules (Clients, Scheduling, Sales) are added, only this file
  * changes — no test setup or browser worker configuration requires modification.
  */
-const featureHandlers: RequestHandler[] = [...dashboardHandlers, ...settingsHandlers];
+const featureHandlers: RequestHandler[] = [
+  ...authHandlers,
+  ...dashboardHandlers,
+  ...settingsHandlers,
+];
 
 const dynamicHandlers: RequestHandler[] = [];
 

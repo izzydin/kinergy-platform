@@ -279,7 +279,24 @@ stateDiagram-v2
 
 ---
 
-## 10. Architectural Decision Records (ADR) Index
+## 10. Authentication Lifecycle & Session Recovery Architecture
+
+The frontend authentication system enforces a strict boundary between **Shared Transport Infrastructure** (`shared/auth/`) and **Authentication Feature Domain** (`modules/auth/`).
+
+### Canonical State Model (`AuthStatus`)
+
+Authentication state is governed by an explicit state machine:
+
+- **`BOOTSTRAPPING`**: Startup state while executing silent refresh (`POST /api/v1/auth/refresh`) and fetching current user profile (`GET /api/v1/auth/me`). Protected routes render a loading fallback without prematurely redirecting to `/auth/login`.
+- **`AUTHENTICATED`**: Valid access token in memory (`authTokenStore`), current user session loaded (`UserSession`). Protected routes grant access according to permissions.
+- **`UNAUTHENTICATED`**: Session invalidated or logged out. Memory credentials cleared. Protected routes redirect to `/auth/login?redirect=...`.
+- **`AUTHENTICATION_ERROR`**: Temporary network failure during session recovery. Renders a connection recovery screen with manual retry option (`retryBootstrap()`).
+
+For detailed architectural governance, see [ADR 0041: Frontend Authentication Bootstrap & Session Recovery Architecture](../adr/0041-frontend-authentication-bootstrap-and-session-recovery.md).
+
+---
+
+## 11. Architectural Decision Records (ADR) Index
 
 The following core architectural decisions govern the frontend platform:
 
