@@ -47,32 +47,18 @@ const bookmarkResponseSchema = z.object({
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// API Base URL
+import { httpClient } from '../../../shared/api';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// API Endpoint Path Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE_URL = '/api/v1/dashboard';
-
-/**
- * Shared fetch wrapper that throws a structured error on non-OK responses.
- * In production this would be replaced by the shared HttpClient (ADR-FE-0017).
- */
-async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    ...init,
-  });
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    const err = new Error(
-      (body as { message?: string }).message ?? `HTTP ${response.status} — ${url}`,
-    ) as Error & { statusCode: number };
-    err.statusCode = response.status;
-    throw err;
-  }
-
-  return response.json() as Promise<T>;
-}
+const ENDPOINTS = {
+  metrics: '/dashboard/metrics',
+  status: '/dashboard/status',
+  activities: '/dashboard/activities',
+  bookmark: (id: string) => `/dashboard/activities/${id}/bookmark`,
+} as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure Fetch Functions (transport layer)
@@ -83,7 +69,7 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
  * MSW handler: GET /api/v1/dashboard/metrics
  */
 export async function fetchDashboardMetrics(): Promise<readonly DashboardMetricItem[]> {
-  const raw = await apiFetch<unknown>(`${BASE_URL}/metrics`);
+  const raw = await httpClient.get<unknown>(ENDPOINTS.metrics);
   const parsed = metricsResponseSchema.parse(raw);
   return parsed.items;
 }
@@ -93,7 +79,7 @@ export async function fetchDashboardMetrics(): Promise<readonly DashboardMetricI
  * MSW handler: GET /api/v1/dashboard/status
  */
 export async function fetchDashboardStatus(): Promise<DashboardStatusSummary> {
-  const raw = await apiFetch<unknown>(`${BASE_URL}/status`);
+  const raw = await httpClient.get<unknown>(ENDPOINTS.status);
   return statusResponseSchema.parse(raw);
 }
 
@@ -102,7 +88,7 @@ export async function fetchDashboardStatus(): Promise<DashboardStatusSummary> {
  * MSW handler: GET /api/v1/dashboard/activities
  */
 export async function fetchDashboardActivities(): Promise<readonly DashboardActivity[]> {
-  const raw = await apiFetch<unknown>(`${BASE_URL}/activities`);
+  const raw = await httpClient.get<unknown>(ENDPOINTS.activities);
   const parsed = activitiesResponseSchema.parse(raw);
   return parsed.items;
 }
@@ -115,9 +101,6 @@ export async function toggleActivityBookmark(
   id: string,
   bookmarked: boolean,
 ): Promise<{ id: string; bookmarked: boolean }> {
-  const raw = await apiFetch<unknown>(`${BASE_URL}/activities/${id}/bookmark`, {
-    method: 'POST',
-    body: JSON.stringify({ bookmarked }),
-  });
+  const raw = await httpClient.post<unknown>(ENDPOINTS.bookmark(id), { bookmarked });
   return bookmarkResponseSchema.parse(raw);
 }

@@ -12,4 +12,14 @@ export {
   RequestCanceledError,
   normalizeApiError,
   normalizeQueryError,
-} from '../api/api-error';
+} from './api-error';
+
+export {
+  HttpClient,
+  httpClient,
+  type AuthTokenGetter,
+  type TenantIdGetter,
+  type RequestOptions,
+  type RequestInterceptor,
+  type ResponseInterceptor,
+} from './http-client';

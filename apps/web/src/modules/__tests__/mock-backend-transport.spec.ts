@@ -37,18 +37,22 @@ import { fetchUserProfile, updateUserProfile, changePassword } from '../settings
 // ─────────────────────────────────────────────────────────────────────────────
 
 function mockFetchSuccess(body: unknown, status = 200): jest.SpyInstance {
+  const textPayload = typeof body === 'string' ? body : JSON.stringify(body);
   return jest.spyOn(global, 'fetch').mockResolvedValue({
     ok: status >= 200 && status < 300,
     status,
+    text: () => Promise.resolve(textPayload),
     json: () => Promise.resolve(body),
   } as Response);
 }
 
 function mockFetchError(status: number, message: string): jest.SpyInstance {
+  const errorPayload = { message };
   return jest.spyOn(global, 'fetch').mockResolvedValue({
     ok: false,
     status,
-    json: () => Promise.resolve({ message }),
+    text: () => Promise.resolve(JSON.stringify(errorPayload)),
+    json: () => Promise.resolve(errorPayload),
   } as Response);
 }
 

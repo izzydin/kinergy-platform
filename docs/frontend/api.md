@@ -23,7 +23,7 @@ To maintain clean architecture, strict module boundaries, and high performance, 
 
 ## 2. API Transport Layer (`shared/api/http-client.ts`)
 
-All network requests flow through a unified HTTP client wrapper around native `fetch` / `axios`:
+All network requests flow through the standardized `HttpClient` class (`shared/api/http-client.ts`) wrapping native browser `fetch`:
 
 ```mermaid
 graph TD
@@ -33,9 +33,9 @@ graph TD
 
     subgraph Shared Transport Layer - shared/api/http-client.ts
         HTTP[HttpClient Abstraction]
-        AUTH_INT[Auth Interceptor<br/>Bearer Token Injection]
-        TENANT_INT[Tenant Interceptor<br/>X-Tenant-ID Header]
-        ERROR_MAP[Error Mapping Engine<br/>Converts HTTP 4xx/5xx to ApiError]
+        AUTH_INT[Auth Token Interceptor<br/>Bearer Token Injection]
+        TENANT_INT[Tenant Context Interceptor<br/>X-Tenant-ID Header]
+        ERROR_MAP[Error Normalization Engine<br/>normalizeApiError Engine]
         REFRESH[401 Refresh Token Engine<br/>RTR Token Rotation]
     end
 
@@ -54,10 +54,38 @@ graph TD
 
 ### Transport Responsibilities
 
-- **Base URL & Path Prefixing**: Reads API endpoint from environment configuration (`VITE_API_BASE_URL`, defaults to `/api/v1`).
-- **Authorization Header Injection**: Automatically attaches `Authorization: Bearer <accessToken>` from memory session context.
-- **Tenant Context Injection**: Automatically attaches `X-Tenant-ID: <tenantId>` header extracted from tenant routing parameters.
-- **Automatic Token Refresh (RTR)**: Intercepts `401 Unauthorized` responses, triggers silent refresh token rotation, and transparently retries failed requests.
+- **Base URL & Path Prefixing**: Resolves target endpoints relative to `getAppConfig().apiBaseUrl` (defaults to `/api/v1`).
+- **Typed HTTP Method Wrappers**: Exposes `get<T>`, `post<T>`, `put<T>`, `patch<T>`, and `delete<T>`.
+- **JSON Serialization & Deserialization**: Automatically sets `Content-Type: application/json` on request payloads, parses JSON responses, and handles `204 No Content` gracefully.
+- **Authorization Header Injection**: Pluggable `setAuthTokenGetter` automatically attaches `Authorization: Bearer <accessToken>` unless `skipAuth: true` is set.
+- **Tenant Context Injection**: Pluggable `setTenantIdGetter` automatically attaches `X-Tenant-ID: <tenantId>`.
+- **Request Cancellation**: Accepts `options.signal` (`AbortSignal`), normalizing `AbortError` into `RequestCanceledError`.
+- **Pluggable Interceptor Pipeline**: Supports registering `addRequestInterceptor` and `addResponseInterceptor` handlers.
+
+### Normalized Error Hierarchy Model
+
+All HTTP failures, validation errors, network drops, and cancellations are mapped via `normalizeApiError()` into typed `ApiError` subclasses matching NestJS `ApiExceptionFilter` contracts:
+
+| Error Subclass             | Status Code | Error Code (`code`)     | Recoverable | Description                                                                       |
+| :------------------------- | :---------- | :---------------------- | :---------- | :-------------------------------------------------------------------------------- |
+| **`ValidationError`**      | 400         | `VALIDATION_ERROR`      | `true`      | Validation failure; includes field-level `details: Record<string, string[]>` map. |
+| **`AuthenticationError`**  | 401         | `UNAUTHORIZED`          | `true`      | Unauthenticated session or expired token. Triggers RTR refresh flow.              |
+| **`AuthorizationError`**   | 403         | `FORBIDDEN`             | `false`     | Insufficient permissions for requested resource. Flow-terminating.                |
+| **`NotFoundError`**        | 404         | `NOT_FOUND`             | `false`     | Resource does not exist on backend server.                                        |
+| **`ConflictError`**        | 409         | `CONFLICT`              | `true`      | Resource state conflict (e.g. duplicate key or concurrency clash).                |
+| **`RateLimitError`**       | 429         | `RATE_LIMITED`          | `true`      | Request rate limit exceeded; includes optional `retryAfterSeconds`.               |
+| **`ServerError`**          | 500         | `INTERNAL_SERVER_ERROR` | `true`      | Unexpected server-side failure or malformed non-JSON HTML response.               |
+| **`NetworkError`**         | 0           | `NETWORK_ERROR`         | `true`      | Device offline, DNS resolution failure, or CORS network connection drop.          |
+| **`RequestCanceledError`** | 0           | `REQUEST_CANCELED`      | `true`      | Request explicitly canceled by component unmount or user via `AbortSignal`.       |
+
+### Usage Boundaries & Forbidden Patterns
+
+- **Usage Boundary**: Feature modules MUST access network endpoints exclusively through their co-located `api/` directory functions using `httpClient`.
+- **Forbidden Usage Patterns**:
+  1. **Direct `window.fetch` or `axios`**: Hand-rolled fetch calls outside `shared/api/http-client.ts` are strictly prohibited.
+  2. **React Coupling**: `HttpClient` MUST NOT import or depend on React hooks, Context, or component lifecycles.
+  3. **TanStack Query Coupling**: `HttpClient` MUST NOT depend on `@tanstack/react-query` or QueryClient instances.
+  4. **Domain Business Logic**: `HttpClient` is pure transport infrastructure and MUST NOT contain domain rules or business logic.
 
 ---
 

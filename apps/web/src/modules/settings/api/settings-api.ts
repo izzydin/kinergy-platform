@@ -27,29 +27,16 @@ export const changePasswordInputSchema = z.object({
 export type UpdateProfileInput = z.infer<typeof updateProfileInputSchema>;
 export type ChangePasswordInput = z.infer<typeof changePasswordInputSchema>;
 
+import { httpClient } from '../../../shared/api';
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Shared fetch wrapper
+// API Endpoint Path Constants
 // ─────────────────────────────────────────────────────────────────────────────
 
-const BASE_URL = '/api/v1/settings';
-
-async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, {
-    headers: { 'Content-Type': 'application/json', ...init?.headers },
-    ...init,
-  });
-
-  if (!response.ok) {
-    const body = await response.json().catch(() => ({}));
-    const err = new Error(
-      (body as { message?: string }).message ?? `HTTP ${response.status} — ${url}`,
-    ) as Error & { statusCode: number };
-    err.statusCode = response.status;
-    throw err;
-  }
-
-  return response.json() as Promise<T>;
-}
+const ENDPOINTS = {
+  profile: '/settings/profile',
+  changePassword: '/settings/security/change-password',
+} as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Pure Fetch Functions
@@ -60,7 +47,7 @@ async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
  * MSW handler: GET /api/v1/settings/profile
  */
 export async function fetchUserProfile(): Promise<UserProfileViewModel> {
-  const raw = await apiFetch<unknown>(`${BASE_URL}/profile`);
+  const raw = await httpClient.get<unknown>(ENDPOINTS.profile);
   return userProfileSchema.parse(raw);
 }
 
@@ -69,10 +56,7 @@ export async function fetchUserProfile(): Promise<UserProfileViewModel> {
  * MSW handler: PATCH /api/v1/settings/profile
  */
 export async function updateUserProfile(data: UpdateProfileInput): Promise<UserProfileViewModel> {
-  const raw = await apiFetch<unknown>(`${BASE_URL}/profile`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  });
+  const raw = await httpClient.patch<unknown>(ENDPOINTS.profile, data);
   return userProfileSchema.parse(raw);
 }
 
@@ -81,8 +65,5 @@ export async function updateUserProfile(data: UpdateProfileInput): Promise<UserP
  * MSW handler: POST /api/v1/settings/security/change-password
  */
 export async function changePassword(data: ChangePasswordInput): Promise<{ success: boolean }> {
-  return apiFetch<{ success: boolean }>(`${BASE_URL}/security/change-password`, {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
+  return httpClient.post<{ success: boolean }>(ENDPOINTS.changePassword, data);
 }
