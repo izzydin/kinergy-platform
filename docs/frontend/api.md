@@ -335,6 +335,23 @@ graph TD
 
 ---
 
+### [ADR-FE-0029] Shared Runtime Infrastructure & Standard Mutation Pipeline
+
+- **Decision**: Standardize all async mutations on `useStandardMutation` and centralize transport interceptors inside `HttpClient` and `AuthTokenStore`.
+- **Context**: Unifying HTTP transport headers, 401 RTR token refresh queues, error normalization, toast alerts, and optimistic updates prevents divergent feature implementations.
+- **Rationale**:
+  - **Single Transport Core**: `HttpClient` wraps native fetch with `Authorization` bearer token and `X-Tenant-ID` header injection.
+  - **Concurrency-Safe RTR**: Intercepts 401 responses and queues concurrent failing requests during single refresh token execution to `/api/v1/auth/refresh`.
+  - **Standard Mutation Pipeline**: `useStandardMutation` unifies error normalization (`normalizeQueryError`), toast notifications (`useNotification`), query cache invalidation (`queryClient.invalidateQueries`), and opt-in 3-phase optimistic updates (`executeOptimisticUpdate` / `rollbackOptimisticUpdate`).
+  - **Opt-In Optimistic Safety**: Optimistic updates are explicitly opt-in (`isOptimistic: true`), requiring safe predictability before mutating cache.
+- **Responsibilities**:
+  - `shared/api`: Owns `HttpClient` transport adapter and authentication transport support.
+  - `shared/query`: Owns `useStandardMutation` lifecycle pipeline and error normalizer.
+  - Feature Modules: Consume `useStandardMutation` and `HttpClient` without custom fetch or mutation boilerplate.
+- **Consequences**: Direct `fetch` calls and manual mutation handling in feature modules are superseded by `HttpClient` and `useStandardMutation`.
+
+---
+
 ## 10. Cross-References & Related Documentation
 
 - [Frontend Architecture Vision](./architecture.md)
