@@ -8,7 +8,7 @@ import { getAppConfig } from '../../app/config/app-config';
 export async function initMsw(): Promise<void> {
   const config = getAppConfig();
 
-  if (import.meta.env.DEV && config.enableMsw) {
+  if (config.isDev && config.enableMsw) {
     try {
       const { worker } = await import('./browser');
       await worker.start({

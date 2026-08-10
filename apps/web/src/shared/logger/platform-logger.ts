@@ -1,3 +1,5 @@
+import { getAppConfig } from '../../app/config/app-config';
+
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
 
 export interface LogEntry {
@@ -9,7 +11,9 @@ export interface LogEntry {
 }
 
 export class PlatformLogger {
-  private readonly isDev = import.meta.env.DEV;
+  private get isDev(): boolean {
+    return getAppConfig().isDev;
+  }
 
   constructor(private readonly context = 'App') {}
 

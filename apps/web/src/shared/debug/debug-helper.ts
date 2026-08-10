@@ -23,7 +23,7 @@ export function initDebugHelpers(queryClient?: QueryClient): void {
 
   const config = getAppConfig();
 
-  if (import.meta.env.DEV || config.env === 'development') {
+  if (config.isDev) {
     window.__KINERGY_DEBUG__ = {
       config,
       logger,
