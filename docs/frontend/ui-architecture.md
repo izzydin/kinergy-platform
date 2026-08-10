@@ -301,6 +301,55 @@ graph TD
 
 ---
 
+### [ADR-FE-0028] StateView as the Canonical 4-State Contract Implementation
+
+- **Decision**: Standardize all async data-driven feature components on the shared `<StateView />` primitive from `@kinergy-platform/ui` as the canonical implementation of the Mandatory 4-State UI Contract (see [ADR-FE-0023]).
+- **Context**: Without a shared primitive, each feature module independently reimplements identical loading/error/empty branching logic — creating duplicate code, inconsistent visual treatments, and missed edge cases (e.g., forgetting the empty state or error retry button).
+- **Rationale**:
+  - **Zero Duplication**: `StateView` centralizes all four state branches (Loading, Error, Empty, Populated) behind a declarative prop interface, eliminating per-component conditional boilerplate.
+  - **Consistent UX**: Error alerts, empty state illustrations, and skeleton placeholders share a single visual standard enforced by the design system.
+  - **Custom Skeleton Slot (`loadingFallback`)**: Feature components provide a `loadingFallback` node that matches their exact populated layout, preventing Cumulative Layout Shift (CLS) during data fetching.
+  - **State Priority Contract**: `StateView` enforces an explicit priority chain: `isLoading` → `isError` → `isEmpty` → populated. This prevents ambiguous multi-flag combinations.
+  - **Testable Contract**: Because `StateView` is a pure presentational primitive, all four branches can be unit-tested deterministically without network stubs or MSW.
+- **Implementation Pattern**:
+  ```tsx
+  // Canonical pattern — feature components consume StateView
+  export const FeatureDataSection: React.FC = () => {
+    const { data, isLoading, isError, error, refetch } = useFeatureQuery();
+
+    return (
+      <StateView
+        isLoading={isLoading}
+        loadingFallback={<FeatureDataSkeleton />} // layout-matching skeleton
+        isError={isError}
+        errorMessage={error?.message}
+        onRetry={() => void refetch()}
+        isEmpty={!data || data.length === 0}
+        emptyTitle="No Records Found"
+        emptyDescription="Start by creating your first entry."
+        emptyAction={<Button onClick={handleCreate}>Create First Record</Button>}
+      >
+        {/* Populated state rendered automatically when all guards pass */}
+        {data && <FeatureDataGrid items={data} />}
+      </StateView>
+    );
+  };
+  ```
+- **Simulation Pattern for Dev Panels & Tests**: Feature components accept an optional `simulationState` prop that overrides TanStack Query state flags, enabling deterministic dev panel control and test harness injection without network requests:
+  ```tsx
+  const effectiveLoading = simulationState === 'loading' || isLoading;
+  const effectiveError = simulationState === 'error' || isError;
+  const effectiveEmpty =
+    simulationState === 'empty' || (!effectiveLoading && !effectiveError && !data);
+  ```
+- **Responsibilities**:
+  - `packages/ui`: Owns and maintains `StateView` as a domain-agnostic primitive.
+  - Domain Feature Modules: Consume `StateView` with domain-specific `loadingFallback`, `emptyAction`, and `errorMessage` props.
+- **Consequences**: Feature components that hand-roll their own loading/error/empty conditionals are non-compliant and must be refactored to use `StateView`.
+- **Validated By**: Milestone A5.6 — UI State Validation (`ui-state-validation.spec.tsx`) provides the exhaustive test suite verifying all four states for every async validation screen.
+
+---
+
 ## 8. Cross-References & Related Documentation
 
 - [Frontend Design System Specification & Usage Guide](./design-system.md)
