@@ -213,7 +213,19 @@ export class HttpClient {
       fullUrl = path;
     } else {
       const baseUrl = this.baseUrlResolver().replace(/\/+$/, '');
-      const cleanPath = path.startsWith('/') ? path : `/${path}`;
+      let cleanPath = path.startsWith('/') ? path : `/${path}`;
+
+      // Deduplicate base URL path prefix if caller passes redundant path prefix (e.g. /api/v1/test when baseUrl has /api/v1)
+      try {
+        const urlObj = new URL(baseUrl.startsWith('/') ? `http://localhost${baseUrl}` : baseUrl);
+        const basePath = urlObj.pathname.replace(/\/+$/, '');
+        if (basePath && basePath !== '/' && cleanPath.startsWith(basePath)) {
+          cleanPath = cleanPath.slice(basePath.length);
+        }
+      } catch {
+        // Fallback for non-standard base URL strings
+      }
+
       fullUrl = `${baseUrl}${cleanPath}`;
     }
 
