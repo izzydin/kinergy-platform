@@ -20,16 +20,22 @@ export interface ModuleRouteDefinition {
   readonly component: React.ComponentType;
 }
 
+import { logger } from '../../shared/logger/platform-logger';
+
 class ModuleRouteRegistry {
   private readonly modules = new Map<string, ModuleRouteDefinition>();
+  private readonly log = logger.withContext('ModuleRouteRegistry');
 
   /**
    * Registers a feature module's routing contract with the central router shell.
    */
   public register(definition: ModuleRouteDefinition): void {
     if (this.modules.has(definition.id)) {
-      console.warn(
-        `[ModuleRouteRegistry] Duplicate module registration warning: ${definition.id}. Overwriting existing route definition.`,
+      this.log.warn(
+        'Duplicate module registration warning. Overwriting existing route definition.',
+        {
+          moduleId: definition.id,
+        },
       );
     }
     this.modules.set(definition.id, definition);

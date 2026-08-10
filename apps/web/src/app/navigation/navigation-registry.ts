@@ -7,9 +7,12 @@ import type { NavigationItem } from './navigation.types';
  * Centralized registry allowing future feature modules (`src/modules/*`) to register
  * navigation entries dynamically through their public API without hardcoding items in UI components.
  */
+import { logger } from '../../shared/logger/platform-logger';
+
 class NavigationRegistry {
   private readonly items = new Map<string, NavigationItem>();
   private readonly listeners = new Set<() => void>();
+  private readonly log = logger.withContext('NavigationRegistry');
 
   constructor() {
     // Pre-populate with baseline configuration items
@@ -31,7 +34,7 @@ class NavigationRegistry {
       try {
         listener();
       } catch (err) {
-        console.error('[NavigationRegistry] Error in subscriber listener:', err);
+        this.log.error('Error in subscriber listener', err);
       }
     });
   }
@@ -41,8 +44,11 @@ class NavigationRegistry {
    */
   public register(item: NavigationItem): void {
     if (this.items.has(item.id)) {
-      console.warn(
-        `[NavigationRegistry] Duplicate navigation item ID warning: '${item.id}'. Overwriting existing navigation definition.`,
+      this.log.warn(
+        'Duplicate navigation item ID warning. Overwriting existing navigation definition.',
+        {
+          itemId: item.id,
+        },
       );
     }
     this.items.set(item.id, item);

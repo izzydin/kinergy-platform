@@ -67,7 +67,11 @@ const DefaultRootErrorFallback: React.FC<{ error: Error | null; reset: () => voi
   );
 };
 
+import { logger } from '@shared/logger/platform-logger';
+
 export class RootErrorBoundaryProvider extends Component<Props, State> {
+  private readonly log = logger.withContext('RootErrorBoundary');
+
   public override state: State = {
     hasError: false,
     error: null,
@@ -78,8 +82,10 @@ export class RootErrorBoundaryProvider extends Component<Props, State> {
   }
 
   public override componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    // Telemetry diagnostic logging
-    console.error('[RootErrorBoundary] Uncaught Application Exception:', error, errorInfo);
+    // Diagnostic logging via PlatformLogger
+    this.log.error('Uncaught Application Exception', error, {
+      componentStack: errorInfo.componentStack,
+    });
   }
 
   public resetErrorBoundary = (): void => {

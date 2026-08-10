@@ -80,6 +80,24 @@ Shared authentication transport infrastructure (`shared/auth/`) handles credenti
   - Transport layer contains zero login screens, forms, user management logic, or JWT decoding.
   - Feature components remain completely agnostic of authentication transport mechanics.
 
+### Logger Infrastructure Architecture (`shared/logger`)
+
+Structured, environment-aware logging abstraction (`shared/logger/platform-logger.ts`) for frontend infrastructure and feature modules:
+
+- **Log Levels & Environment Thresholds**:
+  - Supports `debug`, `info`, `warn`, and `error` log levels with priority hierarchy.
+  - Automatically configures minimum thresholds based on runtime environment (`isDev`: `debug`, `isProd`: `info`, `isTest`: `warn`).
+  - Supports global threshold override via `PlatformLogger.setMinLevel('silent' | 'debug' | 'info' | 'warn' | 'error')`.
+- **Sensitive Data Protection & Redaction**:
+  - Automatically redacts sensitive metadata fields (`password`, `token`, `authorization`, `secret`, `bearer`, `credential`, `jwt`, `api_key`, `ssn`) with `'[REDACTED]'`.
+  - Redacts inline Bearer tokens in string values (`Bearer [REDACTED]`).
+  - Sanitizes nested metadata objects recursively.
+- **Pluggable Log Sink Architecture (`LogSink`)**:
+  - `ConsoleSink` formats human-readable timestamps in development and outputs structured JSON lines in production.
+  - Exposes `PlatformLogger.addSink(sink)` and `setSinks()` allowing seamless integration of production telemetry or error reporting providers (e.g. Sentry/Datadog) without modifying feature code.
+- **Usage Governance**:
+  - Direct `console.log`, `console.warn`, or `console.error` calls in production application code are strictly prohibited in favor of `logger` or `logger.withContext('ModuleName')`.
+
 ### Normalized Error Hierarchy Model
 
 All HTTP failures, validation errors, network drops, and cancellations are mapped via `normalizeApiError()` into typed `ApiError` subclasses matching NestJS `ApiExceptionFilter` contracts:
