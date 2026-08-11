@@ -12,7 +12,9 @@
 export { loginSchema } from './domain/login.schema';
 export type { LoginCredentialsInput } from './domain/login.schema';
 export type {
+  CurrentUser,
   LoginCredentials,
+  LoginRequest,
   LoginResponse,
   LoginResult,
   LoginState,
@@ -20,7 +22,7 @@ export type {
 
 // 2. Export API Fetchers & Mutation Hooks
 export { executeLogin } from './api/login-api';
-export { useLoginMutation, sanitizeRedirectPath } from './api/use-login-mutation';
+export { sanitizeRedirectPath, useLoginMutation } from './api/use-login-mutation';
 export type { UseLoginMutationReturn } from './api/use-login-mutation';
 
 // 3. Export Feature Route Components & Contracts
