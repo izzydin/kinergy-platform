@@ -73,12 +73,41 @@ export function useAuthState(
     setState({ status: 'BOOTSTRAPPING', session: null, error: null });
 
     try {
-      // Step A: Attempt silent refresh via HttpOnly refresh cookie
+      // ─── Step A: Silent Refresh via HttpOnly Refresh Cookie ────────────────────
+      //
+      // Uses `performSilentRefresh()` (httpClient-based) rather than
+      // `AuthTransportManager.acquireRefreshedToken()` intentionally.
+      //
+      // Architecture rationale (ADR-FE-0031 — Bootstrap/Runtime Refresh Separation):
+      //
+      //  1. ERROR DISCRIMINATION: `performSilentRefresh()` goes through httpClient,
+      //     which normalizes HTTP responses into typed ApiError instances:
+      //       - 401/403 → AuthenticationError  (credential rejection)
+      //       - 5xx     → ServerError          (transient infrastructure failure)
+      //       - network → NetworkError         (connectivity failure)
+      //
+      //     `AuthTransportManager.acquireRefreshedToken()` wraps ALL failures
+      //     as AuthenticationError, which would incorrectly treat network failures
+      //     as session revocations and force the user to log in during an outage.
+      //
+      //  2. LIFECYCLE SEPARATION: Bootstrap is a one-time controlled startup event
+      //     guarded by the BOOTSTRAPPING state check in useEffect (runs exactly once).
+      //     `AuthTransportManager` owns runtime 401 interception and single-flight
+      //     coordination for concurrent mid-flight requests (see auth-transport.ts).
+      //     These are complementary, not competing, refresh mechanisms.
+      //
+      //  3. SINGLE-FLIGHT BOOTSTRAP: The BOOTSTRAPPING state guard in useEffect ensures
+      //     the bootstrap never runs more than once per AuthProvider mount. If bootstrap
+      //     overlaps with a runtime 401 (theoretical — protected routes don't render
+      //     during BOOTSTRAPPING), the runtime interceptor handles that independently.
       const refreshRes = await performSilentRefresh();
       authTokenStore.setAccessToken(refreshRes.accessToken);
       log.info('Silent refresh succeeded. Access token updated in memory.');
 
-      // Step B: Fetch current authenticated user session profile
+      // ─── Step B: Fetch Current Authenticated User Profile ─────────────────────
+      //
+      // The backend is the sole source of truth for user identity and permissions.
+      // JWT claims are never decoded in React components to construct the user.
       const userProfile = await fetchCurrentUser();
       log.info('Current user profile loaded successfully.', { userId: userProfile.id });
 
@@ -95,6 +124,19 @@ export function useAuthState(
         message: apiErr.message,
       });
 
+      // ─── Bootstrap Error Handling Strategy (ADR-FE-0031) ──────────────────────
+      //
+      // FAIL-CLOSED for credential rejections (401 / 403 / AuthenticationError):
+      //   The refresh token is definitively invalid, expired, or revoked — or the
+      //   user account is suspended. No retry will succeed without fresh credentials.
+      //   → Clear session, set UNAUTHENTICATED. User must authenticate again.
+      //
+      // FAIL-OPEN for transient failures (5xx / NetworkError / StatusCode > 403):
+      //   A server error or connectivity loss does NOT mean the session is invalid.
+      //   The refresh token MAY still be valid when connectivity is restored.
+      //   Forcing UNAUTHENTICATED here would log users out during maintenance windows.
+      //   → Set AUTHENTICATION_ERROR. The retryBootstrap() action allows recovery
+      //     without requiring the user to enter credentials again.
       if (
         apiErr instanceof AuthenticationError ||
         apiErr.statusCode === 401 ||
