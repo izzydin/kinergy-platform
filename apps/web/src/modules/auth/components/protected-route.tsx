@@ -65,9 +65,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // 3. UNAUTHENTICATED: Redirect to login entry point
   if (status === 'UNAUTHENTICATED' || !currentUser) {
-    const redirectUrl = `${fallbackRedirectPath}?redirect=${encodeURIComponent(
-      location.pathname + location.search,
-    )}`;
+    const currentPath = location.pathname + location.search;
+    // Redirect loop prevention: Avoid self-referential redirect parameter when already on an auth path
+    const isAlreadyAuthRoute = location.pathname.startsWith('/auth');
+    const redirectUrl = isAlreadyAuthRoute
+      ? fallbackRedirectPath
+      : `${fallbackRedirectPath}?redirect=${encodeURIComponent(currentPath)}`;
     return <Navigate to={redirectUrl} replace />;
   }
 

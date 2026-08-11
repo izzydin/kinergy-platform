@@ -8,7 +8,12 @@ import React, { Suspense } from 'react';
  */
 export const SuspenseFallback: React.FC<{ label?: string }> = ({ label = 'Loading View...' }) => {
   return (
-    <div className="flex min-h-[400px] flex-col items-center justify-center gap-4 p-8 text-center">
+    <div
+      role="status"
+      aria-live="polite"
+      aria-label={label}
+      className="flex min-h-[400px] w-full flex-col items-center justify-center gap-4 bg-background p-8 text-center text-foreground transition-colors"
+    >
       <div className="flex items-center justify-center gap-2">
         <div className="h-3 w-3 animate-bounce rounded-full bg-primary [animation-delay:-0.3s]" />
         <div className="h-3 w-3 animate-bounce rounded-full bg-primary [animation-delay:-0.15s]" />
