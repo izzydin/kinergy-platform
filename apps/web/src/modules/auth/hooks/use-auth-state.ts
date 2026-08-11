@@ -1,3 +1,4 @@
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
 import { ApiError, AuthenticationError, normalizeApiError } from '../../../shared/api/api-error';
 import { authTokenStore } from '../../../shared/auth/auth-token-store';
@@ -7,6 +8,15 @@ import type { AuthContextState, AuthState, AuthUser } from '../domain/auth-state
 import { DEFAULT_DEV_USER } from '../domain/auth-state.types';
 
 const log = logger.withContext('AuthStateMachine');
+
+/** Safely attempts to retrieve the QueryClient instance if available in context */
+function useOptionalQueryClient(): QueryClient | null {
+  try {
+    return useQueryClient();
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Maps an API `UserSession` payload to the application-level `AuthUser` model.
@@ -34,6 +44,8 @@ export function useAuthState(
   initialSessionOverride?: AuthUser | null,
   skipBootstrap?: boolean,
 ): AuthContextState {
+  const queryClient = useOptionalQueryClient();
+
   const [state, setState] = useState<AuthState>(() => {
     // 1. Explicit initial override (e.g. unit tests or pre-populated state)
     if (initialSessionOverride !== undefined) {
@@ -171,6 +183,26 @@ export function useAuthState(
     }
   }, [executeBootstrap, initialSessionOverride, skipBootstrap, state.status]);
 
+  // ─── AuthTokenStore Session Event Subscription ────────────────────────────
+  // Handles runtime 401 interception & session loss events emitted by transport layer.
+  useEffect(() => {
+    const unsubscribe = authTokenStore.subscribe((event) => {
+      if (event === 'unauthorized' || event === 'logout') {
+        log.info(`AuthTokenStore session event [${event}]. Evicting session & purging QueryCache.`);
+        if (queryClient) {
+          queryClient.clear();
+        }
+        setState({
+          status: 'UNAUTHENTICATED',
+          session: null,
+          error: null,
+        });
+      }
+    });
+
+    return unsubscribe;
+  }, [queryClient]);
+
   const login = useCallback(async (_credentials?: Record<string, unknown>): Promise<void> => {
     log.info('Executing Login Transition...');
     try {
@@ -200,13 +232,16 @@ export function useAuthState(
       });
     } finally {
       authTokenStore.clearSession();
+      if (queryClient) {
+        queryClient.clear();
+      }
       setState({
         status: 'UNAUTHENTICATED',
         session: null,
         error: null,
       });
     }
-  }, []);
+  }, [queryClient]);
 
   const retryBootstrap = useCallback(async (): Promise<void> => {
     await executeBootstrap();
