@@ -2,6 +2,7 @@ import { delay, http, HttpResponse, type RequestHandler } from 'msw';
 
 import { authHandlers } from '../../modules/auth/mocks/auth-handlers';
 import { dashboardHandlers } from '../../modules/dashboard/mocks/dashboard-handlers';
+import { loginHandlers } from '../../modules/identity/authentication/mocks/login-handlers';
 import { settingsHandlers } from '../../modules/settings/mocks/settings-handlers';
 
 /**
@@ -58,6 +59,7 @@ export const infrastructureHandlers: RequestHandler[] = [
  */
 const featureHandlers: RequestHandler[] = [
   ...authHandlers,
+  ...loginHandlers,
   ...dashboardHandlers,
   ...settingsHandlers,
 ];

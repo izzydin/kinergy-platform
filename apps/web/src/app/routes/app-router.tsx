@@ -17,20 +17,14 @@ import { moduleRegistry } from './module-registry';
 import { ProtectedRoute } from './protected-route';
 import { PublicRoute } from './public-route';
 
+import { LoginRoute } from '../../modules/identity/authentication';
+
 // ------------------------------------------------------------------------------
-// Placeholder Sub-Routers for Domain Modules (Infrastructure Only - No UI Features)
+// Sub-Routers for Domain Modules
 // ------------------------------------------------------------------------------
 const AuthSubRouter: React.FC = () => (
   <Routes>
-    <Route
-      path="login"
-      element={
-        <PlaceholderView
-          title="Login View Placeholder"
-          subtitle="Public Authentication Route Boundary (/auth/login)"
-        />
-      }
-    />
+    <Route path="login" element={<LoginRoute />} />
     <Route
       path="reset-password"
       element={
