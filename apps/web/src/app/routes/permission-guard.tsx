@@ -1,9 +1,9 @@
 import React from 'react';
-import type { UserSession } from './protected-route';
+import type { AuthUser } from '../../modules/auth/domain/auth-state.types';
 
 export interface HasPermissionProps {
   name: string;
-  session?: UserSession | null;
+  session?: AuthUser | null;
   children: React.ReactNode;
   fallback?: React.ReactNode;
 }
@@ -19,6 +19,7 @@ export const HasPermission: React.FC<HasPermissionProps> = ({
   session = {
     id: 'usr_dev_123',
     email: 'operator@kinergy.io',
+    name: 'Enterprise Operator',
     roles: ['OPERATOR'],
     permissions: ['client:read', 'energy:read', 'analytics:read'],
   },

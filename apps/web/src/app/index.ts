@@ -28,6 +28,7 @@ export {
   type AppProviderProps,
   AuthProvider,
   type AuthContextState,
+  type AuthUser,
   composeProviders,
   FeatureFlagProvider,
   type FeatureFlagContextState,
@@ -51,7 +52,6 @@ export {
   useTheme,
   useToast,
   useTranslation,
-  type UserSession,
 } from './providers';
 export {
   AppRouter,

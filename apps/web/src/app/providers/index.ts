@@ -3,8 +3,8 @@ export {
   AuthProvider,
   type AuthContextState,
   type AuthProviderProps,
+  type AuthUser,
   useAuth,
-  type UserSession,
 } from './auth-provider';
 export { composeProviders, type ProviderComponent } from './compose-providers';
 export {

@@ -32,7 +32,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   fallbackRedirectPath = '/auth/login',
 }) => {
   const location = useLocation();
-  const { status, session, retryBootstrap, hasPermission, hasRole } = useAuth();
+  const { status, currentUser, retryBootstrap, hasPermission, hasRole } = useAuth();
 
   // 1. BOOTSTRAPPING: Wait for silent refresh & user profile recovery without redirecting
   if (status === 'BOOTSTRAPPING') {
@@ -64,7 +64,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // 3. UNAUTHENTICATED: Redirect to login entry point
-  if (status === 'UNAUTHENTICATED' || !session) {
+  if (status === 'UNAUTHENTICATED' || !currentUser) {
     const redirectUrl = `${fallbackRedirectPath}?redirect=${encodeURIComponent(
       location.pathname + location.search,
     )}`;

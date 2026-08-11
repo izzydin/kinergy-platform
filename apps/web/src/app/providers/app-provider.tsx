@@ -12,12 +12,12 @@ import { RootErrorBoundaryProvider } from './root-error-boundary-provider';
 import { RouterProvider } from './router-provider';
 import { ThemeProvider } from './theme-provider';
 
-import type { UserSession } from '../../modules/auth/domain/auth-state.types';
+import type { AuthUser } from '../../modules/auth/domain/auth-state.types';
 
 export interface AppProviderProps {
   children: React.ReactNode;
   queryClient?: QueryClient;
-  initialSessionOverride?: UserSession | null;
+  initialSessionOverride?: AuthUser | null;
   skipBootstrap?: boolean;
 }
 

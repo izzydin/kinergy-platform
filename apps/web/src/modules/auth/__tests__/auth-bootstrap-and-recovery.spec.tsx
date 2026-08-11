@@ -91,11 +91,11 @@ describe('Track B — Milestone B1.0: Auth Bootstrap & Session Recovery Suite', 
   describe('1. Authentication State Machine & Silent Refresh Bootstrap', () => {
     it('executes silent refresh on mount, stores memory token, and transitions to AUTHENTICATED', async () => {
       const TestConsumer: React.FC = () => {
-        const { status, session, isAuthenticated } = useAuth();
+        const { status, currentUser, isAuthenticated } = useAuth();
         return (
           <div>
             <span data-testid="auth-status">{status}</span>
-            <span data-testid="auth-user">{session?.name || 'none'}</span>
+            <span data-testid="auth-user">{currentUser?.name || 'none'}</span>
             <span data-testid="is-authenticated">{String(isAuthenticated)}</span>
           </div>
         );

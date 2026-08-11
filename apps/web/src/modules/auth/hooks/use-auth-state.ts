@@ -3,13 +3,35 @@ import { ApiError, AuthenticationError, normalizeApiError } from '../../../share
 import { authTokenStore } from '../../../shared/auth/auth-token-store';
 import { logger } from '../../../shared/logger/platform-logger';
 import { fetchCurrentUser, performLogout, performSilentRefresh } from '../api/auth-api';
-import type { AuthContextState, AuthState, UserSession } from '../domain/auth-state.types';
+import type { AuthContextState, AuthState, AuthUser } from '../domain/auth-state.types';
 import { DEFAULT_DEV_USER } from '../domain/auth-state.types';
 
 const log = logger.withContext('AuthStateMachine');
 
+/**
+ * Maps an API `UserSession` payload to the application-level `AuthUser` model.
+ * This is the sole mapping point between transport and domain context layers.
+ */
+function toAuthUser(session: {
+  id: string;
+  email: string;
+  name: string;
+  roles: readonly string[];
+  permissions: readonly string[];
+  tenantId?: string;
+}): AuthUser {
+  return {
+    id: session.id,
+    email: session.email,
+    name: session.name,
+    roles: session.roles,
+    permissions: session.permissions,
+    tenantId: session.tenantId,
+  };
+}
+
 export function useAuthState(
-  initialSessionOverride?: UserSession | null,
+  initialSessionOverride?: AuthUser | null,
   skipBootstrap?: boolean,
 ): AuthContextState {
   const [state, setState] = useState<AuthState>(() => {
@@ -62,7 +84,7 @@ export function useAuthState(
 
       setState({
         status: 'AUTHENTICATED',
-        session: userProfile,
+        session: toAuthUser(userProfile),
         error: null,
       });
     } catch (err) {
@@ -113,7 +135,7 @@ export function useAuthState(
       const userProfile = await fetchCurrentUser();
       setState({
         status: 'AUTHENTICATED',
-        session: userProfile,
+        session: toAuthUser(userProfile),
         error: null,
       });
     } catch {
@@ -166,7 +188,7 @@ export function useAuthState(
 
   return {
     status: state.status,
-    session: state.session,
+    currentUser: state.session,
     isAuthenticated: state.status === 'AUTHENTICATED',
     isBootstrapping: state.status === 'BOOTSTRAPPING',
     isUnauthenticated: state.status === 'UNAUTHENTICATED',
