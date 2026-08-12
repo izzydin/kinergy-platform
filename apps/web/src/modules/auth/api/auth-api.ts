@@ -1,4 +1,6 @@
+import { AuthenticationError } from '../../../shared/api/api-error';
 import { httpClient } from '../../../shared/api/http-client';
+import { authTransport } from '../../../shared/auth/auth-transport';
 import type { UserSession } from '../domain/auth-state.types';
 
 export interface RefreshTokenResponse {
@@ -7,13 +9,15 @@ export interface RefreshTokenResponse {
 }
 
 /**
- * Executes silent refresh via HttpOnly refresh cookie.
- * Skips Authorization header to prevent sending stale tokens.
+ * Executes silent refresh via HttpOnly refresh cookie using AuthTransportManager.
+ * Shares the single-flight concurrency lock to prevent duplicate refresh requests.
  */
 export async function performSilentRefresh(): Promise<RefreshTokenResponse> {
-  return httpClient.post<RefreshTokenResponse>('/api/v1/auth/refresh', undefined, {
-    skipAuth: true,
-  });
+  const token = await authTransport.acquireRefreshedToken();
+  if (!token) {
+    throw new AuthenticationError('Silent refresh failed.');
+  }
+  return { accessToken: token };
 }
 
 /**

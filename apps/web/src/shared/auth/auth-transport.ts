@@ -1,6 +1,7 @@
-import { AuthenticationError } from '../api/api-error';
+import { ApiError, AuthenticationError, NetworkError, ServerError } from '../api/api-error';
 import { HttpClient, ResponseInterceptor } from '../api/http-client';
 import { AuthTokenStore, authTokenStore } from './auth-token-store';
+import { getAppConfig } from '../../app/config/app-config';
 
 export interface AuthTransportConfig {
   /** Target refresh token endpoint URL (defaults to /api/v1/auth/refresh) */
@@ -18,11 +19,10 @@ export interface AuthTransportConfig {
  * Security Architecture & Concurrency Rules (ADR 0018 / ADR 0019 / ADR 0029):
  * - Prevents refresh storms: Simultaneous 401 responses queue onto a single shared refresh promise.
  * - Single retry limit: Retried requests are tagged with `X-Retry-Attempt: 1` to prevent infinite retry loops.
- * - Session clearance: If silent refresh fails, in-memory tokens are cleared and `unauthorized` event is emitted.
+ * - Session clearance: If silent refresh fails with 401/403, in-memory tokens are cleared and `unauthorized` event is emitted.
+ * - Transient failure resilience: 5xx backend errors and network failures throw without destroying local authentication state.
  * - Framework agnostic: Pure TypeScript transport infrastructure.
  */
-import { getAppConfig } from '../../app/config/app-config';
-
 export class AuthTransportManager {
   private isRefreshing = false;
   private refreshPromise: Promise<string | null> | null = null;
@@ -58,21 +58,34 @@ export class AuthTransportManager {
         });
 
         if (!response.ok) {
+          if (response.status === 401 || response.status === 403) {
+            this.tokenStore.notifyUnauthorized();
+            throw new AuthenticationError('Session refresh failed.');
+          }
+          if (response.status >= 500) {
+            throw new ServerError('Authentication gateway failure.', response.status);
+          }
           throw new AuthenticationError('Session refresh failed.');
         }
 
         const data = (await response.json().catch(() => ({}))) as { accessToken?: string };
         if (!data.accessToken || typeof data.accessToken !== 'string') {
+          this.tokenStore.notifyUnauthorized();
           throw new AuthenticationError('Invalid refresh token response payload.');
         }
 
         this.tokenStore.setAccessToken(data.accessToken);
         return data.accessToken;
       } catch (error) {
-        this.tokenStore.notifyUnauthorized();
-        throw error instanceof AuthenticationError
-          ? error
-          : new AuthenticationError('Authentication refresh failed.');
+        if (error instanceof ApiError) {
+          if (error instanceof AuthenticationError) {
+            this.tokenStore.notifyUnauthorized();
+          }
+          throw error;
+        }
+        throw new NetworkError(
+          error instanceof Error ? error.message : 'Network failure during silent refresh.',
+        );
       } finally {
         this.isRefreshing = false;
         this.refreshPromise = null;
