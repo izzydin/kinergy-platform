@@ -17,7 +17,7 @@
 import '@testing-library/jest-dom';
 import React from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '../../providers/auth-provider';
 import { AppRouter } from '../app-router';
@@ -33,6 +33,7 @@ import { NotificationProvider } from '../../providers/notification-provider';
 import { BreadcrumbProvider } from '../../breadcrumbs/breadcrumb-provider';
 import { SlotProvider } from '../../../shared/ui/slots';
 import { AuthUser } from '../../../modules/auth/domain/auth-state.types';
+import { LoginRoute } from '../../../modules/identity/authentication';
 
 // ─── Test Infrastructure ─────────────────────────────────────────────────────
 
@@ -431,6 +432,83 @@ describe('Track B — Milestone B1.3: Protected Route & Auth Routing Integration
       // Authenticated user must NOT be redirected into /auth/reset-password; must sanitize to /dashboard
       expect(screen.getByText('Safe Dashboard Target')).toBeInTheDocument();
       expect(screen.queryByText('Reset Password Page')).not.toBeInTheDocument();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 8. Post-Login Return Location & Feature Boundary Navigation
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('8. Post-Login Return Location & Feature Boundary Navigation', () => {
+    it('executes end-to-end return location flow: /clients (unauthenticated) -> /auth/login?redirect=%2Fclients -> submit login -> /clients', async () => {
+      let isMockAuthenticated = false;
+
+      fetchSpy.mockImplementation((url) => {
+        const urlStr = extractUrl(url);
+        if (urlStr.includes('/api/v1/auth/refresh')) {
+          if (isMockAuthenticated) {
+            return Promise.resolve(
+              createMockResponse({ accessToken: 'mock-jwt-token-step-b1.4', expiresIn: 900 }, 200),
+            );
+          }
+          return Promise.resolve(createMockResponse({ message: 'No session' }, 401));
+        }
+        if (urlStr.includes('/api/v1/auth/login')) {
+          isMockAuthenticated = true;
+          return Promise.resolve(
+            createMockResponse({
+              accessToken: 'mock-jwt-token-step-b1.4',
+              tokenType: 'Bearer',
+              expiresIn: 900,
+              user: AUTHENTICATED_TEST_USER,
+            }),
+          );
+        }
+        if (urlStr.includes('/api/v1/auth/me')) {
+          return Promise.resolve(createMockResponse(AUTHENTICATED_TEST_USER, 200));
+        }
+        return Promise.resolve(createMockResponse({ status: 'ok' }, 200));
+      });
+
+      render(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <MemoryRouter initialEntries={['/clients']}>
+            <AuthProvider>
+              <Routes>
+                <Route element={<PublicRoute />}>
+                  <Route path="/auth/login" element={<LoginRoute />} />
+                </Route>
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/clients" element={<div>Protected Client Directory Target</div>} />
+                </Route>
+              </Routes>
+            </AuthProvider>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+
+      // 1. Initially unauthenticated -> Redirected to /auth/login with ?redirect=%2Fclients
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { level: 1, name: /sign in/i })).toBeInTheDocument();
+      });
+
+      const emailInput = screen.getByLabelText(/^email address/i);
+      const passwordInput = screen.getByLabelText(/^password/i);
+      const submitButton = screen.getByRole('button', { name: /sign in/i });
+
+      // 2. Submit valid login credentials
+      await act(async () => {
+        fireEvent.change(emailInput, { target: { value: 'operator@kinergy.io' } });
+        fireEvent.change(passwordInput, { target: { value: 'Password123!' } });
+        fireEvent.click(submitButton);
+      });
+
+      // 3. Authenticated -> Automatic post-login navigation to preserved return location /clients
+      await waitFor(() => {
+        expect(screen.getByText('Protected Client Directory Target')).toBeInTheDocument();
+      });
+
+      expect(screen.queryByRole('heading', { level: 1, name: /sign in/i })).not.toBeInTheDocument();
     });
   });
 });
