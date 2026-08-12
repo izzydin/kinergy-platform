@@ -1,5 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import type { FieldErrors, UseFormReturn } from 'react-hook-form';
 import { useForm } from 'react-hook-form';
 import {
@@ -12,6 +12,11 @@ import { useLoginMutation } from '../api/use-login-mutation';
 import { loginSchema } from '../domain/login.schema';
 import type { LoginRequest, LoginResult, LoginState } from '../domain/login.types';
 
+export interface UseLoginFormOptions {
+  /** Optional callback invoked upon successful authentication */
+  readonly onSuccess?: () => void;
+}
+
 export interface UseLoginFormReturn {
   readonly form: UseFormReturn<LoginRequest>;
   readonly errors: FieldErrors<LoginRequest>;
@@ -20,6 +25,7 @@ export interface UseLoginFormReturn {
   readonly isPending: boolean;
   readonly authError: string | null;
   readonly loginState: LoginState;
+  readonly result: LoginResult | null;
   readonly handleSubmit: (e?: React.BaseSyntheticEvent) => Promise<void>;
   readonly resetForm: () => void;
 }
@@ -65,9 +71,14 @@ export function mapAuthErrorMessage(error: unknown): string | null {
  * - Prevents duplicate form submissions while a request is in-flight (`isPending` / `isSubmitting`).
  * - Form-level error presentation decoupled from internal token mechanics.
  */
-export function useLoginForm(): UseLoginFormReturn {
+export function useLoginForm(options?: UseLoginFormOptions): UseLoginFormReturn {
   const mutation = useLoginMutation();
   const isSubmittingRef = useRef(false);
+  const onSuccessRef = useRef(options?.onSuccess);
+
+  useEffect(() => {
+    onSuccessRef.current = options?.onSuccess;
+  }, [options?.onSuccess]);
 
   const form = useForm<LoginRequest>({
     resolver: zodResolver(loginSchema),
@@ -105,7 +116,11 @@ export function useLoginForm(): UseLoginFormReturn {
 
       isSubmittingRef.current = true;
       try {
-        return await mutation.mutateAsync(values);
+        const res = await mutation.mutateAsync(values);
+        if (res.success && onSuccessRef.current) {
+          onSuccessRef.current();
+        }
+        return res;
       } finally {
         isSubmittingRef.current = false;
       }
@@ -137,6 +152,7 @@ export function useLoginForm(): UseLoginFormReturn {
     isPending,
     authError,
     loginState: mutation.loginState,
+    result: mutation.result,
     handleSubmit,
     resetForm,
   };

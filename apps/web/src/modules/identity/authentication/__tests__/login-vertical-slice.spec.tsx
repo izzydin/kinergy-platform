@@ -187,7 +187,7 @@ describe('Track B — Step B1.5: Login Vertical Slice Testing Suite', () => {
     });
 
     // Verify loading UI state during in-flight request
-    expect(screen.getByRole('button', { name: /signing in\.\.\./i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /sign in/i })).toBeDisabled();
     expect(emailInput).toBeDisabled();
     expect(passwordInput).toBeDisabled();
 

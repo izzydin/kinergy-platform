@@ -36,14 +36,11 @@ export interface LoginViewProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 export const LoginView = React.forwardRef<HTMLDivElement, LoginViewProps>(
   ({ className, onSuccess, ...props }, ref) => {
-    const { form, errors, isSubmitting, authError, handleSubmit } = useLoginForm();
+    const { form, errors, isSubmitting, authError, handleSubmit } = useLoginForm({ onSuccess });
 
     const onSubmitForm = async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       await handleSubmit(e);
-      if (onSuccess && !authError && !Object.keys(errors).length) {
-        onSuccess();
-      }
     };
 
     return (
@@ -62,53 +59,70 @@ export const LoginView = React.forwardRef<HTMLDivElement, LoginViewProps>(
         </CardHeader>
 
         <CardContent className="p-0">
-          {authError && (
-            <Alert variant="destructive" className="mb-6" role="alert" aria-live="assertive">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              <AlertTitle>Authentication Failed</AlertTitle>
-              <AlertDescription>{authError}</AlertDescription>
-            </Alert>
-          )}
-
           <form
-            onSubmit={onSubmitForm}
+            onSubmit={(e) => void onSubmitForm(e)}
+            className="space-y-4"
             noValidate
             aria-label="Sign in to your Kinergy account"
-            className="space-y-4"
           >
-            <FormField controlId="login-email" isInvalid={Boolean(errors.email)}>
-              <FormLabel required>Email Address</FormLabel>
+            {authError ? (
+              <Alert variant="destructive" className="animate-in fade-in-50 duration-200">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Authentication Failed</AlertTitle>
+                <AlertDescription>{authError}</AlertDescription>
+              </Alert>
+            ) : null}
+
+            <FormField>
+              <FormLabel htmlFor="login-email" required>
+                Email Address
+              </FormLabel>
               <FormControl>
                 <Input
+                  id="login-email"
                   type="email"
                   placeholder="name@company.com"
                   autoComplete="username"
                   disabled={isSubmitting}
+                  aria-invalid={Boolean(errors.email)}
+                  aria-describedby={errors.email ? 'login-email-error' : 'login-email-helper'}
                   {...form.register('email')}
                 />
               </FormControl>
-              <FormErrorMessage>{errors.email?.message}</FormErrorMessage>
+              {errors.email ? (
+                <FormErrorMessage id="login-email-error">{errors.email.message}</FormErrorMessage>
+              ) : null}
             </FormField>
 
-            <FormField controlId="login-password" isInvalid={Boolean(errors.password)}>
-              <FormLabel required>Password</FormLabel>
+            <FormField>
+              <FormLabel htmlFor="login-password" required>
+                Password
+              </FormLabel>
               <FormControl>
                 <PasswordInput
+                  id="login-password"
                   placeholder="••••••••"
                   autoComplete="current-password"
                   disabled={isSubmitting}
+                  aria-invalid={Boolean(errors.password)}
+                  aria-describedby={
+                    errors.password ? 'login-password-error' : 'login-password-helper'
+                  }
                   {...form.register('password')}
                 />
               </FormControl>
-              <FormErrorMessage>{errors.password?.message}</FormErrorMessage>
+              {errors.password ? (
+                <FormErrorMessage id="login-password-error">
+                  {errors.password.message}
+                </FormErrorMessage>
+              ) : null}
             </FormField>
 
             <Button
               type="submit"
+              className="mt-6 w-full shadow-md transition-all duration-150 active:scale-[0.99]"
               disabled={isSubmitting}
               isLoading={isSubmitting}
-              loadingText="Signing in..."
-              className="mt-6 w-full shadow-md transition-all duration-150 active:scale-[0.99]"
             >
               Sign In
             </Button>

@@ -39,8 +39,17 @@ export const authHandlers: RequestHandler[] = [
     return HttpResponse.json(DEFAULT_DEV_USER);
   }),
 
-  http.post('*/api/v1/auth/logout', async () => {
-    await delay(100);
+  http.post('*/api/v1/auth/logout', async ({ request }) => {
+    await delay(50);
+    const simState = request.headers.get('X-Sim-State');
+
+    if (simState === 'server-failure' || simState === 'network-failure') {
+      return HttpResponse.json(
+        { message: 'Logout failed due to server error', statusCode: 500 },
+        { status: 500 },
+      );
+    }
+
     return HttpResponse.json({ success: true });
   }),
 ];
