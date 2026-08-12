@@ -58,15 +58,21 @@ export const DEFAULT_DEV_USER: AuthUser = {
 };
 
 /**
- * Internal Authentication Domain State
+ * Internal Authentication Domain State Model
+ *
+ * Discriminated union guaranteeing type-level enforcement against impossible states:
+ * - BOOTSTRAPPING: session is null, error is null
+ * - AUTHENTICATED: session is non-null AuthUser, error is null
+ * - UNAUTHENTICATED: session is null, error is null
+ * - AUTHENTICATION_ERROR: session is null, error is non-null Error
  *
  * Private to the `useAuthState` hook. Never leaked through context.
  */
-export interface AuthState {
-  readonly status: AuthStatus;
-  readonly session: AuthUser | null;
-  readonly error: Error | null;
-}
+export type AuthState =
+  | { readonly status: 'BOOTSTRAPPING'; readonly session: null; readonly error: null }
+  | { readonly status: 'AUTHENTICATED'; readonly session: AuthUser; readonly error: null }
+  | { readonly status: 'UNAUTHENTICATED'; readonly session: null; readonly error: null }
+  | { readonly status: 'AUTHENTICATION_ERROR'; readonly session: null; readonly error: Error };
 
 /**
  * Public Authentication Context Contract

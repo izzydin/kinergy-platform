@@ -1,5 +1,5 @@
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ApiError, AuthenticationError, normalizeApiError } from '../../../shared/api/api-error';
 import { authTokenStore } from '../../../shared/auth/auth-token-store';
 import { logger } from '../../../shared/logger/platform-logger';
@@ -45,6 +45,14 @@ export function useAuthState(
   skipBootstrap?: boolean,
 ): AuthContextState {
   const queryClient = useOptionalQueryClient();
+  const isMountedRef = useRef(true);
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const [state, setState] = useState<AuthState>(() => {
     // 1. Explicit initial override (e.g. unit tests or pre-populated state)
@@ -80,50 +88,27 @@ export function useAuthState(
     };
   });
 
+  const safeSetState = useCallback((newState: AuthState) => {
+    if (isMountedRef.current) {
+      setState(newState);
+    }
+  }, []);
+
   const executeBootstrap = useCallback(async (): Promise<void> => {
     log.info('Executing Authentication Bootstrap & Silent Refresh...');
-    setState({ status: 'BOOTSTRAPPING', session: null, error: null });
+    safeSetState({ status: 'BOOTSTRAPPING', session: null, error: null });
 
     try {
       // ─── Step A: Silent Refresh via HttpOnly Refresh Cookie ────────────────────
-      //
-      // Uses `performSilentRefresh()` (httpClient-based) rather than
-      // `AuthTransportManager.acquireRefreshedToken()` intentionally.
-      //
-      // Architecture rationale (ADR-FE-0031 — Bootstrap/Runtime Refresh Separation):
-      //
-      //  1. ERROR DISCRIMINATION: `performSilentRefresh()` goes through httpClient,
-      //     which normalizes HTTP responses into typed ApiError instances:
-      //       - 401/403 → AuthenticationError  (credential rejection)
-      //       - 5xx     → ServerError          (transient infrastructure failure)
-      //       - network → NetworkError         (connectivity failure)
-      //
-      //     `AuthTransportManager.acquireRefreshedToken()` wraps ALL failures
-      //     as AuthenticationError, which would incorrectly treat network failures
-      //     as session revocations and force the user to log in during an outage.
-      //
-      //  2. LIFECYCLE SEPARATION: Bootstrap is a one-time controlled startup event
-      //     guarded by the BOOTSTRAPPING state check in useEffect (runs exactly once).
-      //     `AuthTransportManager` owns runtime 401 interception and single-flight
-      //     coordination for concurrent mid-flight requests (see auth-transport.ts).
-      //     These are complementary, not competing, refresh mechanisms.
-      //
-      //  3. SINGLE-FLIGHT BOOTSTRAP: The BOOTSTRAPPING state guard in useEffect ensures
-      //     the bootstrap never runs more than once per AuthProvider mount. If bootstrap
-      //     overlaps with a runtime 401 (theoretical — protected routes don't render
-      //     during BOOTSTRAPPING), the runtime interceptor handles that independently.
       const refreshRes = await performSilentRefresh();
       authTokenStore.setAccessToken(refreshRes.accessToken);
       log.info('Silent refresh succeeded. Access token updated in memory.');
 
       // ─── Step B: Fetch Current Authenticated User Profile ─────────────────────
-      //
-      // The backend is the sole source of truth for user identity and permissions.
-      // JWT claims are never decoded in React components to construct the user.
       const userProfile = await fetchCurrentUser();
       log.info('Current user profile loaded successfully.', { userId: userProfile.id });
 
-      setState({
+      safeSetState({
         status: 'AUTHENTICATED',
         session: toAuthUser(userProfile),
         error: null,
@@ -136,19 +121,6 @@ export function useAuthState(
         message: apiErr.message,
       });
 
-      // ─── Bootstrap Error Handling Strategy (ADR-FE-0031) ──────────────────────
-      //
-      // FAIL-CLOSED for credential rejections (401 / 403 / AuthenticationError):
-      //   The refresh token is definitively invalid, expired, or revoked — or the
-      //   user account is suspended. No retry will succeed without fresh credentials.
-      //   → Clear session, set UNAUTHENTICATED. User must authenticate again.
-      //
-      // FAIL-OPEN for transient failures (5xx / NetworkError / StatusCode > 403):
-      //   A server error or connectivity loss does NOT mean the session is invalid.
-      //   The refresh token MAY still be valid when connectivity is restored.
-      //   Forcing UNAUTHENTICATED here would log users out during maintenance windows.
-      //   → Set AUTHENTICATION_ERROR. The retryBootstrap() action allows recovery
-      //     without requiring the user to enter credentials again.
       if (
         apiErr instanceof AuthenticationError ||
         apiErr.statusCode === 401 ||
@@ -156,21 +128,21 @@ export function useAuthState(
       ) {
         // Credential revocation or expired refresh token -> transition to UNAUTHENTICATED
         authTokenStore.clearSession();
-        setState({
+        safeSetState({
           status: 'UNAUTHENTICATED',
           session: null,
           error: null,
         });
       } else {
         // Temporary network or server gateway error -> transition to AUTHENTICATION_ERROR
-        setState({
+        safeSetState({
           status: 'AUTHENTICATION_ERROR',
           session: null,
           error: apiErr,
         });
       }
     }
-  }, []);
+  }, [safeSetState]);
 
   // Run silent refresh bootstrap on component mount if in BOOTSTRAPPING state
   useEffect(() => {
@@ -192,7 +164,7 @@ export function useAuthState(
         if (queryClient) {
           queryClient.clear();
         }
-        setState({
+        safeSetState({
           status: 'UNAUTHENTICATED',
           session: null,
           error: null,
@@ -201,26 +173,46 @@ export function useAuthState(
     });
 
     return unsubscribe;
-  }, [queryClient]);
+  }, [queryClient, safeSetState]);
 
-  const login = useCallback(async (_credentials?: Record<string, unknown>): Promise<void> => {
-    log.info('Executing Login Transition...');
-    try {
-      const userProfile = await fetchCurrentUser();
-      setState({
-        status: 'AUTHENTICATED',
-        session: toAuthUser(userProfile),
-        error: null,
-      });
-    } catch {
-      // Default to dev user fallback if mock endpoint is unmounted
-      setState({
-        status: 'AUTHENTICATED',
-        session: DEFAULT_DEV_USER,
-        error: null,
-      });
-    }
-  }, []);
+  const login = useCallback(
+    async (userOrCredentials?: Record<string, unknown> | AuthUser): Promise<void> => {
+      log.info('Executing Login Transition...');
+
+      if (
+        userOrCredentials &&
+        typeof userOrCredentials === 'object' &&
+        'id' in userOrCredentials &&
+        'email' in userOrCredentials &&
+        'name' in userOrCredentials
+      ) {
+        const user = userOrCredentials as AuthUser;
+        safeSetState({
+          status: 'AUTHENTICATED',
+          session: user,
+          error: null,
+        });
+        return;
+      }
+
+      try {
+        const userProfile = await fetchCurrentUser();
+        safeSetState({
+          status: 'AUTHENTICATED',
+          session: toAuthUser(userProfile),
+          error: null,
+        });
+      } catch {
+        // Default to dev user fallback if mock endpoint is unmounted
+        safeSetState({
+          status: 'AUTHENTICATED',
+          session: DEFAULT_DEV_USER,
+          error: null,
+        });
+      }
+    },
+    [safeSetState],
+  );
 
   const logout = useCallback(async (): Promise<void> => {
     log.info('Executing Logout Transition...');
@@ -235,13 +227,13 @@ export function useAuthState(
       if (queryClient) {
         queryClient.clear();
       }
-      setState({
+      safeSetState({
         status: 'UNAUTHENTICATED',
         session: null,
         error: null,
       });
     }
-  }, [queryClient]);
+  }, [queryClient, safeSetState]);
 
   const retryBootstrap = useCallback(async (): Promise<void> => {
     await executeBootstrap();
