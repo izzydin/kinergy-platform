@@ -1,5 +1,5 @@
 import React from 'react';
-import { PlaceholderView } from '../../../../app/routes/fallback-views';
+import { LoginView } from '../components/login-view';
 
 export interface LoginRouteProps {
   /** Optional completion callback triggered after successful login */
@@ -7,19 +7,13 @@ export interface LoginRouteProps {
 }
 
 /**
- * Login Feature Route Contract Boundary
+ * Login Feature Route Contract Boundary (`/auth/login`)
  *
- * Exposes the route view contract for `/auth/login` within the Identity bounded context.
- * In Step B1.0 (Architecture & Contract Phase), this component defines the route contract
- * boundary ready for UI form mounting in Step B1.1.
+ * Serves as the primary route boundary component for user authentication within the Identity bounded context.
+ * Mounts `LoginView` UI component and accepts optional completion callbacks.
  */
-export const LoginRoute: React.FC<LoginRouteProps> = () => {
-  return (
-    <PlaceholderView
-      title="Login Architectural Boundary"
-      subtitle="Identity Bounded Context — Authentication Route (/auth/login)"
-    />
-  );
+export const LoginRoute: React.FC<LoginRouteProps> = ({ onSuccess }) => {
+  return <LoginView onSuccess={onSuccess} />;
 };
 
 LoginRoute.displayName = 'LoginRoute';

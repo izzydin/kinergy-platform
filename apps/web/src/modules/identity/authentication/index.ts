@@ -29,6 +29,8 @@ export type { UseLoginMutationReturn } from './api/use-login-mutation';
 export { mapAuthErrorMessage, useLoginForm } from './hooks/use-login-form';
 export type { UseLoginFormReturn } from './hooks/use-login-form';
 
-// 4. Export Feature Route Components & Contracts
+// 4. Export UI Components & Route Contracts
+export { LoginView } from './components/login-view';
+export type { LoginViewProps } from './components/login-view';
 export { LoginRoute } from './routes/login-route';
 export type { LoginRouteProps } from './routes/login-route';
