@@ -281,18 +281,52 @@ stateDiagram-v2
 
 ## 10. Authentication Lifecycle & Session Recovery Architecture
 
-The frontend authentication system enforces a strict boundary between **Shared Transport Infrastructure** (`shared/auth/`) and **Authentication Feature Domain** (`modules/auth/`).
+The frontend authentication system enforces a strict boundary between **Shared Transport Infrastructure** (`shared/auth/`), **Authentication Provider State Machine** (`app/providers/auth-provider.tsx` & `modules/auth/`), and **Feature Module Boundary** (`modules/identity/authentication/`).
 
 ### Canonical State Model (`AuthStatus`)
 
 Authentication state is governed by an explicit state machine:
 
 - **`BOOTSTRAPPING`**: Startup state while executing silent refresh (`POST /api/v1/auth/refresh`) and fetching current user profile (`GET /api/v1/auth/me`). Protected routes render a loading fallback without prematurely redirecting to `/auth/login`.
-- **`AUTHENTICATED`**: Valid access token in memory (`authTokenStore`), current user session loaded (`UserSession`). Protected routes grant access according to permissions.
+- **`AUTHENTICATED`**: Valid access token in memory (`authTokenStore`), current user session loaded (`AuthUser`). Protected routes grant access according to permissions.
 - **`UNAUTHENTICATED`**: Session invalidated or logged out. Memory credentials cleared. Protected routes redirect to `/auth/login?redirect=...`.
-- **`AUTHENTICATION_ERROR`**: Temporary network failure during session recovery. Renders a connection recovery screen with manual retry option (`retryBootstrap()`).
+- **`AUTHENTICATION_ERROR`**: Temporary network failure or 5xx server gateway crash during session recovery. Renders a connection recovery screen with manual retry option (`retryBootstrap()`).
 
-For detailed architectural governance, see [ADR 0041: Frontend Authentication Bootstrap & Session Recovery Architecture](../adr/0041-frontend-authentication-bootstrap-and-session-recovery.md).
+### Core Lifecycle Workflows
+
+```text
+1. Startup / F5 Browser Reload
+Application Starts / F5 Reload
+      ↓
+AuthProvider = BOOTSTRAPPING
+      ↓
+POST /api/v1/auth/refresh (silent refresh via HttpOnly cookie)
+      ↓
+Success (200 OK)?
+   /           \
+ yes            no
+ ↓              ↓
+GET /api/v1/auth/me    401/403: UNAUTHENTICATED (clear tokens)
+ ↓                     5xx/Net: AUTHENTICATION_ERROR (retry CTA)
+AUTHENTICATED
+
+2. Login Workflow
+User Credentials → POST /api/v1/auth/login → Store Token in Memory → auth.login() → AUTHENTICATED → Navigate(?redirect)
+
+3. Logout Workflow
+Request Logout → POST /api/v1/auth/logout → Clear Token → queryClient.clear() → UNAUTHENTICATED → Guard Redirect
+
+4. Runtime Refresh & Single-Flight Concurrency
+401 Intercepted → Single-Flight Deduplication (refreshPromise) → POST /auth/refresh → Retry with X-Retry-Attempt: 1
+```
+
+### Concurrency, Race-Condition & Security Rules
+
+1. **Single-Flight Refresh Deduplication**: `AuthTransportManager` queues simultaneous HTTP 401 response interceptors onto a single shared `refreshPromise`, preventing refresh storms.
+2. **Infinite Loop Defense**: Retried requests carry `X-Retry-Attempt: 1`. Subsequent 401s on retried requests immediately trigger `notifyUnauthorized()` to prevent infinite refresh loops.
+3. **Bootstrap Isolation**: Application UI never renders authenticated or unauthenticated screens prematurely while session recovery is resolving (`status === 'BOOTSTRAPPING'`).
+4. **Token Security Isolation**: Access tokens reside exclusively in memory (`authTokenStore`). Zero `localStorage`/`sessionStorage` token storage. Refresh tokens rely on `HttpOnly` same-site cookies.
+5. **Cache Eviction**: `queryClient.clear()` is executed on logout and session revocation to purge sensitive server state from QueryCache.
 
 ---
 
