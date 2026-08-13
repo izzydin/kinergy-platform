@@ -8,6 +8,7 @@ export interface FindAppointmentsOptions {
   readonly roomId?: string;
   readonly clientId?: string;
   readonly status?: string;
+  readonly seriesId?: string;
 }
 
 /**
@@ -15,6 +16,7 @@ export interface FindAppointmentsOptions {
  */
 export interface AppointmentRepository {
   findById(id: AppointmentId | string): Promise<Appointment | null>;
+  findBySeriesId?(seriesId: string): Promise<Appointment[]>;
   findConflictingAppointments(
     therapistId: string,
     roomId: string,
