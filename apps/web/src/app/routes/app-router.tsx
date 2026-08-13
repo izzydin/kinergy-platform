@@ -1,8 +1,9 @@
 import React from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 
-// Import Mock Feature Modules (registers module route contracts with moduleRegistry)
+// Import Feature Modules (registers module route contracts with moduleRegistry)
 import '../../modules/dashboard';
+import '../../modules/identity/user-management';
 import '../../modules/settings';
 
 import { AuthLayout, DashboardLayout, MainLayout } from '../layouts';

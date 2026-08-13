@@ -1,9 +1,27 @@
-/**
- * User Management Module Public API Entry Point
- *
- * Enforces strict feature module boundaries. External modules must import ONLY
- * from this index file rather than internal module paths.
- */
+import { moduleRegistry } from '../../../app/routes/module-registry';
+import { UserManagementSubRouter } from './routes/user-management-router';
+
+// Register User Management Feature Module Contract with central router shell
+moduleRegistry.register({
+  id: 'user-management',
+  prefix: '/admin/users',
+  title: 'User Management',
+  isProtected: true,
+  requiredPermissions: ['manage:users'],
+  component: UserManagementSubRouter,
+});
+
+// Components
+export { UserFilterBar } from './components/user-filter-bar';
+export { UserListTable } from './components/user-list-table';
+export { UserStatusBadge } from './components/user-status-badge';
+
+// Views & Router
+export { UserManagementSubRouter } from './routes/user-management-router';
+export { UserListPage } from './views/user-list-page';
+
+// Hooks
+export { useUserFilters } from './hooks/use-user-filters';
 
 // Domain Types
 export type {
@@ -47,5 +65,5 @@ export {
   useUsersQuery,
 } from './api/user-management-queries';
 
-// MSW Handlers & Fixtures
-export { MOCK_MANAGED_USERS, userManagementHandlers } from './mocks/user-management-handlers';
+// Pure Fixtures
+export { MOCK_MANAGED_USERS } from './mocks/user-management-fixtures';
