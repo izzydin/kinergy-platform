@@ -219,6 +219,15 @@ describe('UserListPage Component & 4-State UI Contract', () => {
       fireEvent.click(deactivateButtons[0]!);
 
       await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { name: /deactivate user account/i }),
+        ).toBeInTheDocument();
+      });
+
+      const confirmBtn = screen.getByRole('button', { name: /^deactivate user$/i });
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
         expect(global.fetch).toHaveBeenCalledWith(
           expect.stringContaining('/deactivate'),
           expect.objectContaining({ method: 'POST' }),

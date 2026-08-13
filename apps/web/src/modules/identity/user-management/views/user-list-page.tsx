@@ -9,6 +9,7 @@ import {
 import { UserFilterBar } from '../components/user-filter-bar';
 import { UserFormDialog } from '../components/user-form-dialog';
 import { UserEditDialog } from '../components/user-edit-dialog';
+import { DeactivateUserDialog } from '../components/deactivate-user-dialog';
 import { UserListTable } from '../components/user-list-table';
 import type { ManagedUser } from '../domain/user.types';
 import { useUserFilters } from '../hooks/use-user-filters';
@@ -30,6 +31,7 @@ export const UserListPage: React.FC<UserListPageProps> = ({
 }) => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
+  const [deactivatingUser, setDeactivatingUser] = useState<ManagedUser | null>(null);
 
   const { hasPermission, hasRole } = useAuth();
   const canManageUsers = hasPermission('manage:users') || hasRole('ADMIN');
@@ -53,8 +55,16 @@ export const UserListPage: React.FC<UserListPageProps> = ({
     activateMutation.mutate(user.id);
   };
 
-  const handleDeactivate = (user: ManagedUser) => {
-    deactivateMutation.mutate(user.id);
+  const handleDeactivateRequest = (user: ManagedUser) => {
+    setDeactivatingUser(user);
+  };
+
+  const handleConfirmDeactivate = (user: ManagedUser) => {
+    deactivateMutation.mutate(user.id, {
+      onSuccess: () => {
+        setDeactivatingUser(null);
+      },
+    });
   };
 
   const handleCreateClick = onCreateUserClick ?? (() => setIsCreateDialogOpen(true));
@@ -137,7 +147,7 @@ export const UserListPage: React.FC<UserListPageProps> = ({
           <UserListTable
             users={items}
             onActivate={handleActivate}
-            onDeactivate={handleDeactivate}
+            onDeactivate={handleDeactivateRequest}
             onEdit={onEditUserClick ?? ((user) => setEditingUser(user))}
             isActivating={activateMutation.isPending}
             isDeactivating={deactivateMutation.isPending}
@@ -187,6 +197,15 @@ export const UserListPage: React.FC<UserListPageProps> = ({
         user={editingUser}
         open={Boolean(editingUser)}
         onOpenChange={(open) => !open && setEditingUser(null)}
+      />
+
+      {/* Deactivate User Confirmation Dialog Modal */}
+      <DeactivateUserDialog
+        user={deactivatingUser}
+        open={Boolean(deactivatingUser)}
+        onOpenChange={(open) => !open && setDeactivatingUser(null)}
+        onConfirm={handleConfirmDeactivate}
+        isDeactivating={deactivateMutation.isPending}
       />
     </div>
   );

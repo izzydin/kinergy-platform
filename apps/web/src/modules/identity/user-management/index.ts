@@ -12,6 +12,7 @@ moduleRegistry.register({
 });
 
 // Components
+export { DeactivateUserDialog } from './components/deactivate-user-dialog';
 export { UserFilterBar } from './components/user-filter-bar';
 export { UserFormDialog } from './components/user-form-dialog';
 export { UserEditDialog } from './components/user-edit-dialog';
