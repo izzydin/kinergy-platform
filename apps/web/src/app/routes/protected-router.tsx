@@ -37,11 +37,9 @@ export const ProtectedRouter: React.FC = () => {
                 key={module.id}
                 path={pathPattern}
                 element={
-                  <ProtectedRoute requiredPermissions={module.requiredPermissions}>
-                    <LazyView fallbackLabel={`Loading ${module.title}...`}>
-                      <ModuleComponent />
-                    </LazyView>
-                  </ProtectedRoute>
+                  <LazyView fallbackLabel={`Loading ${module.title}...`}>
+                    <ModuleComponent />
+                  </LazyView>
                 }
               />
             );

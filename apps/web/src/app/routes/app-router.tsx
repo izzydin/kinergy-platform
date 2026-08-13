@@ -193,13 +193,11 @@ export const AppRouter: React.FC = () => {
                   key={module.id}
                   path={pathPattern}
                   element={
-                    <ProtectedRoute requiredPermissions={module.requiredPermissions}>
-                      <ErrorBoundary name={module.title}>
-                        <LazyView fallbackLabel={`Loading ${module.title}...`}>
-                          <ModuleComponent />
-                        </LazyView>
-                      </ErrorBoundary>
-                    </ProtectedRoute>
+                    <ErrorBoundary name={module.title}>
+                      <LazyView fallbackLabel={`Loading ${module.title}...`}>
+                        <ModuleComponent />
+                      </LazyView>
+                    </ErrorBoundary>
                   }
                 />
               );

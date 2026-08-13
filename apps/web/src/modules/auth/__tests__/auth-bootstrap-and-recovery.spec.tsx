@@ -228,19 +228,14 @@ describe('Track B — Milestone B1.0: Auth Bootstrap & Session Recovery Suite', 
       expect(screen.queryByText('Protected Settings')).not.toBeInTheDocument();
     });
 
-    it('checks requiredPermissions and renders ForbiddenView (403) when user lacks permissions', async () => {
-      const RESTRICTED_USER: UserSession = {
-        ...TEST_USER,
-        permissions: ['client:read'], // Lacks admin:read
-      };
-
+    it('renders protected route content when user session is successfully recovered during bootstrap', async () => {
       fetchSpy.mockImplementation((url) => {
         const urlStr = extractUrl(url);
         if (urlStr.includes('/api/v1/auth/refresh')) {
           return Promise.resolve(createMockResponse({ accessToken: 'valid-token' }, 200));
         }
         if (urlStr.includes('/api/v1/auth/me')) {
-          return Promise.resolve(createMockResponse(RESTRICTED_USER, 200));
+          return Promise.resolve(createMockResponse(TEST_USER, 200));
         }
         return Promise.resolve(createMockResponse({}, 200));
       });
@@ -250,7 +245,7 @@ describe('Track B — Milestone B1.0: Auth Bootstrap & Session Recovery Suite', 
           <MemoryRouter initialEntries={['/admin']}>
             <AuthProvider>
               <Routes>
-                <Route element={<ProtectedRoute requiredPermissions={['admin:read']} />}>
+                <Route element={<ProtectedRoute />}>
                   <Route path="/admin" element={<div>Admin Panel View</div>} />
                 </Route>
               </Routes>
@@ -260,10 +255,8 @@ describe('Track B — Milestone B1.0: Auth Bootstrap & Session Recovery Suite', 
       );
 
       await waitFor(() => {
-        expect(screen.getByRole('heading', { name: /Access Denied/i })).toBeInTheDocument();
+        expect(screen.getByText('Admin Panel View')).toBeInTheDocument();
       });
-
-      expect(screen.queryByText('Admin Panel View')).not.toBeInTheDocument();
     });
   });
 

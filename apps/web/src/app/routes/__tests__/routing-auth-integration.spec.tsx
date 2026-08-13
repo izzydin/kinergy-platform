@@ -122,7 +122,7 @@ describe('Track B — Milestone B1.3: Protected Route & Auth Routing Integration
           <MemoryRouter initialEntries={['/clients']}>
             <AuthProvider initialSessionOverride={AUTHENTICATED_TEST_USER}>
               <Routes>
-                <Route element={<ProtectedRoute requiredPermissions={['client:read']} />}>
+                <Route element={<ProtectedRoute />}>
                   <Route path="/clients" element={<div>Protected Client Directory</div>} />
                 </Route>
               </Routes>

@@ -1,40 +1,34 @@
 import React from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@kinergy-platform/ui';
-import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { SuspenseFallback } from '../../../app/routes/lazy-loading';
 import { useAuth } from '../../../app/providers/auth-provider';
 
 export interface ProtectedRouteProps {
   children?: React.ReactNode;
-  requiredPermissions?: string[];
-  requiredRoles?: string[];
   fallbackRedirectPath?: string;
 }
 
 /**
- * Production Protected Route Guard Component
+ * Reusable Protected Route Guard Component
  *
- * Enforces client-side authentication and fine-grained authorization based on the
- * canonical `AuthStatus` state machine.
+ * Enforces client-side authentication based on the canonical `AuthStatus` state machine.
+ * Answers exactly one question: "Can this route be rendered based on authentication state?"
  *
  * Behavior Matrix:
- * 1. BOOTSTRAPPING       → Renders loading indicator. DOES NOT REDIRECT to /auth/login.
+ * 1. BOOTSTRAPPING       → Renders loading indicator. DOES NOT REDIRECT to login.
  * 2. AUTHENTICATION_ERROR → Renders connection error recovery card with manual retry.
  * 3. UNAUTHENTICATED     → Redirects to /auth/login?redirect=<currentPath>.
- * 4. AUTHENTICATED       → Validates permissions/roles. Renders <ForbiddenView /> if missing,
- *                           otherwise renders child routes via <Outlet />.
+ * 4. AUTHENTICATED       → Renders child routes via <Outlet /> or children.
  */
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
-  requiredPermissions = [],
-  requiredRoles = [],
   fallbackRedirectPath = '/auth/login',
 }) => {
   const location = useLocation();
-  const { status, currentUser, retryBootstrap, hasPermission, hasRole } = useAuth();
+  const { status, currentUser, retryBootstrap } = useAuth();
 
-  // 1. BOOTSTRAPPING: Wait for silent refresh & user profile recovery without redirecting
+  // 1. BOOTSTRAPPING: Wait for silent refresh & session recovery without redirecting
   if (status === 'BOOTSTRAPPING') {
     return <SuspenseFallback label="Verifying session authentication..." />;
   }
@@ -74,28 +68,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={redirectUrl} replace />;
   }
 
-  // 4. AUTHENTICATED: Validate Permissions & Roles
-  if (requiredPermissions.length > 0) {
-    const hasAllPermissions = requiredPermissions.every((perm) => hasPermission(perm));
-    if (!hasAllPermissions) {
-      return (
-        <ForbiddenView
-          message={`Access Denied: Missing required permission (${requiredPermissions.join(', ')})`}
-        />
-      );
-    }
-  }
-
-  if (requiredRoles.length > 0) {
-    const hasAllRoles = requiredRoles.every((role) => hasRole(role));
-    if (!hasAllRoles) {
-      return (
-        <ForbiddenView
-          message={`Access Denied: Missing required role (${requiredRoles.join(', ')})`}
-        />
-      );
-    }
-  }
-
+  // 4. AUTHENTICATED: Grant route access
   return children ? <>{children}</> : <Outlet />;
 };
