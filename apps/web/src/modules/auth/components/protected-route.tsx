@@ -3,6 +3,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { Button, Card, CardContent, CardHeader, CardTitle } from '@kinergy-platform/ui';
 import { SuspenseFallback } from '../../../app/routes/lazy-loading';
 import { useAuth } from '../../../app/providers/auth-provider';
+import { createAuthRedirectUrl } from '../../../shared/auth/redirect-utils';
 
 export interface ProtectedRouteProps {
   children?: React.ReactNode;
@@ -59,12 +60,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // 3. UNAUTHENTICATED: Redirect to login entry point
   if (status === 'UNAUTHENTICATED' || !currentUser) {
-    const currentPath = location.pathname + location.search;
-    // Redirect loop prevention: Avoid self-referential redirect parameter when already on an auth path
-    const isAlreadyAuthRoute = location.pathname.startsWith('/auth');
-    const redirectUrl = isAlreadyAuthRoute
-      ? fallbackRedirectPath
-      : `${fallbackRedirectPath}?redirect=${encodeURIComponent(currentPath)}`;
+    const redirectUrl = createAuthRedirectUrl(location, fallbackRedirectPath);
     return <Navigate to={redirectUrl} replace />;
   }
 

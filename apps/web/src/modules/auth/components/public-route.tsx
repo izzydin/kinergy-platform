@@ -3,6 +3,8 @@ import { Navigate, Outlet, useSearchParams } from 'react-router-dom';
 import { SuspenseFallback } from '../../../app/routes/lazy-loading';
 import { useAuth } from '../../../app/providers/auth-provider';
 
+import { sanitizeRedirectPath } from '../../../shared/auth/redirect-utils';
+
 export interface PublicRouteProps {
   children?: React.ReactNode;
   redirectIfAuthenticated?: boolean;
@@ -29,12 +31,7 @@ export const PublicRoute: React.FC<PublicRouteProps> = ({
 
   if (isAuthenticated && redirectIfAuthenticated) {
     const redirectParam = searchParams.get('redirect');
-    let targetPath = redirectParam ? decodeURIComponent(redirectParam) : defaultRedirectPath;
-
-    // Redirect loop prevention: Ensure authenticated users are never redirected back into an /auth route
-    if (targetPath.startsWith('/auth')) {
-      targetPath = defaultRedirectPath;
-    }
+    const targetPath = sanitizeRedirectPath(redirectParam, defaultRedirectPath);
 
     return <Navigate to={targetPath} replace />;
   }

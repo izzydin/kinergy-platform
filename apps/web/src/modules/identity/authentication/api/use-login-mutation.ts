@@ -38,21 +38,8 @@ function useOptionalSearchParams(): URLSearchParams | null {
   }
 }
 
-/**
- * Sanitizes and validates post-login redirect path
- *
- * Prevents open redirect vulnerabilities by ensuring redirect targets relative paths
- * starting with a single slash `/`.
- */
-export function sanitizeRedirectPath(rawPath: string | null | undefined): string {
-  if (!rawPath) return '/dashboard';
-  const trimmed = rawPath.trim();
-  // Must start with '/' and must NOT start with '//' (scheme-relative URL exploit)
-  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
-    return trimmed;
-  }
-  return '/dashboard';
-}
+import { sanitizeRedirectPath } from '../../../../shared/auth/redirect-utils';
+export { sanitizeRedirectPath };
 
 export interface UseLoginMutationReturn {
   readonly mutateAsync: (credentials: LoginCredentials) => Promise<LoginResult>;

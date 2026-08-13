@@ -218,6 +218,44 @@ describe('Track B — Step B3.1: Protected Route Guard', () => {
       expect(capturedSearch).toBe('?redirect=' + encodeURIComponent('/energy/meters?tab=realtime'));
       expect(screen.queryByText('Protected Energy Meters')).not.toBeInTheDocument();
     });
+
+    it('preserves full path, search query parameters, and hash fragment in redirect URL', async () => {
+      fetchSpy.mockImplementation((url) => {
+        if (extractUrl(url).includes('/api/v1/auth/refresh')) {
+          return Promise.resolve(createMockResponse({ message: 'No session' }, 401));
+        }
+        return Promise.resolve(createMockResponse({}, 401));
+      });
+
+      let capturedSearch = '';
+      const LoginInspector: React.FC = () => {
+        const location = useLocation();
+        capturedSearch = location.search;
+        return <div>Login Inspector Target</div>;
+      };
+
+      render(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <MemoryRouter initialEntries={['/clients/usr_99?status=active#details']}>
+            <AuthProvider>
+              <Routes>
+                <Route path="/auth/login" element={<LoginInspector />} />
+                <Route element={<ProtectedRoute />}>
+                  <Route path="/clients/:id" element={<div>Client Detail</div>} />
+                </Route>
+              </Routes>
+            </AuthProvider>
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Login Inspector Target')).toBeInTheDocument();
+      });
+
+      const expectedRedirectParam = encodeURIComponent('/clients/usr_99?status=active#details');
+      expect(capturedSearch).toBe(`?redirect=${expectedRedirectParam}`);
+    });
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
