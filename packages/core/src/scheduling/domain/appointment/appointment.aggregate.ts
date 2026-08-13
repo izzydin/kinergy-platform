@@ -27,6 +27,9 @@ export interface CreateAppointmentProps {
   type: AppointmentType;
   timeRange: TimeRange;
   notes?: AppointmentNote[];
+  seriesId?: string;
+  occurrenceIndex?: number;
+  isDetachedFromSeries?: boolean;
 }
 
 /** Properties required to reconstitute an Appointment aggregate from persistence */
@@ -41,6 +44,9 @@ export interface ReconstituteAppointmentProps {
   timeRange: TimeRange;
   cancellationReason?: string;
   notes?: AppointmentNote[];
+  seriesId?: string;
+  occurrenceIndex?: number;
+  isDetachedFromSeries?: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -58,6 +64,9 @@ export class Appointment implements AggregateRoot<AppointmentId> {
   private _therapistId: string;
   private _roomId: string;
   private _timeRange: TimeRange;
+  private _seriesId?: string;
+  private _occurrenceIndex?: number;
+  private _isDetachedFromSeries: boolean;
   private _cancellationReason?: string;
   private _notes: AppointmentNote[];
   private readonly _createdAt: Date;
@@ -83,6 +92,9 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     this._therapistId = props.therapistId.trim();
     this._roomId = props.roomId.trim();
     this._timeRange = props.timeRange;
+    this._seriesId = props.seriesId;
+    this._occurrenceIndex = props.occurrenceIndex;
+    this._isDetachedFromSeries = props.isDetachedFromSeries ?? false;
     this._cancellationReason = props.cancellationReason;
     this._notes = props.notes ? [...props.notes] : [];
     this._createdAt = props.createdAt;
@@ -106,6 +118,9 @@ export class Appointment implements AggregateRoot<AppointmentId> {
       roomId: props.roomId,
       timeRange: props.timeRange,
       notes: props.notes ?? [],
+      seriesId: props.seriesId,
+      occurrenceIndex: props.occurrenceIndex,
+      isDetachedFromSeries: props.isDetachedFromSeries ?? false,
       createdAt: now,
       updatedAt: now,
     });
@@ -179,6 +194,32 @@ export class Appointment implements AggregateRoot<AppointmentId> {
   /** Gets a read-only list of attached AppointmentNote VOs */
   public get notes(): ReadonlyArray<AppointmentNote> {
     return Object.freeze([...this._notes]);
+  }
+
+  /** Gets the optional parent RecurrenceSeries scalar string ID */
+  public get seriesId(): string | undefined {
+    return this._seriesId;
+  }
+
+  /** Gets the 0-based occurrence index in the recurring series */
+  public get occurrenceIndex(): number | undefined {
+    return this._occurrenceIndex;
+  }
+
+  /** Indicates whether this appointment has been detached from its parent series */
+  public get isDetachedFromSeries(): boolean {
+    return this._isDetachedFromSeries;
+  }
+
+  /**
+   * Detaches this appointment from its parent recurring series, converting it into a standalone booking.
+   */
+  public detachFromSeries(clock?: Clock): void {
+    if (!this._seriesId && !this._isDetachedFromSeries) {
+      return; // Already standalone
+    }
+    this._isDetachedFromSeries = true;
+    this.touch(clock);
   }
 
   /** Gets the creation Date timestamp */

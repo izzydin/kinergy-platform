@@ -8,4 +8,5 @@ export * from './services';
 export * from './specifications';
 export * from './policies';
 export * from './value-objects';
+export * from './recurrence';
 export * from './exceptions';

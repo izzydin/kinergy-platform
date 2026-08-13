@@ -7,3 +7,6 @@ export * from './appointment-completed.event';
 export * from './appointment-no-show.event';
 export * from './therapist-assigned.event';
 export * from './room-assigned.event';
+export * from './recurring-appointment-created.event';
+export * from './recurring-series-cancelled.event';
+export * from './occurrence-skipped.event';
