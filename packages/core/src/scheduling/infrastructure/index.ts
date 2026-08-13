@@ -1,2 +1,1 @@
-// Placeholder exports for infrastructure layer
-export {};
+export * from './persistence';

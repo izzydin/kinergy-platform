@@ -8,3 +8,4 @@ export * from './client-unavailable.exception';
 export * from './appointment-conflict.exception';
 export * from './working-hours-violation.exception';
 export * from './booking-window-violation.exception';
+export * from './optimistic-lock.exception';

@@ -26,6 +26,10 @@ export class RecurrenceException implements ValueObject<RecurrenceExceptionProps
     Object.freeze(this);
   }
 
+  public static create(props: RecurrenceExceptionProps): RecurrenceException {
+    return new RecurrenceException(props);
+  }
+
   public static createSkipped(
     occurrenceIndex: number,
     date: Date,

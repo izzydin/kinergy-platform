@@ -162,3 +162,123 @@ model ClientTimelineEntry {
   @@map("client_timeline_entries")
 }
 
+// ==========================================
+// SCHEDULING BOUNDED CONTEXT
+// ==========================================
+
+enum RecurrenceFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum SeriesStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum ExceptionType {
+  SKIPPED
+  MODIFIED
+}
+
+model RecurrenceSeries {
+  id                 String              @id @default(uuid())
+  clientId           String              @map("client_id")
+  therapistId        String              @map("therapist_id")
+  roomId             String              @map("room_id")
+  serviceType        String              @map("service_type")
+  frequency          RecurrenceFrequency
+  startDate          DateTime            @map("start_date")
+  endDate            DateTime?           @map("end_date")
+  maxOccurrences     Int?                @map("max_occurrences")
+  localStartHour     Int                 @map("local_start_hour")
+  localStartMinute   Int                 @map("local_start_minute")
+  durationMinutes    Int                 @map("duration_minutes")
+  timezone           String              @default("UTC")
+  status             SeriesStatus        @default(ACTIVE)
+  cancellationReason String?             @map("cancellation_reason")
+  version            Int                 @default(1)
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+
+  exceptions   RecurrenceException[] @relation("SeriesToExceptions")
+  appointments Appointment[]         @relation("SeriesToAppointments")
+
+  @@index([clientId])
+  @@index([therapistId])
+  @@index([roomId])
+  @@index([status])
+  @@index([startDate, endDate])
+  @@map("recurrence_series")
+}
+
+model RecurrenceException {
+  id              String        @id @default(uuid())
+  seriesId        String        @map("series_id")
+  occurrenceIndex Int           @map("occurrence_index")
+  date            DateTime      @map("date")
+  type            ExceptionType @default(SKIPPED)
+  reason          String?       @map("reason")
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  series RecurrenceSeries @relation("SeriesToExceptions", fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@unique([seriesId, occurrenceIndex], name: "unique_series_occurrence_exception")
+  @@index([seriesId])
+  @@map("recurrence_exceptions")
+}
+
+model Appointment {
+  id                   String            @id @default(uuid())
+  clientId             String            @map("client_id")
+  therapistId          String            @map("therapist_id")
+  roomId               String            @map("room_id")
+  type                 String            @map("type")
+  status               AppointmentStatus @default(SCHEDULED)
+  startTime            DateTime          @map("start_time")
+  endTime              DateTime          @map("end_time")
+  seriesId             String?           @map("series_id")
+  occurrenceIndex      Int?              @map("occurrence_index")
+  isDetachedFromSeries Boolean           @default(false) @map("is_detached_from_series")
+  cancellationReason   String?           @map("cancellation_reason")
+  version              Int               @default(1)
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  series RecurrenceSeries? @relation("SeriesToAppointments", fields: [seriesId], references: [id], onDelete: SetNull)
+  notes  AppointmentNote[] @relation("AppointmentToNotes")
+
+  @@unique([seriesId, occurrenceIndex], name: "unique_series_occurrence_appointment")
+  @@index([clientId, startTime, endTime])
+  @@index([therapistId, startTime, endTime])
+  @@index([roomId, startTime, endTime])
+  @@index([seriesId])
+  @@index([status])
+  @@index([startTime, endTime])
+  @@map("appointments")
+}
+
+model AppointmentNote {
+  id            String   @id @default(uuid())
+  appointmentId String   @map("appointment_id")
+  authorId      String   @map("author_id")
+  noteText      String   @map("note_text")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  appointment Appointment @relation("AppointmentToNotes", fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId])
+  @@map("appointment_notes")
+}
