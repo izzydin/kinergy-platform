@@ -13,6 +13,7 @@ moduleRegistry.register({
 
 // Components
 export { UserFilterBar } from './components/user-filter-bar';
+export { UserFormDialog } from './components/user-form-dialog';
 export { UserListTable } from './components/user-list-table';
 export { UserStatusBadge } from './components/user-status-badge';
 

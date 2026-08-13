@@ -1,5 +1,5 @@
 import { Button, Skeleton, StateView } from '@kinergy-platform/ui';
-import React from 'react';
+import React, { useState } from 'react';
 import { useAuth } from '../../../../app/providers/auth-provider';
 import {
   useActivateUserMutation,
@@ -7,6 +7,7 @@ import {
   useUsersQuery,
 } from '../api/user-management-queries';
 import { UserFilterBar } from '../components/user-filter-bar';
+import { UserFormDialog } from '../components/user-form-dialog';
 import { UserListTable } from '../components/user-list-table';
 import type { ManagedUser } from '../domain/user.types';
 import { useUserFilters } from '../hooks/use-user-filters';
@@ -26,6 +27,8 @@ export const UserListPage: React.FC<UserListPageProps> = ({
   onCreateUserClick,
   onEditUserClick,
 }) => {
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+
   const { hasPermission, hasRole } = useAuth();
   const canManageUsers = hasPermission('manage:users') || hasRole('ADMIN');
 
@@ -51,6 +54,8 @@ export const UserListPage: React.FC<UserListPageProps> = ({
   const handleDeactivate = (user: ManagedUser) => {
     deactivateMutation.mutate(user.id);
   };
+
+  const handleCreateClick = onCreateUserClick ?? (() => setIsCreateDialogOpen(true));
 
   // Skeleton fallback for 4-State UI Contract Loading state
   const loadingSkeleton = (
@@ -93,7 +98,7 @@ export const UserListPage: React.FC<UserListPageProps> = ({
         onStatusChange={setStatus}
         onRoleChange={setRole}
         onResetFilters={resetFilters}
-        onCreateClick={onCreateUserClick}
+        onCreateClick={handleCreateClick}
         canCreate={canManageUsers}
       />
 
@@ -117,9 +122,8 @@ export const UserListPage: React.FC<UserListPageProps> = ({
               Reset Filters
             </Button>
           ) : (
-            canManageUsers &&
-            onCreateUserClick && (
-              <Button variant="default" size="sm" onClick={onCreateUserClick}>
+            canManageUsers && (
+              <Button variant="default" size="sm" onClick={handleCreateClick}>
                 Create First User
               </Button>
             )
@@ -172,6 +176,9 @@ export const UserListPage: React.FC<UserListPageProps> = ({
           )}
         </div>
       </StateView>
+
+      {/* Create User Form Dialog Modal */}
+      <UserFormDialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen} />
     </div>
   );
 };
