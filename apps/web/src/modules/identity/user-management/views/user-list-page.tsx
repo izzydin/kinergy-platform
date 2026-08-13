@@ -8,6 +8,7 @@ import {
 } from '../api/user-management-queries';
 import { UserFilterBar } from '../components/user-filter-bar';
 import { UserFormDialog } from '../components/user-form-dialog';
+import { UserEditDialog } from '../components/user-edit-dialog';
 import { UserListTable } from '../components/user-list-table';
 import type { ManagedUser } from '../domain/user.types';
 import { useUserFilters } from '../hooks/use-user-filters';
@@ -28,6 +29,7 @@ export const UserListPage: React.FC<UserListPageProps> = ({
   onEditUserClick,
 }) => {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
 
   const { hasPermission, hasRole } = useAuth();
   const canManageUsers = hasPermission('manage:users') || hasRole('ADMIN');
@@ -136,7 +138,7 @@ export const UserListPage: React.FC<UserListPageProps> = ({
             users={items}
             onActivate={handleActivate}
             onDeactivate={handleDeactivate}
-            onEdit={onEditUserClick}
+            onEdit={onEditUserClick ?? ((user) => setEditingUser(user))}
             isActivating={activateMutation.isPending}
             isDeactivating={deactivateMutation.isPending}
             canManageUsers={canManageUsers}
@@ -179,6 +181,13 @@ export const UserListPage: React.FC<UserListPageProps> = ({
 
       {/* Create User Form Dialog Modal */}
       <UserFormDialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen} />
+
+      {/* Edit User Form Dialog Modal */}
+      <UserEditDialog
+        user={editingUser}
+        open={Boolean(editingUser)}
+        onOpenChange={(open) => !open && setEditingUser(null)}
+      />
     </div>
   );
 };
