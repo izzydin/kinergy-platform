@@ -10,4 +10,5 @@ export interface ReceptionDashboardDTO {
   readonly activeInProgress: CalendarSlotDTO[];
   readonly roomUtilizationRates: Record<string, number>;
   readonly operationalAlerts: string[];
+  readonly countersByStatus?: Record<string, number>;
 }
