@@ -84,7 +84,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const toggleMobile = () => setIsMobileOpen((prev) => !prev);
 
   const isItemActive = (item: NavigationItem): boolean => {
-    return item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path);
+    if (item.path === '/') {
+      return location.pathname === '/';
+    }
+    if (item.path === '/dashboard') {
+      return location.pathname === '/dashboard' || location.pathname === '/dashboard/';
+    }
+    return location.pathname === item.path || location.pathname.startsWith(`${item.path}/`);
   };
 
   return (
