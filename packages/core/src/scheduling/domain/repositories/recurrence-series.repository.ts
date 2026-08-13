@@ -1,5 +1,4 @@
-import { RecurrenceSeries } from '../recurrence/recurrence-series.aggregate';
-import { RecurrenceSeriesId } from '../recurrence/value-objects/recurrence-series-id.vo';
+import { RecurrenceSeries, RecurrenceSeriesId } from '../recurrence';
 
 export interface RecurrenceSeriesRepository {
   findById(id: RecurrenceSeriesId | string): Promise<RecurrenceSeries | null>;
