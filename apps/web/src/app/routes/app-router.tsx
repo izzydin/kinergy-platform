@@ -14,6 +14,7 @@ import {
 } from './fallback-views';
 import { LazyView, SuspenseFallback } from './lazy-loading';
 import { moduleRegistry } from './module-registry';
+import { RequirePermission } from './permission-guard';
 import { ProtectedRoute } from './protected-route';
 import { PublicRoute } from './public-route';
 
@@ -193,11 +194,13 @@ export const AppRouter: React.FC = () => {
                   key={module.id}
                   path={pathPattern}
                   element={
-                    <ErrorBoundary name={module.title}>
-                      <LazyView fallbackLabel={`Loading ${module.title}...`}>
-                        <ModuleComponent />
-                      </LazyView>
-                    </ErrorBoundary>
+                    <RequirePermission permissions={module.requiredPermissions}>
+                      <ErrorBoundary name={module.title}>
+                        <LazyView fallbackLabel={`Loading ${module.title}...`}>
+                          <ModuleComponent />
+                        </LazyView>
+                      </ErrorBoundary>
+                    </RequirePermission>
                   }
                 />
               );

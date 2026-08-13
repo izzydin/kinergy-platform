@@ -7,7 +7,12 @@ export {
 } from './fallback-views';
 export { LazyView, SuspenseFallback, withLazy } from './lazy-loading';
 export { moduleRegistry, type ModuleRouteDefinition } from './module-registry';
-export { HasPermission, type HasPermissionProps } from './permission-guard';
+export {
+  HasPermission,
+  RequirePermission,
+  type HasPermissionProps,
+  type RequirePermissionProps,
+} from './permission-guard';
 export {
   ProtectedRoute,
   type ProtectedRouteProps,
