@@ -1,35 +1,56 @@
 import { LogOut, Shield, User as UserIcon } from 'lucide-react';
 import React, { useCallback, useRef, useState } from 'react';
 import { useAuth } from '../../../app/providers/auth-provider';
-import { Badge, Spinner } from '@kinergy-platform/ui';
+import { Avatar, AvatarFallback, Badge, Spinner } from '@kinergy-platform/ui';
 
 export interface UserMenuProps {
   readonly className?: string;
 }
 
 /**
- * Calculates display initials from a full user name string.
- * Example: "Lead Architect" -> "LA"
+ * Calculates display initials deterministically from name or email.
+ * - "Lead Architect" -> "LA"
+ * - "Architect" -> "AR"
+ * - null/empty name + "architect@kinergy.io" -> "AR"
  */
+export function getUserInitials(name?: string | null, email?: string | null): string {
+  const trimmedName = name?.trim();
+  if (trimmedName) {
+    const parts = trimmedName.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      const first = parts[0]?.charAt(0) ?? '';
+      const last = parts[parts.length - 1]?.charAt(0) ?? '';
+      const combined = (first + last).toUpperCase();
+      if (combined) return combined;
+    }
+    if (parts.length === 1 && parts[0]) {
+      return parts[0].substring(0, 2).toUpperCase();
+    }
+  }
 
-export function getUserInitials(name?: string | null): string {
-  if (!name) return 'U';
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return 'U';
-  if (parts.length === 1) return parts[0]?.substring(0, 2).toUpperCase() ?? 'U';
-  const first = parts[0]?.charAt(0) ?? '';
-  const last = parts[parts.length - 1]?.charAt(0) ?? '';
-  return (first + last).toUpperCase() || 'U';
+  const trimmedEmail = email?.trim();
+  if (trimmedEmail) {
+    const emailPrefix = trimmedEmail.split('@')[0] ?? '';
+    if (emailPrefix.length >= 2) {
+      return emailPrefix.substring(0, 2).toUpperCase();
+    }
+    if (emailPrefix.length === 1) {
+      return emailPrefix.toUpperCase();
+    }
+  }
+
+  return 'U';
 }
 
 /**
  * User Profile & Account Dropdown Menu Component
  *
- * Implements the B4 Dashboard Authentication Integration contract:
- * - Consumes `useAuth()` session context for `currentUser` identity & `logout()` trigger.
- * - Renders accessible dropdown menu with user initials, full name, email, and role badge.
+ * Implements Track B — Step B4.1 Dashboard Authentication Integration:
+ * - Consumes canonical `useAuth().currentUser` source of truth.
+ * - Displays `displayName` (with email fallback), `email`, and `roles[0]` primary role badge.
+ * - Uses A4 Design System `<Avatar />`, `<AvatarImage />`, `<AvatarFallback />` primitives.
+ * - Implements accessible ARIA dropdown semantics (role="menu", role="menuitem", aria-expanded).
  * - Executes reactive logout without manual router navigation.
- * - Implements ARIA menu semantics (role="menu", role="menuitem", aria-expanded).
  */
 export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
   const { currentUser, logout } = useAuth();
@@ -70,12 +91,15 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
   if (!currentUser) {
     return (
       <div className={`flex items-center gap-2 ${className}`}>
-        <div className="h-8 w-8 animate-pulse rounded-xl bg-muted/60" />
+        <Avatar className="h-8 w-8 animate-pulse rounded-xl bg-muted/60">
+          <AvatarFallback className="rounded-xl bg-muted/60 text-xs">U</AvatarFallback>
+        </Avatar>
       </div>
     );
   }
 
-  const initials = getUserInitials(currentUser.name);
+  const displayName = currentUser.name?.trim() || currentUser.email || 'Authenticated User';
+  const initials = getUserInitials(currentUser.name, currentUser.email);
   const primaryRole = currentUser.roles[0] || 'USER';
 
   return (
@@ -90,14 +114,16 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
         onClick={toggleMenu}
         aria-expanded={isOpen}
         aria-haspopup="menu"
-        aria-label={`User account menu for ${currentUser.name}`}
+        aria-label={`User account menu for ${displayName}`}
         className="flex items-center gap-2 rounded-xl border border-border/60 bg-card/50 p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
       >
-        <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 font-bold text-primary text-xs shadow-sm">
-          {initials}
-        </div>
+        <Avatar className="h-7 w-7 rounded-lg">
+          <AvatarFallback className="rounded-lg bg-primary/10 font-bold text-primary text-xs shadow-sm">
+            {initials}
+          </AvatarFallback>
+        </Avatar>
         <span className="hidden text-xs font-semibold text-foreground md:inline-block max-w-[120px] truncate">
-          {currentUser.name}
+          {displayName}
         </span>
       </button>
 
@@ -118,13 +144,13 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
           >
             {/* Header: Identity Info */}
             <div className="flex items-center gap-3 border-b border-border/50 pb-3 px-1">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 font-extrabold text-primary text-sm shadow-inner">
-                {initials}
-              </div>
+              <Avatar className="h-10 w-10 shrink-0 rounded-xl">
+                <AvatarFallback className="rounded-xl bg-primary/15 font-extrabold text-primary text-sm shadow-inner">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
               <div className="flex flex-col min-w-0 flex-1">
-                <span className="font-bold text-sm text-foreground truncate">
-                  {currentUser.name}
-                </span>
+                <span className="font-bold text-sm text-foreground truncate">{displayName}</span>
                 <span className="text-xs text-muted-foreground truncate">{currentUser.email}</span>
                 <div className="mt-1 flex items-center gap-1.5">
                   <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-semibold">

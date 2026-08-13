@@ -1,9 +1,9 @@
 /**
- * Track B — Step B4: UserMenu & Header Authentication Integration Test Suite
+ * Track B — Step B4.1: UserMenu & Header Current User Integration Test Suite
  *
  * Unit and integration tests for <UserMenu /> and getUserInitials helper.
- * Validates display name, email, role badge, initials calculation, ARIA accessibility,
- * and reactive logout invocation.
+ * Validates display name, email fallback when name is missing/empty, Avatar primitives,
+ * initials calculation, ARIA accessibility, and reactive logout invocation.
  */
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -18,6 +18,15 @@ const TEST_USER: AuthUser = {
   name: 'Lead Architect',
   roles: ['ADMIN', 'OPERATOR'],
   permissions: ['admin:read'],
+  tenantId: 'tenant_test',
+};
+
+const USER_NO_NAME: AuthUser = {
+  id: 'usr_no_name',
+  email: 'developer@kinergy.io',
+  name: '',
+  roles: ['OPERATOR'],
+  permissions: [],
   tenantId: 'tenant_test',
 };
 
@@ -41,22 +50,27 @@ function renderUserMenu(userOverride: AuthUser | null = TEST_USER) {
   );
 }
 
-describe('Track B — Step B4: UserMenu Component & Initials Helper', () => {
+describe('Track B — Step B4.1: UserMenu Component & Initials Helper', () => {
   describe('1. getUserInitials Helper', () => {
     it('calculates first and last initials from multi-word names', () => {
-      expect(getUserInitials('Lead Architect')).toBe('LA');
-      expect(getUserInitials('Jane Mary Doe')).toBe('JD');
+      expect(getUserInitials('Lead Architect', 'test@kinergy.io')).toBe('LA');
+      expect(getUserInitials('Jane Mary Doe', 'test@kinergy.io')).toBe('JD');
     });
 
     it('calculates first two letters for single-word names', () => {
-      expect(getUserInitials('Architect')).toBe('AR');
+      expect(getUserInitials('Architect', 'test@kinergy.io')).toBe('AR');
     });
 
-    it('returns default fallback U for null, undefined, or empty string', () => {
-      expect(getUserInitials(null)).toBe('U');
-      expect(getUserInitials(undefined)).toBe('U');
-      expect(getUserInitials('')).toBe('U');
-      expect(getUserInitials('   ')).toBe('U');
+    it('falls back to email prefix initials when name is null, undefined, or empty', () => {
+      expect(getUserInitials(null, 'developer@kinergy.io')).toBe('DE');
+      expect(getUserInitials(undefined, 'architect@kinergy.io')).toBe('AR');
+      expect(getUserInitials('', 'john@kinergy.io')).toBe('JO');
+    });
+
+    it('returns default fallback U when both name and email are missing', () => {
+      expect(getUserInitials(null, null)).toBe('U');
+      expect(getUserInitials(undefined, undefined)).toBe('U');
+      expect(getUserInitials('', '')).toBe('U');
     });
   });
 
@@ -72,6 +86,18 @@ describe('Track B — Step B4: UserMenu Component & Initials Helper', () => {
       expect(trigger).toHaveAttribute('aria-expanded', 'false');
       expect(screen.getByText('LA')).toBeInTheDocument();
       expect(screen.getByText('Lead Architect')).toBeInTheDocument();
+    });
+
+    it('uses email as deterministic display name fallback when user name is empty', () => {
+      renderUserMenu(USER_NO_NAME);
+
+      const trigger = screen.getByRole('button', {
+        name: /user account menu for developer@kinergy.io/i,
+      });
+
+      expect(trigger).toBeInTheDocument();
+      expect(screen.getByText('DE')).toBeInTheDocument();
+      expect(screen.getByText('developer@kinergy.io')).toBeInTheDocument();
     });
 
     it('opens dropdown menu displaying email and role badge when trigger is clicked', () => {
