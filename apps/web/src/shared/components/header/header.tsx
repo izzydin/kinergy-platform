@@ -45,12 +45,14 @@ export const Header: React.FC<HeaderProps> = ({
         {search}
       </SlotTarget>
 
-      {/* Right Slot Target: Actions, Notifications, User Profile & Extras */}
-      <SlotTarget name="header-actions" className="flex items-center gap-2 md:gap-3">
-        {notifications}
+      {/* Right Toolbar Area: Contextual Actions, Notifications & User Account Menu */}
+      <div className="flex items-center gap-2 md:gap-3">
+        <SlotTarget name="header-actions" className="flex items-center gap-2 md:gap-3">
+          {notifications}
+          {extra}
+        </SlotTarget>
         {userMenu}
-        {extra}
-      </SlotTarget>
+      </div>
     </header>
   );
 };
