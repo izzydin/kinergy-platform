@@ -14,6 +14,9 @@ export interface AppointmentDTO {
   readonly endTime: string;
   readonly durationMinutes: number;
   readonly cancellationReason?: string;
+  readonly seriesId?: string;
+  readonly occurrenceIndex?: number;
+  readonly isDetachedFromSeries?: boolean;
   readonly notes?: ReadonlyArray<AppointmentNoteDTO>;
   readonly version: number;
   readonly createdAt: string;

@@ -224,7 +224,7 @@ describe('RecurrenceSeries Aggregate & Value Objects (Domain Layer)', () => {
       expect(events[1]!.eventName).toBe('OccurrenceSkipped');
     });
 
-    it('throws error when attempting to skip duplicate occurrence index', () => {
+    it('idempotently handles repeated skip requests for the same occurrence index', () => {
       const pattern = RecurrencePattern.create({
         frequency: RecurrenceFrequency.WEEKLY,
         startDate: new Date('2026-08-15T10:00:00.000Z'),
@@ -243,10 +243,22 @@ describe('RecurrenceSeries Aggregate & Value Objects (Domain Layer)', () => {
         testClock,
       );
 
-      series.skipOccurrence(2, new Date('2026-08-29T10:00:00.000Z'), 'Skip 1', testClock);
-      expect(() =>
-        series.skipOccurrence(2, new Date('2026-08-29T10:00:00.000Z'), 'Skip 2', testClock),
-      ).toThrow('Occurrence index 2 already has an exception recorded.');
+      const firstSkip = series.skipOccurrence(
+        2,
+        new Date('2026-08-29T10:00:00.000Z'),
+        'Skip 1',
+        testClock,
+      );
+      const secondSkip = series.skipOccurrence(
+        2,
+        new Date('2026-08-29T10:00:00.000Z'),
+        'Skip 2',
+        testClock,
+      );
+
+      expect(firstSkip).toBe(true);
+      expect(secondSkip).toBe(false);
+      expect(series.exceptions).toHaveLength(1);
     });
 
     it('cancels series and records RecurringSeriesCancelledEvent', () => {

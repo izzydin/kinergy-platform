@@ -23,6 +23,9 @@ export class AppointmentMapper {
       endTime: appointment.timeRange.end.toISOString(),
       durationMinutes: appointment.timeRange.duration().toMinutes(),
       cancellationReason: appointment.cancellationReason,
+      seriesId: appointment.seriesId,
+      occurrenceIndex: appointment.occurrenceIndex,
+      isDetachedFromSeries: appointment.isDetachedFromSeries,
       notes: appointment.notes.map((note) => ({
         id: note.id,
         noteText: note.noteText,

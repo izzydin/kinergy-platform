@@ -195,9 +195,15 @@ export class RecurrenceSeries implements AggregateRoot<RecurrenceSeriesId> {
   }
 
   /**
-   * Skips a specific occurrence index within the series.
+   * Skips a specific occurrence index within the series idempotently.
+   * Returns true if newly skipped, false if already skipped.
    */
-  public skipOccurrence(occurrenceIndex: number, date: Date, reason?: string, clock?: Clock): void {
+  public skipOccurrence(
+    occurrenceIndex: number,
+    date: Date,
+    reason?: string,
+    clock?: Clock,
+  ): boolean {
     if (this._status !== SeriesStatus.ACTIVE) {
       throw new Error(
         `Cannot skip occurrence on non-active recurrence series (Status: '${this._status}').`,
@@ -208,9 +214,13 @@ export class RecurrenceSeries implements AggregateRoot<RecurrenceSeriesId> {
       throw new Error('Occurrence index must be a non-negative integer.');
     }
 
-    const alreadyExists = this._exceptions.some((e) => e.occurrenceIndex === occurrenceIndex);
-    if (alreadyExists) {
-      throw new Error(`Occurrence index ${occurrenceIndex} already has an exception recorded.`);
+    const existingIndex = this._exceptions.findIndex((e) => e.occurrenceIndex === occurrenceIndex);
+    if (existingIndex !== -1) {
+      if (this._exceptions[existingIndex]!.type === 'SKIPPED') {
+        return false; // Idempotent skip
+      }
+      // Replace existing non-skip exception
+      this._exceptions.splice(existingIndex, 1);
     }
 
     const exception = RecurrenceException.createSkipped(occurrenceIndex, date, reason);
@@ -229,6 +239,59 @@ export class RecurrenceSeries implements AggregateRoot<RecurrenceSeriesId> {
         now,
       ),
     );
+
+    return true;
+  }
+
+  /**
+   * Records a modified occurrence exception so future recurrence generation does not overwrite manual edits.
+   */
+  public recordModifiedException(
+    occurrenceIndex: number,
+    date: Date,
+    reason?: string,
+    clock?: Clock,
+  ): void {
+    if (this._status !== SeriesStatus.ACTIVE) {
+      return;
+    }
+
+    const existingIndex = this._exceptions.findIndex((e) => e.occurrenceIndex === occurrenceIndex);
+    if (existingIndex !== -1) {
+      this._exceptions.splice(existingIndex, 1);
+    }
+
+    this._exceptions.push(RecurrenceException.createModified(occurrenceIndex, date, reason));
+    this.touch(clock);
+  }
+
+  /**
+   * Terminates this series at the specified cutoff date (used by Cutoff-and-Fork for future edits).
+   */
+  public terminateAt(cutoffDate: Date, clock?: Clock): void {
+    if (this._status === SeriesStatus.CANCELLED) {
+      throw new Error('Cannot terminate an already cancelled series.');
+    }
+
+    const newEndDate = new Date(cutoffDate.getTime() - 1);
+    if (newEndDate.getTime() <= this._pattern.startDate.getTime()) {
+      // If cutoff is at or before start, cancel series
+      this.cancel('Terminated at series start', clock);
+      return;
+    }
+
+    const currentVal = this._pattern.getValue();
+    this._pattern = RecurrencePattern.create({
+      frequency: currentVal.frequency,
+      startDate: currentVal.startDate,
+      endDate: newEndDate,
+      maxOccurrences: currentVal.maxOccurrences,
+      localStartTime: currentVal.localStartTime,
+      durationMinutes: currentVal.durationMinutes,
+      timezone: currentVal.timezone,
+    });
+
+    this.touch(clock);
   }
 
   /**
