@@ -4,6 +4,7 @@ import { authHandlers } from '../../modules/auth/mocks/auth-handlers';
 import { dashboardHandlers } from '../../modules/dashboard/mocks/dashboard-handlers';
 import { loginHandlers } from '../../modules/identity/authentication/mocks/login-handlers';
 import { settingsHandlers } from '../../modules/settings/mocks/settings-handlers';
+import { userManagementHandlers } from '../../modules/identity/user-management/mocks/user-management-handlers';
 
 /**
  * Platform Infrastructure Mock Handlers
@@ -62,6 +63,7 @@ const featureHandlers: RequestHandler[] = [
   ...loginHandlers,
   ...dashboardHandlers,
   ...settingsHandlers,
+  ...userManagementHandlers,
 ];
 
 const dynamicHandlers: RequestHandler[] = [];
