@@ -23,4 +23,7 @@ export interface CalendarSlotDTO {
   readonly clientName?: string;
   readonly serviceType?: string;
   readonly isBuffered?: boolean;
+  readonly hasConflict?: boolean;
+  readonly overlapCount?: number;
+  readonly operationalStatus?: 'PAST' | 'CURRENT_NOW' | 'UPCOMING';
 }
