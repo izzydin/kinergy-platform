@@ -1,9 +1,9 @@
 /**
- * Track B — Step B4.1: UserMenu & Header Current User Integration Test Suite
+ * Track B — Step B4.2: UserMenu & Logout Integration Test Suite
  *
  * Unit and integration tests for <UserMenu /> and getUserInitials helper.
- * Validates display name, email fallback when name is missing/empty, Avatar primitives,
- * initials calculation, ARIA accessibility, and reactive logout invocation.
+ * Validates display name, email fallback, ARIA accessibility (aria-busy, aria-disabled),
+ * duplicate logout submission prevention, and reactive logout invocation.
  */
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
@@ -50,7 +50,7 @@ function renderUserMenu(userOverride: AuthUser | null = TEST_USER) {
   );
 }
 
-describe('Track B — Step B4.1: UserMenu Component & Initials Helper', () => {
+describe('Track B — Step B4.2: UserMenu Component & Logout Integration', () => {
   describe('1. getUserInitials Helper', () => {
     it('calculates first and last initials from multi-word names', () => {
       expect(getUserInitials('Lead Architect', 'test@kinergy.io')).toBe('LA');
@@ -110,7 +110,7 @@ describe('Track B — Step B4.1: UserMenu Component & Initials Helper', () => {
       fireEvent.click(trigger);
 
       expect(trigger).toHaveAttribute('aria-expanded', 'true');
-      expect(screen.getByRole('menu')).toBeInTheDocument();
+      expect(screen.getByRole('menu', { name: /user account options/i })).toBeInTheDocument();
       expect(screen.getByText('lead.architect@kinergy.io')).toBeInTheDocument();
       expect(screen.getByText('ADMIN')).toBeInTheDocument();
     });
@@ -123,27 +123,32 @@ describe('Track B — Step B4.1: UserMenu Component & Initials Helper', () => {
       });
 
       fireEvent.click(trigger);
-      expect(screen.getByRole('menu')).toBeInTheDocument();
+      expect(screen.getByRole('menu', { name: /user account options/i })).toBeInTheDocument();
 
-      fireEvent.keyDown(screen.getByRole('menu'), { key: 'Escape', code: 'Escape' });
+      fireEvent.keyDown(screen.getByRole('menu', { name: /user account options/i }), {
+        key: 'Escape',
+        code: 'Escape',
+      });
 
-      expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+      expect(screen.queryByRole('menu', { name: /user account options/i })).not.toBeInTheDocument();
       expect(trigger).toHaveAttribute('aria-expanded', 'false');
     });
 
-    it('invokes logout when Sign Out button is clicked', async () => {
+    it('invokes logout when Sign Out button is clicked and prevents duplicate submissions', async () => {
+      let fetchCallCount = 0;
       if (!global.fetch) {
         (global as unknown as { fetch: typeof fetch }).fetch = jest.fn();
       }
-      jest.spyOn(global, 'fetch').mockImplementation(() =>
-        Promise.resolve({
+      jest.spyOn(global, 'fetch').mockImplementation(() => {
+        fetchCallCount++;
+        return Promise.resolve({
           ok: true,
           status: 200,
           headers: new Headers({ 'Content-Type': 'application/json' }),
           json: () => Promise.resolve({ status: 'ok' }),
           text: () => Promise.resolve(JSON.stringify({ status: 'ok' })),
-        } as Response),
-      );
+        } as Response);
+      });
 
       renderUserMenu(TEST_USER);
 
@@ -156,11 +161,19 @@ describe('Track B — Step B4.1: UserMenu Component & Initials Helper', () => {
       const signOutBtn = screen.getByRole('menuitem', { name: /sign out/i });
       expect(signOutBtn).toBeInTheDocument();
 
+      // Trigger first logout click
+      fireEvent.click(signOutBtn);
+
+      // Trigger rapid second logout click to test duplicate submission prevention
       fireEvent.click(signOutBtn);
 
       await waitFor(() => {
-        expect(screen.queryByRole('menu')).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('menu', { name: /user account options/i }),
+        ).not.toBeInTheDocument();
       });
+
+      expect(fetchCallCount).toBeLessThanOrEqual(1);
     });
   });
 });

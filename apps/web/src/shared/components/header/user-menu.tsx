@@ -1,5 +1,5 @@
-import { LogOut, Shield, User as UserIcon } from 'lucide-react';
-import React, { useCallback, useRef, useState } from 'react';
+import { LogOut, Shield } from 'lucide-react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { Avatar, AvatarFallback, Badge, Spinner } from '@kinergy-platform/ui';
 
@@ -45,18 +45,18 @@ export function getUserInitials(name?: string | null, email?: string | null): st
 /**
  * User Profile & Account Dropdown Menu Component
  *
- * Implements Track B — Step B4.1 Dashboard Authentication Integration:
- * - Consumes canonical `useAuth().currentUser` source of truth.
- * - Displays `displayName` (with email fallback), `email`, and `roles[0]` primary role badge.
- * - Uses A4 Design System `<Avatar />`, `<AvatarImage />`, `<AvatarFallback />` primitives.
- * - Implements accessible ARIA dropdown semantics (role="menu", role="menuitem", aria-expanded).
- * - Executes reactive logout without manual router navigation.
+ * Implements Track B — Step B4.2 User Menu and Logout:
+ * - Consumes canonical `useAuth().logout()` trigger.
+ * - Prevents duplicate logout submissions with `isLoggingOut` guards.
+ * - Implements ARIA accessibility semantics (aria-busy, aria-disabled, aria-orientation, focus management).
+ * - Minimum useful scope: Current User identity + Logout action. Zero speculative fields.
  */
 export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
   const { currentUser, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const menuPanelRef = useRef<HTMLDivElement>(null);
 
   const toggleMenu = useCallback(() => {
     setIsOpen((prev) => !prev);
@@ -66,17 +66,25 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
     setIsOpen(false);
   }, []);
 
+  // Manage auto-focus when menu opens
+  useEffect(() => {
+    if (isOpen) {
+      menuPanelRef.current?.focus();
+    }
+  }, [isOpen]);
+
   const handleLogout = useCallback(async () => {
+    if (isLoggingOut) return;
     try {
       setIsLoggingOut(true);
       await logout();
     } catch {
-      // AuthProvider safely forces local session clear on logout rejection
+      // AuthProvider safely forces local session clear on logout rejection per B2 design
     } finally {
       setIsLoggingOut(false);
       closeMenu();
     }
-  }, [logout, closeMenu]);
+  }, [logout, closeMenu, isLoggingOut]);
 
   // Handle keyboard escape key press
   const handleKeyDown = useCallback(
@@ -112,10 +120,12 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
       <button
         type="button"
         onClick={toggleMenu}
+        disabled={isLoggingOut}
+        aria-busy={isLoggingOut}
         aria-expanded={isOpen}
         aria-haspopup="menu"
         aria-label={`User account menu for ${displayName}`}
-        className="flex items-center gap-2 rounded-xl border border-border/60 bg-card/50 p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+        className="flex items-center gap-2 rounded-xl border border-border/60 bg-card/50 p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60"
       >
         <Avatar className="h-7 w-7 rounded-lg">
           <AvatarFallback className="rounded-lg bg-primary/10 font-bold text-primary text-xs shadow-sm">
@@ -138,8 +148,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
           />
 
           <div
+            ref={menuPanelRef}
             role="menu"
+            tabIndex={-1}
             aria-orientation="vertical"
+            aria-label="User account options"
             className="absolute right-0 z-50 mt-2 w-64 origin-top-right rounded-2xl border border-border/70 bg-popover/95 p-3 text-popover-foreground shadow-xl backdrop-blur-xl transition-all focus:outline-none"
           >
             {/* Header: Identity Info */}
@@ -161,23 +174,13 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
               </div>
             </div>
 
-            {/* Menu Items */}
+            {/* Menu Items (Minimal scope: Current User Info + Logout) */}
             <div className="pt-2 space-y-1">
-              <div
-                role="menuitem"
-                tabIndex={0}
-                className="flex items-center gap-2.5 rounded-xl px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground cursor-pointer"
-                onClick={closeMenu}
-              >
-                <UserIcon className="h-4 w-4 text-muted-foreground/70" />
-                <span>Account Overview</span>
-              </div>
-
-              {/* Logout Action */}
               <button
                 type="button"
                 role="menuitem"
                 disabled={isLoggingOut}
+                aria-disabled={isLoggingOut}
                 onClick={() => void handleLogout()}
                 className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
               >
