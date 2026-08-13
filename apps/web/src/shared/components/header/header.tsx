@@ -4,8 +4,8 @@ import {
   BreadcrumbsPlaceholder,
   NotificationsPlaceholder,
   SearchPlaceholder,
-  UserMenuPlaceholder,
 } from './header-placeholders';
+import { UserMenu } from './user-menu';
 import type { HeaderProps } from './header.types';
 
 /**
@@ -23,7 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   breadcrumbs = <BreadcrumbsPlaceholder />,
   search = <SearchPlaceholder />,
   notifications = <NotificationsPlaceholder />,
-  userMenu = <UserMenuPlaceholder />,
+  userMenu = <UserMenu />,
   extra,
   className = '',
 }) => {
