@@ -1,3 +1,4 @@
+export * from './create-recurrence-series.handler';
 export * from './generate-recurring-occurrences.handler';
 export * from './skip-recurrence-occurrence.handler';
 export * from './edit-single-occurrence.handler';

@@ -1,3 +1,4 @@
+export * from './create-recurrence-series.command';
 export * from './generate-recurring-occurrences.command';
 export * from './skip-recurrence-occurrence.command';
 export * from './edit-single-occurrence.command';
