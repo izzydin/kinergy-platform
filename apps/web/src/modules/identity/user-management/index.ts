@@ -1,7 +1,8 @@
+import { navigationRegistry } from '../../../app/navigation/navigation-registry';
 import { moduleRegistry } from '../../../app/routes/module-registry';
 import { UserManagementSubRouter } from './routes/user-management-router';
 
-// Register User Management Feature Module Contract with central router shell
+// Register User Management Feature Module Route Contract with central router shell
 moduleRegistry.register({
   id: 'user-management',
   prefix: '/admin/users',
@@ -11,15 +12,17 @@ moduleRegistry.register({
   component: UserManagementSubRouter,
 });
 
-// Components
-export { DeactivateUserDialog } from './components/deactivate-user-dialog';
-export { UserFilterBar } from './components/user-filter-bar';
-export { UserFormDialog } from './components/user-form-dialog';
-export { UserEditDialog } from './components/user-edit-dialog';
-export { UserListTable } from './components/user-list-table';
-export { UserStatusBadge } from './components/user-status-badge';
+// Register User Management Navigation Entry with central navigation registry
+navigationRegistry.register({
+  id: 'user-management',
+  label: 'User Management',
+  path: '/admin/users',
+  order: 50,
+  section: 'admin',
+  requiredPermissions: ['manage:users'],
+});
 
-// Views & Router
+// Views & Sub-Router
 export { UserManagementSubRouter } from './routes/user-management-router';
 export { UserListPage } from './views/user-list-page';
 
