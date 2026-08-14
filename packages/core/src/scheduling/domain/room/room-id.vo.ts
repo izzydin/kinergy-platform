@@ -1,26 +1,22 @@
+import { ResourceId } from '../resource/resource-id.vo';
 import { ValueObject } from '../shared/value-object';
 
 /**
  * Value Object encapsulating a unique Room identifier.
+ * Extends the generic ResourceId identity.
  * Immutable and frozen on construction.
  */
-export class RoomId implements ValueObject<string> {
-  private readonly value: string;
-
+export class RoomId extends ResourceId {
   private constructor(id: string) {
-    if (!id || id.trim().length === 0) {
-      throw new Error('Room ID cannot be empty.');
-    }
-    this.value = id.trim();
-    Object.freeze(this);
+    super(id);
   }
 
   /**
-   * Creates a RoomId instance. Generates a default random string ID if omitted.
+   * Creates a RoomId instance. Generates a default random string ID with 'room_' prefix if omitted.
    *
    * @param id Optional identifier string
    */
-  public static create(id?: string): RoomId {
+  public static override create(id?: string): RoomId {
     if (id) {
       return new RoomId(id);
     }
@@ -29,21 +25,11 @@ export class RoomId implements ValueObject<string> {
     return new RoomId(`room_${timestamp}_${random}`);
   }
 
-  /** Gets the underlying string value of the RoomId */
-  public getValue(): string {
-    return this.value;
-  }
-
   /** Checks equality against another RoomId instance */
-  public equals(other: ValueObject<string>): boolean {
+  public override equals(other: ValueObject<string>): boolean {
     if (!other || !(other instanceof RoomId)) {
       return false;
     }
-    return this.value === other.getValue();
-  }
-
-  /** Returns string representation of RoomId */
-  public toString(): string {
-    return this.value;
+    return this.getValue() === other.getValue();
   }
 }

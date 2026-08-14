@@ -2,6 +2,8 @@ import { AggregateRoot } from '../shared/aggregate-root';
 import { DomainEvent } from '../shared/domain-event';
 import { RoomId } from './room-id.vo';
 import { RoomStatus } from '../value-objects/room-status.enum';
+import { SchedulableResource } from '../resource/schedulable-resource.interface';
+import { ResourceType } from '../resource/resource-type.enum';
 
 /**
  * Properties required to instantiate a new Room aggregate.
@@ -30,10 +32,11 @@ export interface ReconstituteRoomProps {
 /**
  * Room Aggregate Root controlling spatial availability, capacity bounds, and facility features.
  *
+ * Implements SchedulableResource capability port for unified resource scheduling.
  * Invariant: Room reservations never mutate the Room aggregate root. Mutations occur
  * strictly on operational status, capacity, or feature updates.
  */
-export class Room implements AggregateRoot<RoomId> {
+export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> {
   private readonly _id: RoomId;
   private _version: number;
   private _name: string;
@@ -102,6 +105,11 @@ export class Room implements AggregateRoot<RoomId> {
     return this._name;
   }
 
+  /** Gets the taxonomy type of this schedulable resource */
+  public get resourceType(): ResourceType {
+    return ResourceType.ROOM;
+  }
+
   /** Gets the maximum client capacity of the room */
   public get capacity(): number {
     return this._capacity;
@@ -110,6 +118,15 @@ export class Room implements AggregateRoot<RoomId> {
   /** Gets the current operational status of the room */
   public get status(): RoomStatus {
     return this._status;
+  }
+
+  /**
+   * Evaluates if the room is currently reservable for scheduling.
+   *
+   * @returns true if status is AVAILABLE, false otherwise
+   */
+  public isReservable(): boolean {
+    return this._status === RoomStatus.AVAILABLE;
   }
 
   /** Gets a read-only copy of the room's feature capabilities */
