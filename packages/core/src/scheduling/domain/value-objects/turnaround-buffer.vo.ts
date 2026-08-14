@@ -59,6 +59,13 @@ export class TurnaroundBuffer implements ValueObject<TurnaroundBufferProps> {
     return this._prepDuration.add(this._cleanupDuration);
   }
 
+  /**
+   * Evaluates if this buffer is empty (0ms total duration).
+   */
+  public isEmpty(): boolean {
+    return this.totalDuration.toMilliseconds() === 0;
+  }
+
   public getValue(): TurnaroundBufferProps {
     return {
       prepDuration: this._prepDuration,

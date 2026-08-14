@@ -4,12 +4,17 @@ import { RoomId } from './room-id.vo';
 import { RoomStatus } from '../value-objects/room-status.enum';
 import { SchedulableResource } from '../resource/schedulable-resource.interface';
 import { ResourceType } from '../resource/resource-type.enum';
+import { MaintenanceWindow, CreateMaintenanceWindowProps } from './maintenance-window.vo';
+import { TimeRange } from '../value-objects/time-range.vo';
+import { TurnaroundBuffer } from '../value-objects/turnaround-buffer.vo';
 
 // Domain Events
 import { RoomCreatedEvent } from '../events/room-created.event';
 import { RoomActivatedEvent } from '../events/room-activated.event';
 import { RoomDeactivatedEvent } from '../events/room-deactivated.event';
 import { RoomMarkedMaintenanceEvent } from '../events/room-maintenance.event';
+import { RoomMaintenanceScheduledEvent } from '../events/room-maintenance-scheduled.event';
+import { RoomMaintenanceCancelledEvent } from '../events/room-maintenance-cancelled.event';
 
 /**
  * Properties required to instantiate a new Room aggregate.
@@ -20,6 +25,7 @@ export interface CreateRoomProps {
   capacity: number;
   status?: RoomStatus;
   features?: Iterable<string>;
+  maintenanceWindows?: Iterable<MaintenanceWindow>;
   createdAt?: Date;
 }
 
@@ -33,17 +39,19 @@ export interface ReconstituteRoomProps {
   capacity: number;
   status: RoomStatus;
   features: Iterable<string>;
+  maintenanceWindows?: Iterable<MaintenanceWindow>;
   maintenanceReason?: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
 
 /**
- * Room Aggregate Root controlling spatial availability, capacity bounds, and facility features.
+ * Room Aggregate Root controlling spatial availability, capacity bounds, facility features,
+ * and scheduled temporal maintenance windows.
  *
  * Implements SchedulableResource capability port for unified resource scheduling.
  * Invariant: Room reservations never mutate the Room aggregate root. Mutations occur
- * strictly on operational status, capacity, or feature updates.
+ * strictly on operational status, capacity, features, or maintenance windows.
  */
 export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> {
   private readonly _id: RoomId;
@@ -52,6 +60,7 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
   private _capacity: number;
   private _status: RoomStatus;
   private readonly _features: Set<string>;
+  private readonly _maintenanceWindows: Map<string, MaintenanceWindow> = new Map();
   private _maintenanceReason?: string;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
@@ -71,6 +80,11 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
     this._capacity = props.capacity;
     this._status = props.status;
     this._features = new Set(Array.from(props.features).map((f) => f.trim().toLowerCase()));
+    if (props.maintenanceWindows) {
+      for (const win of props.maintenanceWindows) {
+        this._maintenanceWindows.set(win.id, win);
+      }
+    }
     this._maintenanceReason = props.maintenanceReason;
     this._createdAt = props.createdAt ?? new Date();
     this._updatedAt = props.updatedAt ?? this._createdAt;
@@ -94,6 +108,7 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
       capacity: props.capacity,
       status,
       features: props.features ?? [],
+      maintenanceWindows: props.maintenanceWindows ?? [],
       createdAt,
       updatedAt: createdAt,
     });
@@ -166,6 +181,11 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
     return new Set(this._features);
   }
 
+  /** Gets a read-only array of scheduled maintenance windows */
+  public get maintenanceWindows(): ReadonlyArray<MaintenanceWindow> {
+    return Array.from(this._maintenanceWindows.values());
+  }
+
   /** Gets the maintenance reason if currently in MAINTENANCE or UNAVAILABLE status */
   public get maintenanceReason(): string | undefined {
     return this._maintenanceReason;
@@ -215,7 +235,7 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
   }
 
   /**
-   * Places the room under MAINTENANCE status with an explanation reason and emits RoomMarkedMaintenanceEvent.
+   * Places the room under indefinite MAINTENANCE status with an explanation reason and emits RoomMarkedMaintenanceEvent.
    *
    * @param reason Mandatory maintenance explanation
    */
@@ -292,6 +312,95 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
    */
   public markUnavailable(reason?: string): void {
     this.deactivate(reason);
+  }
+
+  /**
+   * Schedules a time-ranged maintenance window on the room and records RoomMaintenanceScheduledEvent.
+   *
+   * @param props Maintenance window parameters
+   * @returns Newly scheduled MaintenanceWindow value object
+   */
+  public scheduleMaintenance(props: CreateMaintenanceWindowProps): MaintenanceWindow {
+    const window = MaintenanceWindow.create(props);
+    this._maintenanceWindows.set(window.id, window);
+    this._version += 1;
+    this._updatedAt = new Date();
+
+    this.recordEvent(
+      new RoomMaintenanceScheduledEvent(
+        this._id.getValue(),
+        window.id,
+        window.timeRange,
+        window.reason,
+        this._version,
+        this._updatedAt,
+      ),
+    );
+
+    return window;
+  }
+
+  /**
+   * Cancels/removes a scheduled maintenance window by identifier and records RoomMaintenanceCancelledEvent.
+   *
+   * @param maintenanceId Identifier of the maintenance window
+   * @returns True if window was found and removed, false otherwise
+   */
+  public cancelMaintenance(maintenanceId: string): boolean {
+    if (!this._maintenanceWindows.has(maintenanceId)) {
+      return false;
+    }
+    this._maintenanceWindows.delete(maintenanceId);
+    this._version += 1;
+    this._updatedAt = new Date();
+
+    this.recordEvent(
+      new RoomMaintenanceCancelledEvent(
+        this._id.getValue(),
+        maintenanceId,
+        this._version,
+        this._updatedAt,
+      ),
+    );
+
+    return true;
+  }
+
+  /**
+   * Evaluates if the room is blocked by maintenance (either indefinite status or overlapping maintenance window).
+   *
+   * @param targetRange Candidate booking time range
+   * @param buffer Optional turnaround buffer applied to target range
+   * @returns True if maintenance blocks the requested range
+   */
+  public isUnderMaintenance(targetRange: TimeRange, buffer?: TurnaroundBuffer): boolean {
+    if (this._status === RoomStatus.MAINTENANCE) {
+      return true;
+    }
+    for (const window of this._maintenanceWindows.values()) {
+      if (window.overlaps(targetRange, buffer)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Retrieves any maintenance window overlapping the candidate range, or null if clear.
+   *
+   * @param targetRange Candidate booking time range
+   * @param buffer Optional turnaround buffer
+   */
+  public getOverlappingMaintenance(
+    targetRange: TimeRange,
+    buffer?: TurnaroundBuffer,
+  ): MaintenanceWindow | null {
+    for (const window of this._maintenanceWindows.values()) {
+      if (window.overlaps(targetRange, buffer)) {
+        return window;
+      }
+    }
+    return null;
   }
 
   /**

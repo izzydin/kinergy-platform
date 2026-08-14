@@ -44,7 +44,18 @@ export class RoomAvailabilityEvaluator {
       };
     }
 
-    // 2. Capacity Check
+    const effectiveBuffer = buffer ?? TurnaroundBuffer.empty();
+
+    // 2. Scheduled Maintenance Windows Check (respecting turnaround buffer)
+    const overlappingMaintenance = room.getOverlappingMaintenance(targetRange, effectiveBuffer);
+    if (overlappingMaintenance) {
+      return {
+        isAvailable: false,
+        reason: `Room '${room.name}' (${room.id.toString()}) is blocked by scheduled maintenance '${overlappingMaintenance.reason}' from ${overlappingMaintenance.timeRange.start.toISOString()} to ${overlappingMaintenance.timeRange.end.toISOString()}.`,
+      };
+    }
+
+    // 3. Capacity Check
     if (requiredCapacity && requiredCapacity > 0 && room.capacity < requiredCapacity) {
       return {
         isAvailable: false,
@@ -52,7 +63,7 @@ export class RoomAvailabilityEvaluator {
       };
     }
 
-    // 3. Equipment & Features Check
+    // 4. Equipment & Features Check
     if (requiredFeatures && requiredFeatures.length > 0) {
       if (!room.supportsFeatures(requiredFeatures)) {
         return {
@@ -62,8 +73,8 @@ export class RoomAvailabilityEvaluator {
       }
     }
 
-    // 4. Existing Room Appointments Overlap Check with Turnaround Buffer
-    const effectiveBuffer = buffer ?? TurnaroundBuffer.empty();
+    // 5. Existing Room Appointments Overlap Check with Turnaround Buffer
+
     const candidateBufferedRange = targetRange.toBufferedRange(effectiveBuffer);
 
     for (const appt of existingAppointments) {

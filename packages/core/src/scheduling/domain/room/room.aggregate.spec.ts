@@ -1,11 +1,14 @@
 import { Room } from './room.aggregate';
 import { RoomId } from './room-id.vo';
+import { MaintenanceWindow } from './maintenance-window.vo';
 import { RoomStatus } from '../value-objects/room-status.enum';
 import { ResourceType } from '../resource/resource-type.enum';
 import { RoomCreatedEvent } from '../events/room-created.event';
 import { RoomActivatedEvent } from '../events/room-activated.event';
 import { RoomDeactivatedEvent } from '../events/room-deactivated.event';
 import { RoomMarkedMaintenanceEvent } from '../events/room-maintenance.event';
+import { RoomMaintenanceScheduledEvent } from '../events/room-maintenance-scheduled.event';
+import { RoomMaintenanceCancelledEvent } from '../events/room-maintenance-cancelled.event';
 import { RoomAvailabilityEvaluator } from '../services/room-availability-evaluator.service';
 import { TimeRange } from '../value-objects/time-range.vo';
 import { Appointment } from '../appointment/appointment.aggregate';
@@ -329,6 +332,122 @@ describe('Room Aggregate Root', () => {
       expect(room.createdAt).toBe(createdAt);
       expect(room.updatedAt).toBe(updatedAt);
       expect(room.getUncommittedEvents()).toHaveLength(0);
+    });
+
+    it('should reconstitute Room with existing MaintenanceWindows', () => {
+      const window = MaintenanceWindow.create({
+        id: 'maint_reconst_1',
+        timeRange: TimeRange.create(
+          new Date('2026-09-01T10:00:00Z'),
+          new Date('2026-09-01T12:00:00Z'),
+        ),
+        reason: 'Filter cleaning',
+      });
+
+      const room = Room.reconstitute({
+        id: RoomId.create('room_maint_1'),
+        version: 5,
+        name: 'Hydro Room',
+        capacity: 2,
+        status: RoomStatus.AVAILABLE,
+        features: [],
+        maintenanceWindows: [window],
+      });
+
+      expect(room.maintenanceWindows).toHaveLength(1);
+      expect(room.maintenanceWindows[0]!.id).toBe('maint_reconst_1');
+      expect(
+        room.isUnderMaintenance(
+          TimeRange.create(new Date('2026-09-01T10:30:00Z'), new Date('2026-09-01T11:30:00Z')),
+        ),
+      ).toBe(true);
+      expect(room.getUncommittedEvents()).toHaveLength(0);
+    });
+  });
+
+  describe('Scheduled Maintenance Windows Management', () => {
+    it('should schedule maintenance window, update version, and record RoomMaintenanceScheduledEvent', () => {
+      const room = Room.create({ name: 'Laser Suite', capacity: 1 });
+      room.clearEvents();
+
+      const timeRange = TimeRange.create(
+        new Date('2026-09-01T08:00:00Z'),
+        new Date('2026-09-01T12:00:00Z'),
+      );
+
+      const window = room.scheduleMaintenance({
+        timeRange,
+        reason: 'Laser optical calibration',
+      });
+
+      expect(room.maintenanceWindows).toHaveLength(1);
+      expect(room.maintenanceWindows[0]!.id).toBe(window.id);
+
+      expect(room.version).toBe(2);
+
+      const events = room.pullEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(RoomMaintenanceScheduledEvent);
+      const event = events[0] as RoomMaintenanceScheduledEvent;
+      expect(event.roomId).toBe(room.id.getValue());
+      expect(event.maintenanceId).toBe(window.id);
+      expect(event.payload.reason).toBe('Laser optical calibration');
+    });
+
+    it('should cancel maintenance window, update version, and record RoomMaintenanceCancelledEvent', () => {
+      const room = Room.create({ name: 'Laser Suite', capacity: 1 });
+      const window = room.scheduleMaintenance({
+        id: 'maint_cancel_me',
+        timeRange: TimeRange.create(
+          new Date('2026-09-01T08:00:00Z'),
+          new Date('2026-09-01T12:00:00Z'),
+        ),
+        reason: 'Laser optical calibration',
+      });
+      room.clearEvents();
+
+      const result = room.cancelMaintenance(window.id);
+      expect(result).toBe(true);
+      expect(room.maintenanceWindows).toHaveLength(0);
+      expect(room.version).toBe(3);
+
+      const events = room.pullEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(RoomMaintenanceCancelledEvent);
+      const event = events[0] as RoomMaintenanceCancelledEvent;
+      expect(event.roomId).toBe(room.id.getValue());
+      expect(event.maintenanceId).toBe('maint_cancel_me');
+    });
+
+    it('should return false when cancelling non-existent maintenance window', () => {
+      const room = Room.create({ name: 'Laser Suite', capacity: 1 });
+      const result = room.cancelMaintenance('non_existent_id');
+      expect(result).toBe(false);
+    });
+
+    it('should detect when room is under maintenance during window', () => {
+      const room = Room.create({ name: 'Laser Suite', capacity: 1 });
+      room.scheduleMaintenance({
+        timeRange: TimeRange.create(
+          new Date('2026-09-01T08:00:00Z'),
+          new Date('2026-09-01T12:00:00Z'),
+        ),
+        reason: 'Laser optical calibration',
+      });
+
+      // Target inside window
+      expect(
+        room.isUnderMaintenance(
+          TimeRange.create(new Date('2026-09-01T09:00:00Z'), new Date('2026-09-01T10:00:00Z')),
+        ),
+      ).toBe(true);
+
+      // Target outside window
+      expect(
+        room.isUnderMaintenance(
+          TimeRange.create(new Date('2026-09-01T14:00:00Z'), new Date('2026-09-01T15:00:00Z')),
+        ),
+      ).toBe(false);
     });
   });
 });

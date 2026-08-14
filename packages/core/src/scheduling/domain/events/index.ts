@@ -11,6 +11,8 @@ export * from './room-created.event';
 export * from './room-activated.event';
 export * from './room-deactivated.event';
 export * from './room-maintenance.event';
+export * from './room-maintenance-scheduled.event';
+export * from './room-maintenance-cancelled.event';
 export * from './recurring-appointment-created.event';
 export * from './recurring-series-cancelled.event';
 export * from './occurrence-skipped.event';
