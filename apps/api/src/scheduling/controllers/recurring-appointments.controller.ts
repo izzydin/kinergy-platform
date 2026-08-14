@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   HttpCode,
   HttpStatus,
@@ -8,6 +9,7 @@ import {
   Param,
   Patch,
   Post,
+  UnprocessableEntityException,
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
@@ -57,7 +59,7 @@ export class RecurringAppointmentsController {
   @Post()
   @HttpCode(HttpStatus.CREATED)
   @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
-  @Permissions('manage:schedules')
+  @Permissions('appointments.create')
   @ApiOperation({
     summary: 'Create recurring appointment series and generate initial rolling window',
     description:
@@ -71,7 +73,7 @@ export class RecurringAppointmentsController {
   @ApiResponse({ status: 400, description: 'Invalid request payload or malformed arguments.' })
   @ApiResponse({ status: 401, description: 'Authentication required.' })
   @ApiResponse({ status: 403, description: 'Insufficient privileges.' })
-  @ApiResponse({ status: 409, description: 'Conflict detected during generation.' })
+  @ApiResponse({ status: 409, description: 'Conflict detected during occurrence generation.' })
   @ApiResponse({ status: 422, description: 'Booking policy or duration violation.' })
   public async createSeries(
     @Body() dto: CreateRecurrenceSeriesRequestDto,
@@ -94,7 +96,11 @@ export class RecurringAppointmentsController {
     const result = await this.createSeriesHandler.execute(command);
 
     if (!result.isSuccess) {
-      throw new BadRequestException(result.getError());
+      const err = result.getError();
+      if (err.toLowerCase().includes('conflict')) {
+        throw new ConflictException(err);
+      }
+      throw new BadRequestException(err);
     }
 
     return result.getValue() as unknown as CreateRecurrenceSeriesResponseDto;
@@ -103,7 +109,7 @@ export class RecurringAppointmentsController {
   @Post(':seriesId/skip')
   @HttpCode(HttpStatus.OK)
   @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
-  @Permissions('manage:schedules')
+  @Permissions('appointments.update')
   @ApiOperation({
     summary: 'Skip a specific recurrence occurrence slot',
     description:
@@ -115,7 +121,11 @@ export class RecurringAppointmentsController {
     description: 'Occurrence slot skipped successfully.',
     type: SkipOccurrenceResponseDto,
   })
+  @ApiResponse({ status: 400, description: 'Invalid request parameters.' })
+  @ApiResponse({ status: 401, description: 'Authentication required.' })
+  @ApiResponse({ status: 403, description: 'Insufficient privileges.' })
   @ApiResponse({ status: 404, description: 'Recurrence series not found.' })
+  @ApiResponse({ status: 422, description: 'Cannot skip occurrence on non-active series.' })
   public async skipOccurrence(
     @Param('seriesId') seriesId: string,
     @Body() dto: SkipOccurrenceRequestDto,
@@ -133,6 +143,9 @@ export class RecurringAppointmentsController {
       if (err.toLowerCase().includes('not found')) {
         throw new NotFoundException(err);
       }
+      if (err.toLowerCase().includes('non-active') || err.toLowerCase().includes('cancelled')) {
+        throw new UnprocessableEntityException(err);
+      }
       throw new BadRequestException(err);
     }
 
@@ -142,7 +155,7 @@ export class RecurringAppointmentsController {
   @Patch('occurrences/:appointmentId')
   @HttpCode(HttpStatus.OK)
   @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
-  @Permissions('manage:schedules')
+  @Permissions('appointments.update')
   @ApiOperation({
     summary: 'Edit and detach a single materialized occurrence',
     description:
@@ -157,6 +170,9 @@ export class RecurringAppointmentsController {
     status: 200,
     description: 'Appointment detached and updated successfully.',
   })
+  @ApiResponse({ status: 400, description: 'Invalid request payload.' })
+  @ApiResponse({ status: 401, description: 'Authentication required.' })
+  @ApiResponse({ status: 403, description: 'Insufficient privileges.' })
   @ApiResponse({ status: 404, description: 'Appointment or parent series not found.' })
   @ApiResponse({ status: 409, description: 'Rescheduling conflict detected.' })
   public async editSingleOccurrence(
@@ -178,6 +194,9 @@ export class RecurringAppointmentsController {
       if (err.toLowerCase().includes('not found')) {
         throw new NotFoundException(err);
       }
+      if (err.toLowerCase().includes('conflict')) {
+        throw new ConflictException(err);
+      }
       throw new BadRequestException(err);
     }
 
@@ -187,7 +206,7 @@ export class RecurringAppointmentsController {
   @Post(':seriesId/edit-future')
   @HttpCode(HttpStatus.OK)
   @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
-  @Permissions('manage:schedules')
+  @Permissions('appointments.update')
   @ApiOperation({
     summary: 'Edit future recurrence occurrences (Cutoff-and-Fork)',
     description:
@@ -199,7 +218,11 @@ export class RecurringAppointmentsController {
     description: 'Future series branch created and initialized.',
     type: EditFutureOccurrencesResponseDto,
   })
+  @ApiResponse({ status: 400, description: 'Invalid request payload.' })
+  @ApiResponse({ status: 401, description: 'Authentication required.' })
+  @ApiResponse({ status: 403, description: 'Insufficient privileges.' })
   @ApiResponse({ status: 404, description: 'Recurrence series not found.' })
+  @ApiResponse({ status: 422, description: 'Cannot edit future occurrences on non-active series.' })
   public async editFutureOccurrences(
     @Param('seriesId') seriesId: string,
     @Body() dto: EditFutureOccurrencesRequestDto,
@@ -224,6 +247,9 @@ export class RecurringAppointmentsController {
       if (err.toLowerCase().includes('not found')) {
         throw new NotFoundException(err);
       }
+      if (err.toLowerCase().includes('non-active') || err.toLowerCase().includes('cancelled')) {
+        throw new UnprocessableEntityException(err);
+      }
       throw new BadRequestException(err);
     }
 
@@ -233,7 +259,7 @@ export class RecurringAppointmentsController {
   @Post(':seriesId/cancel')
   @HttpCode(HttpStatus.OK)
   @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
-  @Permissions('manage:schedules')
+  @Permissions('appointments.delete')
   @ApiOperation({
     summary: 'Cancel recurring appointment series',
     description:
@@ -245,6 +271,9 @@ export class RecurringAppointmentsController {
     description: 'Series cancelled successfully.',
     type: CancelRecurrenceSeriesResponseDto,
   })
+  @ApiResponse({ status: 400, description: 'Invalid request payload.' })
+  @ApiResponse({ status: 401, description: 'Authentication required.' })
+  @ApiResponse({ status: 403, description: 'Insufficient privileges.' })
   @ApiResponse({ status: 404, description: 'Recurrence series not found.' })
   public async cancelSeries(
     @Param('seriesId') seriesId: string,

@@ -1,4 +1,4 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus } from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Response } from 'express';
 import {
   SchedulingDomainException,
@@ -70,6 +70,17 @@ export class SchedulingExceptionFilter implements ExceptionFilter {
         code: exception.code,
         message: exception.message,
       });
+      return;
+    }
+
+    if (exception instanceof HttpException) {
+      const status = exception.getStatus();
+      const resPayload = exception.getResponse();
+      response
+        .status(status)
+        .json(
+          typeof resPayload === 'object' ? resPayload : { statusCode: status, message: resPayload },
+        );
       return;
     }
 

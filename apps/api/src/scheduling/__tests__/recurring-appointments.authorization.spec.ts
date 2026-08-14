@@ -34,13 +34,13 @@ describe('RecurringAppointmentsController Authorization & RBAC Evaluation', () =
     } as unknown as ExecutionContext;
   };
 
-  it('allows access when user has required manage:schedules permission', async () => {
+  it('allows access when user has required appointments.create permission for createSeries', async () => {
     const user = new AuthenticatedUserContext({
       userId: 'usr_receptionist',
       email: 'reception@kinergy.com',
       status: 'ACTIVE',
       roles: ['RECEPTIONIST'],
-      permissions: ['manage:schedules'],
+      permissions: ['appointments.create'],
     });
 
     mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
@@ -52,12 +52,58 @@ describe('RecurringAppointmentsController Authorization & RBAC Evaluation', () =
     expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
       user,
       expect.objectContaining({
-        requiredPermissions: ['manage:schedules'],
+        requiredPermissions: ['appointments.create'],
       }),
     );
   });
 
-  it('rejects with ForbiddenException when user lacks manage:schedules permission', async () => {
+  it('allows access when user has required appointments.update permission for skipOccurrence', async () => {
+    const user = new AuthenticatedUserContext({
+      userId: 'usr_therapist',
+      email: 'therapist@kinergy.com',
+      status: 'ACTIVE',
+      roles: ['THERAPIST'],
+      permissions: ['appointments.update'],
+    });
+
+    mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+    const context = createMockContext('skipOccurrence', user);
+    const result = await guard.canActivate(context);
+
+    expect(result).toBe(true);
+    expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+      user,
+      expect.objectContaining({
+        requiredPermissions: ['appointments.update'],
+      }),
+    );
+  });
+
+  it('allows access when user has required appointments.delete permission for cancelSeries', async () => {
+    const user = new AuthenticatedUserContext({
+      userId: 'usr_admin',
+      email: 'admin@kinergy.com',
+      status: 'ACTIVE',
+      roles: ['ADMIN'],
+      permissions: ['appointments.delete'],
+    });
+
+    mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+    const context = createMockContext('cancelSeries', user);
+    const result = await guard.canActivate(context);
+
+    expect(result).toBe(true);
+    expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+      user,
+      expect.objectContaining({
+        requiredPermissions: ['appointments.delete'],
+      }),
+    );
+  });
+
+  it('rejects with ForbiddenException when user lacks required permission', async () => {
     const user = new AuthenticatedUserContext({
       userId: 'usr_unprivileged',
       email: 'member@kinergy.com',
@@ -67,7 +113,7 @@ describe('RecurringAppointmentsController Authorization & RBAC Evaluation', () =
     });
 
     mockEvaluator.evaluate.mockResolvedValueOnce(
-      AuthorizationDecision.denied('Missing permission: manage:schedules'),
+      AuthorizationDecision.denied('Missing permission: appointments.create'),
     );
 
     const context = createMockContext('createSeries', user);
