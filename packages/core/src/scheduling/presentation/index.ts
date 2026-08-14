@@ -1,2 +1,2 @@
-// Placeholder exports for presentation layer
+// Presentation layer is exposed via apps/api/src/scheduling
 export {};

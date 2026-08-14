@@ -4,6 +4,7 @@ import { APP_PIPE } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { appConfig, databaseConfig, validateEnv } from './config';
 import { PlatformModule } from './platform';
+import { SchedulingModule } from './scheduling';
 import { GlobalSanitizationValidationPipe } from './common/pipes';
 
 @Module({
@@ -14,6 +15,7 @@ import { GlobalSanitizationValidationPipe } from './common/pipes';
       load: [appConfig, databaseConfig],
     }),
     PlatformModule,
+    SchedulingModule,
   ],
   controllers: [AppController],
   providers: [
