@@ -5,6 +5,12 @@ import { RoomStatus } from '../value-objects/room-status.enum';
 import { SchedulableResource } from '../resource/schedulable-resource.interface';
 import { ResourceType } from '../resource/resource-type.enum';
 
+// Domain Events
+import { RoomCreatedEvent } from '../events/room-created.event';
+import { RoomActivatedEvent } from '../events/room-activated.event';
+import { RoomDeactivatedEvent } from '../events/room-deactivated.event';
+import { RoomMarkedMaintenanceEvent } from '../events/room-maintenance.event';
+
 /**
  * Properties required to instantiate a new Room aggregate.
  */
@@ -14,6 +20,7 @@ export interface CreateRoomProps {
   capacity: number;
   status?: RoomStatus;
   features?: Iterable<string>;
+  createdAt?: Date;
 }
 
 /**
@@ -27,6 +34,8 @@ export interface ReconstituteRoomProps {
   status: RoomStatus;
   features: Iterable<string>;
   maintenanceReason?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 /**
@@ -44,6 +53,8 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
   private _status: RoomStatus;
   private readonly _features: Set<string>;
   private _maintenanceReason?: string;
+  private readonly _createdAt: Date;
+  private _updatedAt: Date;
   private uncommittedEvents: DomainEvent[] = [];
 
   private constructor(props: ReconstituteRoomProps) {
@@ -61,27 +72,48 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
     this._status = props.status;
     this._features = new Set(Array.from(props.features).map((f) => f.trim().toLowerCase()));
     this._maintenanceReason = props.maintenanceReason;
+    this._createdAt = props.createdAt ?? new Date();
+    this._updatedAt = props.updatedAt ?? this._createdAt;
   }
 
   /**
-   * Factory method to create a new Room aggregate root.
+   * Factory method to create a new Room aggregate root and record RoomCreatedEvent.
    *
    * @param props Construction properties for the room
    * @returns Newly initialized Room aggregate with version 1 and default AVAILABLE status
    */
   public static create(props: CreateRoomProps): Room {
-    return new Room({
-      id: props.id ?? RoomId.create(),
+    const roomId = props.id ?? RoomId.create();
+    const status = props.status ?? RoomStatus.AVAILABLE;
+    const createdAt = props.createdAt ?? new Date();
+
+    const room = new Room({
+      id: roomId,
       version: 1,
       name: props.name,
       capacity: props.capacity,
-      status: props.status ?? RoomStatus.AVAILABLE,
+      status,
       features: props.features ?? [],
+      createdAt,
+      updatedAt: createdAt,
     });
+
+    room.recordEvent(
+      new RoomCreatedEvent(
+        roomId.getValue(),
+        room.name,
+        room.capacity,
+        Array.from(room.features),
+        1,
+        createdAt,
+      ),
+    );
+
+    return room;
   }
 
   /**
-   * Reconstitutes an existing Room aggregate root from database hydration state.
+   * Reconstitutes an existing Room aggregate root from database hydration state without re-emitting creation events.
    *
    * @param props Persistence DTO properties
    * @returns Reconstituted Room instance
@@ -139,6 +171,16 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
     return this._maintenanceReason;
   }
 
+  /** Gets the aggregate creation timestamp */
+  public get createdAt(): Date {
+    return this._createdAt;
+  }
+
+  /** Gets the aggregate last update timestamp */
+  public get updatedAt(): Date {
+    return this._updatedAt;
+  }
+
   /**
    * Renames the room and increments the aggregate version counter.
    *
@@ -148,8 +190,12 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
     if (!newName || newName.trim().length === 0) {
       throw new Error('New room name cannot be empty.');
     }
-    this._name = newName.trim();
-    this._version += 1;
+    const cleanName = newName.trim();
+    if (this._name !== cleanName) {
+      this._name = cleanName;
+      this._version += 1;
+      this._updatedAt = new Date();
+    }
   }
 
   /**
@@ -161,12 +207,15 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
     if (!Number.isInteger(newCapacity) || newCapacity <= 0) {
       throw new Error('Room capacity must be a positive integer strictly greater than zero.');
     }
-    this._capacity = newCapacity;
-    this._version += 1;
+    if (this._capacity !== newCapacity) {
+      this._capacity = newCapacity;
+      this._version += 1;
+      this._updatedAt = new Date();
+    }
   }
 
   /**
-   * Places the room under MAINTENANCE status with an explanation reason.
+   * Places the room under MAINTENANCE status with an explanation reason and emits RoomMarkedMaintenanceEvent.
    *
    * @param reason Mandatory maintenance explanation
    */
@@ -177,26 +226,72 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
     this._status = RoomStatus.MAINTENANCE;
     this._maintenanceReason = reason.trim();
     this._version += 1;
+    this._updatedAt = new Date();
+
+    this.recordEvent(
+      new RoomMarkedMaintenanceEvent(
+        this._id.getValue(),
+        this._version,
+        this._maintenanceReason,
+        this._updatedAt,
+      ),
+    );
   }
 
   /**
-   * Marks the room as AVAILABLE for scheduling and clears maintenance reasons.
+   * Activates the room (status = AVAILABLE), clears maintenance explanations, and records RoomActivatedEvent.
    */
-  public markAvailable(): void {
+  public activate(): void {
+    if (this._status === RoomStatus.AVAILABLE) {
+      return; // Already active, idempotent
+    }
     this._status = RoomStatus.AVAILABLE;
     this._maintenanceReason = undefined;
     this._version += 1;
+    this._updatedAt = new Date();
+
+    this.recordEvent(new RoomActivatedEvent(this._id.getValue(), this._version, this._updatedAt));
   }
 
   /**
-   * Marks the room as UNAVAILABLE.
+   * Alias to activate() for backward-compatible lifecycle marking.
+   */
+  public markAvailable(): void {
+    this.activate();
+  }
+
+  /**
+   * Deactivates the room (status = UNAVAILABLE), records reason, and emits RoomDeactivatedEvent.
+   *
+   * @param reason Optional deactivation reason
+   */
+  public deactivate(reason?: string): void {
+    const cleanReason = reason ? reason.trim() : undefined;
+    if (this._status === RoomStatus.UNAVAILABLE && this._maintenanceReason === cleanReason) {
+      return; // Already in exact state, idempotent
+    }
+    this._status = RoomStatus.UNAVAILABLE;
+    this._maintenanceReason = cleanReason;
+    this._version += 1;
+    this._updatedAt = new Date();
+
+    this.recordEvent(
+      new RoomDeactivatedEvent(
+        this._id.getValue(),
+        this._version,
+        this._maintenanceReason,
+        this._updatedAt,
+      ),
+    );
+  }
+
+  /**
+   * Alias to deactivate() for backward-compatible lifecycle marking.
    *
    * @param reason Optional unavailability explanation
    */
   public markUnavailable(reason?: string): void {
-    this._status = RoomStatus.UNAVAILABLE;
-    this._maintenanceReason = reason ? reason.trim() : undefined;
-    this._version += 1;
+    this.deactivate(reason);
   }
 
   /**
@@ -212,6 +307,7 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
     if (!this._features.has(cleanFeature)) {
       this._features.add(cleanFeature);
       this._version += 1;
+      this._updatedAt = new Date();
     }
   }
 
@@ -228,6 +324,7 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
     if (this._features.has(cleanFeature)) {
       this._features.delete(cleanFeature);
       this._version += 1;
+      this._updatedAt = new Date();
     }
   }
 
@@ -242,6 +339,13 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
       return true;
     }
     return requiredFeatures.every((feat) => this._features.has(feat.trim().toLowerCase()));
+  }
+
+  /**
+   * Records a domain event on this aggregate root.
+   */
+  private recordEvent(event: DomainEvent): void {
+    this.uncommittedEvents.push(event);
   }
 
   /**

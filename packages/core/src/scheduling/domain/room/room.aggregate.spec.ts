@@ -1,102 +1,130 @@
 import { Room } from './room.aggregate';
 import { RoomId } from './room-id.vo';
 import { RoomStatus } from '../value-objects/room-status.enum';
+import { ResourceType } from '../resource/resource-type.enum';
+import { RoomCreatedEvent } from '../events/room-created.event';
+import { RoomActivatedEvent } from '../events/room-activated.event';
+import { RoomDeactivatedEvent } from '../events/room-deactivated.event';
+import { RoomMarkedMaintenanceEvent } from '../events/room-maintenance.event';
+import { RoomAvailabilityEvaluator } from '../services/room-availability-evaluator.service';
+import { TimeRange } from '../value-objects/time-range.vo';
+import { Appointment } from '../appointment/appointment.aggregate';
+import { AppointmentType } from '../value-objects/appointment-type.vo';
 
 describe('Room Aggregate Root', () => {
-  it('should create a valid Room aggregate with default AVAILABLE status and version 1', () => {
-    const room = Room.create({
-      name: 'Hydrotherapy Suite 1',
-      capacity: 2,
-      features: ['hydrotherapy_tub', 'soundproof'],
-    });
+  describe('Creation & Initial State', () => {
+    it('should create a valid Room aggregate with default AVAILABLE status and record RoomCreatedEvent', () => {
+      const room = Room.create({
+        name: 'Hydrotherapy Suite 1',
+        capacity: 2,
+        features: ['hydrotherapy_tub', 'soundproof'],
+      });
 
-    expect(room.id).toBeInstanceOf(RoomId);
-    expect(room.name).toBe('Hydrotherapy Suite 1');
-    expect(room.capacity).toBe(2);
-    expect(room.status).toBe(RoomStatus.AVAILABLE);
-    expect(room.version).toBe(1);
-    expect(room.supportsFeatures(['hydrotherapy_tub'])).toBe(true);
-    expect(room.supportsFeatures(['sauna'])).toBe(false);
-  });
-
-  it('should enforce positive capacity invariant', () => {
-    expect(() =>
-      Room.create({
-        name: 'Invalid Room',
-        capacity: 0,
-      }),
-    ).toThrow('Room capacity must be a positive integer strictly greater than zero.');
-
-    expect(() =>
-      Room.create({
-        name: 'Invalid Room',
-        capacity: -5,
-      }),
-    ).toThrow('Room capacity must be a positive integer strictly greater than zero.');
-
-    const room = Room.create({ name: 'Valid Room', capacity: 1 });
-    expect(() => room.changeCapacity(0)).toThrow();
-  });
-
-  it('should rename room and increment version counter', () => {
-    const room = Room.create({ name: 'Room A', capacity: 1 });
-    expect(room.version).toBe(1);
-
-    room.rename('Room A Prime');
-    expect(room.name).toBe('Room A Prime');
-    expect(room.version).toBe(2);
-
-    expect(() => room.rename('')).toThrow('New room name cannot be empty.');
-  });
-
-  it('should change room capacity and increment version counter', () => {
-    const room = Room.create({ name: 'Suite 101', capacity: 1 });
-    room.changeCapacity(4);
-
-    expect(room.capacity).toBe(4);
-    expect(room.version).toBe(2);
-  });
-
-  describe('Status Transitions & Maintenance', () => {
-    it('should transition to MAINTENANCE with reason', () => {
-      const room = Room.create({ name: 'Massage Room 3', capacity: 1 });
-
-      room.markMaintenance('Plumbing repair');
-
-      expect(room.status).toBe(RoomStatus.MAINTENANCE);
-      expect(room.maintenanceReason).toBe('Plumbing repair');
-      expect(room.version).toBe(2);
-    });
-
-    it('should throw error when marking maintenance without reason', () => {
-      const room = Room.create({ name: 'Massage Room 3', capacity: 1 });
-      expect(() => room.markMaintenance('')).toThrow('Maintenance reason is required.');
-    });
-
-    it('should transition to AVAILABLE and clear maintenance reason', () => {
-      const room = Room.create({ name: 'Massage Room 3', capacity: 1 });
-      room.markMaintenance('Plumbing repair');
-
-      room.markAvailable();
-
+      expect(room.id).toBeInstanceOf(RoomId);
+      expect(room.name).toBe('Hydrotherapy Suite 1');
+      expect(room.resourceType).toBe(ResourceType.ROOM);
+      expect(room.capacity).toBe(2);
       expect(room.status).toBe(RoomStatus.AVAILABLE);
-      expect(room.maintenanceReason).toBeUndefined();
-      expect(room.version).toBe(3);
+      expect(room.version).toBe(1);
+      expect(room.isReservable()).toBe(true);
+      expect(room.supportsFeatures(['hydrotherapy_tub'])).toBe(true);
+      expect(room.supportsFeatures(['sauna'])).toBe(false);
+      expect(room.createdAt).toBeInstanceOf(Date);
+      expect(room.updatedAt).toBeInstanceOf(Date);
+
+      const events = room.pullEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(RoomCreatedEvent);
+      const createdEvent = events[0] as RoomCreatedEvent;
+      expect(createdEvent.roomId).toBe(room.id.getValue());
+      expect(createdEvent.payload.name).toBe('Hydrotherapy Suite 1');
+      expect(createdEvent.payload.capacity).toBe(2);
+      expect(createdEvent.payload.features).toEqual(['hydrotherapy_tub', 'soundproof']);
     });
 
-    it('should transition to UNAVAILABLE', () => {
-      const room = Room.create({ name: 'Massage Room 3', capacity: 1 });
-      room.markUnavailable('VIP Private Use');
+    it('should reject empty or whitespace room names on creation', () => {
+      expect(() =>
+        Room.create({
+          name: '',
+          capacity: 1,
+        }),
+      ).toThrow('Room name cannot be empty.');
 
-      expect(room.status).toBe(RoomStatus.UNAVAILABLE);
-      expect(room.maintenanceReason).toBe('VIP Private Use');
-      expect(room.version).toBe(2);
+      expect(() =>
+        Room.create({
+          name: '   ',
+          capacity: 1,
+        }),
+      ).toThrow('Room name cannot be empty.');
+    });
+
+    it('should enforce positive integer capacity invariant', () => {
+      expect(() =>
+        Room.create({
+          name: 'Invalid Room',
+          capacity: 0,
+        }),
+      ).toThrow('Room capacity must be a positive integer strictly greater than zero.');
+
+      expect(() =>
+        Room.create({
+          name: 'Invalid Room',
+          capacity: -5,
+        }),
+      ).toThrow('Room capacity must be a positive integer strictly greater than zero.');
+
+      expect(() =>
+        Room.create({
+          name: 'Invalid Room',
+          capacity: 1.5,
+        }),
+      ).toThrow('Room capacity must be a positive integer strictly greater than zero.');
+
+      expect(() =>
+        Room.create({
+          name: 'Invalid Room',
+          capacity: NaN,
+        }),
+      ).toThrow('Room capacity must be a positive integer strictly greater than zero.');
     });
   });
 
-  describe('Feature Set Management & Capabilities', () => {
+  describe('Editing & Mutations', () => {
+    it('should rename room, update timestamp, and increment version counter', () => {
+      const room = Room.create({ name: 'Room A', capacity: 1 });
+      room.clearEvents();
+      expect(room.version).toBe(1);
+
+      room.rename('Room A Prime');
+      expect(room.name).toBe('Room A Prime');
+      expect(room.version).toBe(2);
+
+      expect(() => room.rename('')).toThrow('New room name cannot be empty.');
+      expect(() => room.rename('   ')).toThrow('New room name cannot be empty.');
+    });
+
+    it('should change room capacity, update timestamp, and increment version counter', () => {
+      const room = Room.create({ name: 'Suite 101', capacity: 1 });
+      room.clearEvents();
+
+      room.changeCapacity(4);
+      expect(room.capacity).toBe(4);
+      expect(room.version).toBe(2);
+
+      expect(() => room.changeCapacity(0)).toThrow(
+        'Room capacity must be a positive integer strictly greater than zero.',
+      );
+      expect(() => room.changeCapacity(-1)).toThrow(
+        'Room capacity must be a positive integer strictly greater than zero.',
+      );
+      expect(() => room.changeCapacity(2.5)).toThrow(
+        'Room capacity must be a positive integer strictly greater than zero.',
+      );
+    });
+
     it('should add and remove features dynamically', () => {
       const room = Room.create({ name: 'Studio 1', capacity: 5 });
+      room.clearEvents();
 
       expect(room.supportsFeatures(['adjustable_table'])).toBe(false);
 
@@ -104,26 +132,181 @@ describe('Room Aggregate Root', () => {
       expect(room.supportsFeatures(['adjustable_table'])).toBe(true);
       expect(room.version).toBe(2);
 
+      // Adding existing feature is a no-op on version
+      room.addFeature('adjustable_table');
+      expect(room.version).toBe(2);
+
       room.removeFeature('adjustable_table');
       expect(room.supportsFeatures(['adjustable_table'])).toBe(false);
       expect(room.version).toBe(3);
-    });
 
-    it('should evaluate multiple required features correctly', () => {
-      const room = Room.create({
-        name: 'Cryo Room',
-        capacity: 1,
-        features: ['cryo_chamber', 'oxygen_bar', 'wheelchair_accessible'],
+      expect(() => room.addFeature('')).toThrow('Feature name cannot be empty.');
+    });
+  });
+
+  describe('Room Lifecycle & Operational States', () => {
+    describe('Deactivation (UNAVAILABLE)', () => {
+      it('should deactivate room, update status to UNAVAILABLE, and record RoomDeactivatedEvent', () => {
+        const room = Room.create({ name: 'Suite 200', capacity: 2 });
+        room.clearEvents();
+
+        room.deactivate('Undergoing structural renovation');
+
+        expect(room.status).toBe(RoomStatus.UNAVAILABLE);
+        expect(room.maintenanceReason).toBe('Undergoing structural renovation');
+        expect(room.isReservable()).toBe(false);
+        expect(room.version).toBe(2);
+
+        const events = room.pullEvents();
+        expect(events).toHaveLength(1);
+        expect(events[0]).toBeInstanceOf(RoomDeactivatedEvent);
+        const event = events[0] as RoomDeactivatedEvent;
+        expect(event.roomId).toBe(room.id.getValue());
+        expect(event.payload.reason).toBe('Undergoing structural renovation');
       });
 
-      expect(room.supportsFeatures(['cryo_chamber', 'wheelchair_accessible'])).toBe(true);
-      expect(room.supportsFeatures(['cryo_chamber', 'sauna'])).toBe(false);
+      it('should handle idempotent deactivation without redundant version increment', () => {
+        const room = Room.create({ name: 'Suite 200', capacity: 2 });
+        room.deactivate('Reason 1');
+        expect(room.version).toBe(2);
+
+        room.deactivate('Reason 1');
+        expect(room.version).toBe(2);
+      });
+    });
+
+    describe('Activation (AVAILABLE)', () => {
+      it('should activate an inactive room, clear reasons, and record RoomActivatedEvent', () => {
+        const room = Room.create({
+          name: 'Suite 300',
+          capacity: 1,
+          status: RoomStatus.UNAVAILABLE,
+        });
+        room.clearEvents();
+
+        room.activate();
+
+        expect(room.status).toBe(RoomStatus.AVAILABLE);
+        expect(room.maintenanceReason).toBeUndefined();
+        expect(room.isReservable()).toBe(true);
+        expect(room.version).toBe(2);
+
+        const events = room.pullEvents();
+        expect(events).toHaveLength(1);
+        expect(events[0]).toBeInstanceOf(RoomActivatedEvent);
+      });
+
+      it('should handle idempotent activation when already active', () => {
+        const room = Room.create({ name: 'Active Room', capacity: 1 });
+        expect(room.status).toBe(RoomStatus.AVAILABLE);
+        expect(room.version).toBe(1);
+
+        room.activate();
+        expect(room.version).toBe(1);
+      });
+    });
+
+    describe('Maintenance (MAINTENANCE)', () => {
+      it('should transition to MAINTENANCE with required reason and emit RoomMarkedMaintenanceEvent', () => {
+        const room = Room.create({ name: 'Massage Room 3', capacity: 1 });
+        room.clearEvents();
+
+        room.markMaintenance('Plumbing repair');
+
+        expect(room.status).toBe(RoomStatus.MAINTENANCE);
+        expect(room.maintenanceReason).toBe('Plumbing repair');
+        expect(room.isReservable()).toBe(false);
+        expect(room.version).toBe(2);
+
+        const events = room.pullEvents();
+        expect(events).toHaveLength(1);
+        expect(events[0]).toBeInstanceOf(RoomMarkedMaintenanceEvent);
+        const event = events[0] as RoomMarkedMaintenanceEvent;
+        expect(event.roomId).toBe(room.id.getValue());
+        expect(event.payload.reason).toBe('Plumbing repair');
+      });
+
+      it('should reject maintenance transition when reason is empty or whitespace', () => {
+        const room = Room.create({ name: 'Massage Room 3', capacity: 1 });
+        expect(() => room.markMaintenance('')).toThrow('Maintenance reason is required.');
+        expect(() => room.markMaintenance('   ')).toThrow('Maintenance reason is required.');
+      });
+    });
+  });
+
+  describe('Interaction with Evaluator & Scheduled Appointments', () => {
+    const evaluator = new RoomAvailabilityEvaluator();
+
+    it('should reject new reservations when room is deactivated (UNAVAILABLE), without mutating existing appointments', () => {
+      const room = Room.create({ name: 'Consultation Room', capacity: 1 });
+      const targetRange = TimeRange.create(
+        new Date('2026-09-01T10:00:00Z'),
+        new Date('2026-09-01T11:00:00Z'),
+      );
+
+      // 1. When AVAILABLE with zero appointments -> Available
+      const eval1 = evaluator.evaluate({
+        room,
+        existingAppointments: [],
+        targetRange,
+      });
+      expect(eval1.isAvailable).toBe(true);
+
+      // 2. Simulate existing scheduled appointment for the room
+      const existingAppt = Appointment.create({
+        clientId: 'client_1',
+        therapistId: 'therapist_1',
+        roomId: room.id.getValue(),
+        type: AppointmentType.create('ASSESSMENT'),
+        timeRange: TimeRange.create(
+          new Date('2026-09-01T14:00:00Z'),
+          new Date('2026-09-01T15:00:00Z'),
+        ),
+      });
+
+      // 3. Deactivate room for maintenance/closure
+      room.deactivate('Building power inspection');
+      expect(room.isReservable()).toBe(false);
+
+      // 4. Existing appointment in database remains intact (not deleted/mutated)
+      expect(existingAppt.roomId).toBe(room.id.getValue());
+
+      // 5. Subsequent reservation evaluation rejects due to room operational status
+      const eval2 = evaluator.evaluate({
+        room,
+        existingAppointments: [existingAppt],
+        targetRange,
+      });
+
+      expect(eval2.isAvailable).toBe(false);
+      expect(eval2.reason).toContain('is currently UNAVAILABLE: Building power inspection');
+    });
+
+    it('should reject when requested capacity exceeds room capacity', () => {
+      const room = Room.create({ name: 'Small Room', capacity: 1 });
+      const targetRange = TimeRange.create(
+        new Date('2026-09-01T10:00:00Z'),
+        new Date('2026-09-01T11:00:00Z'),
+      );
+
+      const result = evaluator.evaluate({
+        room,
+        existingAppointments: [],
+        targetRange,
+        requiredCapacity: 3,
+      });
+
+      expect(result.isAvailable).toBe(false);
+      expect(result.reason).toContain('capacity (1) is less than required capacity (3)');
     });
   });
 
   describe('Reconstitution', () => {
-    it('should reconstitute existing Room from persistence DTO', () => {
+    it('should reconstitute existing Room from persistence DTO without recording uncommitted events', () => {
       const roomId = RoomId.create('room_existing_555');
+      const createdAt = new Date('2026-01-01T00:00:00Z');
+      const updatedAt = new Date('2026-02-01T00:00:00Z');
+
       const room = Room.reconstitute({
         id: roomId,
         version: 12,
@@ -132,6 +315,8 @@ describe('Room Aggregate Root', () => {
         status: RoomStatus.MAINTENANCE,
         features: ['shower', 'tv'],
         maintenanceReason: 'AC Servicing',
+        createdAt,
+        updatedAt,
       });
 
       expect(room.id.getValue()).toBe('room_existing_555');
@@ -141,6 +326,9 @@ describe('Room Aggregate Root', () => {
       expect(room.status).toBe(RoomStatus.MAINTENANCE);
       expect(room.maintenanceReason).toBe('AC Servicing');
       expect(room.supportsFeatures(['shower', 'tv'])).toBe(true);
+      expect(room.createdAt).toBe(createdAt);
+      expect(room.updatedAt).toBe(updatedAt);
+      expect(room.getUncommittedEvents()).toHaveLength(0);
     });
   });
 });
