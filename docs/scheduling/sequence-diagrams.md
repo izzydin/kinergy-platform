@@ -11,6 +11,7 @@ This document presents the CQRS command execution sequence diagrams for appointm
 - [1. Appointment Creation & Conflict Check Sequence](#1-appointment-creation--conflict-check-sequence)
 - [2. Reception Desk Check-In & Completion Workflow](#2-reception-desk-check-in--completion-workflow)
 - [3. Reschedule & Resource Reassignment Execution Flow](#3-reschedule--resource-reassignment-execution-flow)
+- [4. Recurring Appointments CQRS Sequences (ADR-0043)](file:///c:/Projects/kinergy-platform/docs/scheduling/recurring-appointments-sequence-diagrams.md)
 
 ---
 

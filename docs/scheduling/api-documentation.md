@@ -90,6 +90,117 @@ export interface CancelAppointmentCommandInput {
 | `AssignRoomCommand`         | `AssignRoomHandler`         | `appointmentId`, `newRoomId`, `expectedVersion`, `requiredCapacity?`, `requiredFeatures?` |
 | `AddAppointmentNoteCommand` | `AddAppointmentNoteHandler` | `appointmentId`, `authorId`, `noteText`, `expectedVersion`                                |
 
+### 8. Create Recurring Appointment Series Command
+
+- **Command Class**: `CreateRecurrenceSeriesCommand`
+- **Handler**: `CreateRecurrenceSeriesHandler`
+- **Endpoint**: `POST /api/v1/scheduling/recurring-appointments`
+- **Permission**: `appointments.create`
+- **Returns**: `Promise<ApplicationResult<CreateRecurrenceSeriesResultDTO>>`
+
+```typescript
+export interface CreateRecurrenceSeriesCommandInput {
+  readonly clientId: string;
+  readonly therapistId: string;
+  readonly roomId: string;
+  readonly serviceType: string;
+  readonly frequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+  readonly startDate: string; // ISO 8601 UTC
+  readonly endDate?: string;
+  readonly maxOccurrences?: number;
+  readonly localStartTime: { hour: number; minute: number };
+  readonly durationMinutes: number;
+  readonly timezone?: string;
+  readonly horizonDays?: number; // 1-90, default 60
+}
+```
+
+### 9. Generate Recurring Occurrences Command
+
+- **Command Class**: `GenerateRecurringOccurrencesCommand`
+- **Handler**: `GenerateRecurringOccurrencesHandler`
+- **Returns**: `Promise<ApplicationResult<OccurrenceGenerationResultDTO>>`
+
+```typescript
+export interface GenerateRecurringOccurrencesCommandInput {
+  readonly seriesId: string;
+  readonly horizonDays?: number;
+  readonly windowStart?: Date | string;
+  readonly windowEnd?: Date | string;
+}
+```
+
+### 10. Skip Recurrence Occurrence Command
+
+- **Command Class**: `SkipRecurrenceOccurrenceCommand`
+- **Handler**: `SkipRecurrenceOccurrenceHandler`
+- **Endpoint**: `POST /api/v1/scheduling/recurring-appointments/:seriesId/skip`
+- **Permission**: `appointments.update`
+- **Returns**: `Promise<ApplicationResult<SkipOccurrenceResultDTO>>`
+
+```typescript
+export interface SkipRecurrenceOccurrenceCommandInput {
+  readonly seriesId: string;
+  readonly occurrenceIndex: number;
+  readonly reason?: string;
+}
+```
+
+### 11. Edit Single Occurrence Command
+
+- **Command Class**: `EditSingleOccurrenceCommand`
+- **Handler**: `EditSingleOccurrenceHandler`
+- **Endpoint**: `PATCH /api/v1/scheduling/recurring-appointments/occurrences/:appointmentId`
+- **Permission**: `appointments.update`
+- **Returns**: `Promise<ApplicationResult<AppointmentDTO>>`
+
+```typescript
+export interface EditSingleOccurrenceCommandInput {
+  readonly appointmentId: string;
+  readonly startTime?: Date | string;
+  readonly durationMinutes?: number;
+  readonly therapistId?: string;
+  readonly roomId?: string;
+  readonly reason?: string;
+}
+```
+
+### 12. Edit Future Occurrences (Cutoff-and-Fork) Command
+
+- **Command Class**: `EditFutureOccurrencesCommand`
+- **Handler**: `EditFutureOccurrencesHandler`
+- **Endpoint**: `POST /api/v1/scheduling/recurring-appointments/:seriesId/edit-future`
+- **Permission**: `appointments.update`
+- **Returns**: `Promise<ApplicationResult<EditFutureOccurrencesResultDTO>>`
+
+```typescript
+export interface EditFutureOccurrencesCommandInput {
+  readonly seriesId: string;
+  readonly fromOccurrenceIndex?: number;
+  readonly fromDate?: Date | string;
+  readonly newFrequency?: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+  readonly newLocalStartTime?: { hour: number; minute: number };
+  readonly newDurationMinutes?: number;
+  readonly newTherapistId?: string;
+  readonly newRoomId?: string;
+}
+```
+
+### 13. Cancel Recurrence Series Command
+
+- **Command Class**: `CancelRecurrenceSeriesCommand`
+- **Handler**: `CancelRecurrenceSeriesHandler`
+- **Endpoint**: `POST /api/v1/scheduling/recurring-appointments/:seriesId/cancel`
+- **Permission**: `appointments.delete`
+- **Returns**: `Promise<ApplicationResult<CancelRecurrenceSeriesResultDTO>>`
+
+```typescript
+export interface CancelRecurrenceSeriesCommandInput {
+  readonly seriesId: string;
+  readonly reason?: string;
+}
+```
+
 ---
 
 ## Query API Contracts
