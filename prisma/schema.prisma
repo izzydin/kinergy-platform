@@ -193,6 +193,20 @@ enum ExceptionType {
   MODIFIED
 }
 
+enum RoomStatus {
+  AVAILABLE
+  UNAVAILABLE
+  MAINTENANCE
+}
+
+enum ResourceType {
+  ROOM
+  EQUIPMENT
+  THERAPY_BED
+  RENTAL_FACILITY
+}
+
+
 model RecurrenceSeries {
   id                 String              @id @default(uuid())
   clientId           String              @map("client_id")
@@ -282,3 +296,40 @@ model AppointmentNote {
   @@index([appointmentId])
   @@map("appointment_notes")
 }
+
+model Room {
+  id                String              @id @default(uuid())
+  name              String
+  capacity          Int                 @default(1)
+  status            RoomStatus          @default(AVAILABLE)
+  resourceType      ResourceType        @default(ROOM) @map("resource_type")
+  features          String[]            @default([])
+  maintenanceReason String?             @map("maintenance_reason")
+  version           Int                 @default(1)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  maintenanceWindows MaintenanceWindow[] @relation("RoomToMaintenanceWindows")
+
+  @@index([status])
+  @@index([name])
+  @@index([resourceType])
+  @@map("rooms")
+}
+
+model MaintenanceWindow {
+  id        String   @id @default(uuid())
+  roomId    String   @map("room_id")
+  startTime DateTime @map("start_time")
+  endTime   DateTime @map("end_time")
+  reason    String?  @map("reason")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  room Room @relation("RoomToMaintenanceWindows", fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, startTime, endTime])
+  @@index([startTime, endTime])
+  @@map("maintenance_windows")
+}
+
