@@ -52,8 +52,62 @@ export const CancelRecurrenceSeriesSchema = z.object({
   reason: z.string().optional(),
 });
 
+export const CreateRoomSchema = z.object({
+  name: z.string().min(1, 'Room name is required'),
+  capacity: z.number().int().min(1).optional().default(1),
+  features: z.array(z.string()).optional().default([]),
+});
+
+export const EditRoomSchema = z.object({
+  name: z.string().min(1).optional(),
+  capacity: z.number().int().min(1).optional(),
+  features: z.array(z.string()).optional(),
+  expectedVersion: z.number().int().min(1).optional(),
+});
+
+export const ActivateRoomSchema = z.object({
+  expectedVersion: z.number().int().min(1).optional(),
+});
+
+export const DeactivateRoomSchema = z.object({
+  reason: z.string().optional(),
+  expectedVersion: z.number().int().min(1).optional(),
+});
+
+export const ScheduleMaintenanceSchema = z.object({
+  startTime: z.string().min(1, 'startTime is required'),
+  endTime: z.string().min(1, 'endTime is required'),
+  reason: z.string().min(1, 'reason is required'),
+  expectedVersion: z.number().int().min(1).optional(),
+});
+
+export const CancelMaintenanceSchema = z.object({
+  expectedVersion: z.number().int().min(1).optional(),
+});
+
+export const CheckRoomAvailabilitySchema = z.object({
+  startTime: z.string().min(1, 'startTime is required'),
+  endTime: z.string().min(1, 'endTime is required'),
+  roomId: z.string().optional(),
+  requiredFeatures: z.array(z.string()).optional(),
+  requiredCapacity: z.number().int().min(1).optional(),
+});
+
+export const ListRoomsSchema = z.object({
+  status: z.string().optional(),
+  features: z.array(z.string()).optional(),
+  minCapacity: z.number().int().min(1).optional(),
+});
+
 export type CreateRecurrenceSeriesInput = z.infer<typeof CreateRecurrenceSeriesSchema>;
 export type SkipOccurrenceInput = z.infer<typeof SkipOccurrenceSchema>;
 export type EditSingleOccurrenceInput = z.infer<typeof EditSingleOccurrenceSchema>;
 export type EditFutureOccurrencesInput = z.infer<typeof EditFutureOccurrencesSchema>;
 export type CancelRecurrenceSeriesInput = z.infer<typeof CancelRecurrenceSeriesSchema>;
+export type CreateRoomInput = z.infer<typeof CreateRoomSchema>;
+export type EditRoomInput = z.infer<typeof EditRoomSchema>;
+export type ActivateRoomInput = z.infer<typeof ActivateRoomSchema>;
+export type DeactivateRoomInput = z.infer<typeof DeactivateRoomSchema>;
+export type ScheduleMaintenanceInput = z.infer<typeof ScheduleMaintenanceSchema>;
+export type CheckRoomAvailabilityInput = z.infer<typeof CheckRoomAvailabilitySchema>;
+export type ListRoomsInput = z.infer<typeof ListRoomsSchema>;

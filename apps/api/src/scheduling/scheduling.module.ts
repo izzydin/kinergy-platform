@@ -3,6 +3,7 @@ import { PrismaService } from '../platform/persistence/prisma/prisma.service';
 import {
   PrismaAppointmentRepository,
   PrismaRecurrenceSeriesRepository,
+  PrismaRoomRepository,
   ConflictDetectionService,
   CreateRecurrenceSeriesHandler,
   GenerateRecurringOccurrencesHandler,
@@ -12,9 +13,17 @@ import {
   CancelRecurrenceSeriesHandler,
   BusinessCalendarService,
   TherapistScheduleRepository,
-  RoomRepository,
+  CreateRoomHandler,
+  EditRoomHandler,
+  ActivateRoomHandler,
+  DeactivateRoomHandler,
+  ScheduleMaintenanceHandler,
+  CancelMaintenanceHandler,
+  GetRoomHandler,
+  ListRoomsHandler,
+  CheckRoomAvailabilityHandler,
 } from '@kinergy-platform/core';
-import { RecurringAppointmentsController } from './controllers/recurring-appointments.controller';
+import { RecurringAppointmentsController, RoomsController } from './controllers';
 
 class InMemoryTherapistScheduleRepository implements TherapistScheduleRepository {
   async findByTherapistId() {
@@ -23,21 +32,8 @@ class InMemoryTherapistScheduleRepository implements TherapistScheduleRepository
   async save() {}
 }
 
-class InMemoryRoomRepository implements RoomRepository {
-  async findById() {
-    return null;
-  }
-  async findAll() {
-    return [];
-  }
-  async findAvailableRooms() {
-    return [];
-  }
-  async save() {}
-}
-
 @Module({
-  controllers: [RecurringAppointmentsController],
+  controllers: [RecurringAppointmentsController, RoomsController],
   providers: [
     {
       provide: PrismaAppointmentRepository,
@@ -50,15 +46,20 @@ class InMemoryRoomRepository implements RoomRepository {
       inject: [PrismaService],
     },
     {
+      provide: PrismaRoomRepository,
+      useFactory: (prisma: PrismaService) => new PrismaRoomRepository(prisma),
+      inject: [PrismaService],
+    },
+    {
       provide: ConflictDetectionService,
-      useFactory: (apptRepo: PrismaAppointmentRepository) =>
+      useFactory: (apptRepo: PrismaAppointmentRepository, roomRepo: PrismaRoomRepository) =>
         new ConflictDetectionService(
           new BusinessCalendarService(),
           apptRepo,
           new InMemoryTherapistScheduleRepository(),
-          new InMemoryRoomRepository(),
+          roomRepo,
         ),
-      inject: [PrismaAppointmentRepository],
+      inject: [PrismaAppointmentRepository, PrismaRoomRepository],
     },
     {
       provide: GenerateRecurringOccurrencesHandler,
@@ -123,16 +124,72 @@ class InMemoryRoomRepository implements RoomRepository {
       ) => new CancelRecurrenceSeriesHandler(seriesRepo, apptRepo),
       inject: [PrismaRecurrenceSeriesRepository, PrismaAppointmentRepository],
     },
+    {
+      provide: CreateRoomHandler,
+      useFactory: (roomRepo: PrismaRoomRepository) => new CreateRoomHandler(roomRepo),
+      inject: [PrismaRoomRepository],
+    },
+    {
+      provide: EditRoomHandler,
+      useFactory: (roomRepo: PrismaRoomRepository) => new EditRoomHandler(roomRepo),
+      inject: [PrismaRoomRepository],
+    },
+    {
+      provide: ActivateRoomHandler,
+      useFactory: (roomRepo: PrismaRoomRepository) => new ActivateRoomHandler(roomRepo),
+      inject: [PrismaRoomRepository],
+    },
+    {
+      provide: DeactivateRoomHandler,
+      useFactory: (roomRepo: PrismaRoomRepository) => new DeactivateRoomHandler(roomRepo),
+      inject: [PrismaRoomRepository],
+    },
+    {
+      provide: ScheduleMaintenanceHandler,
+      useFactory: (roomRepo: PrismaRoomRepository) => new ScheduleMaintenanceHandler(roomRepo),
+      inject: [PrismaRoomRepository],
+    },
+    {
+      provide: CancelMaintenanceHandler,
+      useFactory: (roomRepo: PrismaRoomRepository) => new CancelMaintenanceHandler(roomRepo),
+      inject: [PrismaRoomRepository],
+    },
+    {
+      provide: GetRoomHandler,
+      useFactory: (roomRepo: PrismaRoomRepository) => new GetRoomHandler(roomRepo),
+      inject: [PrismaRoomRepository],
+    },
+    {
+      provide: ListRoomsHandler,
+      useFactory: (roomRepo: PrismaRoomRepository) => new ListRoomsHandler(roomRepo),
+      inject: [PrismaRoomRepository],
+    },
+    {
+      provide: CheckRoomAvailabilityHandler,
+      useFactory: (roomRepo: PrismaRoomRepository, apptRepo: PrismaAppointmentRepository) =>
+        new CheckRoomAvailabilityHandler(roomRepo, apptRepo),
+      inject: [PrismaRoomRepository, PrismaAppointmentRepository],
+    },
   ],
   exports: [
     PrismaAppointmentRepository,
     PrismaRecurrenceSeriesRepository,
+    PrismaRoomRepository,
     CreateRecurrenceSeriesHandler,
     GenerateRecurringOccurrencesHandler,
     SkipRecurrenceOccurrenceHandler,
     EditSingleOccurrenceHandler,
     EditFutureOccurrencesHandler,
     CancelRecurrenceSeriesHandler,
+    CreateRoomHandler,
+    EditRoomHandler,
+    ActivateRoomHandler,
+    DeactivateRoomHandler,
+    ScheduleMaintenanceHandler,
+    CancelMaintenanceHandler,
+    GetRoomHandler,
+    ListRoomsHandler,
+    CheckRoomAvailabilityHandler,
   ],
 })
 export class SchedulingModule {}
