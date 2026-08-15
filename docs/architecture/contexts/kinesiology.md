@@ -54,7 +54,7 @@ To prevent terminology drift, the following definitions form the authoritative U
 
 ### 4. `TreatmentSession` Lifecycle State Machine
 
-The clinical session lifecycle is strictly governed by an explicit finite state machine inside the `TreatmentSession` aggregate root:
+The clinical session lifecycle is strictly governed by an explicit, deterministic finite state machine inside the `TreatmentSession` aggregate root (formally specified in [ADR-0046](file:///c:/Projects/kinergy-platform/docs/adr/0046-treatment-session-lifecycle-state-machine-and-transition-specification.md)):
 
 ```text
        ┌──────────────┐
@@ -73,16 +73,35 @@ The clinical session lifecycle is strictly governed by an explicit finite state 
  └─────────────┘
 ```
 
-**Valid Transitions**:
+#### Authoritative State Transition Matrix
 
-- `SCHEDULED -> IN_PROGRESS` (via `start()`)
-- `IN_PROGRESS -> COMPLETED` (via `complete()`)
-- `SCHEDULED -> CANCELLED` (via `cancel(reason?)`)
-- `SCHEDULED -> NO_SHOW` (via `markAsNoShow()`)
+| Current State | Operation                 | Next State    | Allowed? | Invariant Rule / Exception                                                       |
+| :------------ | :------------------------ | :------------ | :------: | :------------------------------------------------------------------------------- |
+| `SCHEDULED`   | `start(clock?)`           | `IN_PROGRESS` | **YES**  | Therapist starts clinical care encounter.                                        |
+| `SCHEDULED`   | `cancel(reason?, clock?)` | `CANCELLED`   | **YES**  | Session cancelled prior to starting.                                             |
+| `SCHEDULED`   | `markAsNoShow(clock?)`    | `NO_SHOW`     | **YES**  | Client failed to attend scheduled session.                                       |
+| `IN_PROGRESS` | `complete(clock?)`        | `COMPLETED`   | **YES**  | Normal clinical encounter conclusion.                                            |
+| `SCHEDULED`   | `complete(...)`           | —             |  **NO**  | Direct completion prohibited; throws `InvalidSessionTransitionException`.        |
+| `IN_PROGRESS` | `start(...)`              | —             |  **NO**  | Already started; throws `InvalidSessionTransitionException`.                     |
+| `IN_PROGRESS` | `cancel(...)`             | —             |  **NO**  | Mid-session cancellation prohibited; throws `InvalidSessionTransitionException`. |
+| `IN_PROGRESS` | `markAsNoShow(...)`       | —             |  **NO**  | Mid-session no-show prohibited; throws `InvalidSessionTransitionException`.      |
+| `COMPLETED`   | _Any Transition_          | —             |  **NO**  | Strictly Terminal; throws `InvalidSessionTransitionException`.                   |
+| `CANCELLED`   | _Any Transition_          | —             |  **NO**  | Strictly Terminal; throws `InvalidSessionTransitionException`.                   |
+| `NO_SHOW`     | _Any Transition_          | —             |  **NO**  | Strictly Terminal; throws `InvalidSessionTransitionException`.                   |
 
-**Terminal State Invariant**:
+#### Important Business Semantics
 
-- `COMPLETED`, `CANCELLED`, and `NO_SHOW` are strictly terminal. Any subsequent transition attempt throws `InvalidSessionTransitionException`.
+1. **`SCHEDULED`**: The treatment session exists and is expected to occur.
+2. **`IN_PROGRESS`**: The therapist has formally started the clinical therapy session.
+3. **`COMPLETED`**: The treatment session has reached its normal clinical conclusion.
+4. **`CANCELLED`**: The scheduled session will not occur because it was cancelled prior to starting.
+5. **`NO_SHOW`**: The scheduled session did not occur because the client did not attend.
+
+#### Core Lifecycle Invariants
+
+1. **No Direct `SCHEDULED` $\to$ `COMPLETED`**: A clinical session cannot bypass the `IN_PROGRESS` state.
+2. **Terminal State Immutability**: `COMPLETED`, `CANCELLED`, and `NO_SHOW` are permanent terminal outcomes. Any further lifecycle transition attempt is rejected.
+3. **Aggregate Authority**: Lifecycle validation rules belong entirely to `TreatmentSession`. Controllers, DTOs, and application services must not act as lifecycle authorities.
 
 ---
 
