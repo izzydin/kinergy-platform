@@ -2,7 +2,7 @@
 
 ## 1. Executive Summary
 
-This document establishes the formal domain ownership boundaries for the **Kinesiology Bounded Context** within the Kinergy modular monolith platform. It defines the explicit separation of responsibilities between **Identity**, **Client Management**, **Scheduling**, and **Kinesiology**, eliminating conceptual ambiguity and preventing cross-context aggregate duplication.
+This document establishes the formal domain ownership boundaries, canonical identifiers, and cross-context relationship rules for the **Kinesiology Bounded Context** within the Kinergy modular monolith platform. It defines the explicit separation of responsibilities between **Identity**, **Client Management**, **Scheduling**, and **Kinesiology**, eliminating conceptual ambiguity, preventing aggregate coupling, and forbidding cross-context distributed transactions.
 
 ---
 
@@ -72,82 +72,98 @@ graph TD
 
 ---
 
-## 5. Deep-Dive Ownership & Boundary Decisions
+## 5. Canonical Identifiers & External References
 
-### 1. Identity Ownership
-
-- **What Identity Owns**:
-  - `User` entity, `UserStatus` state machine (`ACTIVE`, `LOCKED`, `DEACTIVATED`).
-  - Cryptographic credential management (Argon2id password hashes, JWT access tokens, Refresh Token Rotation).
-  - RBAC/ABAC authorization framework (`Role`, `Permission`, `AuthorizationEvaluator`, `@RequirePermissions(...)`).
-- **Kinesiology Boundary**:
-  - Kinesiology has **zero** user identity or authentication tables.
-  - Practitioners and clinical staff are authenticated via the standard platform `AuthenticationGuard`.
-  - Operations are authorized via permissions (e.g. `treatment_sessions.read`, `treatment_sessions.write`, `treatment_sessions.sign`).
-
-### 2. Client Management Ownership ("Patient" vs "Client")
-
-- **What Client Management Owns**:
-  - `Client` aggregate root ([`modules/client/domain/entities/client.entity.ts`](file:///c:/Projects/kinergy-platform/modules/client/domain/entities/client.entity.ts)).
-  - Identifier: `ClientId` value object wrapping UUID v4.
-  - Business identifiers: `ClientReferenceNumber` (e.g. `KIN-2026-00001`).
-  - Contact & profile fields: First name, last name, email, phone, normalized search strings, address.
-- **Decision on "Patient"**:
-  - **Decision**: In the Kinergy Platform, **`Client` is the single, authoritative ubiquitous domain concept**.
-  - "Patient" is merely a colloquial business/clinical role of a `Client` in clinical context, **not a separate entity or aggregate**.
-  - **Prohibited Duplications**:
-    - ❌ `Patient`
-    - ❌ `PatientProfile`
-    - ❌ `PatientAggregate`
-    - ❌ `KinesiologyClient`
-  - **Allowed Pattern**: `TreatmentSession` holds `clientId: string` to link clinical records to the authoritative `Client` aggregate.
-
-### 3. Scheduling Ownership ("Appointment" vs "TreatmentSession")
-
-- **What Scheduling Owns**:
-  - `Appointment` aggregate root ([`packages/core/src/scheduling/domain/appointment/appointment.aggregate.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/scheduling/domain/appointment/appointment.aggregate.ts)).
-  - Calendar grids, room allocations, recurring series generation, and 4D conflict detection.
-  - Operational lifecycle: `SCHEDULED` $\rightarrow$ `CONFIRMED` $\rightarrow$ `CHECKED_IN` $\rightarrow$ `IN_PROGRESS` $\rightarrow$ `COMPLETED` / `CANCELLED` / `RESCHEDULED`.
-- **Decision on Clinical Sessions**:
-  - **Decision**: An **`Appointment`** is a logistical calendar event (reserving a time interval, room, and practitioner). A **`TreatmentSession`** is a clinical record of therapeutic care.
-  - An appointment may exist without a treatment session (e.g. cancelled/no-show appointments or logistical facility rentals).
-  - A treatment session may be linked to an appointment via `appointmentId: string?` (or created ad-hoc for walk-in clinical care).
-  - **Prohibited Duplications**:
-    - ❌ `TreatmentAppointment`
-    - ❌ `TherapyAppointment`
-    - ❌ `KinesiologyAppointment`
-  - **Allowed Pattern**: `TreatmentSession` aggregate holds an optional `appointmentId: string?` foreign correlation reference.
-
-### 4. Therapist Concept Ownership
-
-- **Analysis**:
-  - In Identity: A therapist is a `User` assigned a clinical `Role` with practitioner permissions.
-  - In Scheduling: A therapist is represented by a `therapistId: string` and associated with a `TherapistSchedule` aggregate managing weekly working hours.
-  - In Kinesiology: A therapist is the author/practitioner conducting and signing clinical records, referenced by `therapistId: string`.
-- **Decision**:
-  - **Decision**: **No monolithic `Therapist` aggregate is created**.
-  - Therapist is a cross-cutting role of a `User`. Each context references the practitioner via `therapistId: string` (matching `User.id`).
-
----
-
-## 6. Prohibited Anti-Patterns Summary
+The `TreatmentSession` aggregate root models external domain relationships strictly via strongly typed or scalar identifiers:
 
 ```text
-❌ ANTI-PATTERN: Duplicating Client as PatientAggregate in Kinesiology
-❌ ANTI-PATTERN: Embedding TreatmentSession inside Appointment aggregate
-❌ ANTI-PATTERN: Embedding Appointment aggregate inside TreatmentSession
-❌ ANTI-PATTERN: Direct foreign table joins across bounded context boundaries
-❌ ANTI-PATTERN: Creating specialized Therapist aggregates when User + therapistId suffices
+TreatmentSession
+ ├── id: SessionId                  ◄── Local Aggregate ID (Value Object)
+ ├── clientId: string               ◄── External Reference to Client Management
+ ├── therapistId: string            ◄── External Reference to Identity (User)
+ └── appointmentId?: string         ◄── Optional External Correlation to Scheduling
 ```
+
+### Standardized Identifier Nomenclature
+
+| Canonical Identifier | Scope & Meaning                                            | Permitted Usages                                 | Prohibited Aliases                                |
+| :------------------- | :--------------------------------------------------------- | :----------------------------------------------- | :------------------------------------------------ |
+| **`SessionId`**      | Unique identifier for a Kinesiology Treatment Session.     | Domain value object / aggregate root ID.         | `TreatmentSessionId`, `KinesiologySessionId`      |
+| **`ClientId`**       | Authoritative identifier for a registered Client.          | External correlation ID in `TreatmentSession`.   | `PatientId`, `SubjectId`, `CustomerRef`           |
+| **`TherapistId`**    | Authoritative identifier for clinical practitioner (User). | Author / signer reference in `TreatmentSession`. | `ProviderId`, `PractitionerId`, `TherapistUserId` |
+| **`AppointmentId`**  | Optional correlation ID to a calendar Appointment.         | Logistics correlation in `TreatmentSession`.     | `BookingId`, `AppointmentReferenceId`, `SlotId`   |
 
 ---
 
-## 7. Cross-Context Event Integration Strategy
+## 6. Prohibition of Aggregate & Model Coupling
 
-To maintain loose coupling and asynchronous synchronization:
+To ensure maintainability, testability, and database scalability within the modular monolith:
 
-1. When a clinical session completes and is signed:
-   - `TreatmentSession` records `TreatmentSessionCompletedEvent`.
-   - Application event handler catches `TreatmentSessionCompletedEvent`.
-   - Handler calls Client Management timeline port to append a `ClientTimelineEntry` (sourceModule: `'KINESIOLOGY'`, eventType: `'TREATMENT_SESSION_COMPLETED'`).
-2. Client Management context remains completely agnostic of internal Kinesiology domain logic, receiving only structured timeline metadata.
+### Strict Structural Rules
+
+1. **Zero Foreign Aggregate Nesting**: `TreatmentSession` must **NEVER** import or embed `Client`, `Appointment`, `User`, or `Room` aggregates.
+   ```typescript
+   // ❌ STRICTLY PROHIBITED (Aggregate Coupling)
+   export class TreatmentSession extends AggregateRoot {
+     private _client: Client; // VIOLATION: Never embed foreign aggregate
+     private _appointment: Appointment; // VIOLATION: Never embed foreign aggregate
+   }
+
+   // ✅ REQUIRED ARCHITECTURE (Identifier Referencing)
+   export class TreatmentSession extends AggregateRoot<SessionId> {
+     private readonly _clientId: string;
+     private readonly _therapistId: string;
+     private readonly _appointmentId?: string;
+   }
+   ```
+2. **Zero Foreign Invariant Enforcement**:
+   - Kinesiology must **not** check whether a client is in active billing status or whether a room is double-booked.
+   - Client Management enforces Client invariants; Scheduling enforces Room/Appointment invariants.
+
+---
+
+## 7. Consistency Boundaries & Transaction Isolation
+
+```text
+┌───────────────────────────┐      ┌───────────────────────────┐
+│     Client Management     │      │        Scheduling         │
+│  Owns Client Consistency  │      │Owns Appointment Consist.  │
+└───────────────────────────┘      └───────────────────────────┘
+              ▲                                  ▲
+              │ (Zero Distributed Tx)            │ (Zero Distributed Tx)
+┌─────────────┴─────────────┐      ┌─────────────┴─────────────┐
+│         Identity          │      │        Kinesiology        │
+│  Owns Identity Consist.   │      │Owns TreatmentSess. Consist│
+└───────────────────────────┘      └───────────────────────────┘
+```
+
+1. **Transaction Isolation**:
+   - A `TreatmentSession` transaction operates strictly on Kinesiology persistence models.
+   - **Zero Distributed Transactions**: Creating or updating a `TreatmentSession` must NEVER participate in a distributed two-phase commit ($2\text{PC}$) or cross-context database transaction with Client Management, Scheduling, or Identity.
+2. **Optimistic Locking**:
+   - `TreatmentSession` aggregates enforce their own `version: number` optimistic concurrency control. Concurrent note edits return an optimistic locking conflict without touching foreign aggregates.
+
+---
+
+## 8. Cross-Context Integration Strategy
+
+Kinesiology integrates with external bounded contexts via two clean patterns:
+
+1. **Domain-Level Opaque Identifier Referencing**:
+   - Clinical sessions correlate with clients, practitioners, and calendar appointments purely through immutable string IDs.
+2. **Application-Level Event Publishing (Asynchronous Projection)**:
+   - When a treatment session reaches terminal `COMPLETED` and signed status, the aggregate records `TreatmentSessionCompletedEvent`.
+   - An application-layer event handler can invoke the Client Management timeline port to append a structured `ClientTimelineEntry` (sourceModule: `'KINESIOLOGY'`, eventType: `'TREATMENT_SESSION_COMPLETED'`) asynchronously.
+   - Client Management receives only high-level summary metadata without importing Kinesiology domain rules.
+
+---
+
+## 9. Prohibited Anti-Patterns Summary
+
+```text
+❌ ANTI-PATTERN: Creating "Patient" or "PatientProfile" aggregates in Kinesiology
+❌ ANTI-PATTERN: Embedding TreatmentSession inside Appointment aggregate or vice versa
+❌ ANTI-PATTERN: Direct SQL joins across bounded context table schemas
+❌ ANTI-PATTERN: Synchronous aggregate loading across context boundaries in domain layer
+❌ ANTI-PATTERN: Distributed transactions spanning Kinesiology and Scheduling
+```
