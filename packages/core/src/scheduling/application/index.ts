@@ -7,3 +7,4 @@ export * from './appointment/event-handlers';
 export * from './appointment/mappers';
 export * from './recurrence';
 export * from './room';
+export * from './calendar';

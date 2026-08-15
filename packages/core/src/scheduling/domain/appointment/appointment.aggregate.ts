@@ -232,9 +232,15 @@ export class Appointment implements AggregateRoot<AppointmentId> {
     return new Date(this._updatedAt.getTime());
   }
 
-  /** Transitions status from SCHEDULED -> CONFIRMED */
+  /**
+   * Transitions status from SCHEDULED or RESCHEDULED -> CONFIRMED.
+   * Records AppointmentConfirmedEvent.
+   */
   public confirm(clock?: Clock): void {
-    if (this._status !== AppointmentStatus.SCHEDULED) {
+    if (
+      this._status !== AppointmentStatus.SCHEDULED &&
+      this._status !== AppointmentStatus.RESCHEDULED
+    ) {
       throw new InvalidAppointmentTransitionException(this._status, AppointmentStatus.CONFIRMED);
     }
     this._status = AppointmentStatus.CONFIRMED;
@@ -242,13 +248,14 @@ export class Appointment implements AggregateRoot<AppointmentId> {
   }
 
   /**
-   * Transitions status from SCHEDULED or CONFIRMED -> CHECKED_IN.
+   * Transitions status from SCHEDULED, CONFIRMED, or RESCHEDULED -> CHECKED_IN.
    * Records AppointmentCheckedInEvent.
    */
   public checkIn(clock?: Clock): void {
     if (
       this._status !== AppointmentStatus.SCHEDULED &&
-      this._status !== AppointmentStatus.CONFIRMED
+      this._status !== AppointmentStatus.CONFIRMED &&
+      this._status !== AppointmentStatus.RESCHEDULED
     ) {
       throw new InvalidAppointmentTransitionException(this._status, AppointmentStatus.CHECKED_IN);
     }
