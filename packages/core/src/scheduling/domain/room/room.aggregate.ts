@@ -451,6 +451,54 @@ export class Room implements SchedulableResource<RoomId>, AggregateRoot<RoomId> 
   }
 
   /**
+   * Updates room details (name, capacity, features) in a single atomic aggregate mutation.
+   */
+  public updateDetails(props: {
+    name?: string;
+    capacity?: number;
+    features?: Iterable<string>;
+  }): void {
+    let changed = false;
+    if (props.name !== undefined) {
+      if (!props.name || props.name.trim().length === 0) {
+        throw new Error('New room name cannot be empty.');
+      }
+      const cleanName = props.name.trim();
+      if (this._name !== cleanName) {
+        this._name = cleanName;
+        changed = true;
+      }
+    }
+    if (props.capacity !== undefined) {
+      if (!Number.isInteger(props.capacity) || props.capacity <= 0) {
+        throw new Error('Room capacity must be a positive integer strictly greater than zero.');
+      }
+      if (this._capacity !== props.capacity) {
+        this._capacity = props.capacity;
+        changed = true;
+      }
+    }
+    if (props.features !== undefined) {
+      const newFeatures = new Set(Array.from(props.features).map((f) => f.trim().toLowerCase()));
+      const featuresChanged =
+        newFeatures.size !== this._features.size ||
+        Array.from(newFeatures).some((f) => !this._features.has(f));
+      if (featuresChanged) {
+        this._features.clear();
+        for (const f of newFeatures) {
+          this._features.add(f);
+        }
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      this._version += 1;
+      this._updatedAt = new Date();
+    }
+  }
+
+  /**
    * Records a domain event on this aggregate root.
    */
   private recordEvent(event: DomainEvent): void {
