@@ -610,4 +610,194 @@ describe('TreatmentSession Aggregate Root', () => {
       expect(Object.isFrozen(sessionId)).toBe(true);
     });
   });
+
+  describe('Comprehensive 20-Cell State Transition Matrix (Parameterized)', () => {
+    type TransitionOperation = 'start' | 'complete' | 'cancel' | 'markAsNoShow';
+
+    interface MatrixCase {
+      initialStatus: SessionStatus;
+      operation: TransitionOperation;
+      isValid: boolean;
+      resultingStatus: SessionStatus;
+    }
+
+    const matrixTestCases: MatrixCase[] = [
+      // SCHEDULED
+      {
+        initialStatus: SessionStatus.SCHEDULED,
+        operation: 'start',
+        isValid: true,
+        resultingStatus: SessionStatus.IN_PROGRESS,
+      },
+      {
+        initialStatus: SessionStatus.SCHEDULED,
+        operation: 'complete',
+        isValid: false,
+        resultingStatus: SessionStatus.SCHEDULED,
+      },
+      {
+        initialStatus: SessionStatus.SCHEDULED,
+        operation: 'cancel',
+        isValid: true,
+        resultingStatus: SessionStatus.CANCELLED,
+      },
+      {
+        initialStatus: SessionStatus.SCHEDULED,
+        operation: 'markAsNoShow',
+        isValid: true,
+        resultingStatus: SessionStatus.NO_SHOW,
+      },
+
+      // IN_PROGRESS
+      {
+        initialStatus: SessionStatus.IN_PROGRESS,
+        operation: 'start',
+        isValid: false,
+        resultingStatus: SessionStatus.IN_PROGRESS,
+      },
+      {
+        initialStatus: SessionStatus.IN_PROGRESS,
+        operation: 'complete',
+        isValid: true,
+        resultingStatus: SessionStatus.COMPLETED,
+      },
+      {
+        initialStatus: SessionStatus.IN_PROGRESS,
+        operation: 'cancel',
+        isValid: false,
+        resultingStatus: SessionStatus.IN_PROGRESS,
+      },
+      {
+        initialStatus: SessionStatus.IN_PROGRESS,
+        operation: 'markAsNoShow',
+        isValid: false,
+        resultingStatus: SessionStatus.IN_PROGRESS,
+      },
+
+      // COMPLETED (Terminal)
+      {
+        initialStatus: SessionStatus.COMPLETED,
+        operation: 'start',
+        isValid: false,
+        resultingStatus: SessionStatus.COMPLETED,
+      },
+      {
+        initialStatus: SessionStatus.COMPLETED,
+        operation: 'complete',
+        isValid: false,
+        resultingStatus: SessionStatus.COMPLETED,
+      },
+      {
+        initialStatus: SessionStatus.COMPLETED,
+        operation: 'cancel',
+        isValid: false,
+        resultingStatus: SessionStatus.COMPLETED,
+      },
+      {
+        initialStatus: SessionStatus.COMPLETED,
+        operation: 'markAsNoShow',
+        isValid: false,
+        resultingStatus: SessionStatus.COMPLETED,
+      },
+
+      // CANCELLED (Terminal)
+      {
+        initialStatus: SessionStatus.CANCELLED,
+        operation: 'start',
+        isValid: false,
+        resultingStatus: SessionStatus.CANCELLED,
+      },
+      {
+        initialStatus: SessionStatus.CANCELLED,
+        operation: 'complete',
+        isValid: false,
+        resultingStatus: SessionStatus.CANCELLED,
+      },
+      {
+        initialStatus: SessionStatus.CANCELLED,
+        operation: 'cancel',
+        isValid: false,
+        resultingStatus: SessionStatus.CANCELLED,
+      },
+      {
+        initialStatus: SessionStatus.CANCELLED,
+        operation: 'markAsNoShow',
+        isValid: false,
+        resultingStatus: SessionStatus.CANCELLED,
+      },
+
+      // NO_SHOW (Terminal)
+      {
+        initialStatus: SessionStatus.NO_SHOW,
+        operation: 'start',
+        isValid: false,
+        resultingStatus: SessionStatus.NO_SHOW,
+      },
+      {
+        initialStatus: SessionStatus.NO_SHOW,
+        operation: 'complete',
+        isValid: false,
+        resultingStatus: SessionStatus.NO_SHOW,
+      },
+      {
+        initialStatus: SessionStatus.NO_SHOW,
+        operation: 'cancel',
+        isValid: false,
+        resultingStatus: SessionStatus.NO_SHOW,
+      },
+      {
+        initialStatus: SessionStatus.NO_SHOW,
+        operation: 'markAsNoShow',
+        isValid: false,
+        resultingStatus: SessionStatus.NO_SHOW,
+      },
+    ];
+
+    const createSessionInStatus = (status: SessionStatus): TreatmentSession => {
+      return TreatmentSession.reconstitute({
+        id: SessionId.create('sess_matrix_test'),
+        version: 1,
+        status,
+        clientId: 'client_100',
+        therapistId: 'therapist_200',
+        appointmentId: 'appt_300',
+        cancellationReason: status === SessionStatus.CANCELLED ? 'Prior reason' : undefined,
+        notes: SessionNotes.empty(),
+        createdAt: initialDate,
+        updatedAt: initialDate,
+      });
+    };
+
+    test.each(matrixTestCases)(
+      'from $initialStatus invoking $operation() (allowed: $isValid) -> status: $resultingStatus',
+      ({ initialStatus, operation, isValid, resultingStatus }) => {
+        const session = createSessionInStatus(initialStatus);
+        const executeOp = () => {
+          switch (operation) {
+            case 'start':
+              session.start(clock);
+              break;
+            case 'complete':
+              session.complete(clock);
+              break;
+            case 'cancel':
+              session.cancel('Cancelled in matrix test', clock);
+              break;
+            case 'markAsNoShow':
+              session.markAsNoShow(clock);
+              break;
+          }
+        };
+
+        if (isValid) {
+          expect(executeOp).not.toThrow();
+          expect(session.status).toBe(resultingStatus);
+        } else {
+          expect(executeOp).toThrow(InvalidSessionTransitionException);
+          // Failure atomicity: status remains initial state
+          expect(session.status).toBe(resultingStatus);
+        }
+      },
+    );
+  });
 });
