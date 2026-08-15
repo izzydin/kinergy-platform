@@ -297,6 +297,156 @@ export interface FindResourceCombinationsQueryInput {
 }
 ```
 
+### 4. Create Room Command
+
+- **Command Class**: `CreateRoomCommand`
+- **Handler**: `CreateRoomHandler`
+- **Returns**: `Promise<ApplicationResult<RoomDto>>`
+
+```typescript
+export interface CreateRoomCommandInput {
+  readonly name: string;
+  readonly capacity: number;
+  readonly features?: string[];
+}
+```
+
+### 5. Edit Room Command
+
+- **Command Class**: `EditRoomCommand`
+- **Handler**: `EditRoomHandler`
+- **Returns**: `Promise<ApplicationResult<RoomDto>>`
+
+```typescript
+export interface EditRoomCommandInput {
+  readonly roomId: string;
+  readonly name?: string;
+  readonly capacity?: number;
+  readonly features?: string[];
+  readonly expectedVersion?: number;
+}
+```
+
+### 6. Activate / Deactivate Room Commands
+
+- **Command Classes**: `ActivateRoomCommand`, `DeactivateRoomCommand`
+- **Handlers**: `ActivateRoomHandler`, `DeactivateRoomHandler`
+- **Returns**: `Promise<ApplicationResult<RoomDto>>`
+
+```typescript
+export interface DeactivateRoomCommandInput {
+  readonly roomId: string;
+  readonly reason: string; // Mandatory reason for deactivation
+  readonly expectedVersion?: number;
+}
+```
+
+### 7. Schedule Maintenance Command
+
+- **Command Class**: `ScheduleMaintenanceCommand`
+- **Handler**: `ScheduleMaintenanceHandler`
+- **Returns**: `Promise<ApplicationResult<RoomDto>>`
+
+```typescript
+export interface ScheduleMaintenanceCommandInput {
+  readonly roomId: string;
+  readonly startTime: string; // ISO 8601 UTC
+  readonly endTime: string; // ISO 8601 UTC
+  readonly reason: string;
+  readonly expectedVersion?: number;
+}
+```
+
+### 8. Cancel Maintenance Command
+
+- **Command Class**: `CancelMaintenanceCommand`
+- **Handler**: `CancelMaintenanceHandler`
+- **Returns**: `Promise<ApplicationResult<RoomDto>>`
+
+```typescript
+export interface CancelMaintenanceCommandInput {
+  readonly roomId: string;
+  readonly maintenanceWindowId: string;
+  readonly expectedVersion?: number;
+}
+```
+
+### 9. Assign Room Command
+
+- **Command Class**: `AssignRoomCommand`
+- **Handler**: `AssignRoomHandler`
+- **Returns**: `Promise<ApplicationResult<AppointmentDTO>>`
+
+```typescript
+export interface AssignRoomCommandInput {
+  readonly appointmentId: string;
+  readonly roomId: string;
+  readonly expectedVersion: number;
+}
+```
+
+---
+
+## Room Query API Contracts
+
+### 1. Check Room Availability Query
+
+- **Query Class**: `CheckRoomAvailabilityQuery`
+- **Handler**: `CheckRoomAvailabilityHandler`
+- **Returns**: `Promise<ApplicationResult<RoomAvailabilityResponseDto>>`
+
+```typescript
+export interface CheckRoomAvailabilityQueryInput {
+  readonly roomId: string;
+  readonly startTime: string; // ISO 8601 UTC
+  readonly endTime: string; // ISO 8601 UTC
+}
+```
+
+### 2. Get Available Rooms Query
+
+- **Query Class**: `GetAvailableRoomsQuery`
+- **Handler**: `GetAvailableRoomsHandler`
+- **Returns**: `Promise<ApplicationResult<RoomResponseDto[]>>`
+
+```typescript
+export interface GetAvailableRoomsQueryInput {
+  readonly startTime: string; // ISO 8601 UTC
+  readonly endTime: string; // ISO 8601 UTC
+  readonly requiredFeatures?: string[];
+  readonly requiredCapacity?: number;
+}
+```
+
+### 3. List Rooms Query
+
+- **Query Class**: `ListRoomsQuery`
+- **Handler**: `ListRoomsHandler`
+- **Returns**: `Promise<ApplicationResult<RoomResponseDto[]>>`
+
+```typescript
+export interface ListRoomsQueryInput {
+  readonly status?: 'AVAILABLE' | 'MAINTENANCE' | 'UNAVAILABLE';
+}
+```
+
+---
+
+## REST Endpoints (`/api/v1/scheduling/rooms`)
+
+| Method   | Path                                                 | Permission Required | Summary                             |
+| :------- | :--------------------------------------------------- | :------------------ | :---------------------------------- |
+| `POST`   | `/api/v1/scheduling/rooms`                           | `settings.write`    | Create a new physical room          |
+| `GET`    | `/api/v1/scheduling/rooms`                           | `settings.read`     | List facility rooms                 |
+| `GET`    | `/api/v1/scheduling/rooms/available`                 | `appointments.read` | List available rooms for time range |
+| `GET`    | `/api/v1/scheduling/rooms/:id`                       | `settings.read`     | Get room details by ID              |
+| `PATCH`  | `/api/v1/scheduling/rooms/:id`                       | `settings.write`    | Update room metadata / capacity     |
+| `POST`   | `/api/v1/scheduling/rooms/:id/activate`              | `settings.write`    | Reactivate room to AVAILABLE        |
+| `POST`   | `/api/v1/scheduling/rooms/:id/deactivate`            | `settings.write`    | Deactivate room with reason         |
+| `GET`    | `/api/v1/scheduling/rooms/:id/availability`          | `appointments.read` | Check single room availability      |
+| `POST`   | `/api/v1/scheduling/rooms/:id/maintenance`           | `settings.write`    | Schedule maintenance window         |
+| `DELETE` | `/api/v1/scheduling/rooms/:id/maintenance/:windowId` | `settings.write`    | Cancel maintenance window           |
+
 ---
 
 ## Domain Exceptions & Error Codes
@@ -304,6 +454,7 @@ export interface FindResourceCombinationsQueryInput {
 | Exception Class                   | Error Code / Message Pattern | Scenario                                                |
 | :-------------------------------- | :--------------------------- | :------------------------------------------------------ |
 | `AppointmentConflictException`    | `APPOINTMENT_CONFLICT`       | 4D conflict detected for therapist, room, or client.    |
+| `OptimisticLockException`         | `OPTIMISTIC_LOCK_ERROR`      | Version mismatch detected during aggregate mutation.    |
 | `InvalidStateTransitionException` | `INVALID_STATE_TRANSITION`   | Transition attempt from terminal state or illegal path. |
 | `InvalidTimeRangeException`       | `INVALID_TIME_RANGE`         | Start time is equal to or after end time.               |
 | `WorkingHoursViolationException`  | `WORKING_HOURS_VIOLATION`    | Slot falls outside therapist working shift hours.       |

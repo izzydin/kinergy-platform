@@ -58,14 +58,17 @@ Manages therapist shift schedules and 4-level availability resolution engine.
 
 ### 4. `Room` Aggregate
 
-Manages physical treatment room capacity, equipment features, and operational availability.
+Manages physical treatment room capacity, equipment features, operational availability, and maintenance windows.
 
-- **Key Methods:** `markAvailable()`, `markMaintenance()`, `markUnavailable()`, `supportsFeatures()`.
+- **Key Methods:** `create()`, `edit()`, `activate()`, `deactivate()`, `scheduleMaintenance()`, `cancelMaintenance()`, `isReservable()`, `isUnderMaintenance()`, `getOverlappingMaintenance()`, `supportsFeatures()`.
 
 ---
 
 ## Value Objects & Enums
 
+- **`MaintenanceWindow`:** Value Object encapsulating downtime intervals (`id`, `timeRange: TimeRange`, `reason: string`).
+- **`ResourceId`:** Value Object wrapping unique string identifier with UUID validation.
+- **`ResourceType`:** Enum / Value Object representing schedulable asset types (`ROOM`).
 - **`RecurrencePattern`:** Encapsulates `frequency` (`WEEKLY`, `BIWEEKLY`, `MONTHLY`), start/end bounds, `localStartTime: { hour, minute }`, duration, and IANA timezone.
 - **`RecurrenceException`:** Slot-level audit exception (`SKIPPED`, `MODIFIED`, `RESCHEDULED`).
 - **`SeriesStatus`:** Lifecycle Enum (`ACTIVE`, `COMPLETED`, `CANCELLED`).

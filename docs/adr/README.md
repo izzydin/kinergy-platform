@@ -49,6 +49,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0041](file:///c:/Projects/kinergy-platform/docs/adr/0041-frontend-authentication-bootstrap-and-session-recovery.md) | Frontend Authentication Bootstrap and Session Recovery                          | Accepted   | 2026-07-30 |
 | [0042](file:///c:/Projects/kinergy-platform/docs/adr/0042-authentication-login-feature-architecture-and-contract.md) | Authentication Login Feature Architecture & Contract                            | Accepted   | 2026-07-30 |
 | [0043](file:///c:/Projects/kinergy-platform/docs/adr/0043-recurring-appointment-scheduling-strategy.md)              | Recurring Appointment Scheduling Strategy & Hybrid Horizon Architecture         | Accepted   | 2026-08-14 |
+| [0044](file:///c:/Projects/kinergy-platform/docs/adr/0044-schedulable-resource-and-room-scheduling-architecture.md)  | Schedulable Resource & Room Scheduling Architecture                             | Accepted   | 2026-08-15 |
 
 ## Format
 
