@@ -34,6 +34,7 @@ describe('TreatmentSession Aggregate Root', () => {
       expect(session.notes.getRawText()).toBe('Initial consultation notes');
       expect(session.createdAt).toEqual(fixedDate);
       expect(session.updatedAt).toEqual(fixedDate);
+      expect(session.getUncommittedEvents()).toEqual([]);
     });
 
     it('should allow creating a TreatmentSession with a custom SessionId', () => {
@@ -43,6 +44,7 @@ describe('TreatmentSession Aggregate Root', () => {
           id: customId,
           clientId: 'client_123',
           therapistId: 'therapist_456',
+          appointmentId: 'appt_789',
         },
         clock,
       );
@@ -50,17 +52,17 @@ describe('TreatmentSession Aggregate Root', () => {
       expect(session.id.equals(customId)).toBe(true);
     });
 
-    it('should create session with empty notes when no notes provided', () => {
+    it('should create session with empty notes when no notes are provided', () => {
       const session = TreatmentSession.create(
         {
           clientId: 'client_123',
           therapistId: 'therapist_456',
+          appointmentId: 'appt_789',
         },
         clock,
       );
 
       expect(session.notes.hasContent()).toBe(false);
-      expect(session.appointmentId).toBeUndefined();
     });
 
     it('should throw an error if clientId is empty or whitespace', () => {
@@ -69,6 +71,7 @@ describe('TreatmentSession Aggregate Root', () => {
           {
             clientId: '',
             therapistId: 'therapist_456',
+            appointmentId: 'appt_789',
           },
           clock,
         ),
@@ -79,6 +82,7 @@ describe('TreatmentSession Aggregate Root', () => {
           {
             clientId: '   ',
             therapistId: 'therapist_456',
+            appointmentId: 'appt_789',
           },
           clock,
         ),
@@ -91,14 +95,50 @@ describe('TreatmentSession Aggregate Root', () => {
           {
             clientId: 'client_123',
             therapistId: '',
+            appointmentId: 'appt_789',
+          },
+          clock,
+        ),
+      ).toThrow('Therapist ID cannot be empty.');
+
+      expect(() =>
+        TreatmentSession.create(
+          {
+            clientId: 'client_123',
+            therapistId: '   ',
+            appointmentId: 'appt_789',
           },
           clock,
         ),
       ).toThrow('Therapist ID cannot be empty.');
     });
+
+    it('should throw an error if appointmentId is empty or whitespace', () => {
+      expect(() =>
+        TreatmentSession.create(
+          {
+            clientId: 'client_123',
+            therapistId: 'therapist_456',
+            appointmentId: '',
+          },
+          clock,
+        ),
+      ).toThrow('Appointment ID cannot be empty.');
+
+      expect(() =>
+        TreatmentSession.create(
+          {
+            clientId: 'client_123',
+            therapistId: 'therapist_456',
+            appointmentId: '   ',
+          },
+          clock,
+        ),
+      ).toThrow('Appointment ID cannot be empty.');
+    });
   });
 
-  describe('Reconstitution', () => {
+  describe('Reconstitution & Encapsulation', () => {
     it('should reconstitute an existing TreatmentSession aggregate from persistence state', () => {
       const sessionId = SessionId.create('sess_existing_123');
       const session = TreatmentSession.reconstitute({
@@ -122,6 +162,23 @@ describe('TreatmentSession Aggregate Root', () => {
       expect(session.notes.getSubjective()).toBe('Shoulder tightness');
     });
 
+    it('should throw an error if reconstituted without a valid SessionId', () => {
+      expect(() =>
+        TreatmentSession.reconstitute({
+          // @ts-expect-error - Testing runtime safety
+          id: null,
+          version: 1,
+          status: SessionStatus.SCHEDULED,
+          clientId: 'client_abc',
+          therapistId: 'therapist_xyz',
+          appointmentId: 'appt_123',
+          notes: SessionNotes.empty(),
+          createdAt: fixedDate,
+          updatedAt: fixedDate,
+        }),
+      ).toThrow('Session ID cannot be empty.');
+    });
+
     it('should throw an error if reconstituted version is less than 1', () => {
       expect(() =>
         TreatmentSession.reconstitute({
@@ -130,11 +187,63 @@ describe('TreatmentSession Aggregate Root', () => {
           status: SessionStatus.SCHEDULED,
           clientId: 'client_abc',
           therapistId: 'therapist_xyz',
+          appointmentId: 'appt_123',
           notes: SessionNotes.empty(),
           createdAt: fixedDate,
           updatedAt: fixedDate,
         }),
       ).toThrow('Aggregate version must be greater than or equal to 1.');
+    });
+
+    it('should throw an error if reconstituted with invalid SessionStatus', () => {
+      expect(() =>
+        TreatmentSession.reconstitute({
+          id: SessionId.create('sess_invalid_status'),
+          version: 1,
+          // @ts-expect-error - Testing runtime validation
+          status: 'INVALID_STATUS',
+          clientId: 'client_abc',
+          therapistId: 'therapist_xyz',
+          appointmentId: 'appt_123',
+          notes: SessionNotes.empty(),
+          createdAt: fixedDate,
+          updatedAt: fixedDate,
+        }),
+      ).toThrow("Invalid SessionStatus: 'INVALID_STATUS'.");
+    });
+
+    it('should throw an error if reconstituted without session notes', () => {
+      expect(() =>
+        TreatmentSession.reconstitute({
+          id: SessionId.create('sess_no_notes'),
+          version: 1,
+          status: SessionStatus.SCHEDULED,
+          clientId: 'client_abc',
+          therapistId: 'therapist_xyz',
+          appointmentId: 'appt_123',
+          // @ts-expect-error - Testing runtime validation
+          notes: null,
+          createdAt: fixedDate,
+          updatedAt: fixedDate,
+        }),
+      ).toThrow('Session notes cannot be null or undefined.');
+    });
+
+    it('should throw an error if reconstituted without timestamps', () => {
+      expect(() =>
+        TreatmentSession.reconstitute({
+          id: SessionId.create('sess_no_ts'),
+          version: 1,
+          status: SessionStatus.SCHEDULED,
+          clientId: 'client_abc',
+          therapistId: 'therapist_xyz',
+          appointmentId: 'appt_123',
+          notes: SessionNotes.empty(),
+          // @ts-expect-error - Testing runtime validation
+          createdAt: null,
+          updatedAt: fixedDate,
+        }),
+      ).toThrow('Session timestamps must be provided.');
     });
   });
 });

@@ -10,7 +10,7 @@ export interface CreateTreatmentSessionProps {
   id?: SessionId;
   clientId: string;
   therapistId: string;
-  appointmentId?: string;
+  appointmentId: string;
   notes?: SessionNotes;
 }
 
@@ -21,7 +21,7 @@ export interface ReconstituteTreatmentSessionProps {
   status: SessionStatus;
   clientId: string;
   therapistId: string;
-  appointmentId?: string;
+  appointmentId: string;
   notes: SessionNotes;
   createdAt: Date;
   updatedAt: Date;
@@ -37,18 +37,33 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
   private _status: SessionStatus;
   private readonly _clientId: string;
   private _therapistId: string;
-  private _appointmentId?: string;
+  private _appointmentId: string;
   private _notes: SessionNotes;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
   private uncommittedEvents: DomainEvent[] = [];
 
   private constructor(props: ReconstituteTreatmentSessionProps) {
+    if (!props.id) {
+      throw new Error('Session ID cannot be empty.');
+    }
     if (!props.clientId || props.clientId.trim().length === 0) {
       throw new Error('Client ID cannot be empty.');
     }
     if (!props.therapistId || props.therapistId.trim().length === 0) {
       throw new Error('Therapist ID cannot be empty.');
+    }
+    if (!props.appointmentId || props.appointmentId.trim().length === 0) {
+      throw new Error('Appointment ID cannot be empty.');
+    }
+    if (!props.status || !Object.values(SessionStatus).includes(props.status)) {
+      throw new Error(`Invalid SessionStatus: '${props.status}'.`);
+    }
+    if (!props.notes) {
+      throw new Error('Session notes cannot be null or undefined.');
+    }
+    if (!props.createdAt || !props.updatedAt) {
+      throw new Error('Session timestamps must be provided.');
     }
     if (props.version < 1) {
       throw new Error('Aggregate version must be greater than or equal to 1.');
@@ -59,7 +74,7 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
     this._status = props.status;
     this._clientId = props.clientId.trim();
     this._therapistId = props.therapistId.trim();
-    this._appointmentId = props.appointmentId?.trim() || undefined;
+    this._appointmentId = props.appointmentId.trim();
     this._notes = props.notes;
     this._createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
@@ -118,8 +133,8 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
     return this._therapistId;
   }
 
-  /** Gets the optional correlated Appointment identifier */
-  public get appointmentId(): string | undefined {
+  /** Gets the correlated Appointment identifier */
+  public get appointmentId(): string {
     return this._appointmentId;
   }
 
