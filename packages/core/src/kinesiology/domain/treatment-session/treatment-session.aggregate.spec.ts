@@ -157,113 +157,186 @@ describe('TreatmentSession Aggregate Root', () => {
     });
   });
 
-  describe('Lifecycle State Machine — Valid Transitions', () => {
-    it('should transition SCHEDULED -> IN_PROGRESS via start()', () => {
-      const session = createDefaultSession();
-      const startTime = new Date('2026-08-15T14:05:00.000Z');
-      clock.setTime(startTime);
+  describe('Domain Transition API — Operation Specific Invariants', () => {
+    describe('start()', () => {
+      it('should transition SCHEDULED -> IN_PROGRESS and update timestamp', () => {
+        const session = createDefaultSession();
+        const startTime = new Date('2026-08-15T14:05:00.000Z');
+        clock.setTime(startTime);
 
-      session.start(clock);
+        session.start(clock);
 
-      expect(session.status).toBe(SessionStatus.IN_PROGRESS);
-      expect(session.updatedAt).toEqual(startTime);
-    });
+        expect(session.status).toBe(SessionStatus.IN_PROGRESS);
+        expect(session.updatedAt).toEqual(startTime);
+      });
 
-    it('should transition IN_PROGRESS -> COMPLETED via complete()', () => {
-      const session = createDefaultSession();
-      clock.advanceMinutes(5);
-      session.start(clock);
+      it('should reject start() from IN_PROGRESS', () => {
+        const session = createDefaultSession();
+        session.start(clock);
 
-      const completeTime = new Date('2026-08-15T14:55:00.000Z');
-      clock.setTime(completeTime);
-      session.complete(clock);
+        expect(() => session.start(clock)).toThrow(InvalidSessionTransitionException);
+      });
 
-      expect(session.status).toBe(SessionStatus.COMPLETED);
-      expect(session.updatedAt).toEqual(completeTime);
-    });
-
-    it('should transition SCHEDULED -> CANCELLED via cancel() with reason', () => {
-      const session = createDefaultSession();
-      const cancelTime = new Date('2026-08-15T14:10:00.000Z');
-      clock.setTime(cancelTime);
-
-      session.cancel('Client called with emergency', clock);
-
-      expect(session.status).toBe(SessionStatus.CANCELLED);
-      expect(session.cancellationReason).toBe('Client called with emergency');
-      expect(session.updatedAt).toEqual(cancelTime);
-    });
-
-    it('should transition SCHEDULED -> NO_SHOW via markAsNoShow()', () => {
-      const session = createDefaultSession();
-      const noShowTime = new Date('2026-08-15T14:30:00.000Z');
-      clock.setTime(noShowTime);
-
-      session.markAsNoShow(clock);
-
-      expect(session.status).toBe(SessionStatus.NO_SHOW);
-      expect(session.updatedAt).toEqual(noShowTime);
-    });
-  });
-
-  describe('Lifecycle State Machine — Invalid Transitions', () => {
-    it('should reject direct transition SCHEDULED -> COMPLETED', () => {
-      const session = createDefaultSession();
-
-      expect(() => session.complete(clock)).toThrow(InvalidSessionTransitionException);
-      expect(() => session.complete(clock)).toThrow(
-        "Cannot transition TreatmentSession from 'SCHEDULED' to 'COMPLETED'.",
-      );
-      expect(session.status).toBe(SessionStatus.SCHEDULED);
-    });
-
-    it('should reject transitions from IN_PROGRESS to SCHEDULED, CANCELLED, or NO_SHOW', () => {
-      const session = createDefaultSession();
-      session.start(clock);
-
-      expect(() => session.start(clock)).toThrow(InvalidSessionTransitionException);
-      expect(() => session.cancel('Late cancel', clock)).toThrow(InvalidSessionTransitionException);
-      expect(() => session.markAsNoShow(clock)).toThrow(InvalidSessionTransitionException);
-      expect(session.status).toBe(SessionStatus.IN_PROGRESS);
-    });
-
-    describe('Terminal State Immutability', () => {
-      it('should reject all further transitions once COMPLETED', () => {
+      it('should reject start() from COMPLETED', () => {
         const session = createDefaultSession();
         session.start(clock);
         session.complete(clock);
 
         expect(() => session.start(clock)).toThrow(InvalidSessionTransitionException);
-        expect(() => session.complete(clock)).toThrow(InvalidSessionTransitionException);
-        expect(() => session.cancel('Cannot cancel', clock)).toThrow(
-          InvalidSessionTransitionException,
-        );
-        expect(() => session.markAsNoShow(clock)).toThrow(InvalidSessionTransitionException);
-        expect(session.status).toBe(SessionStatus.COMPLETED);
       });
 
-      it('should reject all further transitions once CANCELLED', () => {
+      it('should reject start() from CANCELLED', () => {
         const session = createDefaultSession();
-        session.cancel('Cancelled by clinic', clock);
+        session.cancel('Cancelled', clock);
 
         expect(() => session.start(clock)).toThrow(InvalidSessionTransitionException);
-        expect(() => session.complete(clock)).toThrow(InvalidSessionTransitionException);
-        expect(() => session.cancel('Already cancelled', clock)).toThrow(
-          InvalidSessionTransitionException,
-        );
-        expect(() => session.markAsNoShow(clock)).toThrow(InvalidSessionTransitionException);
-        expect(session.status).toBe(SessionStatus.CANCELLED);
       });
 
-      it('should reject all further transitions once NO_SHOW', () => {
+      it('should reject start() from NO_SHOW', () => {
         const session = createDefaultSession();
         session.markAsNoShow(clock);
 
         expect(() => session.start(clock)).toThrow(InvalidSessionTransitionException);
+      });
+    });
+
+    describe('complete()', () => {
+      it('should transition IN_PROGRESS -> COMPLETED and update timestamp', () => {
+        const session = createDefaultSession();
+        clock.advanceMinutes(5);
+        session.start(clock);
+
+        const completeTime = new Date('2026-08-15T14:55:00.000Z');
+        clock.setTime(completeTime);
+        session.complete(clock);
+
+        expect(session.status).toBe(SessionStatus.COMPLETED);
+        expect(session.updatedAt).toEqual(completeTime);
+      });
+
+      it('should reject direct complete() from SCHEDULED (critical invariant)', () => {
+        const session = createDefaultSession();
+
         expect(() => session.complete(clock)).toThrow(InvalidSessionTransitionException);
-        expect(() => session.cancel('Too late', clock)).toThrow(InvalidSessionTransitionException);
-        expect(() => session.markAsNoShow(clock)).toThrow(InvalidSessionTransitionException);
+        expect(() => session.complete(clock)).toThrow(
+          "Cannot transition TreatmentSession from 'SCHEDULED' to 'COMPLETED'.",
+        );
+        expect(session.status).toBe(SessionStatus.SCHEDULED);
+      });
+
+      it('should reject complete() from COMPLETED', () => {
+        const session = createDefaultSession();
+        session.start(clock);
+        session.complete(clock);
+
+        expect(() => session.complete(clock)).toThrow(InvalidSessionTransitionException);
+      });
+
+      it('should reject complete() from CANCELLED', () => {
+        const session = createDefaultSession();
+        session.cancel('Cancelled', clock);
+
+        expect(() => session.complete(clock)).toThrow(InvalidSessionTransitionException);
+      });
+
+      it('should reject complete() from NO_SHOW', () => {
+        const session = createDefaultSession();
+        session.markAsNoShow(clock);
+
+        expect(() => session.complete(clock)).toThrow(InvalidSessionTransitionException);
+      });
+    });
+
+    describe('cancel()', () => {
+      it('should transition SCHEDULED -> CANCELLED with reason and update timestamp', () => {
+        const session = createDefaultSession();
+        const cancelTime = new Date('2026-08-15T14:10:00.000Z');
+        clock.setTime(cancelTime);
+
+        session.cancel('Client requested cancellation', clock);
+
+        expect(session.status).toBe(SessionStatus.CANCELLED);
+        expect(session.cancellationReason).toBe('Client requested cancellation');
+        expect(session.updatedAt).toEqual(cancelTime);
+      });
+
+      it('should reject cancel() from IN_PROGRESS', () => {
+        const session = createDefaultSession();
+        session.start(clock);
+
+        expect(() => session.cancel('Late cancel', clock)).toThrow(
+          InvalidSessionTransitionException,
+        );
+      });
+
+      it('should reject cancel() from COMPLETED', () => {
+        const session = createDefaultSession();
+        session.start(clock);
+        session.complete(clock);
+
+        expect(() => session.cancel('Post cancel', clock)).toThrow(
+          InvalidSessionTransitionException,
+        );
+      });
+
+      it('should reject cancel() from CANCELLED', () => {
+        const session = createDefaultSession();
+        session.cancel('First cancel', clock);
+
+        expect(() => session.cancel('Second cancel', clock)).toThrow(
+          InvalidSessionTransitionException,
+        );
+      });
+
+      it('should reject cancel() from NO_SHOW', () => {
+        const session = createDefaultSession();
+        session.markAsNoShow(clock);
+
+        expect(() => session.cancel('Cancel after no-show', clock)).toThrow(
+          InvalidSessionTransitionException,
+        );
+      });
+    });
+
+    describe('markAsNoShow()', () => {
+      it('should transition SCHEDULED -> NO_SHOW and update timestamp', () => {
+        const session = createDefaultSession();
+        const noShowTime = new Date('2026-08-15T14:30:00.000Z');
+        clock.setTime(noShowTime);
+
+        session.markAsNoShow(clock);
+
         expect(session.status).toBe(SessionStatus.NO_SHOW);
+        expect(session.updatedAt).toEqual(noShowTime);
+      });
+
+      it('should reject markAsNoShow() from IN_PROGRESS', () => {
+        const session = createDefaultSession();
+        session.start(clock);
+
+        expect(() => session.markAsNoShow(clock)).toThrow(InvalidSessionTransitionException);
+      });
+
+      it('should reject markAsNoShow() from COMPLETED', () => {
+        const session = createDefaultSession();
+        session.start(clock);
+        session.complete(clock);
+
+        expect(() => session.markAsNoShow(clock)).toThrow(InvalidSessionTransitionException);
+      });
+
+      it('should reject markAsNoShow() from CANCELLED', () => {
+        const session = createDefaultSession();
+        session.cancel('Cancelled', clock);
+
+        expect(() => session.markAsNoShow(clock)).toThrow(InvalidSessionTransitionException);
+      });
+
+      it('should reject markAsNoShow() from NO_SHOW', () => {
+        const session = createDefaultSession();
+        session.markAsNoShow(clock);
+
+        expect(() => session.markAsNoShow(clock)).toThrow(InvalidSessionTransitionException);
       });
     });
   });
