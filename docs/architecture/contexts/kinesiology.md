@@ -1,8 +1,8 @@
-# Kinesiology Bounded Context — Domain Ownership & Architectural Boundaries
+# Kinesiology Bounded Context — Domain Ownership, Vocabulary & Architectural Boundaries
 
 ## 1. Executive Summary
 
-This document establishes the formal domain ownership boundaries, canonical identifiers, and cross-context relationship rules for the **Kinesiology Bounded Context** within the Kinergy modular monolith platform. It defines the explicit separation of responsibilities between **Identity**, **Client Management**, **Scheduling**, and **Kinesiology**, eliminating conceptual ambiguity, preventing aggregate coupling, and forbidding cross-context distributed transactions.
+This document establishes the formal domain ownership boundaries, canonical ubiquitous vocabulary, and cross-context relationship rules for the **Kinesiology Bounded Context** within the Kinergy modular monolith platform. It defines the explicit separation of responsibilities between **Identity**, **Client Management**, **Scheduling**, and **Kinesiology**, eliminating conceptual ambiguity, preventing aggregate coupling, and forbidding cross-context distributed transactions.
 
 ---
 
@@ -13,85 +13,65 @@ This document establishes the formal domain ownership boundaries, canonical iden
 
 ---
 
-## 3. Bounded Context Responsibility Map
+## 3. Ubiquitous Language & Canonical Vocabulary
 
-```mermaid
-graph TD
-    subgraph Identity Context [Identity & Access Management]
-        USER[User Entity]
-        AUTH[Auth Credentials / JWT / RTR]
-        PERM[Roles & Permissions]
-    end
+To prevent terminology drift, the following definitions form the authoritative Ubiquitous Language for the Kinesiology Bounded Context:
 
-    subgraph Client Context [Client Management Context]
-        CLIENT[Client Aggregate]
-        CLIENT_ID[ClientId / Ref Number]
-        PROFILE[Master Contact & Profile]
-        TIMELINE[Client Timeline Stream]
-    end
-
-    subgraph Scheduling Context [Scheduling Context]
-        APPT[Appointment Aggregate]
-        ROOM[Room / Resource Aggregate]
-        SCHED[Therapist Schedule / Working Hours]
-        CONFLICT[4D Conflict Engine]
-        CAL[Calendar Projections]
-    end
-
-    subgraph Kinesiology Context [Kinesiology Context]
-        SESSION[TreatmentSession Aggregate]
-        S_STATUS[SessionStatus Lifecycle]
-        S_NOTES[Clinical SOAP / Progress Notes]
-        EVAL[Muscle Testing & Findings]
-        T_PLAN[Treatment Plans & Goals]
-    end
-
-    CLIENT_ID -.->|Referenced by string ID| APPT
-    CLIENT_ID -.->|Referenced by string ID| SESSION
-    APPT -.->|Optional correlation ID| SESSION
-    USER -.->|Therapist ID reference| SCHED
-    USER -.->|Practitioner ID reference| SESSION
-```
+| Canonical Term              | Conceptual Definition & Scope                                                                                                                         | Owner Bounded Context              | Prohibited Synonyms / Rejected Aliases                                                     |
+| :-------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------- | :----------------------------------------------------------------------------------------- |
+| **`TreatmentSession`**      | The root entity and clinical record of a single therapeutic kinesiology encounter. Encapsulates status, notes, interventions, and clinical findings.  | **Kinesiology**                    | ❌ `Treatment`, `TreatmentRecord`, `PatientTreatment`, `TherapySession`, `ClinicalSession` |
+| **`SessionStatus`**         | The clinical lifecycle state machine of a `TreatmentSession` (`SCHEDULED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`, `NO_SHOW`).                       | **Kinesiology**                    | ❌ `TreatmentStatus`, `TreatmentState`, `ClinicalStatus`, `AppointmentTreatmentStatus`     |
+| **`SessionNotes`**          | The clinical notes and therapeutic observations documented during or after a session (e.g. SOAP structure).                                           | **Kinesiology**                    | ❌ `ClinicalNotes`, `TreatmentNotes`, `TherapyNotes`, `MedicalNotes`                       |
+| **`Therapist`**             | The clinical practitioner conducting and authoring the treatment session. Modeled via `therapistId: string` matching a `User.id` with therapist role. | **Identity / Cross-Cutting**       | ❌ `Provider`, `Practitioner`, `Clinician`, `TherapistUser`                                |
+| **`Client`**                | The registered individual receiving care. Authoritative aggregate in Client Management, referenced in Kinesiology via `clientId: string`.             | **Client Management**              | ❌ `Patient`, `PatientAggregate`, `PatientProfile`, `KinesiologyClient`, `Customer`        |
+| **`Treatment History`**     | The longitudinal historical progression and past record of treatment sessions for a specific client.                                                  | **Kinesiology (Read Model)**       | ❌ `PatientHistory`, `MedicalRecord`, `ClinicalHistory`                                    |
+| **`Patient Timeline`**      | A client-centric UI/business visualization projecting clinical milestones alongside scheduling/billing events.                                        | **Client Management / Read Model** | ❌ `PatientStream`, `CareTimeline`                                                         |
+| **`Appointment Reference`** | The conceptual correlation between a clinical session and a logistical calendar booking.                                                              | **Scheduling Relationship**        | ❌ `AppointmentLink`, `BookingConnection`                                                  |
+| **`Appointment`**           | The logistical calendar reservation of a room, therapist shift, and time slot.                                                                        | **Scheduling**                     | ❌ `TreatmentAppointment`, `TherapyAppointment`, `KinesiologyAppointment`                  |
 
 ---
 
-## 4. Concept Ownership Matrix
+## 4. Concept Distinctions & Boundary Clarifications
 
-| Domain Concept                | Owner Bounded Context | Nature of Concept & Responsibility                                                                                                                    | Cross-Context Interaction & Rules                                                                                                     |
-| :---------------------------- | :-------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
-| **User Identity**             | **Identity**          | System authentication credentials, password security, session refresh tokens, roles, and granular permission resolution.                              | Kinesiology consumes authenticated user context (`userId`, `permissions`) via security guards. Never duplicates user models.          |
-| **Client Master Data**        | **Client Management** | Client master record, unique reference number (`KIN-YYYY-XXXXX`), normalized contact information, and client lifecycle (`ACTIVE`, `ARCHIVED`).        | Kinesiology references clients strictly by opaque `clientId: string` (UUID). Never duplicates client or creates "Patient" aggregates. |
-| **Client Timeline**           | **Client Management** | Unified chronological timeline stream recording milestones across all business contexts.                                                              | Kinesiology emits domain events (`TreatmentSessionCompletedEvent`) that project summary entries into `ClientTimelineEntry`.           |
-| **Appointment Logistics**     | **Scheduling**        | Calendar time-block reservations, physical room allocation, conflict detection, buffer rules, and operational attendance (`CHECKED_IN`, `COMPLETED`). | Kinesiology holds optional `appointmentId: string?` for appointment correlation. Does not manage room booking or schedule conflicts.  |
-| **Therapist Schedule**        | **Scheduling**        | Weekly clinical working hours, shift availability, and operational schedule boundaries.                                                               | Kinesiology references practitioner `therapistId: string`. Does not manage therapist shift hours.                                     |
-| **TreatmentSession**          | **Kinesiology**       | Clinical therapy encounter, assessment findings, interventions, muscle tests, and clinical outcomes.                                                  | Owned exclusively by Kinesiology. Scheduling does not hold treatment notes.                                                           |
-| **SessionStatus**             | **Kinesiology**       | Clinical lifecycle states (`DRAFT` $\rightarrow$ `IN_PROGRESS` $\rightarrow$ `COMPLETED` $\rightarrow$ `LOCKED` / `AMENDED`).                         | Strictly distinct from logistical `AppointmentStatus`.                                                                                |
-| **SessionNotes**              | **Kinesiology**       | Structured clinical SOAP notes (Subjective, Objective, Assessment, Plan), treatment interventions, and clinical observations.                         | Owned exclusively by Kinesiology. Protected by clinical immutability and signature locking invariants.                                |
-| **Muscle Testing & Findings** | **Kinesiology**       | Neuromuscular balance evaluations, indicator muscle testing, hypertonic/hypotonic states, and reflex assessments.                                     | Pure Kinesiology domain model.                                                                                                        |
-| **Treatment History**         | **Kinesiology**       | Longitudinal clinical history of therapy sessions, recovery progress, and goal evaluation.                                                            | Query read-model projected by Kinesiology application services for practitioner clinical dashboards.                                  |
+### 1. `Client` vs `Patient`
+
+- **Domain Rule**: **`Client` is the single, authoritative ubiquitous domain concept**.
+- "Patient" is merely a colloquial clinical role of a `Client` in conversational healthcare settings.
+- Under no circumstances will a `Patient`, `PatientProfile`, or `PatientAggregate` be created in the domain or database schema.
+
+### 2. `TreatmentSession` vs `Appointment`
+
+- An **`Appointment`** (Scheduling) represents a logistical calendar event (reserving a room, therapist shift, and time slot).
+- A **`TreatmentSession`** (Kinesiology) represents a clinical encounter (recording assessments, muscle testing, SOAP notes, and clinical outcomes).
+- An appointment may exist without a treatment session (e.g. cancelled/no-show appointments or facility rentals).
+- A treatment session may be linked to an appointment via `appointmentId: string?` (or created independently for walk-in clinical care).
+- _Note on `AppointmentTypeEnum.TREATMENT`_: In Scheduling, `TREATMENT` is an administrative service category label (alongside `ASSESSMENT`, `RENTAL`, `GROUP_CLASS`). It is purely logistical and distinct from the `TreatmentSession` aggregate root.
+
+### 3. `Appointment` vs `Appointment Reference`
+
+- "Appointment Reference" is a business descriptor for the relationship between a session and an appointment.
+- The actual technical domain identifier is always `appointmentId: string`. No intermediate `AppointmentReference` entity or `AppointmentReferenceId` type shall be introduced.
 
 ---
 
-## 5. Canonical Identifiers & External References
+## 5. Canonical Identifiers
 
-The `TreatmentSession` aggregate root models external domain relationships strictly via strongly typed or scalar identifiers:
+All cross-context domain interactions utilize standardized scalar or value-object identifiers:
 
 ```text
 TreatmentSession
  ├── id: SessionId                  ◄── Local Aggregate ID (Value Object)
- ├── clientId: string               ◄── External Reference to Client Management
- ├── therapistId: string            ◄── External Reference to Identity (User)
- └── appointmentId?: string         ◄── Optional External Correlation to Scheduling
+ ├── clientId: string               ◄── External Reference to Client Management (UUID)
+ ├── therapistId: string            ◄── External Reference to Identity (User UUID)
+ └── appointmentId?: string         ◄── Optional External Correlation to Scheduling (UUID)
 ```
 
-### Standardized Identifier Nomenclature
-
-| Canonical Identifier | Scope & Meaning                                            | Permitted Usages                                 | Prohibited Aliases                                |
-| :------------------- | :--------------------------------------------------------- | :----------------------------------------------- | :------------------------------------------------ |
-| **`SessionId`**      | Unique identifier for a Kinesiology Treatment Session.     | Domain value object / aggregate root ID.         | `TreatmentSessionId`, `KinesiologySessionId`      |
-| **`ClientId`**       | Authoritative identifier for a registered Client.          | External correlation ID in `TreatmentSession`.   | `PatientId`, `SubjectId`, `CustomerRef`           |
-| **`TherapistId`**    | Authoritative identifier for clinical practitioner (User). | Author / signer reference in `TreatmentSession`. | `ProviderId`, `PractitionerId`, `TherapistUserId` |
-| **`AppointmentId`**  | Optional correlation ID to a calendar Appointment.         | Logistics correlation in `TreatmentSession`.     | `BookingId`, `AppointmentReferenceId`, `SlotId`   |
+| Canonical Identifier | Scope & Meaning                                            | Permitted Usages                                 | Prohibited Aliases                                   |
+| :------------------- | :--------------------------------------------------------- | :----------------------------------------------- | :--------------------------------------------------- |
+| **`SessionId`**      | Unique identifier for a Kinesiology Treatment Session.     | Domain value object / aggregate root ID.         | ❌ `TreatmentSessionId`, `KinesiologySessionId`      |
+| **`ClientId`**       | Authoritative identifier for a registered Client.          | External correlation ID in `TreatmentSession`.   | ❌ `PatientId`, `SubjectId`, `CustomerRef`           |
+| **`TherapistId`**    | Authoritative identifier for clinical practitioner (User). | Author / signer reference in `TreatmentSession`. | ❌ `ProviderId`, `PractitionerId`, `TherapistUserId` |
+| **`AppointmentId`**  | Optional correlation ID to a calendar Appointment.         | Logistical correlation in `TreatmentSession`.    | ❌ `BookingId`, `AppointmentReferenceId`, `SlotId`   |
 
 ---
 
@@ -152,7 +132,7 @@ Kinesiology integrates with external bounded contexts via two clean patterns:
 1. **Domain-Level Opaque Identifier Referencing**:
    - Clinical sessions correlate with clients, practitioners, and calendar appointments purely through immutable string IDs.
 2. **Application-Level Event Publishing (Asynchronous Projection)**:
-   - When a treatment session reaches terminal `COMPLETED` and signed status, the aggregate records `TreatmentSessionCompletedEvent`.
+   - When a treatment session reaches terminal `COMPLETED` status, the aggregate records `TreatmentSessionCompletedEvent`.
    - An application-layer event handler can invoke the Client Management timeline port to append a structured `ClientTimelineEntry` (sourceModule: `'KINESIOLOGY'`, eventType: `'TREATMENT_SESSION_COMPLETED'`) asynchronously.
    - Client Management receives only high-level summary metadata without importing Kinesiology domain rules.
 
@@ -166,4 +146,5 @@ Kinesiology integrates with external bounded contexts via two clean patterns:
 ❌ ANTI-PATTERN: Direct SQL joins across bounded context table schemas
 ❌ ANTI-PATTERN: Synchronous aggregate loading across context boundaries in domain layer
 ❌ ANTI-PATTERN: Distributed transactions spanning Kinesiology and Scheduling
+❌ ANTI-PATTERN: Aliasing SessionId as TreatmentSessionId or TherapistId as ProviderId
 ```
