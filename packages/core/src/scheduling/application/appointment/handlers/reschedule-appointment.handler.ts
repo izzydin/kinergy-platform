@@ -81,15 +81,18 @@ export class RescheduleAppointmentHandler implements CommandHandler<
         );
       }
 
-      // 6. Detect Conflicts for New TimeRange with Turnaround Buffer & Self-Exclusion
+      // 6. Detect Conflicts for New TimeRange & Target Room with Turnaround Buffer & Self-Exclusion
+      const targetRoomId = input.newRoomId ?? appointment.roomId;
       const conflicts = await this.conflictDetectionService.detectConflicts({
         therapistId: appointment.therapistId,
-        roomId: appointment.roomId,
+        roomId: targetRoomId,
         clientId: appointment.clientId,
         requestedRange: newTimeRange,
         appointmentType: appointment.type,
         excludeAppointmentId: appointment.id.getValue(),
         ignoreAppointmentId: appointment.id.getValue(),
+        requiredCapacity: input.requiredCapacity,
+        requiredFeatures: input.requiredFeatures,
       });
 
       if (conflicts.length > 0) {
@@ -98,6 +101,9 @@ export class RescheduleAppointmentHandler implements CommandHandler<
 
       // 7. Mutate Aggregate State & Persist
       appointment.reschedule(newTimeRange, this.clock);
+      if (input.newRoomId && input.newRoomId !== appointment.roomId) {
+        appointment.assignRoom(input.newRoomId, this.clock);
+      }
       await this.appointmentRepository.save(appointment);
 
       // 8. Return Updated DTO

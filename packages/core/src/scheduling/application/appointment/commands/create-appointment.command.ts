@@ -10,6 +10,8 @@ export interface CreateAppointmentCommandInput {
   readonly startTime: string;
   readonly endTime?: string;
   readonly requestToken?: string;
+  readonly requiredCapacity?: number;
+  readonly requiredFeatures?: string[];
 }
 
 /**

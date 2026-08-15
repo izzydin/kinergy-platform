@@ -90,6 +90,8 @@ export class CreateAppointmentHandler implements CommandHandler<
         clientId: input.clientId,
         requestedRange: timeRange,
         appointmentType: apptType,
+        requiredCapacity: input.requiredCapacity,
+        requiredFeatures: input.requiredFeatures,
       });
 
       if (conflicts.length > 0) {

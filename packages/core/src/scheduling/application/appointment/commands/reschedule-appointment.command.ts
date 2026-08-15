@@ -6,6 +6,9 @@ export interface RescheduleAppointmentCommandInput {
   readonly newStartTime: string;
   readonly newEndTime: string;
   readonly expectedVersion: number;
+  readonly newRoomId?: string;
+  readonly requiredCapacity?: number;
+  readonly requiredFeatures?: string[];
 }
 
 /**
