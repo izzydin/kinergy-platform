@@ -33,7 +33,8 @@ docs/
 
 - **[System Architecture Guide](file:///c:/Projects/kinergy-platform/docs/architecture/system-architecture.md)**: Layer boundaries (Domain, Application, Infrastructure, Presentation) and request execution sequence diagrams.
 - **[Domain-Driven Design Strategy](file:///c:/Projects/kinergy-platform/docs/architecture/domain-driven-design.md)**: Shared Kernel primitives (`Entity`, `ValueObject`, `Result`), aggregate boundaries, and domain rules.
-- **[Bounded Contexts](file:///c:/Projects/kinergy-platform/docs/architecture/bounded-contexts.md)**: Identity, User Management, and Sustainability context maps.
+- **[Bounded Contexts](file:///c:/Projects/kinergy-platform/docs/architecture/bounded-contexts.md)**: Context isolation map and enterprise platform services.
+- **[Kinesiology Bounded Context](file:///c:/Projects/kinergy-platform/docs/architecture/contexts/kinesiology.md)**: Domain ownership boundaries, aggregate matrix, and cross-context contracts.
 
 ### 3. Frontend Architecture Vision & Principles
 
