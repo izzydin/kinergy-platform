@@ -449,6 +449,19 @@ export interface ListRoomsQueryInput {
 
 ---
 
+## REST Endpoints (`/api/v1/scheduling/recurring`)
+
+| Method   | Path                                                      | Permission Required  | Summary                                     |
+| :------- | :-------------------------------------------------------- | :------------------- | :------------------------------------------ |
+| `POST`   | `/api/v1/scheduling/recurring/series`                     | `appointments.write` | Create recurring appointment series         |
+| `POST`   | `/api/v1/scheduling/recurring/series/:seriesId/generate`  | `appointments.write` | Generate upcoming occurrences for horizon   |
+| `POST`   | `/api/v1/scheduling/recurring/series/:seriesId/skip`      | `appointments.write` | Skip single occurrence in series            |
+| `PATCH`  | `/api/v1/scheduling/recurring/occurrences/:appointmentId` | `appointments.write` | Edit single occurrence (detach from series) |
+| `PATCH`  | `/api/v1/scheduling/recurring/series/:seriesId/future`    | `appointments.write` | Edit future occurrences in series           |
+| `DELETE` | `/api/v1/scheduling/recurring/series/:seriesId`           | `appointments.write` | Cancel recurrence series and future slots   |
+
+---
+
 ## Domain Exceptions & Error Codes
 
 | Exception Class                   | Error Code / Message Pattern | Scenario                                                |

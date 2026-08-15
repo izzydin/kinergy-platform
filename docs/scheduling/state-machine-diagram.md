@@ -24,12 +24,18 @@ stateDiagram-v2
     SCHEDULED --> CHECKED_IN : checkIn()
     SCHEDULED --> CANCELLED : cancel()
     SCHEDULED --> NO_SHOW : markNoShow()
-    SCHEDULED --> SCHEDULED : reschedule()
+    SCHEDULED --> RESCHEDULED : reschedule()
 
     CONFIRMED --> CHECKED_IN : checkIn()
     CONFIRMED --> CANCELLED : cancel()
     CONFIRMED --> NO_SHOW : markNoShow()
-    CONFIRMED --> CONFIRMED : reschedule()
+    CONFIRMED --> RESCHEDULED : reschedule()
+
+    RESCHEDULED --> CONFIRMED : confirm()
+    RESCHEDULED --> CHECKED_IN : checkIn()
+    RESCHEDULED --> CANCELLED : cancel()
+    RESCHEDULED --> NO_SHOW : markNoShow()
+    RESCHEDULED --> RESCHEDULED : reschedule()
 
     CHECKED_IN --> IN_PROGRESS : start()
     CHECKED_IN --> CANCELLED : cancel()

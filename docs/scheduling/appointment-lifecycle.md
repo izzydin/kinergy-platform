@@ -21,15 +21,20 @@ The `AppointmentStatus` enumeration supports seven explicit lifecycle states:
 
 | Source State  | Allowed Target State | Trigger Method                            | Mandatory Guard Invariants                                                    |
 | :------------ | :------------------- | :---------------------------------------- | :---------------------------------------------------------------------------- |
-| `SCHEDULED`   | `CONFIRMED`          | `appointment.confirm(clock)`              | Must be in `SCHEDULED` status.                                                |
-| `SCHEDULED`   | `CHECKED_IN`         | `appointment.checkIn(clock)`              | Must be in `SCHEDULED` or `CONFIRMED` status.                                 |
-| `SCHEDULED`   | `SCHEDULED`          | `appointment.reschedule(newRange, clock)` | Advance notice and maximum reschedule count policies satisfied.               |
+| `SCHEDULED`   | `CONFIRMED`          | `appointment.confirm(clock)`              | Must be in `SCHEDULED` or `RESCHEDULED` status.                               |
+| `SCHEDULED`   | `CHECKED_IN`         | `appointment.checkIn(clock)`              | Must be in `SCHEDULED`, `CONFIRMED`, or `RESCHEDULED` status.                 |
+| `SCHEDULED`   | `RESCHEDULED`        | `appointment.reschedule(newRange, clock)` | Advance notice and maximum reschedule count policies satisfied.               |
 | `SCHEDULED`   | `CANCELLED`          | `appointment.cancel(reason, clock)`       | Cancellation reason required. Advance notice policy evaluated.                |
 | `SCHEDULED`   | `NO_SHOW`            | `appointment.markNoShow(clock, reason?)`  | Scheduled session start time must have elapsed.                               |
 | `CONFIRMED`   | `CHECKED_IN`         | `appointment.checkIn(clock)`              | Client arrived at clinic reception desk.                                      |
-| `CONFIRMED`   | `CONFIRMED`          | `appointment.reschedule(newRange, clock)` | Advance notice policies satisfied.                                            |
+| `CONFIRMED`   | `RESCHEDULED`        | `appointment.reschedule(newRange, clock)` | Advance notice policies satisfied.                                            |
 | `CONFIRMED`   | `CANCELLED`          | `appointment.cancel(reason, clock)`       | Reason required.                                                              |
 | `CONFIRMED`   | `NO_SHOW`            | `appointment.markNoShow(clock, reason?)`  | Session time elapsed without client arrival.                                  |
+| `RESCHEDULED` | `CONFIRMED`          | `appointment.confirm(clock)`              | Client re-confirms rescheduled session time.                                  |
+| `RESCHEDULED` | `CHECKED_IN`         | `appointment.checkIn(clock)`              | Client arrived at clinic for rescheduled session.                             |
+| `RESCHEDULED` | `RESCHEDULED`        | `appointment.reschedule(newRange, clock)` | Advance notice policies satisfied.                                            |
+| `RESCHEDULED` | `CANCELLED`          | `appointment.cancel(reason, clock)`       | Reason required.                                                              |
+| `RESCHEDULED` | `NO_SHOW`            | `appointment.markNoShow(clock, reason?)`  | Rescheduled session time elapsed without arrival.                             |
 | `CHECKED_IN`  | `IN_PROGRESS`        | `appointment.start(clock)`                | Therapist/room initialized for session.                                       |
 | `CHECKED_IN`  | `CANCELLED`          | `appointment.cancel(reason, clock)`       | Operational cancellation prior to session start.                              |
 | `IN_PROGRESS` | `COMPLETED`          | `appointment.complete(clock)`             | Session execution completed.                                                  |

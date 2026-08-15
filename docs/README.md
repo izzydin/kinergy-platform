@@ -11,11 +11,12 @@ docs/
 ├── getting-started/      ◄── Onboarding, Local Setup & Quick Start
 ├── architecture/         ◄── System Overview, C4 Models, Clean Architecture & DDD
 ├── frontend/             ◄── Frontend Architecture Vision, Principles & Glossary
+├── scheduling/           ◄── Scheduling Bounded Context, Aggregates, CQRS & API
 ├── security/             ◄── OWASP Specifications, Auth, Tokens, Web Security & Audit
 ├── testing/              ◄── Quality Gates, Harnesses, Unit, Integration & E2E Testing
 ├── configuration/        ◄── Centralized Zod Environment Variables & Secrets Reference
 ├── api/                  ◄── OpenAPI / Swagger Docs, Envelope Schemas & Routes
-├── adr/                  ◄── Architectural Decision Records (0001 - 0040)
+├── adr/                  ◄── Architectural Decision Records (0001 - 0044+)
 └── glossary.md           ◄── Ubiquitous Language, Security Acronyms & Terminology
 ```
 
@@ -69,6 +70,15 @@ docs/
 - **[Environment Configuration Guide](file:///c:/Projects/kinergy-platform/docs/configuration/README.md)**: Zod `envSchema` variable reference, required secrets, and production fail-fast rules.
 - **[API Reference Guide](file:///c:/Projects/kinergy-platform/docs/api/README.md)**: OpenAPI / Swagger setup (`/api/docs`), standard response envelopes (`Result<T>`), and endpoint catalog.
 
-### 7. Architectural Decision Records (ADRs)
+### 7. Scheduling Bounded Context
 
-- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 40 Architectural Decision Records documenting all major platform design choices.
+- **[Scheduling Domain Model](file:///c:/Projects/kinergy-platform/docs/scheduling/domain-model.md)**: Aggregate roots (`Appointment`, `TherapistSchedule`, `Room`, `RecurrenceSeries`), value objects, and domain invariants.
+- **[Scheduling Application Architecture](file:///c:/Projects/kinergy-platform/docs/scheduling/application-architecture.md)**: CQRS command/query handlers, 4D conflict detection engine, and temporal calculation.
+- **[Appointment Lifecycle & State Machine](file:///c:/Projects/kinergy-platform/docs/scheduling/appointment-lifecycle.md)**: State machine model, valid transitions, guard rules, and terminal states.
+- **[Room & Resource Scheduling Architecture](file:///c:/Projects/kinergy-platform/docs/scheduling/room-scheduling.md)**: SchedulableResource design, capacity management, maintenance windows, and equipment features.
+- **[Recurring Appointments Architecture](file:///c:/Projects/kinergy-platform/docs/scheduling/recurring-appointments-flow.md)**: Rolling generation horizon, idempotency keys, single-occurrence detachments, and DST clamping.
+- **[Scheduling API Documentation](file:///c:/Projects/kinergy-platform/docs/scheduling/api-documentation.md)**: CQRS command/query contracts and REST endpoints for `/api/v1/scheduling/rooms` and `/api/v1/scheduling/recurring`.
+
+### 8. Architectural Decision Records (ADRs)
+
+- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 44+ Architectural Decision Records documenting all major platform design choices.
