@@ -52,6 +52,38 @@ To prevent terminology drift, the following definitions form the authoritative U
 - "Appointment Reference" is a business descriptor for the relationship between a session and an appointment.
 - The actual technical domain identifier is always `appointmentId: string`. No intermediate `AppointmentReference` entity or `AppointmentReferenceId` type shall be introduced.
 
+### 4. `TreatmentSession` Lifecycle State Machine
+
+The clinical session lifecycle is strictly governed by an explicit finite state machine inside the `TreatmentSession` aggregate root:
+
+```text
+       ┌──────────────┐
+       │  SCHEDULED   │ (Initial State)
+       └──────┬───────┘
+         │    │    │
+  start()│    │    │ cancel(reason) / markAsNoShow()
+         ▼    ▼    ▼
+ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐
+ │ IN_PROGRESS │ │  CANCELLED  │ │   NO_SHOW   │ (Terminal States)
+ └──────┬──────┘ └─────────────┘ └─────────────┘
+        │ complete()
+        ▼
+ ┌─────────────┐
+ │  COMPLETED  │ (Terminal State)
+ └─────────────┘
+```
+
+**Valid Transitions**:
+
+- `SCHEDULED -> IN_PROGRESS` (via `start()`)
+- `IN_PROGRESS -> COMPLETED` (via `complete()`)
+- `SCHEDULED -> CANCELLED` (via `cancel(reason?)`)
+- `SCHEDULED -> NO_SHOW` (via `markAsNoShow()`)
+
+**Terminal State Invariant**:
+
+- `COMPLETED`, `CANCELLED`, and `NO_SHOW` are strictly terminal. Any subsequent transition attempt throws `InvalidSessionTransitionException`.
+
 ---
 
 ## 5. Canonical Identifiers

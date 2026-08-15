@@ -4,6 +4,7 @@ import { Clock } from '../shared/clock';
 import { SessionId } from './session-id.vo';
 import { SessionStatus } from './session-status.enum';
 import { SessionNotes } from './session-notes.vo';
+import { InvalidSessionTransitionException } from '../exceptions/invalid-session-transition.exception';
 
 /** Properties required to create a new TreatmentSession aggregate */
 export interface CreateTreatmentSessionProps {
@@ -22,6 +23,7 @@ export interface ReconstituteTreatmentSessionProps {
   clientId: string;
   therapistId: string;
   appointmentId: string;
+  cancellationReason?: string;
   notes: SessionNotes;
   createdAt: Date;
   updatedAt: Date;
@@ -38,6 +40,7 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
   private readonly _clientId: string;
   private _therapistId: string;
   private _appointmentId: string;
+  private _cancellationReason?: string;
   private _notes: SessionNotes;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
@@ -75,6 +78,7 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
     this._clientId = props.clientId.trim();
     this._therapistId = props.therapistId.trim();
     this._appointmentId = props.appointmentId.trim();
+    this._cancellationReason = props.cancellationReason?.trim() || undefined;
     this._notes = props.notes;
     this._createdAt = props.createdAt;
     this._updatedAt = props.updatedAt;
@@ -108,6 +112,78 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
     return new TreatmentSession(props);
   }
 
+  /**
+   * Starts the treatment session, transitioning from SCHEDULED to IN_PROGRESS.
+   */
+  public start(clock?: Clock): void {
+    if (this._status !== SessionStatus.SCHEDULED) {
+      throw new InvalidSessionTransitionException(
+        this._status,
+        SessionStatus.IN_PROGRESS,
+        `Session must be in 'SCHEDULED' status to be started.`,
+      );
+    }
+    this._status = SessionStatus.IN_PROGRESS;
+    this.touch(clock);
+  }
+
+  /**
+   * Completes the treatment session, transitioning from IN_PROGRESS to COMPLETED.
+   */
+  public complete(clock?: Clock): void {
+    if (this._status !== SessionStatus.IN_PROGRESS) {
+      throw new InvalidSessionTransitionException(
+        this._status,
+        SessionStatus.COMPLETED,
+        `Session must be in 'IN_PROGRESS' status to be completed.`,
+      );
+    }
+    this._status = SessionStatus.COMPLETED;
+    this.touch(clock);
+  }
+
+  /**
+   * Cancels the treatment session, transitioning from SCHEDULED to CANCELLED.
+   */
+  public cancel(reason?: string, clock?: Clock): void {
+    if (this._status !== SessionStatus.SCHEDULED) {
+      throw new InvalidSessionTransitionException(
+        this._status,
+        SessionStatus.CANCELLED,
+        `Session must be in 'SCHEDULED' status to be cancelled.`,
+      );
+    }
+    this._status = SessionStatus.CANCELLED;
+    this._cancellationReason = reason?.trim() || undefined;
+    this.touch(clock);
+  }
+
+  /**
+   * Marks the treatment session as a NO_SHOW, transitioning from SCHEDULED to NO_SHOW.
+   */
+  public markAsNoShow(clock?: Clock): void {
+    if (this._status !== SessionStatus.SCHEDULED) {
+      throw new InvalidSessionTransitionException(
+        this._status,
+        SessionStatus.NO_SHOW,
+        `Session must be in 'SCHEDULED' status to be marked as no-show.`,
+      );
+    }
+    this._status = SessionStatus.NO_SHOW;
+    this.touch(clock);
+  }
+
+  /**
+   * Updates clinical session notes.
+   */
+  public updateNotes(notes: SessionNotes, clock?: Clock): void {
+    if (this._status === SessionStatus.CANCELLED || this._status === SessionStatus.NO_SHOW) {
+      throw new Error(`Cannot update clinical notes for a session in '${this._status}' status.`);
+    }
+    this._notes = notes;
+    this.touch(clock);
+  }
+
   /** Gets the unique aggregate identifier */
   public get id(): SessionId {
     return this._id;
@@ -138,6 +214,11 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
     return this._appointmentId;
   }
 
+  /** Gets the cancellation reason if cancelled */
+  public get cancellationReason(): string | undefined {
+    return this._cancellationReason;
+  }
+
   /** Gets the clinical session notes */
   public get notes(): SessionNotes {
     return this._notes;
@@ -166,5 +247,9 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
   /** Records a domain event internally */
   protected recordEvent(event: DomainEvent): void {
     this.uncommittedEvents.push(event);
+  }
+
+  private touch(clock?: Clock): void {
+    this._updatedAt = clock ? clock.now() : new Date();
   }
 }
