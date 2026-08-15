@@ -148,3 +148,15 @@ Kinesiology integrates with external bounded contexts via two clean patterns:
 ❌ ANTI-PATTERN: Distributed transactions spanning Kinesiology and Scheduling
 ❌ ANTI-PATTERN: Aliasing SessionId as TreatmentSessionId or TherapistId as ProviderId
 ```
+
+---
+
+## 10. Out of Scope & Deliberately Deferred Scope
+
+To protect architectural focus during Milestone 4.1:
+
+1. **Third-Party EHR / FHIR Interoperability**: Direct HL7/FHIR export connectors are deferred to future integration phases.
+2. **Real-Time Telehealth Video**: Telemedicine streaming channels and WebRTC media servers are out of scope.
+3. **Multi-Practitioner Simultaneous WebSocket Collaboration**: Real-time collaborative concurrent note editing via Operational Transformation (OT) or CRDTs is out of scope; optimistic concurrency locking is the chosen model.
+4. **Billing & Insurance Claims Processing**: Generating financial invoices, insurance coding (CPT/ICD), or payment collection is owned by the future Billing context.
+5. **Direct Client Self-Documentation**: Client self-assessment intake forms are owned by Client Management self-service modules; Kinesiology governs practitioner clinical records.
