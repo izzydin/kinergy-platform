@@ -92,11 +92,23 @@ export class ConflictDetectionService {
       ? this.bufferPolicy.getBufferFor({ appointmentType, roomId, therapistId })
       : TurnaroundBuffer.empty();
 
+    const bufferMarginMs = buffer.isEmpty()
+      ? 0
+      : Math.max(buffer.prepDuration.toMilliseconds(), buffer.cleanupDuration.toMilliseconds());
+
+    const queryRange =
+      bufferMarginMs === 0
+        ? requestedRange
+        : TimeRange.create(
+            new Date(requestedRange.start.getTime() - bufferMarginMs),
+            new Date(requestedRange.end.getTime() + bufferMarginMs),
+          );
+
     // 2. Vector 2: Therapist Schedule & Appointment Overlap Check
     const schedule = await this.scheduleRepo.findByTherapistId(therapistId);
     const therapistAppts = await this.appointmentRepo.findAppointmentsForTherapist(
       therapistId,
-      requestedRange,
+      queryRange,
     );
 
     if (!schedule) {
@@ -134,7 +146,7 @@ export class ConflictDetectionService {
 
     // 3. Vector 3: Room Availability, Features, Capacity & Booking Overlap Check
     const room = await this.roomRepo.findById(roomId);
-    const roomAppts = await this.appointmentRepo.findAppointmentsForRoom(roomId, requestedRange);
+    const roomAppts = await this.appointmentRepo.findAppointmentsForRoom(roomId, queryRange);
 
     if (!room) {
       conflicts.push(
@@ -169,10 +181,7 @@ export class ConflictDetectionService {
     }
 
     // 4. Vector 4: Client Multi-Booking Overlap Check
-    const clientAppts = await this.appointmentRepo.findAppointmentsForClient(
-      clientId,
-      requestedRange,
-    );
+    const clientAppts = await this.appointmentRepo.findAppointmentsForClient(clientId, queryRange);
 
     const clientResult = this.clientEvaluator.evaluate({
       clientId,
