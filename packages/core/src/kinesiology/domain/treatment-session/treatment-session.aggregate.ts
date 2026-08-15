@@ -80,8 +80,8 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
     this._appointmentId = props.appointmentId.trim();
     this._cancellationReason = props.cancellationReason?.trim() || undefined;
     this._notes = props.notes;
-    this._createdAt = props.createdAt;
-    this._updatedAt = props.updatedAt;
+    this._createdAt = new Date(props.createdAt.getTime());
+    this._updatedAt = new Date(props.updatedAt.getTime());
   }
 
   /**
@@ -177,6 +177,9 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
    * Updates clinical session notes.
    */
   public updateNotes(notes: SessionNotes, clock?: Clock): void {
+    if (!notes) {
+      throw new Error('Session notes cannot be null or undefined.');
+    }
     if (this._status === SessionStatus.CANCELLED || this._status === SessionStatus.NO_SHOW) {
       throw new Error(`Cannot update clinical notes for a session in '${this._status}' status.`);
     }
@@ -224,14 +227,14 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
     return this._notes;
   }
 
-  /** Gets the creation timestamp */
+  /** Gets the creation timestamp (defensive copy) */
   public get createdAt(): Date {
-    return this._createdAt;
+    return new Date(this._createdAt.getTime());
   }
 
-  /** Gets the last update timestamp */
+  /** Gets the last update timestamp (defensive copy) */
   public get updatedAt(): Date {
-    return this._updatedAt;
+    return new Date(this._updatedAt.getTime());
   }
 
   /** Returns all uncommitted domain events recorded by this aggregate */

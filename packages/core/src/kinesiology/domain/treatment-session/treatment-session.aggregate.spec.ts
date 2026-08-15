@@ -24,7 +24,7 @@ describe('TreatmentSession Aggregate Root', () => {
       clock,
     );
 
-  describe('Creation', () => {
+  describe('Creation & Identity Invariants', () => {
     it('should create a new TreatmentSession in SCHEDULED status with version 1', () => {
       const session = createDefaultSession();
 
@@ -105,6 +105,17 @@ describe('TreatmentSession Aggregate Root', () => {
           clock,
         ),
       ).toThrow('Therapist ID cannot be empty.');
+
+      expect(() =>
+        TreatmentSession.create(
+          {
+            clientId: 'client_123',
+            therapistId: '   ',
+            appointmentId: 'appt_789',
+          },
+          clock,
+        ),
+      ).toThrow('Therapist ID cannot be empty.');
     });
 
     it('should throw an error if appointmentId is empty or whitespace', () => {
@@ -118,6 +129,31 @@ describe('TreatmentSession Aggregate Root', () => {
           clock,
         ),
       ).toThrow('Appointment ID cannot be empty.');
+
+      expect(() =>
+        TreatmentSession.create(
+          {
+            clientId: 'client_123',
+            therapistId: 'therapist_456',
+            appointmentId: '   ',
+          },
+          clock,
+        ),
+      ).toThrow('Appointment ID cannot be empty.');
+    });
+  });
+
+  describe('Encapsulation & Immutability Protection', () => {
+    it('should protect timestamps against external date mutation via defensive copies', () => {
+      const session = createDefaultSession();
+      const createdDate = session.createdAt;
+      const updatedDate = session.updatedAt;
+
+      createdDate.setFullYear(1990);
+      updatedDate.setFullYear(1990);
+
+      expect(session.createdAt.getFullYear()).toBe(2026);
+      expect(session.updatedAt.getFullYear()).toBe(2026);
     });
   });
 
@@ -232,8 +268,8 @@ describe('TreatmentSession Aggregate Root', () => {
     });
   });
 
-  describe('Notes Management & Guard Rules', () => {
-    it('should allow updating notes during SCHEDULED and IN_PROGRESS states', () => {
+  describe('SessionNotes Invariants & Mutation', () => {
+    it('should allow updating notes during SCHEDULED, IN_PROGRESS, and COMPLETED states', () => {
       const session = createDefaultSession();
       const newNotes = SessionNotes.create({
         subjective: 'Neck pain after lifting.',
@@ -249,6 +285,24 @@ describe('TreatmentSession Aggregate Root', () => {
       });
       session.updateNotes(inProgressNotes, clock);
       expect(session.notes.getObjective()).toBe('Cervical rotation limited to 45 deg');
+
+      session.complete(clock);
+      const postSessionNotes = SessionNotes.create({
+        subjective: 'Neck pain',
+        objective: 'Cervical rotation limited to 45 deg',
+        assessment: 'Post-treatment improvement observed',
+        plan: 'Follow up in 1 week',
+      });
+      session.updateNotes(postSessionNotes, clock);
+      expect(session.notes.getPlan()).toBe('Follow up in 1 week');
+    });
+
+    it('should throw an error if updating notes with null or undefined', () => {
+      const session = createDefaultSession();
+      expect(() =>
+        // @ts-expect-error - Testing runtime safety
+        session.updateNotes(null, clock),
+      ).toThrow('Session notes cannot be null or undefined.');
     });
 
     it('should reject updating notes if session is CANCELLED or NO_SHOW', () => {
