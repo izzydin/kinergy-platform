@@ -518,4 +518,96 @@ describe('TreatmentSession Aggregate Root', () => {
       expect(session.updatedAt).toEqual(cancelledTime);
     });
   });
+
+  describe('Adversarial Invariant & Integrity Attacks', () => {
+    it('should reject external tampering with uncommitted domain events array', () => {
+      const session = createDefaultSession();
+      const events = session.getUncommittedEvents();
+
+      // Attempting to push to the array should not corrupt internal aggregate state
+      (events as unknown[]).push({ eventName: 'HACKED_EVENT' });
+      expect(session.getUncommittedEvents().length).toBe(0);
+    });
+
+    it('should sanitize whitespace-only cancellation reasons to undefined', () => {
+      const session = createDefaultSession();
+      session.cancel('   ', clock);
+
+      expect(session.status).toBe(SessionStatus.CANCELLED);
+      expect(session.cancellationReason).toBeUndefined();
+    });
+
+    it('should reject reconstitution with empty clientId', () => {
+      expect(() =>
+        TreatmentSession.reconstitute({
+          id: SessionId.create('sess_123'),
+          version: 1,
+          status: SessionStatus.SCHEDULED,
+          clientId: '   ',
+          therapistId: 'therapist_xyz',
+          appointmentId: 'appt_123',
+          notes: SessionNotes.empty(),
+          createdAt: initialDate,
+          updatedAt: initialDate,
+        }),
+      ).toThrow('Client ID cannot be empty.');
+    });
+
+    it('should reject reconstitution with empty therapistId', () => {
+      expect(() =>
+        TreatmentSession.reconstitute({
+          id: SessionId.create('sess_123'),
+          version: 1,
+          status: SessionStatus.SCHEDULED,
+          clientId: 'client_123',
+          therapistId: '   ',
+          appointmentId: 'appt_123',
+          notes: SessionNotes.empty(),
+          createdAt: initialDate,
+          updatedAt: initialDate,
+        }),
+      ).toThrow('Therapist ID cannot be empty.');
+    });
+
+    it('should reject reconstitution with empty appointmentId', () => {
+      expect(() =>
+        TreatmentSession.reconstitute({
+          id: SessionId.create('sess_123'),
+          version: 1,
+          status: SessionStatus.SCHEDULED,
+          clientId: 'client_123',
+          therapistId: 'therapist_xyz',
+          appointmentId: '   ',
+          notes: SessionNotes.empty(),
+          createdAt: initialDate,
+          updatedAt: initialDate,
+        }),
+      ).toThrow('Appointment ID cannot be empty.');
+    });
+
+    it('should reject reconstitution with null notes', () => {
+      expect(() =>
+        TreatmentSession.reconstitute({
+          id: SessionId.create('sess_123'),
+          version: 1,
+          status: SessionStatus.SCHEDULED,
+          clientId: 'client_123',
+          therapistId: 'therapist_xyz',
+          appointmentId: 'appt_123',
+          // @ts-expect-error - Testing runtime safety
+          notes: null,
+          createdAt: initialDate,
+          updatedAt: initialDate,
+        }),
+      ).toThrow('Session notes cannot be null or undefined.');
+    });
+
+    it('should protect Value Objects from property mutation (Object.freeze integrity)', () => {
+      const notes = SessionNotes.create({ subjective: 'Original' });
+      expect(Object.isFrozen(notes)).toBe(true);
+
+      const sessionId = SessionId.create('sess_orig');
+      expect(Object.isFrozen(sessionId)).toBe(true);
+    });
+  });
 });
