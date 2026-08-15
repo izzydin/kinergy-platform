@@ -1,18 +1,18 @@
+import { KinesiologyDomainException } from './kinesiology.exception';
 import { SessionStatus } from '../treatment-session/session-status.enum';
 
 /**
- * Thrown when an illegal lifecycle state transition is attempted on a TreatmentSession.
+ * Thrown when an illegal lifecycle state transition is attempted on a TreatmentSession aggregate.
  */
-export class InvalidSessionTransitionException extends Error {
-  public readonly fromStatus: SessionStatus;
-  public readonly toStatus: SessionStatus;
+export class InvalidSessionTransitionException extends KinesiologyDomainException {
+  public readonly code = 'INVALID_SESSION_TRANSITION';
 
-  constructor(fromStatus: SessionStatus, toStatus: SessionStatus, message?: string) {
-    const defaultMsg = `Cannot transition TreatmentSession from '${fromStatus}' to '${toStatus}'.`;
-    super(message ? `${defaultMsg} Reason: ${message}` : defaultMsg);
-    this.name = 'InvalidSessionTransitionException';
-    this.fromStatus = fromStatus;
-    this.toStatus = toStatus;
-    Object.setPrototypeOf(this, InvalidSessionTransitionException.prototype);
+  constructor(
+    public readonly fromStatus: SessionStatus,
+    public readonly toStatus: SessionStatus,
+    details?: string,
+  ) {
+    const baseMessage = `Cannot transition TreatmentSession from '${fromStatus}' to '${toStatus}'.`;
+    super(details ? `${baseMessage} ${details}` : baseMessage);
   }
 }

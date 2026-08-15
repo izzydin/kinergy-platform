@@ -469,4 +469,53 @@ describe('TreatmentSession Aggregate Root', () => {
       ).toThrow("Invalid SessionStatus: 'INVALID_STATUS'.");
     });
   });
+
+  describe('State & Timestamp Preservation on Transition Failures', () => {
+    it('should maintain exact status and updatedAt timestamp when start() fails', () => {
+      const session = createDefaultSession();
+      session.start(clock);
+      const afterStartTime = session.updatedAt;
+
+      clock.advanceMinutes(10);
+      expect(() => session.start(clock)).toThrow(InvalidSessionTransitionException);
+
+      expect(session.status).toBe(SessionStatus.IN_PROGRESS);
+      expect(session.updatedAt).toEqual(afterStartTime);
+    });
+
+    it('should maintain exact status and updatedAt timestamp when complete() fails on SCHEDULED', () => {
+      const session = createDefaultSession();
+
+      clock.advanceMinutes(10);
+      expect(() => session.complete(clock)).toThrow(InvalidSessionTransitionException);
+
+      expect(session.status).toBe(SessionStatus.SCHEDULED);
+      expect(session.updatedAt).toEqual(initialDate);
+    });
+
+    it('should maintain exact status and updatedAt timestamp when cancel() fails on COMPLETED', () => {
+      const session = createDefaultSession();
+      session.start(clock);
+      session.complete(clock);
+      const completedTime = session.updatedAt;
+
+      clock.advanceMinutes(10);
+      expect(() => session.cancel('Late cancel', clock)).toThrow(InvalidSessionTransitionException);
+
+      expect(session.status).toBe(SessionStatus.COMPLETED);
+      expect(session.updatedAt).toEqual(completedTime);
+    });
+
+    it('should maintain exact status and updatedAt timestamp when markAsNoShow() fails on CANCELLED', () => {
+      const session = createDefaultSession();
+      session.cancel('Cancelled by clinic', clock);
+      const cancelledTime = session.updatedAt;
+
+      clock.advanceMinutes(10);
+      expect(() => session.markAsNoShow(clock)).toThrow(InvalidSessionTransitionException);
+
+      expect(session.status).toBe(SessionStatus.CANCELLED);
+      expect(session.updatedAt).toEqual(cancelledTime);
+    });
+  });
 });
