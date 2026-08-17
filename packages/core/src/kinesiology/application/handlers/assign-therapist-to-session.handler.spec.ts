@@ -1,6 +1,8 @@
 import { AssignTherapistToSessionHandler } from './assign-therapist-to-session.handler';
 import { AssignTherapistToSessionCommand } from '../commands/assign-therapist-to-session.command';
 import { ITreatmentSessionRepository } from '../../domain/repositories/treatment-session.repository';
+import { ITherapistLookupPort } from '../ports/therapist-lookup.port';
+import { TherapistReferenceDTO } from '../dtos/therapist-reference.dto';
 import { TreatmentSession } from '../../domain/treatment-session/treatment-session.aggregate';
 import { SessionId } from '../../domain/treatment-session/session-id.vo';
 import { TestClock } from '../../domain/shared/clock';
@@ -26,8 +28,21 @@ class InMemoryTreatmentSessionRepository implements ITreatmentSessionRepository 
   }
 }
 
+class MockTherapistLookupAdapter implements ITherapistLookupPort {
+  private therapists = new Map<string, TherapistReferenceDTO>();
+
+  setTherapist(dto: TherapistReferenceDTO): void {
+    this.therapists.set(dto.therapistId, dto);
+  }
+
+  async findTherapist(therapistId: string): Promise<TherapistReferenceDTO | null> {
+    return this.therapists.get(therapistId) ?? null;
+  }
+}
+
 describe('AssignTherapistToSessionHandler', () => {
   let sessionRepository: InMemoryTreatmentSessionRepository;
+  let therapistLookupAdapter: MockTherapistLookupAdapter;
   let handler: AssignTherapistToSessionHandler;
   let clock: TestClock;
   const now = new Date('2026-08-17T10:00:00.000Z');
@@ -35,7 +50,42 @@ describe('AssignTherapistToSessionHandler', () => {
   beforeEach(() => {
     clock = new TestClock(now);
     sessionRepository = new InMemoryTreatmentSessionRepository();
-    handler = new AssignTherapistToSessionHandler(sessionRepository, clock);
+    therapistLookupAdapter = new MockTherapistLookupAdapter();
+    handler = new AssignTherapistToSessionHandler(sessionRepository, therapistLookupAdapter, clock);
+
+    // Register eligible active therapist
+    therapistLookupAdapter.setTherapist({
+      therapistId: 'therapist_new_200',
+      status: 'ACTIVE',
+      roles: ['THERAPIST'],
+      isEligible: true,
+    });
+
+    // Register eligible handover therapist
+    therapistLookupAdapter.setTherapist({
+      therapistId: 'therapist_handover_300',
+      status: 'ACTIVE',
+      roles: ['THERAPIST'],
+      isEligible: true,
+    });
+
+    // Register deactivated therapist
+    therapistLookupAdapter.setTherapist({
+      therapistId: 'therapist_deactivated_400',
+      status: 'DEACTIVATED',
+      roles: ['THERAPIST'],
+      isEligible: false,
+      ineligibilityReason: 'User account is deactivated.',
+    });
+
+    // Register non-clinical user
+    therapistLookupAdapter.setTherapist({
+      therapistId: 'user_receptionist_500',
+      status: 'ACTIVE',
+      roles: ['RECEPTIONIST'],
+      isEligible: false,
+      ineligibilityReason: 'User does not hold a clinical therapist role.',
+    });
   });
 
   const createTestSession = async (
@@ -66,7 +116,7 @@ describe('AssignTherapistToSessionHandler', () => {
     return session;
   };
 
-  it('should successfully reassign therapist for a SCHEDULED session', async () => {
+  it('should successfully reassign an eligible active therapist for a SCHEDULED session', async () => {
     const session = await createTestSession('SCHEDULED');
 
     const command = new AssignTherapistToSessionCommand({
@@ -86,7 +136,7 @@ describe('AssignTherapistToSessionHandler', () => {
     expect(persisted?.version).toBe(2);
   });
 
-  it('should successfully reassign therapist for an IN_PROGRESS session (clinical handover)', async () => {
+  it('should successfully reassign an eligible therapist for an IN_PROGRESS session (clinical handover)', async () => {
     const session = await createTestSession('IN_PROGRESS');
     expect(session.version).toBe(2);
 
@@ -118,7 +168,51 @@ describe('AssignTherapistToSessionHandler', () => {
     expect(result.isSuccess).toBe(true);
     const dto = result.getValue();
     expect(dto.therapistId).toBe('therapist_same_100');
-    expect(dto.version).toBe(1); // Version not bumped on no-op
+    expect(dto.version).toBe(1);
+  });
+
+  it('should reject reassignment if therapist is not found in Identity system', async () => {
+    const session = await createTestSession('SCHEDULED');
+
+    const command = new AssignTherapistToSessionCommand({
+      sessionId: session.id.getValue(),
+      newTherapistId: 'therapist_unknown_999',
+    });
+
+    const result = await handler.execute(command);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError()).toContain(
+      "Practitioner with ID 'therapist_unknown_999' not found in Identity system.",
+    );
+  });
+
+  it('should reject reassignment if proposed therapist is deactivated', async () => {
+    const session = await createTestSession('SCHEDULED');
+
+    const command = new AssignTherapistToSessionCommand({
+      sessionId: session.id.getValue(),
+      newTherapistId: 'therapist_deactivated_400',
+    });
+
+    const result = await handler.execute(command);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError()).toContain('User account is deactivated.');
+  });
+
+  it('should reject reassignment if proposed user lacks clinical therapist role', async () => {
+    const session = await createTestSession('SCHEDULED');
+
+    const command = new AssignTherapistToSessionCommand({
+      sessionId: session.id.getValue(),
+      newTherapistId: 'user_receptionist_500',
+    });
+
+    const result = await handler.execute(command);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError()).toContain('User does not hold a clinical therapist role.');
   });
 
   it('should reject reassignment if session is not found', async () => {

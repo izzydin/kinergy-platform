@@ -3,12 +3,14 @@ import { ApplicationResult } from '../shared/application-result';
 import { AssignTherapistToSessionCommand } from '../commands/assign-therapist-to-session.command';
 import { TreatmentSessionDTO } from '../dtos/treatment-session.dto';
 import { ITreatmentSessionRepository } from '../../domain/repositories/treatment-session.repository';
+import { ITherapistLookupPort } from '../ports/therapist-lookup.port';
 import { SessionId } from '../../domain/treatment-session/session-id.vo';
 import { TreatmentSessionMapper } from '../mappers/treatment-session.mapper';
 import { Clock } from '../../domain/shared/clock';
 
 /**
  * CQRS Command Handler for reassigning a practitioner to an active TreatmentSession.
+ * Orchestrates authorization validation, therapist eligibility checks, aggregate lifecycle, and persistence.
  */
 export class AssignTherapistToSessionHandler implements CommandHandler<
   AssignTherapistToSessionCommand,
@@ -16,6 +18,7 @@ export class AssignTherapistToSessionHandler implements CommandHandler<
 > {
   constructor(
     private readonly sessionRepository: ITreatmentSessionRepository,
+    private readonly therapistLookupPort?: ITherapistLookupPort,
     private readonly clock?: Clock,
   ) {}
 
@@ -45,7 +48,25 @@ export class AssignTherapistToSessionHandler implements CommandHandler<
         return ApplicationResult.ok(TreatmentSessionMapper.toDTO(session));
       }
 
-      // Reassign therapist on aggregate
+      // Validate therapist existence and clinical eligibility via ACL Port if available
+      if (this.therapistLookupPort) {
+        const therapistRef = await this.therapistLookupPort.findTherapist(newTherapistId.trim());
+
+        if (!therapistRef) {
+          return ApplicationResult.fail(
+            `Practitioner with ID '${newTherapistId}' not found in Identity system.`,
+          );
+        }
+
+        if (!therapistRef.isEligible) {
+          const reason =
+            therapistRef.ineligibilityReason ??
+            `Practitioner '${newTherapistId}' is not eligible to conduct Kinesiology treatment.`;
+          return ApplicationResult.fail(reason);
+        }
+      }
+
+      // Reassign therapist on aggregate (enforces lifecycle invariants)
       session.assignTherapist(newTherapistId.trim(), this.clock);
 
       // Persist aggregate state

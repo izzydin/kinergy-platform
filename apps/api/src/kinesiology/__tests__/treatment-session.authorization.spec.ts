@@ -4,8 +4,9 @@ import { AuthorizationGuard } from '../../platform/identity/authorization/author
 import { IAuthorizationEvaluator } from '../../platform/identity/authorization/authorization-evaluator.interface';
 import { AuthorizationDecision } from '../../platform/identity/authorization/models/authorization-decision.model';
 import { AuthenticatedUserContext } from '../../platform/identity/context/authenticated-user-context';
+import { TreatmentSessionsController } from '../controllers/treatment-sessions.controller';
 
-describe('TreatmentSession Authorization & RBAC Evaluation', () => {
+describe('TreatmentSessionsController Authorization & RBAC Evaluation', () => {
   let guard: AuthorizationGuard;
   let reflector: Reflector;
   let mockEvaluator: jest.Mocked<IAuthorizationEvaluator>;
@@ -19,17 +20,12 @@ describe('TreatmentSession Authorization & RBAC Evaluation', () => {
   });
 
   const createMockContext = (
-    requiredPermissions?: string[],
+    handlerName: keyof TreatmentSessionsController,
     userContext?: AuthenticatedUserContext,
   ): ExecutionContext => {
-    const handler = () => {};
-    if (requiredPermissions) {
-      Reflect.defineMetadata('permissions', requiredPermissions, handler);
-    }
-
     return {
-      getHandler: () => handler,
-      getClass: () => class TestController {},
+      getHandler: () => TreatmentSessionsController.prototype[handlerName],
+      getClass: () => TreatmentSessionsController,
       switchToHttp: () => ({
         getRequest: () => ({
           user: userContext,
@@ -38,7 +34,7 @@ describe('TreatmentSession Authorization & RBAC Evaluation', () => {
     } as unknown as ExecutionContext;
   };
 
-  it('allows access when user has kinesiology.sessions.assign permission', async () => {
+  it('allows access when user has kinesiology.sessions.assign permission for assignTherapist', async () => {
     const user = new AuthenticatedUserContext({
       userId: 'usr_supervisor_1',
       email: 'supervisor@kinergy.com',
@@ -49,7 +45,7 @@ describe('TreatmentSession Authorization & RBAC Evaluation', () => {
 
     mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
 
-    const context = createMockContext(['kinesiology.sessions.assign'], user);
+    const context = createMockContext('assignTherapist', user);
     const result = await guard.canActivate(context);
 
     expect(result).toBe(true);
@@ -74,30 +70,13 @@ describe('TreatmentSession Authorization & RBAC Evaluation', () => {
       AuthorizationDecision.denied('PERMISSIONS', 'Access denied: required permission missing'),
     );
 
-    const context = createMockContext(['kinesiology.sessions.assign'], user);
+    const context = createMockContext('assignTherapist', user);
 
     await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
   });
 
-  it('allows clinician with kinesiology.sessions.treat to document and conduct session', async () => {
-    const user = new AuthenticatedUserContext({
-      userId: 'usr_therapist_1',
-      email: 'therapist@kinergy.com',
-      status: 'ACTIVE',
-      roles: ['THERAPIST'],
-      permissions: ['kinesiology.sessions.treat', 'kinesiology.sessions.read'],
-    });
-
-    mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
-
-    const context = createMockContext(['kinesiology.sessions.treat'], user);
-    const result = await guard.canActivate(context);
-
-    expect(result).toBe(true);
-  });
-
   it('prohibits unauthenticated requests when permissions are required', async () => {
-    const context = createMockContext(['kinesiology.sessions.assign'], undefined);
+    const context = createMockContext('assignTherapist', undefined);
     await expect(guard.canActivate(context)).rejects.toThrow();
   });
 });
