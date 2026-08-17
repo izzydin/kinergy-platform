@@ -119,110 +119,201 @@ describe('Appointment to TreatmentSession Integration End-to-End', () => {
     );
   });
 
-  it('should successfully orchestrate TreatmentSession creation from an active checked-in appointment', async () => {
-    // 1. Scheduling creates and checks in an appointment
-    const appt = await createSchedulingAppointment(AppointmentTypeEnum.ASSESSMENT);
-    appt.checkIn(clock);
-    await appointmentRepository.save(appt);
+  describe('Integration Contract & Field Minimization', () => {
+    it('should strictly contain only authorized contract fields and never leak room or recurrence internals', async () => {
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
+      const ref = await aclAdapter.getAppointmentReference(appt.id.getValue());
 
-    // 2. Kinesiology creates session from appointment
-    const command = new CreateTreatmentSessionFromAppointmentCommand({
-      appointmentId: appt.id.getValue(),
-      initialNotes: 'Patient ready in treatment room 1.',
-      autoStart: true,
+      expect(ref).not.toBeNull();
+      const keys = Object.keys(ref ?? {}).sort();
+      expect(keys).toEqual(
+        [
+          'appointmentId',
+          'clientId',
+          'ineligibilityReason',
+          'isEligibleForSession',
+          'scheduledAt',
+          'therapistId',
+        ].sort(),
+      );
+
+      // Verify prohibited logistics fields are not leaked
+      const record = ref as unknown as Record<string, unknown>;
+      expect(record['roomId']).toBeUndefined();
+      expect(record['seriesId']).toBeUndefined();
+      expect(record['turnaroundBuffer']).toBeUndefined();
     });
-
-    const result = await createSessionHandler.execute(command);
-
-    // 3. Verify successful creation and auto-start
-    expect(result.isSuccess).toBe(true);
-    const sessionDTO = result.getValue();
-    expect(sessionDTO.appointmentId).toBe(appt.id.getValue());
-    expect(sessionDTO.clientId).toBe('client_uuid_100');
-    expect(sessionDTO.therapistId).toBe('therapist_uuid_200');
-    expect(sessionDTO.status).toBe('IN_PROGRESS');
-    expect(sessionDTO.version).toBe(2);
-    expect(sessionDTO.notes.rawText).toBe('Patient ready in treatment room 1.');
-
-    // 4. Verify persisted aggregate in repository
-    const persisted = await sessionRepository.findByAppointmentId(appt.id.getValue());
-    expect(persisted).not.toBeNull();
-    expect(persisted?.status).toBe('IN_PROGRESS');
   });
 
-  it('should reject session creation when originating appointment was cancelled in Scheduling', async () => {
-    const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
-    appt.cancel('Client called to cancel', clock);
-    await appointmentRepository.save(appt);
+  describe('Eligibility Matrix & Creation Flows', () => {
+    it('should successfully orchestrate TreatmentSession creation from an active checked-in appointment', async () => {
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.ASSESSMENT);
+      appt.checkIn(clock);
+      await appointmentRepository.save(appt);
 
-    const command = new CreateTreatmentSessionFromAppointmentCommand({
-      appointmentId: appt.id.getValue(),
+      const command = new CreateTreatmentSessionFromAppointmentCommand({
+        appointmentId: appt.id.getValue(),
+        initialNotes: 'Patient ready in treatment room 1.',
+        autoStart: true,
+      });
+
+      const result = await createSessionHandler.execute(command);
+
+      expect(result.isSuccess).toBe(true);
+      const sessionDTO = result.getValue();
+      expect(sessionDTO.appointmentId).toBe(appt.id.getValue());
+      expect(sessionDTO.clientId).toBe('client_uuid_100');
+      expect(sessionDTO.therapistId).toBe('therapist_uuid_200');
+      expect(sessionDTO.status).toBe('IN_PROGRESS');
+      expect(sessionDTO.version).toBe(2);
+      expect(sessionDTO.notes.rawText).toBe('Patient ready in treatment room 1.');
+
+      const persisted = await sessionRepository.findByAppointmentId(appt.id.getValue());
+      expect(persisted).not.toBeNull();
+      expect(persisted?.status).toBe('IN_PROGRESS');
     });
 
-    const result = await createSessionHandler.execute(command);
+    it('should reject session creation when originating appointment was cancelled in Scheduling', async () => {
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
+      appt.cancel('Client called to cancel', clock);
+      await appointmentRepository.save(appt);
 
-    expect(result.isFailure).toBe(true);
-    expect(result.getError()).toContain("Appointment is in 'CANCELLED' status");
+      const command = new CreateTreatmentSessionFromAppointmentCommand({
+        appointmentId: appt.id.getValue(),
+      });
 
-    const persisted = await sessionRepository.findByAppointmentId(appt.id.getValue());
-    expect(persisted).toBeNull();
+      const result = await createSessionHandler.execute(command);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toContain("Appointment is in 'CANCELLED' status");
+
+      const persisted = await sessionRepository.findByAppointmentId(appt.id.getValue());
+      expect(persisted).toBeNull();
+    });
+
+    it('should reject session creation when originating appointment is in NO_SHOW status', async () => {
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
+      appt.markNoShow('Client absent', clock);
+      await appointmentRepository.save(appt);
+
+      const command = new CreateTreatmentSessionFromAppointmentCommand({
+        appointmentId: appt.id.getValue(),
+      });
+
+      const result = await createSessionHandler.execute(command);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toContain("Appointment is in 'NO_SHOW' status");
+    });
+
+    it('should reject session creation when originating appointment is in COMPLETED status', async () => {
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
+      appt.confirm(clock);
+      appt.checkIn(clock);
+      appt.start(clock);
+      appt.complete(clock);
+      await appointmentRepository.save(appt);
+
+      const command = new CreateTreatmentSessionFromAppointmentCommand({
+        appointmentId: appt.id.getValue(),
+      });
+
+      const result = await createSessionHandler.execute(command);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toContain("Appointment is in 'COMPLETED' status");
+    });
+
+    it('should reject session creation for non-clinical appointment types (e.g. RENTAL and GROUP_CLASS)', async () => {
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.RENTAL);
+
+      const command = new CreateTreatmentSessionFromAppointmentCommand({
+        appointmentId: appt.id.getValue(),
+      });
+
+      const result = await createSessionHandler.execute(command);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toContain(
+        "Appointment type 'RENTAL' is not a clinical kinesiology service",
+      );
+    });
   });
 
-  it('should reject session creation for non-clinical appointment types (e.g. RENTAL)', async () => {
-    const appt = await createSchedulingAppointment(AppointmentTypeEnum.RENTAL);
+  describe('Idempotency, Retries & Concurrency Boundary', () => {
+    it('should enforce sequential idempotency and reject duplicate submissions', async () => {
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
 
-    const command = new CreateTreatmentSessionFromAppointmentCommand({
-      appointmentId: appt.id.getValue(),
+      const command = new CreateTreatmentSessionFromAppointmentCommand({
+        appointmentId: appt.id.getValue(),
+      });
+
+      // First attempt succeeds
+      const firstResult = await createSessionHandler.execute(command);
+      expect(firstResult.isSuccess).toBe(true);
+
+      // Subsequent identical attempts (simulated frontend double-click or network retry) are rejected
+      const secondResult = await createSessionHandler.execute(command);
+      expect(secondResult.isFailure).toBe(true);
+      expect(secondResult.getError()).toContain(
+        `A TreatmentSession already exists for appointment '${appt.id.getValue()}'.`,
+      );
     });
 
-    const result = await createSessionHandler.execute(command);
+    it('should prevent concurrent race conditions from creating duplicate sessions', async () => {
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
 
-    expect(result.isFailure).toBe(true);
-    expect(result.getError()).toContain(
-      "Appointment type 'RENTAL' is not a clinical kinesiology service",
-    );
+      const command = new CreateTreatmentSessionFromAppointmentCommand({
+        appointmentId: appt.id.getValue(),
+      });
+
+      // Execute 5 concurrent creation requests simultaneously
+      const results = await Promise.all([
+        createSessionHandler.execute(command),
+        createSessionHandler.execute(command),
+        createSessionHandler.execute(command),
+        createSessionHandler.execute(command),
+        createSessionHandler.execute(command),
+      ]);
+
+      const successes = results.filter((r) => r.isSuccess);
+      const failures = results.filter((r) => r.isFailure);
+
+      // Exactly one must succeed
+      expect(successes).toHaveLength(1);
+      expect(failures).toHaveLength(4);
+    });
   });
 
-  it('should enforce idempotency and prevent duplicate sessions for the same appointment', async () => {
-    const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
+  describe('Lifecycle Independence & Non-Corruption', () => {
+    it('should ensure rescheduling in Scheduling does not mutate an already active TreatmentSession', async () => {
+      // 1. Create and start TreatmentSession from a SCHEDULED appointment
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
 
-    const command = new CreateTreatmentSessionFromAppointmentCommand({
-      appointmentId: appt.id.getValue(),
+      const command = new CreateTreatmentSessionFromAppointmentCommand({
+        appointmentId: appt.id.getValue(),
+        autoStart: true,
+      });
+      const result = await createSessionHandler.execute(command);
+      expect(result.isSuccess).toBe(true);
+
+      const session = await sessionRepository.findByAppointmentId(appt.id.getValue());
+      expect(session?.status).toBe('IN_PROGRESS');
+
+      // 2. Front desk reschedules appointment in Scheduling (from SCHEDULED status)
+      appt.reschedule(
+        TimeRange.create(
+          new Date('2026-08-18T14:00:00.000Z'),
+          new Date('2026-08-18T15:00:00.000Z'),
+        ),
+        clock,
+      );
+      await appointmentRepository.save(appt);
+
+      // 3. Verify Kinesiology TreatmentSession is undisturbed
+      const unchangedSession = await sessionRepository.findByAppointmentId(appt.id.getValue());
+      expect(unchangedSession?.status).toBe('IN_PROGRESS');
+      expect(unchangedSession?.version).toBe(2);
     });
-
-    // First attempt succeeds
-    const firstResult = await createSessionHandler.execute(command);
-    expect(firstResult.isSuccess).toBe(true);
-
-    // Second attempt is rejected by application idempotency pre-check
-    const secondResult = await createSessionHandler.execute(command);
-    expect(secondResult.isFailure).toBe(true);
-    expect(secondResult.getError()).toContain(
-      `A TreatmentSession already exists for appointment '${appt.id.getValue()}'.`,
-    );
-  });
-
-  it('should prevent concurrent race conditions from creating duplicate sessions', async () => {
-    const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
-
-    const command = new CreateTreatmentSessionFromAppointmentCommand({
-      appointmentId: appt.id.getValue(),
-    });
-
-    // Execute 5 concurrent creation requests simultaneously
-    const results = await Promise.all([
-      createSessionHandler.execute(command),
-      createSessionHandler.execute(command),
-      createSessionHandler.execute(command),
-      createSessionHandler.execute(command),
-      createSessionHandler.execute(command),
-    ]);
-
-    const successes = results.filter((r) => r.isSuccess);
-    const failures = results.filter((r) => r.isFailure);
-
-    // Exactly one must succeed
-    expect(successes).toHaveLength(1);
-    expect(failures).toHaveLength(4);
   });
 });
