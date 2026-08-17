@@ -959,5 +959,108 @@ describe('TreatmentSession Aggregate Root', () => {
       session.clearEvents();
       expect(session.getUncommittedEvents().length).toBe(0);
     });
+
+    it('should not emit events when a state transition fails', () => {
+      const session = createDefaultSession();
+      session.clearEvents();
+
+      // Attempt invalid direct complete from SCHEDULED
+      expect(() => session.complete(clock)).toThrow(InvalidSessionTransitionException);
+      expect(session.getUncommittedEvents()).toHaveLength(0);
+
+      // Attempt invalid updateNotes on CANCELLED
+      session.cancel('Cancelled', clock);
+      session.clearEvents();
+
+      expect(() => session.updateNotes(SessionNotes.create('Notes'), clock)).toThrow();
+      expect(session.getUncommittedEvents()).toHaveLength(0);
+    });
+  });
+
+  describe('Optimistic Concurrency & Aggregate Versioning Semantics', () => {
+    it('should initialize version to 1 upon creation', () => {
+      const session = createDefaultSession();
+      expect(session.version).toBe(1);
+    });
+
+    it('should preserve version without alteration during reconstitution', () => {
+      const session = TreatmentSession.reconstitute({
+        id: SessionId.create('sess_rec_123'),
+        version: 42,
+        status: SessionStatus.IN_PROGRESS,
+        clientId: 'client_123',
+        therapistId: 'therapist_456',
+        appointmentId: 'appt_789',
+        notes: SessionNotes.empty(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      expect(session.version).toBe(42);
+      expect(session.getUncommittedEvents()).toHaveLength(0);
+    });
+
+    it('should monotonically increment version on sequential valid mutations', () => {
+      const session = createDefaultSession(); // version = 1
+      expect(session.version).toBe(1);
+
+      session.start(clock); // version = 2
+      expect(session.version).toBe(2);
+
+      session.updateNotes(SessionNotes.create('Note 1'), clock); // version = 3
+      expect(session.version).toBe(3);
+
+      session.assignTherapist('therapist_new', clock); // version = 4
+      expect(session.version).toBe(4);
+
+      session.complete(clock); // version = 5
+      expect(session.version).toBe(5);
+
+      session.updateNotes(SessionNotes.create('Final Note'), clock); // version = 6
+      expect(session.version).toBe(6);
+    });
+
+    it('should maintain exact failure atomicity on version when mutations fail', () => {
+      const session = createDefaultSession(); // version = 1
+      expect(session.version).toBe(1);
+
+      // Attempt invalid operation: complete from SCHEDULED
+      expect(() => session.complete(clock)).toThrow();
+      expect(session.version).toBe(1); // Version MUST remain 1
+
+      // Attempt invalid therapist assignment with empty string
+      expect(() => session.assignTherapist('')).toThrow();
+      expect(session.version).toBe(1); // Version MUST remain 1
+
+      // Transition to terminal state: CANCELLED
+      session.cancel('Reason', clock); // version = 2
+      expect(session.version).toBe(2);
+
+      // Attempt transition on terminal state
+      expect(() => session.start(clock)).toThrow();
+      expect(session.version).toBe(2); // Version MUST remain 2
+
+      expect(() => session.assignTherapist('therapist_x', clock)).toThrow();
+      expect(session.version).toBe(2); // Version MUST remain 2
+
+      expect(() => session.updateNotes(SessionNotes.create('x'), clock)).toThrow();
+      expect(session.version).toBe(2); // Version MUST remain 2
+    });
+
+    it('should ensure events capture the exact matching incremented aggregate version', () => {
+      const session = createDefaultSession(); // version = 1 (event version 1)
+      session.clearEvents();
+
+      session.start(clock); // version = 2
+      const startedEvents = session.getUncommittedEvents();
+      expect(startedEvents).toHaveLength(1);
+      expect(startedEvents[0]!.version).toBe(2);
+      session.clearEvents();
+
+      session.complete(clock); // version = 3
+      const completedEvents = session.getUncommittedEvents();
+      expect(completedEvents).toHaveLength(1);
+      expect(completedEvents[0]!.version).toBe(3);
+    });
   });
 });
