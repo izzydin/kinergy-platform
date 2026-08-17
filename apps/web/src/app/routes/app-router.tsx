@@ -42,6 +42,8 @@ const AuthSubRouter: React.FC = () => (
   </Routes>
 );
 
+import { ClientTimelinePage } from '../../modules/client';
+
 const ClientSubRouter: React.FC = () => (
   <Routes>
     <Route
@@ -62,6 +64,8 @@ const ClientSubRouter: React.FC = () => (
         />
       }
     />
+    <Route path=":clientId/timeline" element={<ClientTimelinePage />} />
+    <Route path=":clientId/treatments" element={<ClientTreatmentHistoryPage />} />
     <Route path="*" element={<NotFoundView message="Client view not found." />} />
   </Routes>
 );
