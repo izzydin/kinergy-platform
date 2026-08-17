@@ -140,4 +140,33 @@ describe('CompleteTreatmentSessionHandler Unit Tests', () => {
     expect(result.getError()).toContain("Session must be in 'IN_PROGRESS' status to be completed");
     expect(publishedEvents).toHaveLength(0);
   });
+
+  it('should preserve successful session completion even if event publication encounters an error (failure isolation)', async () => {
+    seedSession(SessionStatus.IN_PROGRESS);
+
+    // Mock publisher that throws an error
+    const faultyPublisher = {
+      publish: jest.fn().mockImplementation(() => {
+        throw new Error('Event bus network timeout');
+      }),
+    };
+
+    const resilientHandler = new CompleteTreatmentSessionHandler(
+      repository,
+      faultyPublisher,
+      clock,
+    );
+
+    const command = new CompleteTreatmentSessionCommand({
+      sessionId: 'sess_100',
+    });
+
+    const result = await resilientHandler.execute(command);
+
+    expect(result.isSuccess).toBe(true);
+    expect(result.getValue().status).toBe(SessionStatus.COMPLETED);
+
+    const saved = await repository.findById(SessionId.create('sess_100'));
+    expect(saved?.status).toBe(SessionStatus.COMPLETED);
+  });
 });

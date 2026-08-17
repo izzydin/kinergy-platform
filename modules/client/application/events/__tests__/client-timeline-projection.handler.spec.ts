@@ -138,6 +138,24 @@ describe('ClientTimelineProjectionHandler Unit Tests', () => {
     expect(mockTimelineRepository.save).not.toHaveBeenCalled();
   });
 
+  it('should gracefully catch and log repository save failures without throwing uncaught exceptions', async () => {
+    mockTimelineRepository.save.mockRejectedValueOnce(new Error('PostgreSQL connection timeout'));
+
+    const event = {
+      eventType: 'TreatmentSessionCompleted',
+      occurredAt: new Date('2026-08-17T14:30:00.000Z'),
+      payload: {
+        sessionId: 'sess-faulty-db',
+        clientId: 'client-123',
+        therapistId: 'therapist-456',
+        appointmentId: 'appt-789',
+        completedAt: new Date('2026-08-17T14:30:00.000Z'),
+      },
+    };
+
+    await expect(handler.handle(event)).resolves.not.toThrow();
+  });
+
   it('should gracefully handle invalid or unhandled event payloads without throwing error', async () => {
     await expect(handler.handle(null)).resolves.not.toThrow();
     await expect(handler.handle({ random: 'object' })).resolves.not.toThrow();
