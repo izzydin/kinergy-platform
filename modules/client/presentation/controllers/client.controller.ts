@@ -144,6 +144,25 @@ export class ClientController {
     return this.getClientHistoryUseCase.execute(query);
   }
 
+  @Get(':id/timeline')
+  @ApiOperation({ summary: 'Get client activity timeline' })
+  @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 20 })
+  @ApiResponse({
+    status: 200,
+    description: 'Paginated client timeline entries retrieved successfully',
+    type: PaginatedResultDto,
+  })
+  @ApiResponse({ status: 404, description: 'Client not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getTimeline(
+    @Param('id') id: string,
+    @Query() queryDto: GetClientHistoryQueryDto,
+    @Req() req: Request,
+  ): Promise<PaginatedResultDto<ClientTimelineEntryDto>> {
+    return this.getHistory(id, queryDto, req);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get client profile' })
   @ApiResponse({

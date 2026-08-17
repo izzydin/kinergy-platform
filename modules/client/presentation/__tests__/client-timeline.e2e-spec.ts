@@ -342,6 +342,30 @@ describe('Client Timeline E2E Event Flow Pipeline', () => {
       expect(historyRes.body.items[0]!.eventType).toBe('CLIENT_CREATED');
     });
 
+    it('should retrieve timeline entries via GET /clients/:id/timeline alias endpoint', async () => {
+      const registerRes = await request(app.getHttpServer())
+        .post('/clients')
+        .set('Authorization', 'Bearer admin-token')
+        .send({
+          firstName: 'Galileo',
+          lastName: 'Galilei',
+          email: 'galileo.galilei@kinergy.local',
+          phone: '+14155557788',
+          bypassSoftDuplicates: true,
+        });
+
+      expect(registerRes.status).toBe(HttpStatus.CREATED);
+      const clientId: string = registerRes.body.id;
+
+      const timelineRes = await request(app.getHttpServer())
+        .get(`/clients/${clientId}/timeline`)
+        .set('Authorization', 'Bearer admin-token');
+
+      expect(timelineRes.status).toBe(HttpStatus.OK);
+      expect(timelineRes.body.total).toBe(1);
+      expect(timelineRes.body.items[0]!.eventType).toBe('CLIENT_CREATED');
+    });
+
     it('should return 404 for history of a non-existent client', async () => {
       const historyRes = await request(app.getHttpServer())
         .get('/clients/ffffffff-ffff-4fff-8fff-ffffffffffff/history')
