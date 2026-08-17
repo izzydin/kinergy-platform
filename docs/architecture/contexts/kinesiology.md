@@ -15,7 +15,7 @@ At the current foundation stage (Milestone 4.1), Kinesiology's domain responsibi
 
 ---
 
-## 2. Core Architectural Principle
+## 2. Core Architectural Principle & Context Map
 
 > **Fundamental Context Rule**:
 > Each bounded context owns its own domain concepts and invariants. Other contexts may reference those concepts via opaque scalar identifiers, but they do not own, mutate, or duplicate foreign aggregates.
@@ -52,24 +52,27 @@ graph TD
 
 ---
 
-## 3. Context Responsibilities & Explicit Non-Responsibilities
+## 3. Context Responsibilities, Ownership Matrix & Validation Boundaries
 
-### What Kinesiology Owns (In-Scope)
+### Authoritative Data Ownership Matrix
 
-- The **`TreatmentSession`** aggregate root.
-- The **`SessionStatus`** state machine and transition rules.
-- The **`SessionNotes`** clinical value object (SOAP structure and observations).
-- Clinical invariant enforcement, optimistic concurrency versioning, and failure atomicity.
-- Future clinical assessments, measurements, and therapeutic protocols (deferred to Milestone 4.2+).
+| Data Concept                    | Authoritative Owning Context | Implementation Location           | Cross-Context Reference Mechanism                                                 |
+| :------------------------------ | :--------------------------- | :-------------------------------- | :-------------------------------------------------------------------------------- |
+| **`Client`**                    | **Client Management**        | `packages/client-domain/`         | Referenced in Kinesiology via opaque `clientId: string` (UUID)                    |
+| **`Appointment`**               | **Scheduling**               | `packages/core/src/scheduling/`   | Referenced in Kinesiology via optional correlation `appointmentId: string` (UUID) |
+| **`User` (Therapist Identity)** | **Identity (IAM)**           | `apps/api/src/platform/identity/` | Referenced in Kinesiology via author `therapistId: string` (UUID)                 |
+| **`TreatmentSession`**          | **Kinesiology**              | `packages/core/src/kinesiology/`  | Local Aggregate Root governing the care encounter                                 |
+| **`SessionStatus`**             | **Kinesiology**              | `packages/core/src/kinesiology/`  | Local Enum / Finite State Machine                                                 |
+| **`SessionNotes`**              | **Kinesiology**              | `packages/core/src/kinesiology/`  | Local Immutable Value Object (SOAP structure)                                     |
 
-### Explicit Non-Responsibilities (Owned by Other Contexts)
+### Validation Boundary Matrix (Who Validates What)
 
-| Bounded Context       | Owned Domain Concepts                                                                                                                      | Kinesiology Boundary & Interaction                                                                                                                                     |
-| :-------------------- | :----------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Client Management** | `Client` aggregate, master client profiles, contact data, client status, and client timeline stream.                                       | Kinesiology references the client solely via immutable `clientId: string` (UUID). Kinesiology never modifies or duplicates client records.                             |
-| **Scheduling**        | `Appointment` aggregate, `Room` aggregate, `TherapistSchedule` aggregate, calendar reservations, slot availability, and booking lifecycle. | Kinesiology correlates sessions to calendar slots via optional `appointmentId: string`. Kinesiology does not manage room conflicts or calendar availability.           |
-| **Identity (IAM)**    | `User` entity, credentials, authentication, password policies, and role-based permissions (`RBAC`).                                        | Kinesiology identifies the practitioner via `therapistId: string` matching a `User.id` with therapist role. Kinesiology does not manage credentials or login sessions. |
-| **Billing (Future)**  | Invoices, insurance claims (CPT/ICD), payments, and pricing schedules.                                                                     | Kinesiology records therapeutic care; billing is decoupled and owned by the future Billing context.                                                                    |
+| Bounded Context       | Invariants & Rules Validated                                                                                                                     | Strictly Excluded Validation (Belongs to Other Contexts)                                                                           |
+| :-------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------- |
+| **Kinesiology**       | `TreatmentSession` lifecycle transitions, state terminality, `SessionNotes` structure, failure atomicity, and optimistic concurrency versioning. | Does NOT check whether a client is active in billing, whether a room is double-booked, or whether therapist credentials are valid. |
+| **Scheduling**        | Calendar time slots, room availability, therapist shift overlaps, turnaround buffers, and appointment status transitions.                        | Does NOT validate clinical progress notes or therapeutic findings.                                                                 |
+| **Client Management** | Client profile completeness, contact details, identity verification, and master timeline stream.                                                 | Does NOT manage calendar bookings or clinical therapy notes.                                                                       |
+| **Identity (IAM)**    | User credentials, argon2id password hashing, JWT token generation/refresh, and RBAC permissions.                                                 | Does NOT manage client intake or clinical therapy sessions.                                                                        |
 
 ---
 
@@ -124,14 +127,6 @@ TreatmentSession (Aggregate Root)
 | **`notes`**              | `SessionNotes`  | Kinesiology       |   Mutable via `updateNotes()`   | Value Object holding structured clinical SOAP documentation (`subjective`, `objective`, `assessment`, `plan`) or `rawText`.                   |
 | **`createdAt`**          | `Date`          | Kinesiology       |            Immutable            | Timestamp when the clinical encounter was initialized. Returns a defensive clone.                                                             |
 | **`updatedAt`**          | `Date`          | Kinesiology       |      Managed by Aggregate       | Timestamp of the most recent domain mutation or state transition. Returns a defensive clone.                                                  |
-
-### Rationale for External Identifier References (No Foreign Aggregate Embedding)
-
-`TreatmentSession` references `clientId`, `therapistId`, and `appointmentId` strictly as scalar strings / value objects. It **NEVER** embeds `Client`, `Appointment`, or `User` domain instances:
-
-1. **Bounded Context Autonomy**: Kinesiology must not load or instantiate foreign aggregates to evaluate its own internal rules.
-2. **Database Isolation & Performance**: Eliminates deep, cross-table relational graph loading and prevents cascade persistence side effects.
-3. **Transaction Boundary Decoupling**: Forbids cross-context distributed locking and two-phase commits ($2\text{PC}$).
 
 ---
 
@@ -217,18 +212,39 @@ The Kinesiology domain layer (`packages/core/src/kinesiology/domain/`) strictly 
 └───────────────────────────┘      └───────────────────────────┘
 ```
 
-1. **Autonomous Consistency**:
-   - `TreatmentSession` invariants are strongly consistent within the aggregate boundary.
-   - Persistence transactions operate strictly on Kinesiology database tables.
+1. **Strong Consistency within Aggregate**:
+   - `TreatmentSession` invariants (status transitions, progress note integrity, concurrency versioning) are strongly consistent within the aggregate boundary.
+   - Persistence operations execute strictly within Kinesiology database tables.
    - **Zero Distributed Transactions**: Creating or updating a `TreatmentSession` must NEVER participate in a distributed two-phase commit ($2\text{PC}$) or cross-context transaction with Client Management, Scheduling, or Identity.
-2. **Optimistic Concurrency Control**:
+2. **Cross-Context Consistency**:
+   - Consistency between Kinesiology and external contexts is achieved through loose scalar identifier referencing and eventual consistency.
+   - Cross-context workflows (e.g. updating the Client Timeline stream upon session completion) are driven by asynchronous domain event publishing rather than synchronous cross-context coupling.
+3. **Optimistic Concurrency Control**:
    - `TreatmentSession` aggregates enforce `version: number` optimistic concurrency locking. Concurrent note edits return an optimistic locking conflict without touching foreign aggregates.
-3. **Cross-Context Integration**:
-   - Future cross-context integration (e.g. updating the Client Timeline stream upon session completion) will utilize asynchronous domain events (`TreatmentSessionCompletedEvent`) rather than synchronous cross-context coupling.
 
 ---
 
-## 10. Anti-Corruption Principles & Boundary Rules
+## 10. Cross-Context Integration Strategy & Guidelines
+
+### Current Approved Strategy (Milestone 4.1)
+
+- **Domain Level**: Pure opaque scalar identifier references (`clientId`, `therapistId`, `appointmentId`).
+- **Persistence Level**: Zero foreign keys directly referencing tables across bounded context schemas; zero cross-context SQL joins.
+- **Application Level**: Integration mechanisms are intentionally decoupled. Synchronous cross-context entity loading is strictly forbidden.
+
+### Future Integration Decision Criteria
+
+When future cross-context workflows are introduced (e.g. Milestone 4.2+), the integration mechanism must be selected according to the following architectural criteria:
+
+| Integration Mechanism                       | When to Choose                                                                                                                                       | Architectural Trade-offs & Constraints                                                                                                                       |
+| :------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **In-Process Application Port (Interface)** | When read-only reference validation is strictly required at the application layer before command dispatch (e.g. verifying `clientExists(clientId)`). | Port interface defined in Kinesiology Application layer; implemented by infrastructure adapter. Never leaks foreign domain entities into Kinesiology domain. |
+| **Internal Domain Events (`DomainEvent`)**  | When intra-aggregate domain side-effects must be communicated within Kinesiology (e.g. state change recording).                                      | In-memory, synchronous within aggregate lifecycle. Zero cross-context publishing.                                                                            |
+| **Asynchronous Integration Events**         | When external bounded contexts must react to Kinesiology milestones (e.g. appending a `ClientTimelineEntry` when a session completes).               | Asynchronous, eventual consistency. Client Management consumes event payload without importing Kinesiology domain rules.                                     |
+
+---
+
+## 11. Anti-Corruption Principles & Boundary Rules
 
 To prevent domain model erosion:
 
@@ -237,7 +253,7 @@ To prevent domain model erosion:
 
 ---
 
-## 11. Future Expansion Rules for TreatmentSession
+## 12. Future Expansion Rules for TreatmentSession
 
 To protect the aggregate from becoming an unmaintainable "god object", any future candidate property or entity must satisfy all 4 criteria before being placed inside `TreatmentSession`:
 
@@ -255,7 +271,7 @@ To protect the aggregate from becoming an unmaintainable "god object", any futur
 
 ---
 
-## 12. Architectural Decision Records (ADRs)
+## 13. Architectural Decision Records (ADRs)
 
 - **[ADR-0045: Kinesiology Bounded Context Ownership & Cross-Context Identifiers](file:///c:/Projects/kinergy-platform/docs/adr/0045-kinesiology-bounded-context-and-cross-context-identifiers.md)**
 - **[ADR-0046: TreatmentSession Lifecycle State Machine & Transition Specification](file:///c:/Projects/kinergy-platform/docs/adr/0046-treatment-session-lifecycle-state-machine-and-transition-specification.md)**
