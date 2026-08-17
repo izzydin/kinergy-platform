@@ -11,4 +11,10 @@ export interface ClientTimelineRepository {
     page: number,
     limit: number,
   ): Promise<PaginatedResultDto<ClientTimelineEntry>>;
+  existsByCorrelation?(
+    clientId: string,
+    eventType: string,
+    correlationKey: string,
+    correlationValue: string,
+  ): Promise<boolean>;
 }

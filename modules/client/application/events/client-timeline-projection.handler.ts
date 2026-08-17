@@ -114,6 +114,19 @@ export class ClientTimelineProjectionHandler {
         ).payload;
 
         if (payload?.clientId && payload?.sessionId) {
+          // Idempotency check: avoid creating duplicate timeline entry on redelivery
+          if (typeof this.timelineRepository.existsByCorrelation === 'function') {
+            const alreadyExists = await this.timelineRepository.existsByCorrelation(
+              payload.clientId,
+              'TREATMENT_SESSION_COMPLETED',
+              'sessionId',
+              payload.sessionId,
+            );
+            if (alreadyExists) {
+              return;
+            }
+          }
+
           await this.timelineRepository.save(
             ClientTimelineEntry.create({
               clientId: payload.clientId,

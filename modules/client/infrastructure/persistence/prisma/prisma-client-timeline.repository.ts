@@ -71,4 +71,23 @@ export class PrismaClientTimelineRepository implements ClientTimelineRepository 
 
     return PaginatedResultDto.create(entries, total, safePage, safeLimit);
   }
+
+  async existsByCorrelation(
+    clientId: string,
+    eventType: string,
+    correlationKey: string,
+    correlationValue: string,
+  ): Promise<boolean> {
+    const count = await this.db.clientTimelineEntry.count({
+      where: {
+        clientId,
+        eventType,
+        metadata: {
+          path: [correlationKey],
+          equals: correlationValue,
+        },
+      },
+    });
+    return count > 0;
+  }
 }

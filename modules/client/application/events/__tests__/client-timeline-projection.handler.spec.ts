@@ -112,6 +112,32 @@ describe('ClientTimelineProjectionHandler Unit Tests', () => {
     expect(entry.occurredAt).toEqual(completedAt);
   });
 
+  it('should prevent duplicate timeline entries when TreatmentSessionCompleted is re-delivered (idempotency)', async () => {
+    mockTimelineRepository.existsByCorrelation = jest.fn().mockResolvedValueOnce(true);
+
+    const event = {
+      eventType: 'TreatmentSessionCompleted',
+      occurredAt: new Date('2026-08-17T14:30:00.000Z'),
+      payload: {
+        sessionId: 'sess-already-projected',
+        clientId: 'client-123',
+        therapistId: 'therapist-456',
+        appointmentId: 'appt-789',
+        completedAt: new Date('2026-08-17T14:30:00.000Z'),
+      },
+    };
+
+    await handler.handle(event);
+
+    expect(mockTimelineRepository.existsByCorrelation).toHaveBeenCalledWith(
+      'client-123',
+      'TREATMENT_SESSION_COMPLETED',
+      'sessionId',
+      'sess-already-projected',
+    );
+    expect(mockTimelineRepository.save).not.toHaveBeenCalled();
+  });
+
   it('should gracefully handle invalid or unhandled event payloads without throwing error', async () => {
     await expect(handler.handle(null)).resolves.not.toThrow();
     await expect(handler.handle({ random: 'object' })).resolves.not.toThrow();
