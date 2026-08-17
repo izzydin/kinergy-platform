@@ -8,30 +8,72 @@ Accepted
 
 In clinical kinesiology and rehabilitation settings, practitioner assignment and mid-treatment clinical handover are critical operational workflows:
 
-1. **Initial Assignment**: An appointment scheduled with Practitioner A arrives at reception, and a `TreatmentSession` is created with `therapistId: Practitioner A`.
-2. **Pre-Care Reassignment**: Prior to starting the session (e.g. shift cover or sick relief), Practitioner B is assigned to conduct the encounter.
-3. **Mid-Care Handover**: During a specialized, multi-stage assessment or rehabilitation session, Practitioner A conducts the assessment and hands over the ongoing care to Practitioner B (`IN_PROGRESS`).
+1. **Initial Assignment & Upstream Source**: An appointment scheduled with Therapist A arrives at reception, and a `TreatmentSession` is created with initial default `therapistId: Therapist A` passed across the ACL port.
+2. **Pre-Care Reassignment**: Prior to starting the session (e.g. shift cover or sick relief), Therapist B is assigned to conduct the encounter.
+3. **Mid-Care Handover**: During a specialized, multi-stage assessment or rehabilitation session, Therapist A conducts the assessment and hands over ongoing care to Therapist B (`IN_PROGRESS`).
 4. **Terminal Immutability**: Once a session concludes (`COMPLETED`, `CANCELLED`, `NO_SHOW`), the conducting clinician of record must remain legally immutable for medico-legal accountability, licensing compliance, and insurance auditability.
+5. **Separation of Concerns**: A user cannot be assigned as a therapist merely because their `userId` exists in the database. The system must distinctly separate Identity Existence, Clinical Eligibility, and Actor Authorization.
 
-We must define the precise bounded context ownership, authorization model, lifecycle invariants, and domain event emission architecture for clinical therapist assignment.
+We must define the precise bounded context ownership, authorization model, eligibility verification, lifecycle invariants, and domain event emission architecture for clinical therapist assignment.
 
 ## Decision
 
 We establish the following architectural rules for **Therapist Assignment & Handover in Kinesiology**:
 
-### 1. Bounded Context Ownership & Identity Boundaries
+### 1. Bounded Context Ownership & Upstream-to-Downstream Flow
 
-- **Platform Identity** owns practitioner authentication, account status, user IDs (`UserId`), and clinical RBAC roles/permissions.
-- **Scheduling** owns practitioner calendar availability and appointment room bookings (`TherapistSchedule`).
-- **Kinesiology** does **not** own a `Therapist` entity or aggregate. It treats `therapistId` as an opaque scalar string token representing the practitioner clinically responsible for the `TreatmentSession`.
+```text
+Scheduling Context (Upstream)
+    ↓  [Owns Appointment & TherapistSchedule calendar bookings]
+ISchedulingAppointmentLookupPort (ACL)
+    ↓  [Translates to AppointmentReferenceDTO.therapistId]
+Kinesiology Application Layer
+    ↓  [Sets initial default therapistId at TreatmentSession creation]
+TreatmentSession Aggregate (Downstream)
+       [Authoritatively owns clinical therapist assignment and encounter history]
+```
 
-### 2. Application Layer Command & Handler
+- **Scheduling** owns calendar availability and appointment bookings (`TherapistSchedule`, `Appointment`).
+- **Platform Identity** owns user authentication, account status, and system RBAC permissions.
+- **Kinesiology** authoritatively owns the clinician of record for the clinical encounter. It treats `therapistId` as an opaque scalar string token representing the practitioner clinically responsible for the `TreatmentSession`.
+
+### 2. Three-Tier Responsibility Separation
+
+We explicitly separate and enforce 3 distinct verification boundaries:
+
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 1. IDENTITY EXISTENCE: "Does this user exist?"                           │
+│    • Checked via ITherapistLookupPort against Platform Identity.         │
+│    • Returns THERAPIST_NOT_FOUND (404) if user record does not exist.   │
+└────────────────────────────────────┬─────────────────────────────────────┘
+                                     │
+                                     ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 2. CLINICAL ELIGIBILITY: "Is this user eligible for Kinesiology care?"   │
+│    • Evaluates target user account status (status === 'ACTIVE').         │
+│    • Evaluates user roles/capabilities (roles.includes('THERAPIST') or  │
+│      has permission kinesiology.sessions.treat).                         │
+│    • Returns THERAPIST_INELIGIBLE (422) if suspended or non-clinical.    │
+└────────────────────────────────────┬─────────────────────────────────────┘
+                                     │
+                                     ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│ 3. ACTOR AUTHORIZATION: "May the current actor reassign this therapist?" │
+│    • Evaluates calling actor's context via IAuthorizationEvaluator.      │
+│    • Requires kinesiology.sessions.assign permission (e.g. ADMIN/OWNER)  │
+│      or active clinician self-handover.                                  │
+│    • Returns ForbiddenException (403) before command execution.          │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+### 3. Application Layer Command & Handler
 
 - Reassignment is orchestrated through `AssignTherapistToSessionCommand` and `AssignTherapistToSessionHandler`.
 - **Idempotency Rule**: If `newTherapistId === session.therapistId`, the use case returns a successful `TreatmentSessionDTO` without modifying aggregate version or emitting duplicate events.
 - **Persistence & Optimistic Concurrency**: Reassignment increments aggregate version ($v \to v + 1$) and guarantees atomic write protection.
 
-### 3. Lifecycle Invariants & Invariant Matrix
+### 4. Lifecycle Invariants & Invariant Matrix
 
 | Session Status    | Reassignment Permitted? | Domain Effect                                                                                                       |
 | :---------------- | :---------------------: | :------------------------------------------------------------------------------------------------------------------ |
@@ -41,7 +83,7 @@ We establish the following architectural rules for **Therapist Assignment & Hand
 | **`CANCELLED`**   |   **NO (PROHIBITED)**   | Throws domain error. Cancelled sessions cannot undergo staff changes.                                               |
 | **`NO_SHOW`**     |   **NO (PROHIBITED)**   | Throws domain error. No-show records cannot undergo staff changes.                                                  |
 
-### 4. Domain Event & Cross-Context Integration
+### 5. Domain Event & Cross-Context Integration
 
 - Upon successful reassignment, `TreatmentSession` emits `TherapistAssignedToSessionEvent(sessionId, clientId, previousTherapistId, newTherapistId, version, timestamp)`.
 - Downstream Scheduling listeners observe this event to update practitioner workload dashboards and resource allocation projections asynchronously.
@@ -53,6 +95,7 @@ We establish the following architectural rules for **Therapist Assignment & Hand
 - **Medico-Legal Compliance**: Prohibits altering clinician of record on completed/signed-off treatment encounters.
 - **Operational Flexibility**: Clinicians can perform shift covers and mid-treatment handovers seamlessly.
 - **Decoupled Architecture**: Kinesiology remains pure and does not depend on Identity or Scheduling database schemas.
+- **Robust Security**: Multi-tier separation guarantees authorization, eligibility, and lifecycle validity cannot bypass each other.
 
 ### Negative / Trade-offs
 
