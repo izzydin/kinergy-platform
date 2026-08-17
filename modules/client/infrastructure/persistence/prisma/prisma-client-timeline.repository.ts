@@ -47,7 +47,7 @@ export class PrismaClientTimelineRepository implements ClientTimelineRepository 
     const [records, total] = await Promise.all([
       this.db.clientTimelineEntry.findMany({
         where: { clientId: clientId.value },
-        orderBy: { occurredAt: 'desc' },
+        orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
         skip,
         take: safeLimit,
       }),

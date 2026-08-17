@@ -44,14 +44,15 @@ describe('PrismaClientTimelineRepository Integration Tests', () => {
           timelineStore.push(row);
           return row;
         }),
-        findMany: jest.fn().mockImplementation(async ({ where, orderBy, skip, take }) => {
+        findMany: jest.fn().mockImplementation(async ({ where, skip, take }) => {
           let results = timelineStore.filter((r) => r.clientId === where.clientId);
 
-          // Sort by occurredAt DESC (matching Prisma behaviour)
-          const sortDir = orderBy?.occurredAt === 'desc' ? -1 : 1;
-          results = results.sort(
-            (a, b) => sortDir * (a.occurredAt.getTime() - b.occurredAt.getTime()),
-          );
+          // Sort by occurredAt DESC, id DESC (matching Prisma behaviour)
+          results = results.sort((a, b) => {
+            const timeDiff = b.occurredAt.getTime() - a.occurredAt.getTime();
+            if (timeDiff !== 0) return timeDiff;
+            return b.id.localeCompare(a.id);
+          });
 
           return results.slice(skip ?? 0, (skip ?? 0) + (take ?? results.length));
         }),
@@ -189,6 +190,38 @@ describe('PrismaClientTimelineRepository Integration Tests', () => {
 
       expect(result.total).toBe(3);
       result.items.forEach((e) => expect(e.clientId).toBe(CLIENT_UUID));
+    });
+
+    it('should maintain deterministic ordering using id tie-breaker when occurredAt timestamps are identical', async () => {
+      const sameTimestamp = new Date('2026-08-17T12:00:00.000Z');
+      const testClientId = '99999999-9999-4999-8999-999999999999';
+
+      await repository.save(
+        ClientTimelineEntry.create({
+          id: 'entry-aaa',
+          clientId: testClientId,
+          sourceModule: 'KINESIOLOGY',
+          eventType: 'TREATMENT_SESSION_COMPLETED',
+          summary: 'Session AAA',
+          occurredAt: sameTimestamp,
+        }),
+      );
+      await repository.save(
+        ClientTimelineEntry.create({
+          id: 'entry-zzz',
+          clientId: testClientId,
+          sourceModule: 'KINESIOLOGY',
+          eventType: 'TREATMENT_SESSION_COMPLETED',
+          summary: 'Session ZZZ',
+          occurredAt: sameTimestamp,
+        }),
+      );
+
+      const result = await repository.findByClientId(ClientId.create(testClientId), 1, 10);
+
+      expect(result.items).toHaveLength(2);
+      expect(result.items[0]!.id).toBe('entry-zzz');
+      expect(result.items[1]!.id).toBe('entry-aaa');
     });
   });
 });
