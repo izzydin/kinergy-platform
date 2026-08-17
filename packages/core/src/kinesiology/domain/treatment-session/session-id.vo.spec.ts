@@ -2,12 +2,13 @@ import { SessionId } from './session-id.vo';
 
 describe('SessionId Value Object', () => {
   describe('Creation', () => {
-    it('should generate a unique session id if none is provided', () => {
+    it('should generate a unique session id if none is provided matching canonical pattern', () => {
       const id1 = SessionId.create();
       const id2 = SessionId.create();
 
       expect(id1.getValue()).toBeDefined();
       expect(id1.getValue().startsWith('sess_')).toBe(true);
+      expect(/^sess_\d+_[a-z0-9]+$/.test(id1.getValue())).toBe(true);
       expect(id1.equals(id2)).toBe(false);
     });
 

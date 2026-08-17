@@ -41,4 +41,39 @@ describe('SessionNotes Value Object', () => {
     expect(note1.equals(note2)).toBe(true);
     expect(note1.equals(note3)).toBe(false);
   });
+
+  it('should trim whitespace-only SOAP fields and treat them as undefined', () => {
+    const notes = SessionNotes.create({
+      subjective: '   ',
+      objective: '  \t  ',
+      assessment: '   \n  ',
+      plan: '   ',
+      rawText: '   ',
+    });
+
+    expect(notes.hasContent()).toBe(false);
+    expect(notes.getSubjective()).toBeUndefined();
+    expect(notes.getObjective()).toBeUndefined();
+    expect(notes.getAssessment()).toBeUndefined();
+    expect(notes.getPlan()).toBeUndefined();
+    expect(notes.getRawText()).toBeUndefined();
+    expect(notes.toString()).toBe('');
+  });
+
+  it('should handle null or undefined input gracefully via create()', () => {
+    const notesNull = SessionNotes.create(undefined);
+    expect(notesNull.hasContent()).toBe(false);
+    expect(notesNull.equals(SessionNotes.empty())).toBe(true);
+  });
+
+  it('should format toString correctly for structured SOAP notes', () => {
+    const notes = SessionNotes.create({
+      subjective: 'Pain',
+      objective: 'Spasm',
+      assessment: 'Trigger point',
+      plan: 'Therapy',
+    });
+
+    expect(notes.toString()).toBe('S: Pain | O: Spasm | A: Trigger point | P: Therapy');
+  });
 });
