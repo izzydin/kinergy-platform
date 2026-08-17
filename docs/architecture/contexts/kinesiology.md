@@ -240,7 +240,20 @@ When future cross-context workflows are introduced (e.g. Milestone 4.2+), the in
 | :------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **In-Process Application Port (Interface)** | When read-only reference validation is strictly required at the application layer before command dispatch (e.g. verifying `clientExists(clientId)`). | Port interface defined in Kinesiology Application layer; implemented by infrastructure adapter. Never leaks foreign domain entities into Kinesiology domain. |
 | **Internal Domain Events (`DomainEvent`)**  | When intra-aggregate domain side-effects must be communicated within Kinesiology (e.g. state change recording).                                      | In-memory, synchronous within aggregate lifecycle. Zero cross-context publishing.                                                                            |
-| **Asynchronous Integration Events**         | When external bounded contexts must react to Kinesiology milestones (e.g. appending a `ClientTimelineEntry` when a session completes).               | Asynchronous, eventual consistency. Client Management consumes event payload without importing Kinesiology domain rules.                                     |
+
+### Domain Events Justification & Emission Catalog (Milestone 4.2)
+
+In strict accordance with the principle _"Do not create events simply because an entity changed"_, Kinesiology emits strongly-typed domain events with concrete downstream consumers:
+
+| Domain Event                            | Triggering Method             | Downstream Architectural Consumer & Business Capability                                                                                                                                             |
+| :-------------------------------------- | :---------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`TreatmentSessionCompletedEvent`**    | `complete(clock?)`            | **Primary Clinical Milestone**. Triggers asynchronous projection to the Client Clinical Timeline read model, notifies scheduling of encounter conclusion, and serves as the billing ledger trigger. |
+| **`TreatmentSessionStartedEvent`**      | `start(clock?)`               | Records clinical start timestamp, enabling accurate encounter duration tracking.                                                                                                                    |
+| **`TreatmentSessionCancelledEvent`**    | `cancel(reason, clock?)`      | Propagates clinical cancellation reasons into client history and analytics.                                                                                                                         |
+| **`TreatmentSessionNoShowEvent`**       | `markAsNoShow(clock?)`        | Alerts front desk reception and updates client attendance risk scores.                                                                                                                              |
+| **`TreatmentSessionCreatedEvent`**      | `create(props, clock?)`       | Initializes read models and syncs clinical session queues.                                                                                                                                          |
+| **`TreatmentSessionNotesUpdatedEvent`** | `updateNotes(notes, clock?)`  | Emits audit event for medico-legal compliance tracking clinical progress note revisions.                                                                                                            |
+| **`TherapistAssignedToSessionEvent`**   | `assignTherapist(id, clock?)` | Updates clinician workload schedule when session handover occurs.                                                                                                                                   |
 
 ---
 
@@ -249,7 +262,11 @@ When future cross-context workflows are introduced (e.g. Milestone 4.2+), the in
 To prevent domain model erosion:
 
 1. **Opaque Identifier Boundaries**: When receiving external IDs (`clientId`, `therapistId`, `appointmentId`), Kinesiology treats them as opaque scalar tokens. It does not validate foreign business rules (e.g., whether a client has active insurance or whether a room is double-booked).
-2. **Translation at Application Ports**: External data entering Kinesiology use cases must be translated through DTO mappers and verified at boundary ports without leaking foreign domain types into Kinesiology aggregates.
+2. **Cross-Aggregate Uniqueness Enforcement Boundary**:
+   - The in-memory `TreatmentSession` aggregate cannot query existing database records; it only preserves `appointmentId` as an immutable scalar reference.
+   - Application services coordinate duplicate checks prior to aggregate creation.
+   - Persistence layer enforces concurrency safety via `UNIQUE (appointment_id)` database index.
+3. **Translation at Application Ports**: External data entering Kinesiology use cases must be translated through DTO mappers and verified at boundary ports without leaking foreign domain types into Kinesiology aggregates.
 
 ---
 
@@ -262,7 +279,7 @@ To protect the aggregate from becoming an unmaintainable "god object", any futur
 3. **Low Write Contention**: Must not introduce high concurrent write contention from multiple simultaneous actors (e.g. real-time multi-user collaborative editing should use separate streams/models).
 4. **Clinical Domain Relevance**: Must represent clinical data of this specific care encounter (e.g. specific muscle test results recorded during this session), rather than general client profile data or scheduling logistics.
 
-### Deliberately Deferred Scope (Milestone 4.2+)
+### Deliberately Deferred Scope (Milestone 4.3+)
 
 - **Neuromuscular & Postural Assessments**: Joint Range of Motion (ROM), manual muscle testing (MMT), postural screening.
 - **Clinical Treatment Plans & Goals**: Multi-session longitudinal protocols and goal tracking.
@@ -275,3 +292,4 @@ To protect the aggregate from becoming an unmaintainable "god object", any futur
 
 - **[ADR-0045: Kinesiology Bounded Context Ownership & Cross-Context Identifiers](file:///c:/Projects/kinergy-platform/docs/adr/0045-kinesiology-bounded-context-and-cross-context-identifiers.md)**
 - **[ADR-0046: TreatmentSession Lifecycle State Machine & Transition Specification](file:///c:/Projects/kinergy-platform/docs/adr/0046-treatment-session-lifecycle-state-machine-and-transition-specification.md)**
+- **[ADR-0047: Appointment Correlation, Uniqueness & Event Emission Architecture](file:///c:/Projects/kinergy-platform/docs/adr/0047-appointment-to-treatment-session-correlation-and-event-emission-architecture.md)**
