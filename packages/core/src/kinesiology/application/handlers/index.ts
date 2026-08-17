@@ -6,3 +6,4 @@ export * from './complete-treatment-session.handler';
 export * from './start-treatment-session.handler';
 export * from './cancel-treatment-session.handler';
 export * from './get-treatment-session-by-id.handler';
+export * from './mark-treatment-session-no-show.handler';
