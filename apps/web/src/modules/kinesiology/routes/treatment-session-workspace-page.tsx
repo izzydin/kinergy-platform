@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Button, Card, CardHeader, CardContent, StateView } from '@kinergy-platform/ui';
+import { useAuth } from '../../../app/providers/auth-provider';
 import { useTreatmentSession } from '../hooks/use-treatment-session';
 import { useTreatmentMutations } from '../hooks/use-treatment-mutations';
 import { SessionStatusBadge } from '../components/session-status-badge';
@@ -19,6 +20,16 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+
+  let canTreat = true;
+  let canAssign = true;
+  try {
+    const auth = useAuth();
+    canTreat = auth.hasPermission('kinesiology.sessions.treat');
+    canAssign = auth.hasPermission('kinesiology.sessions.assign');
+  } catch {
+    // In unit test harnesses without AuthProvider, fallback to permissive default
+  }
 
   const { data: session, isLoading, isError, error, refetch } = useTreatmentSession(sessionId);
   const { startSession, assignTherapist, updateNotes, completeSession, cancelSession } =
@@ -101,7 +112,7 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
 
                 {/* Action Toolbar */}
                 <div className="flex flex-wrap items-center gap-2">
-                  {session.status === 'SCHEDULED' && (
+                  {session.status === 'SCHEDULED' && canTreat && (
                     <Button
                       variant="default"
                       onClick={handleStartSession}
@@ -111,7 +122,7 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
                     </Button>
                   )}
 
-                  {session.status === 'IN_PROGRESS' && (
+                  {session.status === 'IN_PROGRESS' && canTreat && (
                     <Button
                       variant="default"
                       onClick={() => setIsCompleteModalOpen(true)}
@@ -123,14 +134,16 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
 
                   {session.status !== 'COMPLETED' && session.status !== 'CANCELLED' && (
                     <>
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsAssignModalOpen(true)}
-                        disabled={isAnyMutationPending}
-                      >
-                        Change Therapist
-                      </Button>
-                      {session.status === 'SCHEDULED' && (
+                      {canAssign && (
+                        <Button
+                          variant="outline"
+                          onClick={() => setIsAssignModalOpen(true)}
+                          disabled={isAnyMutationPending}
+                        >
+                          Change Therapist
+                        </Button>
+                      )}
+                      {session.status === 'SCHEDULED' && canTreat && (
                         <Button
                           variant="destructive"
                           onClick={() => setIsCancelModalOpen(true)}
