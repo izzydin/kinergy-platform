@@ -92,9 +92,9 @@ To prevent terminology drift, the following definitions form the authoritative U
 
 ---
 
-## 5. Aggregate Root Boundary
+## 5. Aggregate Root Boundary & Field Breakdown
 
-The **`TreatmentSession`** aggregate root encapsulates all state mutations, ensuring invariant consistency:
+The **`TreatmentSession`** aggregate root is the single unit of consistency and concurrency for all clinical kinesiology care encounters.
 
 ```text
 TreatmentSession (Aggregate Root)
@@ -110,15 +110,32 @@ TreatmentSession (Aggregate Root)
  └── updatedAt: Date                ◄── Last Mutation Timestamp (Defensive Cloned Date)
 ```
 
-### Aggregate Encapsulation Guarantees
+### Comprehensive Field-by-Field Specification
 
-1. **Zero Foreign Aggregate Nesting**: `TreatmentSession` never imports or embeds `Client`, `Appointment`, or `User` domain entities.
-2. **Zero Generic Setters**: Modifying lifecycle status or notes through arbitrary setters (`setStatus()`, `setNotes()`) is strictly prohibited. State transitions must occur through explicit domain-intent methods (`start()`, `complete()`, `cancel()`, `markAsNoShow()`, `updateNotes()`).
-3. **Defensive Immutability**: Getters for mutable objects (`createdAt`, `updatedAt`, `uncommittedEvents`) return defensive clones (`new Date(...)`, `[...]`).
+| Field                    | Type            | Ownership         |           Mutability            | Domain Purpose & Significance                                                                                                                 |
+| :----------------------- | :-------------- | :---------------- | :-----------------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`id`**                 | `SessionId`     | Kinesiology       |            Immutable            | Unique identity of the clinical encounter aggregate root. Auto-generated (`sess_<timestamp>_<random>`) or explicitly assigned upon creation.  |
+| **`version`**            | `number`        | Kinesiology       |      Managed by Aggregate       | Monotonically increasing integer ($\ge 1$) for optimistic concurrency control. Prevents lost updates during concurrent edits.                 |
+| **`status`**             | `SessionStatus` | Kinesiology       |     Mutable via Domain API      | Lifecycle state of the clinical encounter (`SCHEDULED`, `IN_PROGRESS`, `COMPLETED`, `CANCELLED`, `NO_SHOW`). Governed by state machine rules. |
+| **`clientId`**           | `string`        | Client Management |            Immutable            | External correlation ID linking the clinical session to the recipient client record in Client Management.                                     |
+| **`therapistId`**        | `string`        | Identity (IAM)    | Mutable via Domain Reassignment | External correlation ID linking the clinical session to the practitioner's user account in Identity.                                          |
+| **`appointmentId`**      | `string`        | Scheduling        |            Immutable            | External correlation ID linking the clinical session to the calendar booking in Scheduling.                                                   |
+| **`cancellationReason`** | `string?`       | Kinesiology       |     Mutable upon `cancel()`     | Clinical or administrative explanation captured when the session is transitioned to `CANCELLED`. Trimmed and sanitized.                       |
+| **`notes`**              | `SessionNotes`  | Kinesiology       |   Mutable via `updateNotes()`   | Value Object holding structured clinical SOAP documentation (`subjective`, `objective`, `assessment`, `plan`) or `rawText`.                   |
+| **`createdAt`**          | `Date`          | Kinesiology       |            Immutable            | Timestamp when the clinical encounter was initialized. Returns a defensive clone.                                                             |
+| **`updatedAt`**          | `Date`          | Kinesiology       |      Managed by Aggregate       | Timestamp of the most recent domain mutation or state transition. Returns a defensive clone.                                                  |
+
+### Rationale for External Identifier References (No Foreign Aggregate Embedding)
+
+`TreatmentSession` references `clientId`, `therapistId`, and `appointmentId` strictly as scalar strings / value objects. It **NEVER** embeds `Client`, `Appointment`, or `User` domain instances:
+
+1. **Bounded Context Autonomy**: Kinesiology must not load or instantiate foreign aggregates to evaluate its own internal rules.
+2. **Database Isolation & Performance**: Eliminates deep, cross-table relational graph loading and prevents cascade persistence side effects.
+3. **Transaction Boundary Decoupling**: Forbids cross-context distributed locking and two-phase commits ($2\text{PC}$).
 
 ---
 
-## 6. Lifecycle State Machine & Transition Matrix
+## 6. Lifecycle State Machine & Transition Specification
 
 The clinical session lifecycle is strictly governed by an explicit finite state machine inside `TreatmentSession` (specified in [ADR-0046](file:///c:/Projects/kinergy-platform/docs/adr/0046-treatment-session-lifecycle-state-machine-and-transition-specification.md)):
 
@@ -139,21 +156,17 @@ The clinical session lifecycle is strictly governed by an explicit finite state 
  └─────────────┘
 ```
 
-### Authoritative 20-Cell State Transition Matrix
+### Authoritative State Transition Table
 
-| Current State | Operation                 | Next State    | Allowed? | Invariant Rule / Exception                                                       |
-| :------------ | :------------------------ | :------------ | :------: | :------------------------------------------------------------------------------- |
-| `SCHEDULED`   | `start(clock?)`           | `IN_PROGRESS` | **YES**  | Therapist formally starts clinical care encounter.                               |
-| `SCHEDULED`   | `cancel(reason?, clock?)` | `CANCELLED`   | **YES**  | Session cancelled prior to starting. Reason captured.                            |
-| `SCHEDULED`   | `markAsNoShow(clock?)`    | `NO_SHOW`     | **YES**  | Client failed to attend scheduled session.                                       |
-| `IN_PROGRESS` | `complete(clock?)`        | `COMPLETED`   | **YES**  | Normal clinical encounter conclusion.                                            |
-| `SCHEDULED`   | `complete(...)`           | —             |  **NO**  | Direct completion prohibited; throws `InvalidSessionTransitionException`.        |
-| `IN_PROGRESS` | `start(...)`              | —             |  **NO**  | Already in progress; throws `InvalidSessionTransitionException`.                 |
-| `IN_PROGRESS` | `cancel(...)`             | —             |  **NO**  | Mid-session cancellation prohibited; throws `InvalidSessionTransitionException`. |
-| `IN_PROGRESS` | `markAsNoShow(...)`       | —             |  **NO**  | Mid-session no-show prohibited; throws `InvalidSessionTransitionException`.      |
-| `COMPLETED`   | _Any Transition_          | —             |  **NO**  | Strictly Terminal; throws `InvalidSessionTransitionException`.                   |
-| `CANCELLED`   | _Any Transition_          | —             |  **NO**  | Strictly Terminal; throws `InvalidSessionTransitionException`.                   |
-| `NO_SHOW`     | _Any Transition_          | —             |  **NO**  | Strictly Terminal; throws `InvalidSessionTransitionException`.                   |
+| Operation                        | Precondition (Required State)              | Resulting State                  | Invalid-State Behavior                                                                                                                                                            |
+| :------------------------------- | :----------------------------------------- | :------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`start(clock?)`**              | `SCHEDULED`                                | `IN_PROGRESS`                    | Throws `InvalidSessionTransitionException` if invoked from `IN_PROGRESS`, `COMPLETED`, `CANCELLED`, or `NO_SHOW`. State remains unmodified.                                       |
+| **`complete(clock?)`**           | `IN_PROGRESS`                              | `COMPLETED`                      | Throws `InvalidSessionTransitionException` if invoked from `SCHEDULED` (direct completion prohibited), `COMPLETED`, `CANCELLED`, or `NO_SHOW`. State remains unmodified.          |
+| **`cancel(reason?, clock?)`**    | `SCHEDULED`                                | `CANCELLED`                      | Throws `InvalidSessionTransitionException` if invoked from `IN_PROGRESS` (mid-session cancellation prohibited), `COMPLETED`, `CANCELLED`, or `NO_SHOW`. State remains unmodified. |
+| **`markAsNoShow(clock?)`**       | `SCHEDULED`                                | `NO_SHOW`                        | Throws `InvalidSessionTransitionException` if invoked from `IN_PROGRESS` (mid-session no-show prohibited), `COMPLETED`, `CANCELLED`, or `NO_SHOW`. State remains unmodified.      |
+| **`updateNotes(notes, clock?)`** | `SCHEDULED`, `IN_PROGRESS`, or `COMPLETED` | State unchanged, `notes` updated | Throws `Error` if `notes` is null/undefined or if invoked on a session in `CANCELLED` or `NO_SHOW` terminal status.                                                               |
+
+_Rule_: All transitions not explicitly listed in the table above are invalid by default.
 
 ### Important Business Semantics
 
@@ -171,9 +184,10 @@ The clinical session lifecycle is strictly governed by an explicit finite state 
 2. **Creation State**: Every new `TreatmentSession` begins strictly in `SCHEDULED` status with `version = 1`. `CreateTreatmentSessionProps` exposes zero status override parameter.
 3. **Lifecycle Authorization**: The `TreatmentSession` aggregate root is the sole authority over transitions. External layers (controllers, DTOs, application services) must not decide transition validity.
 4. **No Direct `SCHEDULED -> COMPLETED` Transition**: A clinical encounter must be started (`IN_PROGRESS`) before it can be completed.
-5. **Terminal State Immutability**: Once a session reaches `COMPLETED`, `CANCELLED`, or `NO_SHOW`, all subsequent transitions are rejected.
+5. **Terminal State Immutability**: Once a session reaches `COMPLETED`, `CANCELLED`, or `NO_SHOW`, all subsequent transitions are permanently rejected.
 6. **Failure Atomicity (Validate First, Mutate Second)**: Any operation that fails an invariant leaves the aggregate state, notes, and timestamps completely unchanged (`before.status === after.status`, `before.updatedAt === after.updatedAt`).
-7. **Notes Mutation Rules**: Clinical progress notes (`SessionNotes`) can be updated during `SCHEDULED`, `IN_PROGRESS`, and `COMPLETED` states, but cannot be modified once a session is `CANCELLED` or `NO_SHOW`.
+7. **Encapsulation Protection**: State cannot be mutated externally. Zero generic status setters (`setStatus`, `changeStatus`). Getters for mutable objects (`createdAt`, `updatedAt`, `uncommittedEvents`) return defensive clones.
+8. **Value Object Immutability**: `SessionId` and `SessionNotes` are deeply frozen via `Object.freeze(this)`.
 
 ---
 
@@ -214,20 +228,34 @@ The Kinesiology domain layer (`packages/core/src/kinesiology/domain/`) strictly 
 
 ---
 
-## 10. Future Scope Boundaries (Milestone 4.2+)
+## 10. Anti-Corruption Principles & Boundary Rules
 
-To preserve architectural focus during Milestone 4.1, the following clinical features are deliberately deferred to future milestones:
+To prevent domain model erosion:
 
-1. **Neuromuscular & Postural Assessments**: Joint Range of Motion (ROM), manual muscle testing (MMT), and postural screening models.
-2. **Clinical Treatment Plans & Goals**: Multi-session clinical protocols, frequency rules, and therapeutic outcome benchmarks.
-3. **Therapeutic Exercise Library**: Prescribed home exercise programs, rehabilitation video links, and repetition tracking.
-4. **Third-Party EHR / FHIR Interoperability**: Direct HL7/FHIR export connectors.
-5. **Billing & Insurance Claims**: CPT/ICD coding, Superbill generation, and payment processing.
-6. **Real-Time Telehealth Video**: WebRTC streaming and telehealth rooms.
+1. **Opaque Identifier Boundaries**: When receiving external IDs (`clientId`, `therapistId`, `appointmentId`), Kinesiology treats them as opaque scalar tokens. It does not validate foreign business rules (e.g., whether a client has active insurance or whether a room is double-booked).
+2. **Translation at Application Ports**: External data entering Kinesiology use cases must be translated through DTO mappers and verified at boundary ports without leaking foreign domain types into Kinesiology aggregates.
 
 ---
 
-## 11. Architectural Decision Records (ADRs)
+## 11. Future Expansion Rules for TreatmentSession
+
+To protect the aggregate from becoming an unmaintainable "god object", any future candidate property or entity must satisfy all 4 criteria before being placed inside `TreatmentSession`:
+
+1. **Shared Consistency Boundary**: Must require immediate, atomic consistency with the session's lifecycle status and progress notes within the exact same database transaction.
+2. **Invariant Enforcement**: Must participate in aggregate invariant checks enforced directly by `TreatmentSession`.
+3. **Low Write Contention**: Must not introduce high concurrent write contention from multiple simultaneous actors (e.g. real-time multi-user collaborative editing should use separate streams/models).
+4. **Clinical Domain Relevance**: Must represent clinical data of this specific care encounter (e.g. specific muscle test results recorded during this session), rather than general client profile data or scheduling logistics.
+
+### Deliberately Deferred Scope (Milestone 4.2+)
+
+- **Neuromuscular & Postural Assessments**: Joint Range of Motion (ROM), manual muscle testing (MMT), postural screening.
+- **Clinical Treatment Plans & Goals**: Multi-session longitudinal protocols and goal tracking.
+- **Therapeutic Exercise Library**: Exercise catalog, prescribed home exercise programs.
+- **Billing & Insurance Claims**: CPT/ICD coding and Superbill generation.
+
+---
+
+## 12. Architectural Decision Records (ADRs)
 
 - **[ADR-0045: Kinesiology Bounded Context Ownership & Cross-Context Identifiers](file:///c:/Projects/kinergy-platform/docs/adr/0045-kinesiology-bounded-context-and-cross-context-identifiers.md)**
 - **[ADR-0046: TreatmentSession Lifecycle State Machine & Transition Specification](file:///c:/Projects/kinergy-platform/docs/adr/0046-treatment-session-lifecycle-state-machine-and-transition-specification.md)**
