@@ -284,4 +284,37 @@ describe('AssignTherapistToSessionHandler', () => {
       "Cannot reassign therapist for a session in 'CANCELLED' terminal status",
     );
   });
+
+  it('should reject reassignment when session is in NO_SHOW terminal status', async () => {
+    const session = await createTestSession('NO_SHOW');
+
+    const command = new AssignTherapistToSessionCommand({
+      sessionId: session.id.getValue(),
+      newTherapistId: 'therapist_new_200',
+    });
+
+    const result = await handler.execute(command);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError()).toContain(
+      "Cannot reassign therapist for a session in 'NO_SHOW' terminal status",
+    );
+  });
+
+  it('should handle repository save failures cleanly without unhandled exceptions', async () => {
+    const session = await createTestSession('SCHEDULED');
+    jest
+      .spyOn(sessionRepository, 'save')
+      .mockRejectedValueOnce(new Error('Optimistic concurrency lock conflict'));
+
+    const command = new AssignTherapistToSessionCommand({
+      sessionId: session.id.getValue(),
+      newTherapistId: 'therapist_new_200',
+    });
+
+    const result = await handler.execute(command);
+
+    expect(result.isFailure).toBe(true);
+    expect(result.getError()).toBe('Optimistic concurrency lock conflict');
+  });
 });
