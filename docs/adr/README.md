@@ -57,6 +57,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0049](file:///c:/Projects/kinergy-platform/docs/adr/0049-cross-context-lifecycle-independence-and-non-corruption-invariants.md)                                     | Cross-Context Lifecycle Independence & Non-Corruption Invariants                    | Accepted   | 2026-08-17 |
 | [0050](file:///c:/Projects/kinergy-platform/docs/adr/0050-clinical-therapist-assignment-handover-and-authorization-architecture.md)                                  | Clinical Therapist Assignment, Handover & Authorization Architecture in Kinesiology | Accepted   | 2026-08-17 |
 | [0051](file:///c:/Projects/kinergy-platform/docs/adr/0051-clinical-progress-notes-soap-schema-medico-legal-immutability-and-treatment-history-query-architecture.md) | Clinical Progress Notes (SOAP) Schema, Medico-Legal Immutability & History Query    | Accepted   | 2026-08-17 |
+| [0052](file:///c:/Projects/kinergy-platform/docs/adr/0052-client-longitudinal-activity-timeline-and-cross-context-event-projection-architecture.md)                  | Client Activity Timeline & Cross-Context Event Projection Architecture              | Accepted   | 2026-08-17 |
 
 ## Format
 
