@@ -301,6 +301,63 @@ describe('Client Activity Feed REST API E2E Pipeline', () => {
       expect(res.status).toBe(HttpStatus.UNAUTHORIZED);
     });
 
+    it('should strictly isolate timeline entries between different clients', async () => {
+      const clientB = Client.register({
+        referenceNumber: ClientReferenceNumber.create(2026, 77777),
+        name: ClientName.create('Client', 'B'),
+        email: EmailAddress.create('client.b@kinergy.local'),
+        phone: E164PhoneNumber.create('+14155557777'),
+      });
+      await clientRepository.save(clientB);
+
+      const entryB = ClientTimelineEntry.create({
+        clientId: clientB.id,
+        sourceModule: 'CLIENT',
+        eventType: 'CLIENT_CREATED',
+        summary: 'Client B created',
+        occurredAt: new Date(),
+      });
+      await timelineRepository.save(entryB);
+
+      // Query Client A history
+      const resA = await request(app.getHttpServer())
+        .get(`/clients/${sampleClient.id}/history`)
+        .set('Authorization', 'Bearer user-token-123');
+
+      expect(resA.status).toBe(HttpStatus.OK);
+      resA.body.items.forEach((item: { clientId: string }) => {
+        expect(item.clientId).toBe(sampleClient.id);
+        expect(item.clientId).not.toBe(clientB.id);
+      });
+
+      // Query Client B history
+      const resB = await request(app.getHttpServer())
+        .get(`/clients/${clientB.id}/history`)
+        .set('Authorization', 'Bearer user-token-123');
+
+      expect(resB.status).toBe(HttpStatus.OK);
+      expect(resB.body.items).toHaveLength(1);
+      expect(resB.body.items[0].clientId).toBe(clientB.id);
+    });
+
+    it('should safely bound tampered pagination parameters (negative or excessive values)', async () => {
+      const res = await request(app.getHttpServer())
+        .get(`/clients/${sampleClient.id}/history?page=-5&limit=9999`)
+        .set('Authorization', 'Bearer user-token-123');
+
+      expect(res.status).toBe(HttpStatus.OK);
+      expect(res.body.page).toBe(1);
+      expect(res.body.limit).toBeLessThanOrEqual(100);
+    });
+
+    it('should reject invalid non-UUID client ID format with 400 or 404', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/clients/invalid-non-uuid-format/history')
+        .set('Authorization', 'Bearer user-token-123');
+
+      expect([HttpStatus.BAD_REQUEST, HttpStatus.NOT_FOUND]).toContain(res.status);
+    });
+
     it('should return empty items array with total 0 when client has no history', async () => {
       const emptyClient = Client.register({
         referenceNumber: ClientReferenceNumber.create(2026, 88888),
