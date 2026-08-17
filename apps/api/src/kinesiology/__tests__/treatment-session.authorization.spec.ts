@@ -34,49 +34,122 @@ describe('TreatmentSessionsController Authorization & RBAC Evaluation', () => {
     } as unknown as ExecutionContext;
   };
 
-  it('allows access when user has kinesiology.sessions.assign permission for assignTherapist', async () => {
-    const user = new AuthenticatedUserContext({
-      userId: 'usr_supervisor_1',
-      email: 'supervisor@kinergy.com',
-      status: 'ACTIVE',
-      roles: ['ADMIN'],
-      permissions: ['kinesiology.sessions.assign'],
+  describe('Therapist Assignment Authorization (kinesiology.sessions.assign)', () => {
+    it('allows access when user has kinesiology.sessions.assign permission for assignTherapist', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_supervisor_1',
+        email: 'supervisor@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['ADMIN'],
+        permissions: ['kinesiology.sessions.assign'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('assignTherapist', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['kinesiology.sessions.assign'],
+        }),
+      );
     });
 
-    mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+    it('denies access when user lacks kinesiology.sessions.assign permission', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_receptionist_1',
+        email: 'reception@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['RECEPTIONIST'],
+        permissions: ['appointments.read'],
+      });
 
-    const context = createMockContext('assignTherapist', user);
-    const result = await guard.canActivate(context);
+      mockEvaluator.evaluate.mockResolvedValueOnce(
+        AuthorizationDecision.denied('PERMISSIONS', 'Access denied: required permission missing'),
+      );
 
-    expect(result).toBe(true);
-    expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
-      user,
-      expect.objectContaining({
-        requiredPermissions: ['kinesiology.sessions.assign'],
-      }),
-    );
+      const context = createMockContext('assignTherapist', user);
+
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
   });
 
-  it('denies access when user lacks kinesiology.sessions.assign permission', async () => {
-    const user = new AuthenticatedUserContext({
-      userId: 'usr_receptionist_1',
-      email: 'reception@kinergy.com',
-      status: 'ACTIVE',
-      roles: ['RECEPTIONIST'],
-      permissions: ['appointments.read'],
+  describe('Session Notes Documentation Authorization (kinesiology.sessions.treat)', () => {
+    it('allows clinical therapist to update session notes', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_therapist_1',
+        email: 'therapist@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['THERAPIST'],
+        permissions: ['kinesiology.sessions.treat'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('updateNotes', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['kinesiology.sessions.treat'],
+        }),
+      );
     });
 
-    mockEvaluator.evaluate.mockResolvedValueOnce(
-      AuthorizationDecision.denied('PERMISSIONS', 'Access denied: required permission missing'),
-    );
+    it('denies receptionist or unauthorized staff from updating clinical notes', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_receptionist_1',
+        email: 'reception@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['RECEPTIONIST'],
+        permissions: ['appointments.read', 'clients.read'],
+      });
 
-    const context = createMockContext('assignTherapist', user);
+      mockEvaluator.evaluate.mockResolvedValueOnce(
+        AuthorizationDecision.denied(
+          'PERMISSIONS',
+          'Access denied: clinical treatment permission required',
+        ),
+      );
 
-    await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+      const context = createMockContext('updateNotes', user);
+
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
   });
 
-  it('prohibits unauthenticated requests when permissions are required', async () => {
-    const context = createMockContext('assignTherapist', undefined);
-    await expect(guard.canActivate(context)).rejects.toThrow();
+  describe('Treatment History Query Authorization (kinesiology.sessions.read)', () => {
+    it('allows authorized staff to view client treatment history', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_therapist_1',
+        email: 'therapist@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['THERAPIST'],
+        permissions: ['kinesiology.sessions.read'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('getTreatmentHistory', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['kinesiology.sessions.read'],
+        }),
+      );
+    });
+
+    it('denies unauthenticated requests to treatment history', async () => {
+      const context = createMockContext('getTreatmentHistory', undefined);
+      await expect(guard.canActivate(context)).rejects.toThrow();
+    });
   });
 });

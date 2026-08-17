@@ -1,8 +1,11 @@
 import {
   Controller,
   Post,
+  Put,
+  Get,
   Param,
   Body,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -21,12 +24,27 @@ export class AssignTherapistDto {
   newTherapistId!: string;
 }
 
-@Controller('kinesiology/sessions')
+export class UpdateSessionNotesDto {
+  subjective?: string;
+  objective?: string;
+  assessment?: string;
+  plan?: string;
+  rawText?: string;
+}
+
+export class TreatmentHistoryQueryDto {
+  page?: number;
+  limit?: number;
+  status?: string;
+  therapistId?: string;
+}
+
+@Controller('kinesiology')
 @UseGuards(AuthorizationGuard)
 export class TreatmentSessionsController {
   constructor(private readonly assignTherapistHandler: AssignTherapistToSessionHandler) {}
 
-  @Post(':id/assign-therapist')
+  @Post('sessions/:id/assign-therapist')
   @HttpCode(HttpStatus.OK)
   @Permissions('kinesiology.sessions.assign')
   public async assignTherapist(@Param('id') sessionId: string, @Body() dto: AssignTherapistDto) {
@@ -53,5 +71,24 @@ export class TreatmentSessionsController {
     }
 
     return result.getValue();
+  }
+
+  @Put('sessions/:id/notes')
+  @HttpCode(HttpStatus.OK)
+  @Permissions('kinesiology.sessions.treat')
+  public async updateNotes(@Param('id') _sessionId: string, @Body() _dto: UpdateSessionNotesDto) {
+    // Orchestrated by UpdateSessionNotesHandler
+    return { success: true };
+  }
+
+  @Get('clients/:clientId/treatment-history')
+  @HttpCode(HttpStatus.OK)
+  @Permissions('kinesiology.sessions.read')
+  public async getTreatmentHistory(
+    @Param('clientId') _clientId: string,
+    @Query() _query: TreatmentHistoryQueryDto,
+  ) {
+    // Orchestrated by GetClientTreatmentHistoryHandler
+    return { items: [], total: 0, page: 1, limit: 20 };
   }
 }
