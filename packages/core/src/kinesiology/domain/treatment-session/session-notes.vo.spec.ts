@@ -1,4 +1,4 @@
-import { SessionNotes } from './session-notes.vo';
+import { SessionNotes, MAX_NOTE_SECTION_LENGTH } from './session-notes.vo';
 
 describe('SessionNotes Value Object', () => {
   it('should create an empty SessionNotes instance when no input is provided', () => {
@@ -58,6 +58,24 @@ describe('SessionNotes Value Object', () => {
     expect(notes.getPlan()).toBeUndefined();
     expect(notes.getRawText()).toBeUndefined();
     expect(notes.toString()).toBe('');
+  });
+
+  it('should normalize CRLF line breaks to standard LF', () => {
+    const notes = SessionNotes.create({
+      subjective: 'Line 1\r\nLine 2\r\nLine 3',
+    });
+
+    expect(notes.getSubjective()).toBe('Line 1\nLine 2\nLine 3');
+  });
+
+  it('should reject note sections exceeding MAX_NOTE_SECTION_LENGTH', () => {
+    const oversizedText = 'a'.repeat(MAX_NOTE_SECTION_LENGTH + 1);
+
+    expect(() =>
+      SessionNotes.create({
+        subjective: oversizedText,
+      }),
+    ).toThrow(`Subjective note section cannot exceed ${MAX_NOTE_SECTION_LENGTH} characters.`);
   });
 
   it('should handle null or undefined input gracefully via create()', () => {

@@ -376,8 +376,9 @@ describe('TreatmentSession Aggregate Root', () => {
         assessment: 'Post-treatment improvement observed',
         plan: 'Follow up in 1 week',
       });
-      session.updateNotes(postSessionNotes, clock);
-      expect(session.notes.getPlan()).toBe('Follow up in 1 week');
+      expect(() => session.updateNotes(postSessionNotes, clock)).toThrow(
+        "Cannot update clinical notes for a session in 'COMPLETED' status.",
+      );
     });
 
     it('should throw an error if updating notes with null or undefined', () => {
@@ -1013,10 +1014,10 @@ describe('TreatmentSession Aggregate Root', () => {
       session.assignTherapist('therapist_new', clock); // version = 4
       expect(session.version).toBe(4);
 
-      session.complete(clock); // version = 5
+      session.updateNotes(SessionNotes.create('Final Note'), clock); // version = 5
       expect(session.version).toBe(5);
 
-      session.updateNotes(SessionNotes.create('Final Note'), clock); // version = 6
+      session.complete(clock); // version = 6
       expect(session.version).toBe(6);
     });
 
@@ -1182,6 +1183,127 @@ describe('TreatmentSession Aggregate Root', () => {
       expect(session.clientId).toBe(initialClientId);
       expect(session.therapistId).toBe('therapist_second');
       expect(session.version).toBe(4);
+    });
+  });
+
+  describe('SessionNotes Lifecycle & Invariants (Milestone 4.5)', () => {
+    it('should allow updating notes in SCHEDULED status, advancing version and recording event', () => {
+      const session = createDefaultSession();
+      session.clearEvents();
+      expect(session.version).toBe(1);
+
+      clock.advanceMinutes(5);
+      const newNotes = SessionNotes.create({
+        subjective: 'Pre-session intake: stiffness in lumbar spine.',
+        plan: 'Assess lumbar flexion and perform gentle trigger point therapy.',
+      });
+
+      session.updateNotes(newNotes, clock);
+
+      expect(session.notes.equals(newNotes)).toBe(true);
+      expect(session.version).toBe(2);
+      expect(session.updatedAt).toEqual(clock.now());
+
+      const events = session.getUncommittedEvents();
+      expect(events).toHaveLength(1);
+      const event = events[0] as TreatmentSessionNotesUpdatedEvent;
+      expect(event).toBeInstanceOf(TreatmentSessionNotesUpdatedEvent);
+      expect(event.payload.sessionId).toBe(session.id.getValue());
+      expect(event.payload.clientId).toBe(session.clientId);
+      expect(event.payload.therapistId).toBe(session.therapistId);
+      expect(event.version).toBe(2);
+      expect(event.occurredOn).toEqual(clock.now());
+    });
+
+    it('should allow updating notes in IN_PROGRESS status during active treatment', () => {
+      const session = createDefaultSession();
+      session.start(clock);
+      session.clearEvents();
+      expect(session.version).toBe(2);
+
+      clock.advanceMinutes(20);
+      const activeSoapNotes = SessionNotes.create({
+        subjective: 'Client reports pain reduced from 7/10 to 3/10.',
+        objective: 'Lumbar rotation increased symmetrically.',
+        assessment: 'Rapid positive response to neuromuscular facilitation.',
+        plan: 'Prescribe home pelvic stabilization exercises.',
+      });
+
+      session.updateNotes(activeSoapNotes, clock);
+
+      expect(session.notes.equals(activeSoapNotes)).toBe(true);
+      expect(session.version).toBe(3);
+
+      const events = session.getUncommittedEvents();
+      expect(events).toHaveLength(1);
+      const event = events[0] as TreatmentSessionNotesUpdatedEvent;
+      expect(event.payload.sessionId).toBe(session.id.getValue());
+      expect(event.version).toBe(3);
+    });
+
+    it('should reject updating notes when session is in COMPLETED terminal status to protect legal integrity', () => {
+      const session = createDefaultSession();
+      session.start(clock);
+      session.complete(clock);
+      session.clearEvents();
+      expect(session.version).toBe(3);
+
+      const initialNotes = session.notes;
+      const attemptNotes = SessionNotes.create('Attempting retroactive edit');
+
+      expect(() => session.updateNotes(attemptNotes, clock)).toThrow(
+        "Cannot update clinical notes for a session in 'COMPLETED' status.",
+      );
+
+      expect(session.notes.equals(initialNotes)).toBe(true);
+      expect(session.version).toBe(3);
+      expect(session.getUncommittedEvents()).toHaveLength(0);
+    });
+
+    it('should reject updating notes when session is in CANCELLED terminal status', () => {
+      const session = createDefaultSession();
+      session.cancel('Client cancelled', clock);
+      session.clearEvents();
+      expect(session.version).toBe(2);
+
+      const attemptNotes = SessionNotes.create('Attempting note update on cancelled session');
+
+      expect(() => session.updateNotes(attemptNotes, clock)).toThrow(
+        "Cannot update clinical notes for a session in 'CANCELLED' status.",
+      );
+
+      expect(session.version).toBe(2);
+      expect(session.getUncommittedEvents()).toHaveLength(0);
+    });
+
+    it('should reject updating notes when session is in NO_SHOW terminal status', () => {
+      const session = createDefaultSession();
+      session.markAsNoShow(clock);
+      session.clearEvents();
+      expect(session.version).toBe(2);
+
+      const attemptNotes = SessionNotes.create('Attempting note update on no-show session');
+
+      expect(() => session.updateNotes(attemptNotes, clock)).toThrow(
+        "Cannot update clinical notes for a session in 'NO_SHOW' status.",
+      );
+
+      expect(session.version).toBe(2);
+      expect(session.getUncommittedEvents()).toHaveLength(0);
+    });
+
+    it('should reject null or undefined notes with failure atomicity', () => {
+      const session = createDefaultSession();
+      session.clearEvents();
+      expect(session.version).toBe(1);
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(() => session.updateNotes(undefined as any)).toThrow(
+        'Session notes cannot be null or undefined.',
+      );
+
+      expect(session.version).toBe(1);
+      expect(session.getUncommittedEvents()).toHaveLength(0);
     });
   });
 });

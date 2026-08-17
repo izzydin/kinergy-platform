@@ -250,7 +250,11 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
     if (!notes) {
       throw new Error('Session notes cannot be null or undefined.');
     }
-    if (this._status === SessionStatus.CANCELLED || this._status === SessionStatus.NO_SHOW) {
+    if (
+      this._status === SessionStatus.COMPLETED ||
+      this._status === SessionStatus.CANCELLED ||
+      this._status === SessionStatus.NO_SHOW
+    ) {
       throw new Error(`Cannot update clinical notes for a session in '${this._status}' status.`);
     }
     this._notes = notes;
