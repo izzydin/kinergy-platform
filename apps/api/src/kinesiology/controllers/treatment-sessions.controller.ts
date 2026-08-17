@@ -158,6 +158,10 @@ export class TreatmentSessionsController {
   @ApiResponse({ status: 404, description: 'Treatment session not found' })
   @ApiResponse({ status: 422, description: 'Invalid state transition' })
   public async startSession(@Param('id') sessionId: string) {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new BadRequestException('Session ID cannot be empty.');
+    }
+
     const command = new StartTreatmentSessionCommand({ sessionId });
     const result = await this.startSessionHandler.execute(command);
 
@@ -186,6 +190,9 @@ export class TreatmentSessionsController {
   @ApiResponse({ status: 404, description: 'Session or therapist not found' })
   @ApiResponse({ status: 422, description: 'Therapist ineligible or invalid transition' })
   public async assignTherapist(@Param('id') sessionId: string, @Body() dto: AssignTherapistDto) {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new BadRequestException('Session ID cannot be empty.');
+    }
     if (!dto?.newTherapistId) {
       throw new BadRequestException('newTherapistId is required.');
     }
@@ -221,6 +228,10 @@ export class TreatmentSessionsController {
   @ApiResponse({ status: 404, description: 'Session not found' })
   @ApiResponse({ status: 422, description: 'Attempted edit on signed/completed session' })
   public async updateNotes(@Param('id') sessionId: string, @Body() dto: UpdateSessionNotesDto) {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new BadRequestException('Session ID cannot be empty.');
+    }
+
     const command = new UpdateSessionNotesCommand({
       sessionId,
       notes: dto,
@@ -251,6 +262,10 @@ export class TreatmentSessionsController {
   @ApiResponse({ status: 404, description: 'Session not found' })
   @ApiResponse({ status: 422, description: 'Invalid lifecycle transition' })
   public async completeSession(@Param('id') sessionId: string) {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new BadRequestException('Session ID cannot be empty.');
+    }
+
     const command = new CompleteTreatmentSessionCommand({
       sessionId,
     });
@@ -284,6 +299,9 @@ export class TreatmentSessionsController {
     @Param('id') sessionId: string,
     @Body() dto: CancelTreatmentSessionDto,
   ) {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new BadRequestException('Session ID cannot be empty.');
+    }
     if (!dto?.reason || dto.reason.trim().length === 0) {
       throw new BadRequestException('Cancellation reason is required.');
     }
