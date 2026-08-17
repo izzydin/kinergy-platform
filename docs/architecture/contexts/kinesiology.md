@@ -255,6 +255,41 @@ In strict accordance with the principle _"Do not create events simply because an
 | **`TreatmentSessionNotesUpdatedEvent`** | `updateNotes(notes, clock?)`  | Emits audit event for medico-legal compliance tracking clinical progress note revisions.                                                                                                            |
 | **`TherapistAssignedToSessionEvent`**   | `assignTherapist(id, clock?)` | Updates clinician workload schedule when session handover occurs.                                                                                                                                   |
 
+### Appointment Integration Architecture & Anti-Corruption Layer (Milestone 4.3)
+
+```text
+┌──────────────────────────────────────────────────────────────────────────┐
+│                   UPSTREAM BOUNDED CONTEXT: SCHEDULING                   │
+│                                                                          │
+│  Role: Upstream / Service Provider (Supplier)                            │
+│  Owns: Appointment Aggregate, Room Logistics, Calendar Slots             │
+└────────────────────────────────────┬─────────────────────────────────────┘
+                                     │
+                                     │ Exposes Application Query / Read Model
+                                     │
+                                     ▼
+                       ┌───────────────────────────┐
+                       │  ANTI-CORRUPTION LAYER    │
+                       │  (In-Process Adapter)     │
+                       │  Translates Appointment   │
+                       │  to AppointmentReference  │
+                       └─────────────┬─────────────┘
+                                     │
+                                     │ Implements ISchedulingAppointmentLookupPort
+                                     │
+                                     ▼
+┌──────────────────────────────────────────────────────────────────────────┐
+│                  DOWNSTREAM BOUNDED CONTEXT: KINESIOLOGY                 │
+│                                                                          │
+│  Role: Downstream / Consumer (Customer)                                  │
+│  Owns: TreatmentSession Aggregate, Clinical Notes, Encounter History     │
+└──────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Application Orchestration**: `CreateTreatmentSessionFromAppointmentHandler` queries `ISchedulingAppointmentLookupPort` to verify appointment existence and eligibility (`SCHEDULED`, `CONFIRMED`, `CHECKED_IN`, `IN_PROGRESS` with clinical types `ASSESSMENT`, `TREATMENT`, `FOLLOW_UP`, `EVALUATION`).
+- **Idempotency & Concurrency**: Enforces 1-to-1 cardinality via application pre-check and RDBMS `UNIQUE INDEX ON treatment_sessions(appointment_id)`.
+- **Lifecycle Non-Corruption**: Upstream rescheduling or cancellations in Scheduling do not silently corrupt active or completed `TreatmentSession` records.
+
 ---
 
 ## 11. Anti-Corruption Principles & Boundary Rules
@@ -279,7 +314,7 @@ To protect the aggregate from becoming an unmaintainable "god object", any futur
 3. **Low Write Contention**: Must not introduce high concurrent write contention from multiple simultaneous actors (e.g. real-time multi-user collaborative editing should use separate streams/models).
 4. **Clinical Domain Relevance**: Must represent clinical data of this specific care encounter (e.g. specific muscle test results recorded during this session), rather than general client profile data or scheduling logistics.
 
-### Deliberately Deferred Scope (Milestone 4.3+)
+### Deliberately Deferred Scope (Milestone 4.4+)
 
 - **Neuromuscular & Postural Assessments**: Joint Range of Motion (ROM), manual muscle testing (MMT), postural screening.
 - **Clinical Treatment Plans & Goals**: Multi-session longitudinal protocols and goal tracking.
@@ -294,3 +329,4 @@ To protect the aggregate from becoming an unmaintainable "god object", any futur
 - **[ADR-0046: TreatmentSession Lifecycle State Machine & Transition Specification](file:///c:/Projects/kinergy-platform/docs/adr/0046-treatment-session-lifecycle-state-machine-and-transition-specification.md)**
 - **[ADR-0047: Appointment Correlation, Uniqueness & Event Emission Architecture](file:///c:/Projects/kinergy-platform/docs/adr/0047-appointment-to-treatment-session-correlation-and-event-emission-architecture.md)**
 - **[ADR-0048: Scheduling-to-Kinesiology Anti-Corruption Layer Port Architecture](file:///c:/Projects/kinergy-platform/docs/adr/0048-scheduling-to-kinesiology-anti-corruption-layer-port-architecture.md)**
+- **[ADR-0049: Cross-Context Lifecycle Independence & Non-Corruption Invariants](file:///c:/Projects/kinergy-platform/docs/adr/0049-cross-context-lifecycle-independence-and-non-corruption-invariants.md)**

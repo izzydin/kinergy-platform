@@ -54,6 +54,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0046](file:///c:/Projects/kinergy-platform/docs/adr/0046-treatment-session-lifecycle-state-machine-and-transition-specification.md)       | TreatmentSession Lifecycle State Machine & Transition Specification             | Accepted   | 2026-08-15 |
 | [0047](file:///c:/Projects/kinergy-platform/docs/adr/0047-appointment-to-treatment-session-correlation-and-event-emission-architecture.md) | Appointment Correlation, Uniqueness & Event Emission Architecture               | Accepted   | 2026-08-17 |
 | [0048](file:///c:/Projects/kinergy-platform/docs/adr/0048-scheduling-to-kinesiology-anti-corruption-layer-port-architecture.md)            | Scheduling-to-Kinesiology Anti-Corruption Layer Port Architecture               | Accepted   | 2026-08-17 |
+| [0049](file:///c:/Projects/kinergy-platform/docs/adr/0049-cross-context-lifecycle-independence-and-non-corruption-invariants.md)           | Cross-Context Lifecycle Independence & Non-Corruption Invariants                | Accepted   | 2026-08-17 |
 
 ## Format
 
