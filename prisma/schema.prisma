@@ -206,7 +206,6 @@ enum ResourceType {
   RENTAL_FACILITY
 }
 
-
 model RecurrenceSeries {
   id                 String              @id @default(uuid())
   clientId           String              @map("client_id")
@@ -333,3 +332,37 @@ model MaintenanceWindow {
   @@map("maintenance_windows")
 }
 
+// ==========================================
+// KINESIOLOGY BOUNDED CONTEXT
+// ==========================================
+
+enum SessionStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+model TreatmentSession {
+  id                 String        @id @default(uuid())
+  clientId           String        @map("client_id")
+  therapistId        String        @map("therapist_id")
+  appointmentId      String        @unique @map("appointment_id")
+  status             SessionStatus @default(SCHEDULED)
+  cancellationReason String?       @map("cancellation_reason")
+  notesSubjective    String?       @map("notes_subjective")
+  notesObjective     String?       @map("notes_objective")
+  notesAssessment    String?       @map("notes_assessment")
+  notesPlan          String?       @map("notes_plan")
+  notesRawText       String?       @map("notes_raw_text")
+  version            Int           @default(1)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+
+  @@index([clientId, createdAt(sort: Desc)])
+  @@index([therapistId])
+  @@index([status])
+  @@index([appointmentId])
+  @@map("treatment_sessions")
+}
