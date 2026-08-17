@@ -107,6 +107,19 @@ const AnalyticsSubRouter: React.FC = () => (
 
 import { ErrorBoundary } from '../../shared/ui/error-boundary';
 
+import {
+  TreatmentSessionWorkspacePage,
+  ClientTreatmentHistoryPage,
+} from '../../modules/kinesiology';
+
+const KinesiologySubRouter: React.FC = () => (
+  <Routes>
+    <Route path="sessions/:sessionId" element={<TreatmentSessionWorkspacePage />} />
+    <Route path="clients/:clientId/history" element={<ClientTreatmentHistoryPage />} />
+    <Route path="*" element={<NotFoundView message="Kinesiology view not found." />} />
+  </Routes>
+);
+
 // Register Infrastructure Module Route Contracts
 moduleRegistry.register({
   id: 'auth',
@@ -123,6 +136,15 @@ moduleRegistry.register({
   isProtected: true,
   requiredPermissions: ['client:read'],
   component: ClientSubRouter,
+});
+
+moduleRegistry.register({
+  id: 'kinesiology',
+  prefix: '/kinesiology',
+  title: 'Kinesiology & Clinical Charting',
+  isProtected: true,
+  requiredPermissions: ['kinesiology.sessions.read'],
+  component: KinesiologySubRouter,
 });
 
 moduleRegistry.register({
