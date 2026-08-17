@@ -20,6 +20,9 @@ import {
   AssignTherapistToSessionCommand,
   UpdateSessionNotesHandler,
   UpdateSessionNotesCommand,
+  GetClientTreatmentHistoryHandler,
+  GetClientTreatmentHistoryQuery,
+  SessionStatus,
 } from '@kinergy-platform/core';
 
 export class AssignTherapistDto {
@@ -39,6 +42,8 @@ export class TreatmentHistoryQueryDto {
   limit?: number;
   status?: string;
   therapistId?: string;
+  dateFrom?: string;
+  dateTo?: string;
 }
 
 @Controller('kinesiology')
@@ -47,6 +52,7 @@ export class TreatmentSessionsController {
   constructor(
     private readonly assignTherapistHandler: AssignTherapistToSessionHandler,
     private readonly updateNotesHandler: UpdateSessionNotesHandler,
+    private readonly getHistoryHandler: GetClientTreatmentHistoryHandler,
   ) {}
 
   @Post('sessions/:id/assign-therapist')
@@ -107,10 +113,47 @@ export class TreatmentSessionsController {
   @HttpCode(HttpStatus.OK)
   @Permissions('kinesiology.sessions.read')
   public async getTreatmentHistory(
-    @Param('clientId') _clientId: string,
-    @Query() _query: TreatmentHistoryQueryDto,
+    @Param('clientId') clientId: string,
+    @Query() queryDto: TreatmentHistoryQueryDto,
   ) {
-    // Orchestrated by GetClientTreatmentHistoryHandler
-    return { items: [], total: 0, page: 1, limit: 20 };
+    if (!clientId || clientId.trim().length === 0) {
+      throw new BadRequestException('Client ID cannot be empty.');
+    }
+
+    const dateFrom = queryDto.dateFrom ? new Date(queryDto.dateFrom) : undefined;
+    const dateTo = queryDto.dateTo ? new Date(queryDto.dateTo) : undefined;
+
+    if (dateFrom && isNaN(dateFrom.getTime())) {
+      throw new BadRequestException('Invalid dateFrom parameter.');
+    }
+    if (dateTo && isNaN(dateTo.getTime())) {
+      throw new BadRequestException('Invalid dateTo parameter.');
+    }
+
+    let statusEnum: SessionStatus | undefined;
+    if (queryDto.status) {
+      if (!Object.values(SessionStatus).includes(queryDto.status as SessionStatus)) {
+        throw new BadRequestException(`Invalid session status: '${queryDto.status}'.`);
+      }
+      statusEnum = queryDto.status as SessionStatus;
+    }
+
+    const query = new GetClientTreatmentHistoryQuery({
+      clientId,
+      page: queryDto.page ? Number(queryDto.page) : undefined,
+      limit: queryDto.limit ? Number(queryDto.limit) : undefined,
+      status: statusEnum,
+      therapistId: queryDto.therapistId,
+      dateFrom,
+      dateTo,
+    });
+
+    const result = await this.getHistoryHandler.execute(query);
+
+    if (result.isFailure) {
+      throw new BadRequestException(result.getError());
+    }
+
+    return result.getValue();
   }
 }

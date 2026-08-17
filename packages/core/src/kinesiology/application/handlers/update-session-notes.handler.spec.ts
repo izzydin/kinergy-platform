@@ -5,6 +5,7 @@ import { TreatmentSession } from '../../domain/treatment-session/treatment-sessi
 import { SessionId } from '../../domain/treatment-session/session-id.vo';
 import { TestClock } from '../../domain/shared/clock';
 import { MAX_NOTE_SECTION_LENGTH } from '../../domain/treatment-session/session-notes.vo';
+import { PaginatedTreatmentHistoryDTO } from '../dtos/treatment-history-summary.dto';
 
 class InMemoryTreatmentSessionRepository implements ITreatmentSessionRepository {
   private sessions = new Map<string, TreatmentSession>();
@@ -24,6 +25,18 @@ class InMemoryTreatmentSessionRepository implements ITreatmentSessionRepository 
 
   async save(session: TreatmentSession): Promise<void> {
     this.sessions.set(session.id.getValue(), session);
+  }
+
+  async findHistoryByClientId(): Promise<PaginatedTreatmentHistoryDTO> {
+    return {
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    };
   }
 }
 

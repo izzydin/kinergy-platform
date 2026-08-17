@@ -13,6 +13,7 @@ import { TimeRange } from '../../../scheduling/domain/value-objects/time-range.v
 import { ITreatmentSessionRepository } from '../../domain/repositories/treatment-session.repository';
 import { TreatmentSession } from '../../domain/treatment-session/treatment-session.aggregate';
 import { SessionId } from '../../domain/treatment-session/session-id.vo';
+import { PaginatedTreatmentHistoryDTO } from '../dtos/treatment-history-summary.dto';
 import { TestClock } from '../../../scheduling/domain/shared/clock';
 
 class InMemoryAppointmentRepository implements AppointmentRepository {
@@ -74,6 +75,18 @@ class InMemoryTreatmentSessionRepository implements ITreatmentSessionRepository 
     }
     this.appointmentIndex.add(session.appointmentId);
     this.sessions.set(session.id.getValue(), session);
+  }
+
+  async findHistoryByClientId(): Promise<PaginatedTreatmentHistoryDTO> {
+    return {
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+      totalPages: 0,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    };
   }
 }
 
