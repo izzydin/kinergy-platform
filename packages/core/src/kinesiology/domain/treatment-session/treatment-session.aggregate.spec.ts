@@ -1063,4 +1063,125 @@ describe('TreatmentSession Aggregate Root', () => {
       expect(completedEvents[0]!.version).toBe(3);
     });
   });
+
+  describe('Therapist Assignment & Handover Invariants (Milestone 4.4)', () => {
+    it('should successfully reassign therapist in SCHEDULED status, advancing version and recording event', () => {
+      const session = createDefaultSession();
+      session.clearEvents();
+      expect(session.version).toBe(1);
+      expect(session.therapistId).toBe('therapist_456');
+
+      clock.advanceMinutes(10);
+      session.assignTherapist('therapist_new_789', clock);
+
+      expect(session.therapistId).toBe('therapist_new_789');
+      expect(session.version).toBe(2);
+      expect(session.updatedAt).toEqual(clock.now());
+
+      const events = session.getUncommittedEvents();
+      expect(events).toHaveLength(1);
+      const event = events[0] as TherapistAssignedToSessionEvent;
+      expect(event).toBeInstanceOf(TherapistAssignedToSessionEvent);
+      expect(event.payload.sessionId).toBe(session.id.getValue());
+      expect(event.payload.clientId).toBe(session.clientId);
+      expect(event.payload.previousTherapistId).toBe('therapist_456');
+      expect(event.payload.newTherapistId).toBe('therapist_new_789');
+      expect(event.version).toBe(2);
+      expect(event.occurredOn).toEqual(clock.now());
+    });
+
+    it('should successfully reassign therapist in IN_PROGRESS status for clinical handover', () => {
+      const session = createDefaultSession();
+      session.start(clock);
+      session.clearEvents();
+      expect(session.version).toBe(2);
+      expect(session.status).toBe(SessionStatus.IN_PROGRESS);
+
+      clock.advanceMinutes(15);
+      session.assignTherapist('therapist_handover_999', clock);
+
+      expect(session.therapistId).toBe('therapist_handover_999');
+      expect(session.status).toBe(SessionStatus.IN_PROGRESS);
+      expect(session.version).toBe(3);
+
+      const events = session.getUncommittedEvents();
+      expect(events).toHaveLength(1);
+      const event = events[0] as TherapistAssignedToSessionEvent;
+      expect(event.payload.previousTherapistId).toBe('therapist_456');
+      expect(event.payload.newTherapistId).toBe('therapist_handover_999');
+      expect(event.version).toBe(3);
+    });
+
+    it('should reject empty or whitespace therapist IDs without mutating state or incrementing version', () => {
+      const session = createDefaultSession();
+      session.clearEvents();
+      expect(session.version).toBe(1);
+
+      expect(() => session.assignTherapist('')).toThrow('Therapist ID cannot be empty.');
+      expect(() => session.assignTherapist('   ')).toThrow('Therapist ID cannot be empty.');
+
+      expect(session.therapistId).toBe('therapist_456');
+      expect(session.version).toBe(1);
+      expect(session.getUncommittedEvents()).toHaveLength(0);
+    });
+
+    it('should reject therapist reassignment on COMPLETED session to protect medico-legal integrity', () => {
+      const session = createDefaultSession();
+      session.start(clock);
+      session.complete(clock);
+      session.clearEvents();
+      expect(session.version).toBe(3);
+
+      expect(() => session.assignTherapist('therapist_new_789', clock)).toThrow(
+        "Cannot reassign therapist for a session in 'COMPLETED' terminal status.",
+      );
+
+      expect(session.therapistId).toBe('therapist_456');
+      expect(session.version).toBe(3);
+      expect(session.getUncommittedEvents()).toHaveLength(0);
+    });
+
+    it('should reject therapist reassignment on CANCELLED session', () => {
+      const session = createDefaultSession();
+      session.cancel('Cancelled by client', clock);
+      session.clearEvents();
+      expect(session.version).toBe(2);
+
+      expect(() => session.assignTherapist('therapist_new_789', clock)).toThrow(
+        "Cannot reassign therapist for a session in 'CANCELLED' terminal status.",
+      );
+
+      expect(session.therapistId).toBe('therapist_456');
+      expect(session.version).toBe(2);
+      expect(session.getUncommittedEvents()).toHaveLength(0);
+    });
+
+    it('should reject therapist reassignment on NO_SHOW session', () => {
+      const session = createDefaultSession();
+      session.markAsNoShow(clock);
+      session.clearEvents();
+      expect(session.version).toBe(2);
+
+      expect(() => session.assignTherapist('therapist_new_789', clock)).toThrow(
+        "Cannot reassign therapist for a session in 'NO_SHOW' terminal status.",
+      );
+
+      expect(session.therapistId).toBe('therapist_456');
+      expect(session.version).toBe(2);
+      expect(session.getUncommittedEvents()).toHaveLength(0);
+    });
+
+    it('should guarantee clientId immutability across multiple therapist reassignments', () => {
+      const session = createDefaultSession();
+      const initialClientId = session.clientId;
+
+      session.assignTherapist('therapist_first', clock);
+      session.start(clock);
+      session.assignTherapist('therapist_second', clock);
+
+      expect(session.clientId).toBe(initialClientId);
+      expect(session.therapistId).toBe('therapist_second');
+      expect(session.version).toBe(4);
+    });
+  });
 });
