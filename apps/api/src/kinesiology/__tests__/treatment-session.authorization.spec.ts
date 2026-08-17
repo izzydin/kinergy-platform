@@ -198,4 +198,98 @@ describe('TreatmentSessionsController Authorization & RBAC Evaluation', () => {
       await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     });
   });
+
+  describe('Session Lifecycle Authorization (startSession & cancelSession & createSession)', () => {
+    it('allows therapist with kinesiology.sessions.treat to create session', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_therapist_1',
+        email: 'therapist@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['THERAPIST'],
+        permissions: ['kinesiology.sessions.treat'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('createSession', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['kinesiology.sessions.treat'],
+        }),
+      );
+    });
+
+    it('allows therapist with kinesiology.sessions.treat to start session', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_therapist_1',
+        email: 'therapist@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['THERAPIST'],
+        permissions: ['kinesiology.sessions.treat'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('startSession', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['kinesiology.sessions.treat'],
+        }),
+      );
+    });
+
+    it('allows therapist with kinesiology.sessions.treat to cancel session', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_therapist_1',
+        email: 'therapist@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['THERAPIST'],
+        permissions: ['kinesiology.sessions.treat'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('cancelSession', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['kinesiology.sessions.treat'],
+        }),
+      );
+    });
+
+    it('allows staff with kinesiology.sessions.read to getSessionById', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_staff_1',
+        email: 'staff@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['ADMIN'],
+        permissions: ['kinesiology.sessions.read'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('getSessionById', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['kinesiology.sessions.read'],
+        }),
+      );
+    });
+  });
 });

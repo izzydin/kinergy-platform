@@ -6,11 +6,7 @@ import { ITreatmentSessionRepository } from '../../domain/repositories/treatment
 import { SessionId } from '../../domain/treatment-session/session-id.vo';
 import { TreatmentSessionMapper } from '../mappers/treatment-session.mapper';
 import { Clock } from '../../domain/shared/clock';
-import { DomainEvent } from '../../domain/shared/domain-event';
-
-export interface DomainEventPublisher {
-  publish(event: DomainEvent): Promise<void> | void;
-}
+import { DomainEventPublisher } from '../ports/domain-event-publisher.port';
 
 /**
  * CQRS Command Handler for marking a TreatmentSession as COMPLETED and publishing integration/domain events.

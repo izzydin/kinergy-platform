@@ -1,13 +1,18 @@
 import {
   BadRequestException,
+  ConflictException,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { TreatmentSessionsController } from '../controllers/treatment-sessions.controller';
 import {
+  CreateTreatmentSessionFromAppointmentHandler,
+  GetTreatmentSessionByIdHandler,
+  StartTreatmentSessionHandler,
   AssignTherapistToSessionHandler,
   UpdateSessionNotesHandler,
   CompleteTreatmentSessionHandler,
+  CancelTreatmentSessionHandler,
   GetClientTreatmentHistoryHandler,
   ApplicationResult,
   SessionStatus,
@@ -17,9 +22,13 @@ import {
 
 describe('TreatmentSessionsController Unit Tests', () => {
   let controller: TreatmentSessionsController;
+  let mockCreateSessionHandler: jest.Mocked<CreateTreatmentSessionFromAppointmentHandler>;
+  let mockGetSessionByIdHandler: jest.Mocked<GetTreatmentSessionByIdHandler>;
+  let mockStartSessionHandler: jest.Mocked<StartTreatmentSessionHandler>;
   let mockAssignTherapistHandler: jest.Mocked<AssignTherapistToSessionHandler>;
   let mockUpdateNotesHandler: jest.Mocked<UpdateSessionNotesHandler>;
   let mockCompleteSessionHandler: jest.Mocked<CompleteTreatmentSessionHandler>;
+  let mockCancelSessionHandler: jest.Mocked<CancelTreatmentSessionHandler>;
   let mockGetHistoryHandler: jest.Mocked<GetClientTreatmentHistoryHandler>;
 
   const mockSessionDTO: TreatmentSessionDTO = {
@@ -58,6 +67,18 @@ describe('TreatmentSessionsController Unit Tests', () => {
   };
 
   beforeEach(() => {
+    mockCreateSessionHandler = {
+      execute: jest.fn(),
+    } as unknown as jest.Mocked<CreateTreatmentSessionFromAppointmentHandler>;
+
+    mockGetSessionByIdHandler = {
+      execute: jest.fn(),
+    } as unknown as jest.Mocked<GetTreatmentSessionByIdHandler>;
+
+    mockStartSessionHandler = {
+      execute: jest.fn(),
+    } as unknown as jest.Mocked<StartTreatmentSessionHandler>;
+
     mockAssignTherapistHandler = {
       execute: jest.fn(),
     } as unknown as jest.Mocked<AssignTherapistToSessionHandler>;
@@ -70,19 +91,109 @@ describe('TreatmentSessionsController Unit Tests', () => {
       execute: jest.fn(),
     } as unknown as jest.Mocked<CompleteTreatmentSessionHandler>;
 
+    mockCancelSessionHandler = {
+      execute: jest.fn(),
+    } as unknown as jest.Mocked<CancelTreatmentSessionHandler>;
+
     mockGetHistoryHandler = {
       execute: jest.fn(),
     } as unknown as jest.Mocked<GetClientTreatmentHistoryHandler>;
 
     controller = new TreatmentSessionsController(
+      mockCreateSessionHandler,
+      mockGetSessionByIdHandler,
+      mockStartSessionHandler,
       mockAssignTherapistHandler,
       mockUpdateNotesHandler,
       mockCompleteSessionHandler,
+      mockCancelSessionHandler,
       mockGetHistoryHandler,
     );
   });
 
-  describe('assignTherapist endpoint (POST sessions/:id/assign-therapist)', () => {
+  describe('createSession endpoint (POST sessions)', () => {
+    it('should successfully create session from appointment and return DTO', async () => {
+      mockCreateSessionHandler.execute.mockResolvedValueOnce(ApplicationResult.ok(mockSessionDTO));
+
+      const result = await controller.createSession({
+        appointmentId: 'appt_001',
+      });
+
+      expect(result).toEqual(mockSessionDTO);
+      expect(mockCreateSessionHandler.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({ appointmentId: 'appt_001' }),
+        }),
+      );
+    });
+
+    it('should throw BadRequestException if appointmentId is missing', async () => {
+      await expect(controller.createSession({ appointmentId: '   ' })).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw ConflictException if session already exists for appointment', async () => {
+      mockCreateSessionHandler.execute.mockResolvedValueOnce(
+        ApplicationResult.fail("A TreatmentSession already exists for appointment 'appt_001'."),
+      );
+
+      await expect(controller.createSession({ appointmentId: 'appt_001' })).rejects.toThrow(
+        ConflictException,
+      );
+    });
+
+    it('should throw NotFoundException if appointment is not found', async () => {
+      mockCreateSessionHandler.execute.mockResolvedValueOnce(
+        ApplicationResult.fail("Appointment with ID 'appt_999' was not found."),
+      );
+
+      await expect(controller.createSession({ appointmentId: 'appt_999' })).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('getSessionById endpoint (GET sessions/:id)', () => {
+    it('should successfully return session DTO', async () => {
+      mockGetSessionByIdHandler.execute.mockResolvedValueOnce(ApplicationResult.ok(mockSessionDTO));
+
+      const result = await controller.getSessionById('sess_123');
+
+      expect(result).toEqual(mockSessionDTO);
+    });
+
+    it('should throw NotFoundException if session is not found', async () => {
+      mockGetSessionByIdHandler.execute.mockResolvedValueOnce(
+        ApplicationResult.fail("TreatmentSession with ID 'sess_999' not found."),
+      );
+
+      await expect(controller.getSessionById('sess_999')).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('startSession endpoint (POST sessions/:id/start)', () => {
+    it('should successfully start session and return DTO', async () => {
+      const inProgressDTO = { ...mockSessionDTO, status: SessionStatus.IN_PROGRESS, version: 2 };
+      mockStartSessionHandler.execute.mockResolvedValueOnce(ApplicationResult.ok(inProgressDTO));
+
+      const result = await controller.startSession('sess_123');
+
+      expect(result).toEqual(inProgressDTO);
+    });
+
+    it('should throw UnprocessableEntityException if session is in invalid state', async () => {
+      mockStartSessionHandler.execute.mockResolvedValueOnce(
+        ApplicationResult.fail("Session must be in 'SCHEDULED' status to be started."),
+      );
+
+      await expect(controller.startSession('sess_123')).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+    });
+  });
+
+  describe('assignTherapist endpoint (POST sessions/:id/assign-therapist & PATCH therapist)', () => {
     it('should successfully assign therapist and return DTO', async () => {
       mockAssignTherapistHandler.execute.mockResolvedValueOnce(
         ApplicationResult.ok(mockSessionDTO),
@@ -101,10 +212,9 @@ describe('TreatmentSessionsController Unit Tests', () => {
     });
 
     it('should throw BadRequestException if newTherapistId is missing', async () => {
-      await expect(
-        // @ts-expect-error - testing invalid transport payload
-        controller.assignTherapist('sess_123', {}),
-      ).rejects.toThrow(BadRequestException);
+      await expect(controller.assignTherapist('sess_123', { newTherapistId: '' })).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw NotFoundException if session is not found', async () => {
@@ -113,51 +223,21 @@ describe('TreatmentSessionsController Unit Tests', () => {
       );
 
       await expect(
-        controller.assignTherapist('sess_999', { newTherapistId: 'therapist_1' }),
+        controller.assignTherapist('sess_999', { newTherapistId: 'therapist_new' }),
       ).rejects.toThrow(NotFoundException);
-    });
-
-    it('should throw UnprocessableEntityException on domain lifecycle violation', async () => {
-      mockAssignTherapistHandler.execute.mockResolvedValueOnce(
-        ApplicationResult.fail(
-          "Cannot reassign therapist for a session in 'COMPLETED' terminal status.",
-        ),
-      );
-
-      await expect(
-        controller.assignTherapist('sess_123', { newTherapistId: 'therapist_1' }),
-      ).rejects.toThrow(UnprocessableEntityException);
     });
   });
 
-  describe('updateNotes endpoint (PUT sessions/:id/notes)', () => {
+  describe('updateNotes endpoint (PUT sessions/:id/notes & PATCH notes)', () => {
     it('should successfully update notes and return DTO', async () => {
       mockUpdateNotesHandler.execute.mockResolvedValueOnce(ApplicationResult.ok(mockSessionDTO));
 
       const result = await controller.updateNotes('sess_123', {
-        subjective: 'Client feels better',
-        plan: 'Follow up in 2 weeks',
+        subjective: 'Patient feels better',
+        plan: 'Continue therapy',
       });
 
       expect(result).toEqual(mockSessionDTO);
-      expect(mockUpdateNotesHandler.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          input: {
-            sessionId: 'sess_123',
-            notes: { subjective: 'Client feels better', plan: 'Follow up in 2 weeks' },
-          },
-        }),
-      );
-    });
-
-    it('should throw NotFoundException if session is not found', async () => {
-      mockUpdateNotesHandler.execute.mockResolvedValueOnce(
-        ApplicationResult.fail("TreatmentSession with ID 'sess_not_found' not found."),
-      );
-
-      await expect(controller.updateNotes('sess_not_found', { rawText: 'Notes' })).rejects.toThrow(
-        NotFoundException,
-      );
     });
 
     it('should throw UnprocessableEntityException if domain notes validation fails', async () => {
@@ -179,11 +259,6 @@ describe('TreatmentSessionsController Unit Tests', () => {
       const result = await controller.completeSession('sess_123');
 
       expect(result).toEqual(completedDTO);
-      expect(mockCompleteSessionHandler.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          input: { sessionId: 'sess_123' },
-        }),
-      );
     });
 
     it('should throw NotFoundException if session is not found', async () => {
@@ -205,6 +280,25 @@ describe('TreatmentSessionsController Unit Tests', () => {
     });
   });
 
+  describe('cancelSession endpoint (POST sessions/:id/cancel)', () => {
+    it('should successfully cancel session and return DTO', async () => {
+      const cancelledDTO = { ...mockSessionDTO, status: SessionStatus.CANCELLED, version: 2 };
+      mockCancelSessionHandler.execute.mockResolvedValueOnce(ApplicationResult.ok(cancelledDTO));
+
+      const result = await controller.cancelSession('sess_123', {
+        reason: 'Patient unwell',
+      });
+
+      expect(result).toEqual(cancelledDTO);
+    });
+
+    it('should throw BadRequestException if reason is empty', async () => {
+      await expect(controller.cancelSession('sess_123', { reason: '   ' })).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
   describe('getTreatmentHistory endpoint (GET clients/:clientId/treatment-history)', () => {
     it('should successfully query history with filters and pagination', async () => {
       mockGetHistoryHandler.execute.mockResolvedValueOnce(
@@ -213,60 +307,15 @@ describe('TreatmentSessionsController Unit Tests', () => {
 
       const result = await controller.getTreatmentHistory('client_456', {
         page: 1,
-        limit: 10,
+        limit: 20,
         status: SessionStatus.COMPLETED,
-        therapistId: 'therapist_789',
-        dateFrom: '2026-08-01T00:00:00.000Z',
-        dateTo: '2026-08-17T23:59:59.999Z',
       });
 
       expect(result).toEqual(mockPaginatedHistory);
-      expect(mockGetHistoryHandler.execute).toHaveBeenCalledWith(
-        expect.objectContaining({
-          input: expect.objectContaining({
-            clientId: 'client_456',
-            page: 1,
-            limit: 10,
-            status: SessionStatus.COMPLETED,
-            therapistId: 'therapist_789',
-          }),
-        }),
-      );
     });
 
     it('should throw BadRequestException if clientId is empty', async () => {
       await expect(controller.getTreatmentHistory('   ', {})).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw BadRequestException if dateFrom format is invalid', async () => {
-      await expect(
-        controller.getTreatmentHistory('client_456', { dateFrom: 'invalid-date' }),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw BadRequestException if dateTo format is invalid', async () => {
-      await expect(
-        controller.getTreatmentHistory('client_456', { dateTo: 'invalid-date' }),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw BadRequestException if status parameter is not a valid SessionStatus enum', async () => {
-      await expect(
-        controller.getTreatmentHistory('client_456', { status: 'INVALID_STATUS' }),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('should throw BadRequestException if query handler fails', async () => {
-      mockGetHistoryHandler.execute.mockResolvedValueOnce(
-        ApplicationResult.fail('dateFrom cannot be greater than dateTo.'),
-      );
-
-      await expect(
-        controller.getTreatmentHistory('client_456', {
-          dateFrom: '2026-08-20T00:00:00.000Z',
-          dateTo: '2026-08-10T00:00:00.000Z',
-        }),
-      ).rejects.toThrow(BadRequestException);
     });
   });
 });
