@@ -94,6 +94,44 @@ export class ClientTimelineProjectionHandler {
         );
         return;
       }
+
+      // Kinesiology: TreatmentSessionCompleted
+      if (
+        (event as { eventType?: string }).eventType === 'TreatmentSessionCompleted' ||
+        (event as { name?: string }).name === 'TreatmentSessionCompleted'
+      ) {
+        const payload = (
+          event as {
+            payload?: {
+              sessionId: string;
+              clientId: string;
+              therapistId: string;
+              appointmentId: string;
+              completedAt?: Date;
+            };
+            occurredAt?: Date;
+          }
+        ).payload;
+
+        if (payload?.clientId && payload?.sessionId) {
+          await this.timelineRepository.save(
+            ClientTimelineEntry.create({
+              clientId: payload.clientId,
+              sourceModule: 'KINESIOLOGY',
+              eventType: 'TREATMENT_SESSION_COMPLETED',
+              summary: 'Kinesiology treatment session completed',
+              metadata: {
+                sessionId: payload.sessionId,
+                therapistId: payload.therapistId,
+                appointmentId: payload.appointmentId,
+              },
+              occurredAt:
+                payload.completedAt ?? (event as { occurredAt?: Date }).occurredAt ?? new Date(),
+            }),
+          );
+          return;
+        }
+      }
     } catch (error) {
       // Gracefully catch and log projection errors without throwing
       console.error('Error handling timeline projection event:', error);

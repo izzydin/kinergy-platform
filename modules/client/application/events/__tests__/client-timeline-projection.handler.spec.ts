@@ -82,6 +82,36 @@ describe('ClientTimelineProjectionHandler Unit Tests', () => {
     expect(mockTimelineRepository.save.mock.calls[1]![0].eventType).toBe('CLIENT_RESTORED');
   });
 
+  it('should project TreatmentSessionCompletedEvent with sourceModule KINESIOLOGY', async () => {
+    const completedAt = new Date('2026-08-17T14:30:00.000Z');
+    const event = {
+      eventType: 'TreatmentSessionCompleted',
+      occurredAt: completedAt,
+      payload: {
+        sessionId: 'sess-999',
+        clientId: 'client-123',
+        therapistId: 'therapist-456',
+        appointmentId: 'appt-789',
+        completedAt,
+      },
+    };
+
+    await handler.handle(event);
+
+    expect(mockTimelineRepository.save).toHaveBeenCalledTimes(1);
+    const entry = mockTimelineRepository.save.mock.calls[0]![0];
+    expect(entry.clientId).toBe('client-123');
+    expect(entry.sourceModule).toBe('KINESIOLOGY');
+    expect(entry.eventType).toBe('TREATMENT_SESSION_COMPLETED');
+    expect(entry.summary).toBe('Kinesiology treatment session completed');
+    expect(entry.metadata).toEqual({
+      sessionId: 'sess-999',
+      therapistId: 'therapist-456',
+      appointmentId: 'appt-789',
+    });
+    expect(entry.occurredAt).toEqual(completedAt);
+  });
+
   it('should gracefully handle invalid or unhandled event payloads without throwing error', async () => {
     await expect(handler.handle(null)).resolves.not.toThrow();
     await expect(handler.handle({ random: 'object' })).resolves.not.toThrow();

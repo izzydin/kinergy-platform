@@ -365,6 +365,13 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
     this.uncommittedEvents = [];
   }
 
+  /** Pulls and clears all uncommitted domain events */
+  public pullEvents(): ReadonlyArray<DomainEvent> {
+    const events = [...this.uncommittedEvents];
+    this.uncommittedEvents = [];
+    return events;
+  }
+
   /** Records a domain event internally */
   protected recordEvent(event: DomainEvent): void {
     this.uncommittedEvents.push(event);

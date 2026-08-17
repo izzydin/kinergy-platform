@@ -7,6 +7,7 @@ import { TreatmentSessionsController } from '../controllers/treatment-sessions.c
 import {
   AssignTherapistToSessionHandler,
   UpdateSessionNotesHandler,
+  CompleteTreatmentSessionHandler,
   GetClientTreatmentHistoryHandler,
   ApplicationResult,
   SessionStatus,
@@ -18,6 +19,7 @@ describe('TreatmentSessionsController Unit Tests', () => {
   let controller: TreatmentSessionsController;
   let mockAssignTherapistHandler: jest.Mocked<AssignTherapistToSessionHandler>;
   let mockUpdateNotesHandler: jest.Mocked<UpdateSessionNotesHandler>;
+  let mockCompleteSessionHandler: jest.Mocked<CompleteTreatmentSessionHandler>;
   let mockGetHistoryHandler: jest.Mocked<GetClientTreatmentHistoryHandler>;
 
   const mockSessionDTO: TreatmentSessionDTO = {
@@ -64,6 +66,10 @@ describe('TreatmentSessionsController Unit Tests', () => {
       execute: jest.fn(),
     } as unknown as jest.Mocked<UpdateSessionNotesHandler>;
 
+    mockCompleteSessionHandler = {
+      execute: jest.fn(),
+    } as unknown as jest.Mocked<CompleteTreatmentSessionHandler>;
+
     mockGetHistoryHandler = {
       execute: jest.fn(),
     } as unknown as jest.Mocked<GetClientTreatmentHistoryHandler>;
@@ -71,6 +77,7 @@ describe('TreatmentSessionsController Unit Tests', () => {
     controller = new TreatmentSessionsController(
       mockAssignTherapistHandler,
       mockUpdateNotesHandler,
+      mockCompleteSessionHandler,
       mockGetHistoryHandler,
     );
   });
@@ -159,6 +166,40 @@ describe('TreatmentSessionsController Unit Tests', () => {
       );
 
       await expect(controller.updateNotes('sess_123', { rawText: 'Notes' })).rejects.toThrow(
+        UnprocessableEntityException,
+      );
+    });
+  });
+
+  describe('completeSession endpoint (POST sessions/:id/complete)', () => {
+    it('should successfully complete session and return DTO', async () => {
+      const completedDTO = { ...mockSessionDTO, status: SessionStatus.COMPLETED, version: 2 };
+      mockCompleteSessionHandler.execute.mockResolvedValueOnce(ApplicationResult.ok(completedDTO));
+
+      const result = await controller.completeSession('sess_123');
+
+      expect(result).toEqual(completedDTO);
+      expect(mockCompleteSessionHandler.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: { sessionId: 'sess_123' },
+        }),
+      );
+    });
+
+    it('should throw NotFoundException if session is not found', async () => {
+      mockCompleteSessionHandler.execute.mockResolvedValueOnce(
+        ApplicationResult.fail("TreatmentSession with ID 'sess_999' not found."),
+      );
+
+      await expect(controller.completeSession('sess_999')).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw UnprocessableEntityException on invalid lifecycle transition', async () => {
+      mockCompleteSessionHandler.execute.mockResolvedValueOnce(
+        ApplicationResult.fail("Session must be in 'IN_PROGRESS' status to be completed."),
+      );
+
+      await expect(controller.completeSession('sess_123')).rejects.toThrow(
         UnprocessableEntityException,
       );
     });

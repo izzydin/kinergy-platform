@@ -152,4 +152,50 @@ describe('TreatmentSessionsController Authorization & RBAC Evaluation', () => {
       await expect(guard.canActivate(context)).rejects.toThrow();
     });
   });
+
+  describe('Session Completion Authorization (kinesiology.sessions.treat)', () => {
+    it('allows therapist with kinesiology.sessions.treat permission to complete session', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_therapist_1',
+        email: 'therapist@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['THERAPIST'],
+        permissions: ['kinesiology.sessions.treat'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('completeSession', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['kinesiology.sessions.treat'],
+        }),
+      );
+    });
+
+    it('denies non-clinical staff from completing session', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_receptionist_1',
+        email: 'reception@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['RECEPTIONIST'],
+        permissions: ['appointments.read'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(
+        AuthorizationDecision.denied(
+          'PERMISSIONS',
+          'Access denied: clinical treatment permission required',
+        ),
+      );
+
+      const context = createMockContext('completeSession', user);
+
+      await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
+  });
 });

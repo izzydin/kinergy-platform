@@ -20,6 +20,8 @@ import {
   AssignTherapistToSessionCommand,
   UpdateSessionNotesHandler,
   UpdateSessionNotesCommand,
+  CompleteTreatmentSessionHandler,
+  CompleteTreatmentSessionCommand,
   GetClientTreatmentHistoryHandler,
   GetClientTreatmentHistoryQuery,
   SessionStatus,
@@ -52,6 +54,7 @@ export class TreatmentSessionsController {
   constructor(
     private readonly assignTherapistHandler: AssignTherapistToSessionHandler,
     private readonly updateNotesHandler: UpdateSessionNotesHandler,
+    private readonly completeSessionHandler: CompleteTreatmentSessionHandler,
     private readonly getHistoryHandler: GetClientTreatmentHistoryHandler,
   ) {}
 
@@ -94,6 +97,30 @@ export class TreatmentSessionsController {
     });
 
     const result = await this.updateNotesHandler.execute(command);
+
+    if (result.isFailure) {
+      const error = result.getError();
+      if (error.includes('not found')) {
+        throw new NotFoundException(error);
+      }
+      if (error.includes('empty')) {
+        throw new BadRequestException(error);
+      }
+      throw new UnprocessableEntityException(error);
+    }
+
+    return result.getValue();
+  }
+
+  @Post('sessions/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  @Permissions('kinesiology.sessions.treat')
+  public async completeSession(@Param('id') sessionId: string) {
+    const command = new CompleteTreatmentSessionCommand({
+      sessionId,
+    });
+
+    const result = await this.completeSessionHandler.execute(command);
 
     if (result.isFailure) {
       const error = result.getError();
