@@ -23,6 +23,9 @@ export function useTreatmentMutations(sessionId?: string) {
         queryClient.invalidateQueries({
           queryKey: kinesiologyQueryKeys.history(data.clientId),
         });
+        queryClient.invalidateQueries({
+          queryKey: ['timeline', data.clientId],
+        });
       }
     },
     onError: (err) => {
@@ -39,6 +42,11 @@ export function useTreatmentMutations(sessionId?: string) {
       success('Treatment session started');
       queryClient.setQueryData(kinesiologyQueryKeys.session(sessionId!), data);
       queryClient.invalidateQueries({ queryKey: kinesiologyQueryKeys.sessions() });
+      if (data.clientId) {
+        queryClient.invalidateQueries({
+          queryKey: kinesiologyQueryKeys.history(data.clientId),
+        });
+      }
     },
     onError: (err) => {
       error(err);
@@ -55,6 +63,11 @@ export function useTreatmentMutations(sessionId?: string) {
         success('Therapist assigned successfully');
         queryClient.setQueryData(kinesiologyQueryKeys.session(sessionId!), data);
         queryClient.invalidateQueries({ queryKey: kinesiologyQueryKeys.sessions() });
+        if (data.clientId) {
+          queryClient.invalidateQueries({
+            queryKey: kinesiologyQueryKeys.history(data.clientId),
+          });
+        }
       },
       onError: (err) => {
         error(err);
@@ -70,6 +83,11 @@ export function useTreatmentMutations(sessionId?: string) {
     onSuccess: (data) => {
       success('Clinical notes saved successfully');
       queryClient.setQueryData(kinesiologyQueryKeys.session(sessionId!), data);
+      if (data.clientId) {
+        queryClient.invalidateQueries({
+          queryKey: kinesiologyQueryKeys.history(data.clientId),
+        });
+      }
     },
     onError: (err) => {
       error(err);
@@ -89,6 +107,9 @@ export function useTreatmentMutations(sessionId?: string) {
         queryClient.invalidateQueries({
           queryKey: kinesiologyQueryKeys.history(data.clientId),
         });
+        queryClient.invalidateQueries({
+          queryKey: ['timeline', data.clientId],
+        });
       }
     },
     onError: (err) => {
@@ -105,6 +126,14 @@ export function useTreatmentMutations(sessionId?: string) {
       success('Treatment session cancelled');
       queryClient.setQueryData(kinesiologyQueryKeys.session(sessionId!), data);
       queryClient.invalidateQueries({ queryKey: kinesiologyQueryKeys.sessions() });
+      if (data.clientId) {
+        queryClient.invalidateQueries({
+          queryKey: kinesiologyQueryKeys.history(data.clientId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: ['timeline', data.clientId],
+        });
+      }
     },
     onError: (err) => {
       error(err);
