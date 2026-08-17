@@ -187,6 +187,72 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
               </CardContent>
             </Card>
 
+            {/* Active Encounter Banner */}
+            {session.status === 'IN_PROGRESS' && (
+              <Card className="border-indigo-200 bg-indigo-50/70 text-indigo-950 shadow-sm">
+                <CardContent className="py-3 px-4 flex items-center justify-between">
+                  <div className="flex items-center space-x-2 text-sm">
+                    <span className="flex h-2.5 w-2.5 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-600"></span>
+                    </span>
+                    <span className="font-semibold text-indigo-900">
+                      Active Clinical Encounter in Progress
+                    </span>
+                    <span className="text-xs text-indigo-700">
+                      — Document findings, muscle tests, and treatment plan below.
+                    </span>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Post-Completion UX Summary Card */}
+            {session.status === 'COMPLETED' && (
+              <Card className="border-emerald-200 bg-emerald-50 text-emerald-950 shadow-sm">
+                <CardContent className="py-4 px-5">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div className="space-y-1">
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold text-emerald-900 text-sm">
+                          ✓ Treatment Encounter Finalized & Signed
+                        </span>
+                      </div>
+                      <p className="text-xs text-emerald-800">
+                        This session is permanently signed. Clinical SOAP notes are locked and
+                        cross-context timeline projections have been emitted.
+                      </p>
+                    </div>
+
+                    {/* Post-Completion Navigation Links */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/clients/${session.clientId}/treatments`)}
+                      >
+                        View Treatment History
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => navigate(`/clients/${session.clientId}/timeline`)}
+                      >
+                        View Client Timeline
+                      </Button>
+                      <Button
+                        variant="default"
+                        size="sm"
+                        onClick={() => navigate(`/clients/${session.clientId}`)}
+                      >
+                        Client Profile
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* Cancellation Banner */}
             {session.status === 'CANCELLED' && session.cancellationReason && (
               <Card className="border-red-200 bg-red-50 text-red-800">
