@@ -6,6 +6,17 @@ import { SessionStatus } from './session-status.enum';
 import { SessionNotes } from './session-notes.vo';
 import { InvalidSessionTransitionException } from '../exceptions/invalid-session-transition.exception';
 
+// Domain Events
+import {
+  TreatmentSessionCreatedEvent,
+  TreatmentSessionStartedEvent,
+  TreatmentSessionCompletedEvent,
+  TreatmentSessionCancelledEvent,
+  TreatmentSessionNoShowEvent,
+  TreatmentSessionNotesUpdatedEvent,
+  TherapistAssignedToSessionEvent,
+} from '../events';
+
 /** Properties required to create a new TreatmentSession aggregate */
 export interface CreateTreatmentSessionProps {
   id?: SessionId;
@@ -31,7 +42,8 @@ export interface ReconstituteTreatmentSessionProps {
 
 /**
  * TreatmentSession Aggregate Root governing clinical therapy encounters,
- * clinical lifecycle transitions, structured SOAP notes, and optimistic concurrency.
+ * clinical lifecycle transitions, structured SOAP notes, optimistic concurrency,
+ * and domain event recording.
  */
 export class TreatmentSession implements AggregateRoot<SessionId> {
   private readonly _id: SessionId;
@@ -39,7 +51,7 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
   private _status: SessionStatus;
   private readonly _clientId: string;
   private _therapistId: string;
-  private _appointmentId: string;
+  private readonly _appointmentId: string;
   private _cancellationReason?: string;
   private _notes: SessionNotes;
   private readonly _createdAt: Date;
@@ -86,13 +98,13 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
 
   /**
    * Factory method to create a new TreatmentSession aggregate.
-   * Enforces initial status as SCHEDULED and initial version as 1.
+   * Enforces initial status as SCHEDULED, version 1, and records TreatmentSessionCreatedEvent.
    */
   public static create(props: CreateTreatmentSessionProps, clock?: Clock): TreatmentSession {
     const sessionId = props.id ?? SessionId.create();
     const now = clock ? clock.now() : new Date();
 
-    return new TreatmentSession({
+    const session = new TreatmentSession({
       id: sessionId,
       version: 1,
       status: SessionStatus.SCHEDULED,
@@ -103,10 +115,24 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
       createdAt: now,
       updatedAt: now,
     });
+
+    session.recordEvent(
+      new TreatmentSessionCreatedEvent(
+        sessionId.getValue(),
+        props.clientId.trim(),
+        props.therapistId.trim(),
+        props.appointmentId.trim(),
+        1,
+        now,
+      ),
+    );
+
+    return session;
   }
 
   /**
-   * Reconstitutes an existing TreatmentSession aggregate from persistence data.
+   * Reconstitutes an existing TreatmentSession aggregate from persistence data
+   * without generating uncommitted domain events.
    */
   public static reconstitute(props: ReconstituteTreatmentSessionProps): TreatmentSession {
     return new TreatmentSession(props);
@@ -124,7 +150,18 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
       );
     }
     this._status = SessionStatus.IN_PROGRESS;
+    this._version++;
     this.touch(clock);
+
+    this.recordEvent(
+      new TreatmentSessionStartedEvent(
+        this._id.getValue(),
+        this._clientId,
+        this._therapistId,
+        this._version,
+        this._updatedAt,
+      ),
+    );
   }
 
   /**
@@ -139,7 +176,19 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
       );
     }
     this._status = SessionStatus.COMPLETED;
+    this._version++;
     this.touch(clock);
+
+    this.recordEvent(
+      new TreatmentSessionCompletedEvent(
+        this._id.getValue(),
+        this._clientId,
+        this._therapistId,
+        this._appointmentId,
+        this._version,
+        this._updatedAt,
+      ),
+    );
   }
 
   /**
@@ -155,7 +204,18 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
     }
     this._status = SessionStatus.CANCELLED;
     this._cancellationReason = reason?.trim() || undefined;
+    this._version++;
     this.touch(clock);
+
+    this.recordEvent(
+      new TreatmentSessionCancelledEvent(
+        this._id.getValue(),
+        this._clientId,
+        this._cancellationReason,
+        this._version,
+        this._updatedAt,
+      ),
+    );
   }
 
   /**
@@ -170,7 +230,17 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
       );
     }
     this._status = SessionStatus.NO_SHOW;
+    this._version++;
     this.touch(clock);
+
+    this.recordEvent(
+      new TreatmentSessionNoShowEvent(
+        this._id.getValue(),
+        this._clientId,
+        this._version,
+        this._updatedAt,
+      ),
+    );
   }
 
   /**
@@ -184,7 +254,51 @@ export class TreatmentSession implements AggregateRoot<SessionId> {
       throw new Error(`Cannot update clinical notes for a session in '${this._status}' status.`);
     }
     this._notes = notes;
+    this._version++;
     this.touch(clock);
+
+    this.recordEvent(
+      new TreatmentSessionNotesUpdatedEvent(
+        this._id.getValue(),
+        this._clientId,
+        this._therapistId,
+        this._version,
+        this._updatedAt,
+      ),
+    );
+  }
+
+  /**
+   * Reassigns the practitioner conducting this treatment session.
+   */
+  public assignTherapist(newTherapistId: string, clock?: Clock): void {
+    if (!newTherapistId || newTherapistId.trim().length === 0) {
+      throw new Error('Therapist ID cannot be empty.');
+    }
+    if (
+      this._status === SessionStatus.COMPLETED ||
+      this._status === SessionStatus.CANCELLED ||
+      this._status === SessionStatus.NO_SHOW
+    ) {
+      throw new Error(
+        `Cannot reassign therapist for a session in '${this._status}' terminal status.`,
+      );
+    }
+    const previousTherapistId = this._therapistId;
+    this._therapistId = newTherapistId.trim();
+    this._version++;
+    this.touch(clock);
+
+    this.recordEvent(
+      new TherapistAssignedToSessionEvent(
+        this._id.getValue(),
+        this._clientId,
+        previousTherapistId,
+        this._therapistId,
+        this._version,
+        this._updatedAt,
+      ),
+    );
   }
 
   /** Gets the unique aggregate identifier */

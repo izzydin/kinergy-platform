@@ -4,6 +4,15 @@ import { SessionStatus } from './session-status.enum';
 import { SessionNotes } from './session-notes.vo';
 import { TestClock } from '../shared/clock';
 import { InvalidSessionTransitionException } from '../exceptions/invalid-session-transition.exception';
+import {
+  TreatmentSessionCreatedEvent,
+  TreatmentSessionStartedEvent,
+  TreatmentSessionCompletedEvent,
+  TreatmentSessionCancelledEvent,
+  TreatmentSessionNoShowEvent,
+  TreatmentSessionNotesUpdatedEvent,
+  TherapistAssignedToSessionEvent,
+} from '../events';
 
 describe('TreatmentSession Aggregate Root', () => {
   const initialDate = new Date('2026-08-15T14:00:00.000Z');
@@ -39,7 +48,8 @@ describe('TreatmentSession Aggregate Root', () => {
       expect(session.createdAt).toEqual(initialDate);
       expect(session.updatedAt).toEqual(initialDate);
       expect(session.cancellationReason).toBeUndefined();
-      expect(session.getUncommittedEvents()).toEqual([]);
+      expect(session.getUncommittedEvents()).toHaveLength(1);
+      expect(session.getUncommittedEvents()[0]).toBeInstanceOf(TreatmentSessionCreatedEvent);
     });
 
     it('should allow creating a TreatmentSession with a custom SessionId', () => {
@@ -526,7 +536,8 @@ describe('TreatmentSession Aggregate Root', () => {
 
       // Attempting to push to the array should not corrupt internal aggregate state
       (events as unknown[]).push({ eventName: 'HACKED_EVENT' });
-      expect(session.getUncommittedEvents().length).toBe(0);
+      expect(session.getUncommittedEvents().length).toBe(1);
+      expect(session.getUncommittedEvents()[0]).toBeInstanceOf(TreatmentSessionCreatedEvent);
     });
 
     it('should sanitize whitespace-only cancellation reasons to undefined', () => {
@@ -799,5 +810,154 @@ describe('TreatmentSession Aggregate Root', () => {
         }
       },
     );
+  });
+
+  describe('Therapist Reassignment', () => {
+    it('should allow reassigning therapist in SCHEDULED status and record TherapistAssignedEvent', () => {
+      const session = createDefaultSession();
+      session.clearEvents();
+
+      clock.advanceMinutes(5);
+      session.assignTherapist('therapist_new_999', clock);
+
+      expect(session.therapistId).toBe('therapist_new_999');
+      expect(session.version).toBe(2);
+      expect(session.updatedAt).toEqual(clock.now());
+
+      const events = session.getUncommittedEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(TherapistAssignedToSessionEvent);
+      const event = events[0] as unknown as TherapistAssignedToSessionEvent;
+      expect(event.payload.previousTherapistId).toBe('therapist_456');
+      expect(event.payload.newTherapistId).toBe('therapist_new_999');
+      expect(event.version).toBe(2);
+    });
+
+    it('should allow reassigning therapist in IN_PROGRESS status', () => {
+      const session = createDefaultSession();
+      session.start(clock);
+      session.clearEvents();
+
+      clock.advanceMinutes(5);
+      session.assignTherapist('therapist_substitute', clock);
+
+      expect(session.therapistId).toBe('therapist_substitute');
+      expect(session.version).toBe(3);
+    });
+
+    it('should reject therapist reassignment with empty string', () => {
+      const session = createDefaultSession();
+      expect(() => session.assignTherapist('')).toThrow('Therapist ID cannot be empty.');
+      expect(() => session.assignTherapist('   ')).toThrow('Therapist ID cannot be empty.');
+    });
+
+    it('should reject therapist reassignment in terminal statuses', () => {
+      const completedSession = createDefaultSession();
+      completedSession.start(clock);
+      completedSession.complete(clock);
+      expect(() => completedSession.assignTherapist('therapist_new', clock)).toThrow(
+        "Cannot reassign therapist for a session in 'COMPLETED' terminal status.",
+      );
+
+      const cancelledSession = createDefaultSession();
+      cancelledSession.cancel('Cancelled', clock);
+      expect(() => cancelledSession.assignTherapist('therapist_new', clock)).toThrow(
+        "Cannot reassign therapist for a session in 'CANCELLED' terminal status.",
+      );
+
+      const noShowSession = createDefaultSession();
+      noShowSession.markAsNoShow(clock);
+      expect(() => noShowSession.assignTherapist('therapist_new', clock)).toThrow(
+        "Cannot reassign therapist for a session in 'NO_SHOW' terminal status.",
+      );
+    });
+  });
+
+  describe('Domain Event Emission Lifecycle', () => {
+    it('should emit TreatmentSessionStartedEvent on start()', () => {
+      const session = createDefaultSession();
+      session.clearEvents();
+
+      clock.advanceMinutes(15);
+      session.start(clock);
+
+      const events = session.getUncommittedEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(TreatmentSessionStartedEvent);
+      const event = events[0] as unknown as TreatmentSessionStartedEvent;
+      expect(event.payload.sessionId).toBe(session.id.getValue());
+      expect(event.payload.startedAt).toEqual(clock.now());
+      expect(event.version).toBe(2);
+    });
+
+    it('should emit TreatmentSessionCompletedEvent on complete()', () => {
+      const session = createDefaultSession();
+      session.start(clock);
+      session.clearEvents();
+
+      clock.advanceMinutes(45);
+      session.complete(clock);
+
+      const events = session.getUncommittedEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(TreatmentSessionCompletedEvent);
+      const event = events[0] as unknown as TreatmentSessionCompletedEvent;
+      expect(event.payload.sessionId).toBe(session.id.getValue());
+      expect(event.payload.completedAt).toEqual(clock.now());
+      expect(event.version).toBe(3);
+    });
+
+    it('should emit TreatmentSessionCancelledEvent on cancel()', () => {
+      const session = createDefaultSession();
+      session.clearEvents();
+
+      clock.advanceMinutes(10);
+      session.cancel('Client requested reschedule', clock);
+
+      const events = session.getUncommittedEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(TreatmentSessionCancelledEvent);
+      const event = events[0] as unknown as TreatmentSessionCancelledEvent;
+      expect(event.payload.reason).toBe('Client requested reschedule');
+      expect(event.version).toBe(2);
+    });
+
+    it('should emit TreatmentSessionNoShowEvent on markAsNoShow()', () => {
+      const session = createDefaultSession();
+      session.clearEvents();
+
+      clock.advanceMinutes(30);
+      session.markAsNoShow(clock);
+
+      const events = session.getUncommittedEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(TreatmentSessionNoShowEvent);
+      const event = events[0] as unknown as TreatmentSessionNoShowEvent;
+      expect(event.payload.sessionId).toBe(session.id.getValue());
+      expect(event.version).toBe(2);
+    });
+
+    it('should emit TreatmentSessionNotesUpdatedEvent on updateNotes()', () => {
+      const session = createDefaultSession();
+      session.clearEvents();
+
+      clock.advanceMinutes(5);
+      session.updateNotes(SessionNotes.create({ subjective: 'Improved range' }), clock);
+
+      const events = session.getUncommittedEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(TreatmentSessionNotesUpdatedEvent);
+      const event = events[0] as unknown as TreatmentSessionNotesUpdatedEvent;
+      expect(event.payload.sessionId).toBe(session.id.getValue());
+      expect(event.version).toBe(2);
+    });
+
+    it('should clear uncommitted events via clearEvents()', () => {
+      const session = createDefaultSession();
+      expect(session.getUncommittedEvents().length).toBe(1);
+
+      session.clearEvents();
+      expect(session.getUncommittedEvents().length).toBe(0);
+    });
   });
 });
