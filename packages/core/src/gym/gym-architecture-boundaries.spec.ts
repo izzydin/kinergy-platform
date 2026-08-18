@@ -157,12 +157,12 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
   });
 
   describe('4. Architecture Documentation & ADR Integrity Verification', () => {
-    it('should verify all Phase 5.1 & 5.3 ADRs exist, are accepted, and are indexed in docs/adr/README.md', () => {
+    it('should verify all Phase 5.1, 5.3 & 5.4 ADRs exist, are accepted, and are indexed in docs/adr/README.md', () => {
       const adrIndexPath = path.resolve(__dirname, '../../../../docs/adr/README.md');
       expect(fs.existsSync(adrIndexPath)).toBe(true);
 
       const adrIndexContent = fs.readFileSync(adrIndexPath, 'utf-8');
-      const requiredAdrs = ['0054', '0055', '0056', '0057', '0058', '0059', '0060'];
+      const requiredAdrs = ['0054', '0055', '0056', '0057', '0058', '0059', '0060', '0061'];
 
       for (const adrNum of requiredAdrs) {
         expect(adrIndexContent).toContain(`[${adrNum}]`);
@@ -180,7 +180,7 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       }
     });
 
-    it('should enforce all Phase 5.1 & 5.3 architecture specification documents exist and contain invariants', () => {
+    it('should enforce all Phase 5.1, 5.3 & 5.4 architecture specification documents exist and contain invariants', () => {
       const contextDocPath = path.resolve(
         __dirname,
         '../../../../docs/architecture/contexts/gym.md',
@@ -206,6 +206,10 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         __dirname,
         '../../../../docs/architecture/gym-create-membership-use-case.md',
       );
+      const renewalDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-renewal-and-expiration-semantics.md',
+      );
 
       expect(fs.existsSync(contextDocPath)).toBe(true);
       expect(fs.existsSync(reconDocPath)).toBe(true);
@@ -214,6 +218,12 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(lifecycleDocPath)).toBe(true);
       expect(fs.existsSync(commercialDocPath)).toBe(true);
       expect(fs.existsSync(useCaseDocPath)).toBe(true);
+      expect(fs.existsSync(renewalDocPath)).toBe(true);
+
+      const renewalDocContent = fs.readFileSync(renewalDocPath, 'utf-8');
+      expect(renewalDocContent).toContain('Renewal Temporal Rules');
+      expect(renewalDocContent).toContain('Two-Tier Expiration Processing');
+      expect(renewalDocContent).toContain('Attendance Eligibility Contract');
 
       const commercialDocContent = fs.readFileSync(commercialDocPath, 'utf-8');
       expect(commercialDocContent).toContain('MembershipPlan');

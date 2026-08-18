@@ -3,7 +3,7 @@
 - **Status**: Authoritative Bounded Context Architecture Baseline
 - **Location**: `packages/core/src/gym/`
 - **Owner**: Gym Management Engineering Team
-- **ADR Suite**: [ADR-0054](../../adr/0054-gym-management-bounded-context-ownership-and-context-map.md), [ADR-0055](../../adr/0055-gym-management-canonical-domain-vocabulary-and-semantic-contracts.md), [ADR-0056](../../adr/0056-gym-management-aggregate-discovery-and-boundary-decisions.md), [ADR-0057](../../adr/0057-gym-management-domain-invariants-and-lifecycle-model.md), [ADR-0058](../../adr/0058-gym-management-membership-plan-commercial-and-pricing-model.md), [ADR-0059](../../adr/0059-gym-management-membership-historical-integrity-and-plan-decoupling-strategy.md), [ADR-0060](../../adr/0060-gym-management-duplicate-and-overlapping-membership-policy.md)
+- **ADR Suite**: [ADR-0054](../../adr/0054-gym-management-bounded-context-ownership-and-context-map.md), [ADR-0055](../../adr/0055-gym-management-canonical-domain-vocabulary-and-semantic-contracts.md), [ADR-0056](../../adr/0056-gym-management-aggregate-discovery-and-boundary-decisions.md), [ADR-0057](../../adr/0057-gym-management-domain-invariants-and-lifecycle-model.md), [ADR-0058](../../adr/0058-gym-management-membership-plan-commercial-and-pricing-model.md), [ADR-0059](../../adr/0059-gym-management-membership-historical-integrity-and-plan-decoupling-strategy.md), [ADR-0060](../../adr/0060-gym-management-duplicate-and-overlapping-membership-policy.md), [ADR-0061](../../adr/0061-gym-management-membership-renewal-and-expiration-temporal-semantics.md)
 
 ---
 
@@ -262,6 +262,7 @@ stateDiagram-v2
 - **[ADR-0058: Gym Management MembershipPlan Commercial & Pricing Model](../../adr/0058-gym-management-membership-plan-commercial-and-pricing-model.md)**
 - **[ADR-0059: Gym Management Membership Historical Integrity & Plan Decoupling Strategy](../../adr/0059-gym-management-membership-historical-integrity-and-plan-decoupling-strategy.md)**
 - **[ADR-0060: Gym Management Duplicate and Overlapping Membership Policy & Concurrency Control](../../adr/0060-gym-management-duplicate-and-overlapping-membership-policy.md)**
+- **[ADR-0061: Gym Management Membership Renewal Semantics & Expiration Lifecycle Rules](../../adr/0061-gym-management-membership-renewal-and-expiration-temporal-semantics.md)**
 - **[ADR-0002: Client Domain Foundation & Identity Decoupling](../../adr/0002-client-domain-foundation.md)**
 - **[ADR-0010: Backend Clean Architecture & Layering](../../adr/0010-backend-clean-architecture-layering.md)**
 - **[ADR-0012: Shared Domain Kernel Abstractions](../../adr/0012-shared-domain-kernel-abstractions.md)**
