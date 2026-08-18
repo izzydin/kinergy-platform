@@ -233,6 +233,10 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         __dirname,
         '../../../../docs/architecture/gym-expiration-indicators-and-operational-read-models.md',
       );
+      const consistencyAuditDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-lifecycle-integration-and-consistency-audit.md',
+      );
 
       expect(fs.existsSync(contextDocPath)).toBe(true);
       expect(fs.existsSync(reconDocPath)).toBe(true);
@@ -245,6 +249,12 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(renewUseCaseDocPath)).toBe(true);
       expect(fs.existsSync(expirationProcessingDocPath)).toBe(true);
       expect(fs.existsSync(expirationIndicatorsDocPath)).toBe(true);
+      expect(fs.existsSync(consistencyAuditDocPath)).toBe(true);
+
+      const auditDocContent = fs.readFileSync(consistencyAuditDocPath, 'utf-8');
+      expect(auditDocContent).toContain('Lifecycle State Machine');
+      expect(auditDocContent).toContain('Time Consistency Audit');
+      expect(auditDocContent).toContain('Historical Integrity & Plan Decoupling');
 
       const indicatorsDocContent = fs.readFileSync(expirationIndicatorsDocPath, 'utf-8');
       expect(indicatorsDocContent).toContain('GetExpiringMembershipsHandler');
