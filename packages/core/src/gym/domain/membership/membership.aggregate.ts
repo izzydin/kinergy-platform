@@ -288,6 +288,62 @@ export class Membership implements AggregateRoot<MembershipId> {
     this.touch(clock);
   }
 
+  /**
+   * Assigns an operational fitness trainer to this membership.
+   */
+  public assignTrainer(trainerId: string, clock?: Clock): void {
+    if (
+      this._status === MembershipStatus.TERMINATED ||
+      this._status === MembershipStatus.CANCELLED
+    ) {
+      throw new Error(
+        `Cannot assign trainer to a membership in '${this._status}' terminal status.`,
+      );
+    }
+    if (!trainerId || trainerId.trim().length === 0) {
+      throw new Error('Trainer ID cannot be empty.');
+    }
+    const now = clock ? clock.now() : new Date();
+    this._trainerAssignment = TrainerAssignment.create(trainerId.trim(), now);
+    this._version++;
+    this.touch(clock);
+  }
+
+  /**
+   * Removes the assigned operational trainer from this membership.
+   */
+  public removeTrainer(clock?: Clock): void {
+    if (
+      this._status === MembershipStatus.TERMINATED ||
+      this._status === MembershipStatus.CANCELLED
+    ) {
+      throw new Error(
+        `Cannot remove trainer from a membership in '${this._status}' terminal status.`,
+      );
+    }
+    this._trainerAssignment = null;
+    this._version++;
+    this.touch(clock);
+  }
+
+  /**
+   * Changes the associated MembershipPlan catalog template.
+   */
+  public changePlan(newPlanId: string, clock?: Clock): void {
+    if (
+      this._status === MembershipStatus.TERMINATED ||
+      this._status === MembershipStatus.CANCELLED
+    ) {
+      throw new Error(`Cannot change plan for a membership in '${this._status}' terminal status.`);
+    }
+    if (!newPlanId || newPlanId.trim().length === 0) {
+      throw new Error('New Plan ID cannot be empty.');
+    }
+    this._planId = newPlanId.trim();
+    this._version++;
+    this.touch(clock);
+  }
+
   // =========================================================================
   // Query Helpers & Encapsulated State Getters
   // =========================================================================
