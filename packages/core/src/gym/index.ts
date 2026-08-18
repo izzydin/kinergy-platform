@@ -4,3 +4,5 @@
  */
 
 export const GYM_BOUNDED_CONTEXT_NAME = 'GYM_MANAGEMENT';
+
+export * from './domain';
