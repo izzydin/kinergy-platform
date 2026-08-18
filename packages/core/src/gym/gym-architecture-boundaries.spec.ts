@@ -158,7 +158,7 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(adrIndexPath)).toBe(true);
 
       const adrIndexContent = fs.readFileSync(adrIndexPath, 'utf-8');
-      const requiredAdrs = ['0054', '0055', '0056', '0057'];
+      const requiredAdrs = ['0054', '0055', '0056', '0057', '0058'];
 
       for (const adrNum of requiredAdrs) {
         expect(adrIndexContent).toContain(`[${adrNum}]`);
@@ -176,7 +176,7 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       }
     });
 
-    it('should enforce all Phase 5.1 architecture specification documents exist and contain invariants', () => {
+    it('should enforce all Phase 5.1 & 5.3 architecture specification documents exist and contain invariants', () => {
       const contextDocPath = path.resolve(
         __dirname,
         '../../../../docs/architecture/contexts/gym.md',
@@ -194,12 +194,23 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         __dirname,
         '../../../../docs/architecture/gym-lifecycle-and-invariants.md',
       );
+      const commercialDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-commercial-model.md',
+      );
 
       expect(fs.existsSync(contextDocPath)).toBe(true);
       expect(fs.existsSync(reconDocPath)).toBe(true);
       expect(fs.existsSync(vocabDocPath)).toBe(true);
       expect(fs.existsSync(aggDocPath)).toBe(true);
       expect(fs.existsSync(lifecycleDocPath)).toBe(true);
+      expect(fs.existsSync(commercialDocPath)).toBe(true);
+
+      const commercialDocContent = fs.readFileSync(commercialDocPath, 'utf-8');
+      expect(commercialDocContent).toContain('MembershipPlan');
+      expect(commercialDocContent).toContain('PlanDuration');
+      expect(commercialDocContent).toContain('PlanPrice');
+      expect(commercialDocContent).toContain('PlanStatus');
 
       const contextDocContent = fs.readFileSync(contextDocPath, 'utf-8');
       expect(contextDocContent).toContain('Gym Management Bounded Context');
