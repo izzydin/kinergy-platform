@@ -146,6 +146,7 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       const domainIndexContent = fs.readFileSync(domainIndexPath, 'utf-8');
       expect(domainIndexContent).toContain("export * from './exceptions'");
       expect(domainIndexContent).toContain("export * from './membership'");
+      expect(domainIndexContent).toContain("export * from './plan'");
       expect(domainIndexContent).toContain("export * from './events'");
       // Must not re-export ./shared directly to prevent global collision with root kernel
       expect(domainIndexContent).not.toContain("export * from './shared'");
