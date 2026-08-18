@@ -57,6 +57,14 @@ export class MembershipPeriod implements ValueObject<MembershipPeriodValue> {
     return t >= this._startDate.getTime() && t <= this._endDate.getTime();
   }
 
+  public isCurrent(date: Date): boolean {
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+      return false;
+    }
+    const t = date.getTime();
+    return t >= this._startDate.getTime() && t < this._endDate.getTime();
+  }
+
   public isExpiredAt(date: Date): boolean {
     if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
       return false;

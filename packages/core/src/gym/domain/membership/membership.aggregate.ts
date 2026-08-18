@@ -282,12 +282,13 @@ export class Membership implements AggregateRoot<MembershipId> {
   }
 
   /**
-   * Renews a membership.
-   * If ACTIVE: extends period gaplessly from existing endDate.
-   * If EXPIRED: establishes new period and re-activates agreement.
+   * Renews a membership in accordance with ADR-0061 temporal semantics.
+   * If ACTIVE and now <= endDate: extends period gaplessly from existing endDate (preserves 100% unused time).
+   * If ACTIVE and now > endDate (late renewal): establishes new period from effective now.
+   * If EXPIRED: establishes new period and re-activates agreement to ACTIVE (no gap fees).
    * Transitions: ACTIVE -> ACTIVE, EXPIRED -> ACTIVE
    */
-  public renew(additionalPeriod: MembershipPeriod, clock?: Clock): void {
+  public renew(additionalPeriod: MembershipPeriod, clock?: Clock, newPlanId?: string): void {
     if (this._status !== MembershipStatus.ACTIVE && this._status !== MembershipStatus.EXPIRED) {
       throw new InvalidMembershipTransitionException(
         this._status,
@@ -299,15 +300,27 @@ export class Membership implements AggregateRoot<MembershipId> {
       throw new Error('Additional renewal period must be provided.');
     }
 
+    const now = clock ? clock.now() : new Date();
+
     if (this._status === MembershipStatus.ACTIVE) {
-      this._period = this._period.extend(additionalPeriod.durationDays);
+      if (now.getTime() > this._period.endDate.getTime()) {
+        // Late renewal: current status is ACTIVE but passage of time is past endDate
+        this._period = additionalPeriod;
+      } else {
+        // Early or boundary renewal: extend seamlessly from current endDate
+        this._period = this._period.extend(additionalPeriod.durationDays);
+      }
     } else {
+      // Lapsed renewal: re-activate agreement from effective payment period
       this._period = additionalPeriod;
       this._status = MembershipStatus.ACTIVE;
     }
 
+    if (newPlanId && newPlanId.trim().length > 0) {
+      this._planId = newPlanId.trim();
+    }
+
     this._version++;
-    const now = clock ? clock.now() : new Date();
     this.touch(clock);
     this.recordEvent(
       new MembershipRenewedEvent(
@@ -469,11 +482,25 @@ export class Membership implements AggregateRoot<MembershipId> {
   }
 
   /**
+   * Evaluates whether the membership is currently on freeze at the given instant.
+   */
+  public isCurrentlyFrozen(atDate: Date = new Date()): boolean {
+    if (this._status === MembershipStatus.FROZEN) {
+      return true;
+    }
+    return this._freezeHistory.some((f) => f.contains(atDate));
+  }
+
+  /**
    * Determines whether the membership is currently eligible for facility attendance / check-in.
-   * Business invariant: Only ACTIVE status memberships within their validity period are eligible.
+   * Business invariant: Only ACTIVE status memberships without an active freeze
+   * and within their validity period are eligible.
    */
   public isEligibleForAttendance(atDate: Date = new Date()): boolean {
     if (this._status !== MembershipStatus.ACTIVE) {
+      return false;
+    }
+    if (this.isCurrentlyFrozen(atDate)) {
       return false;
     }
     return this._period.contains(atDate);
@@ -547,6 +574,11 @@ export class Membership implements AggregateRoot<MembershipId> {
   /** Clears all uncommitted domain events */
   public clearEvents(): void {
     this.uncommittedEvents = [];
+  }
+
+  /** Clears all uncommitted domain events (standard alias) */
+  public clearUncommittedEvents(): void {
+    this.clearEvents();
   }
 
   /** Pulls and clears all uncommitted domain events */
