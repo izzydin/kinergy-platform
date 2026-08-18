@@ -6,6 +6,7 @@ import { MembershipStatus } from './membership-status.enum';
 import { MembershipPeriod } from './membership-period.vo';
 import { FreezeWindow } from './freeze-window.vo';
 import { TrainerAssignment } from './trainer-assignment.vo';
+import { InvalidMembershipTransitionException } from '../exceptions/invalid-membership-transition.exception';
 
 /**
  * Properties required to create a new Membership aggregate root.
@@ -130,6 +131,189 @@ export class Membership implements AggregateRoot<MembershipId> {
    */
   public static reconstitute(props: ReconstituteMembershipProps): Membership {
     return new Membership(props);
+  }
+
+  // =========================================================================
+  // Deterministic Lifecycle State Machine Operations (Phase 5.2-C)
+  // =========================================================================
+
+  /**
+   * Activates a pending membership.
+   * Transitions: PENDING -> ACTIVE
+   */
+  public activate(clock?: Clock): void {
+    if (this._status !== MembershipStatus.PENDING) {
+      throw new InvalidMembershipTransitionException(
+        this._status,
+        MembershipStatus.ACTIVE,
+        'Only PENDING memberships can be activated.',
+      );
+    }
+    this._status = MembershipStatus.ACTIVE;
+    this._version++;
+    this.touch(clock);
+  }
+
+  /**
+   * Freezes an active membership, capturing a freeze window.
+   * Transitions: ACTIVE -> FROZEN
+   */
+  public freeze(window: FreezeWindow, clock?: Clock): void {
+    if (this._status !== MembershipStatus.ACTIVE) {
+      throw new InvalidMembershipTransitionException(
+        this._status,
+        MembershipStatus.FROZEN,
+        'Only ACTIVE memberships can be frozen.',
+      );
+    }
+    if (!window) {
+      throw new Error('Freeze window cannot be null or undefined.');
+    }
+    this._freezeHistory.push(window);
+    this._status = MembershipStatus.FROZEN;
+    this._version++;
+    this.touch(clock);
+  }
+
+  /**
+   * Resumes a frozen membership, extending the expiration date by the freeze duration.
+   * Transitions: FROZEN -> ACTIVE
+   */
+  public unfreeze(clock?: Clock): void {
+    if (this._status !== MembershipStatus.FROZEN) {
+      throw new InvalidMembershipTransitionException(
+        this._status,
+        MembershipStatus.ACTIVE,
+        'Only FROZEN memberships can be resumed/unfrozen.',
+      );
+    }
+    if (this._freezeHistory.length === 0) {
+      throw new Error('No freeze window found in freeze history to resume from.');
+    }
+
+    const latestFreeze = this._freezeHistory[this._freezeHistory.length - 1]!;
+    const durationDays = latestFreeze.durationDays;
+    if (durationDays > 0) {
+      this._period = this._period.extend(durationDays);
+    }
+
+    this._status = MembershipStatus.ACTIVE;
+    this._version++;
+    this.touch(clock);
+  }
+
+  /**
+   * Transitions an active or frozen membership to expired status upon reaching end date.
+   * Transitions: ACTIVE -> EXPIRED, FROZEN -> EXPIRED
+   */
+  public expire(clock?: Clock): void {
+    if (this._status !== MembershipStatus.ACTIVE && this._status !== MembershipStatus.FROZEN) {
+      throw new InvalidMembershipTransitionException(
+        this._status,
+        MembershipStatus.EXPIRED,
+        'Only ACTIVE or FROZEN memberships can expire.',
+      );
+    }
+    this._status = MembershipStatus.EXPIRED;
+    this._version++;
+    this.touch(clock);
+  }
+
+  /**
+   * Renews a membership.
+   * If ACTIVE: extends period gaplessly from existing endDate.
+   * If EXPIRED: establishes new period and re-activates agreement.
+   * Transitions: ACTIVE -> ACTIVE, EXPIRED -> ACTIVE
+   */
+  public renew(additionalPeriod: MembershipPeriod, clock?: Clock): void {
+    if (this._status !== MembershipStatus.ACTIVE && this._status !== MembershipStatus.EXPIRED) {
+      throw new InvalidMembershipTransitionException(
+        this._status,
+        MembershipStatus.ACTIVE,
+        'Only ACTIVE or EXPIRED memberships can be renewed.',
+      );
+    }
+    if (!additionalPeriod) {
+      throw new Error('Additional renewal period must be provided.');
+    }
+
+    if (this._status === MembershipStatus.ACTIVE) {
+      this._period = this._period.extend(additionalPeriod.durationDays);
+    } else {
+      this._period = additionalPeriod;
+      this._status = MembershipStatus.ACTIVE;
+    }
+
+    this._version++;
+    this.touch(clock);
+  }
+
+  /**
+   * Cancels a membership upon voluntary agreement termination.
+   * Transitions: PENDING -> CANCELLED, ACTIVE -> CANCELLED, FROZEN -> CANCELLED
+   */
+  public cancel(reason?: string, clock?: Clock): void {
+    if (
+      this._status !== MembershipStatus.PENDING &&
+      this._status !== MembershipStatus.ACTIVE &&
+      this._status !== MembershipStatus.FROZEN
+    ) {
+      throw new InvalidMembershipTransitionException(
+        this._status,
+        MembershipStatus.CANCELLED,
+        `Cannot cancel membership from '${this._status}' status.`,
+      );
+    }
+    this._status = MembershipStatus.CANCELLED;
+    this._cancellationReason = reason?.trim() || undefined;
+    this._version++;
+    this.touch(clock);
+  }
+
+  /**
+   * Irrevocably terminates a membership due to fraud, policy breach, or account archival.
+   * Transitions: PENDING, ACTIVE, FROZEN, EXPIRED, CANCELLED -> TERMINATED
+   */
+  public terminate(reason?: string, clock?: Clock): void {
+    if (this._status === MembershipStatus.TERMINATED) {
+      throw new InvalidMembershipTransitionException(
+        this._status,
+        MembershipStatus.TERMINATED,
+        'Membership is already irrevocably terminated.',
+      );
+    }
+    this._status = MembershipStatus.TERMINATED;
+    this._terminationReason = reason?.trim() || undefined;
+    this._version++;
+    this.touch(clock);
+  }
+
+  // =========================================================================
+  // Query Helpers & Encapsulated State Getters
+  // =========================================================================
+
+  public isPending(): boolean {
+    return this._status === MembershipStatus.PENDING;
+  }
+
+  public isActive(): boolean {
+    return this._status === MembershipStatus.ACTIVE;
+  }
+
+  public isFrozen(): boolean {
+    return this._status === MembershipStatus.FROZEN;
+  }
+
+  public isExpired(): boolean {
+    return this._status === MembershipStatus.EXPIRED;
+  }
+
+  public isCancelled(): boolean {
+    return this._status === MembershipStatus.CANCELLED;
+  }
+
+  public isTerminated(): boolean {
+    return this._status === MembershipStatus.TERMINATED;
   }
 
   /** Unique aggregate identifier */
