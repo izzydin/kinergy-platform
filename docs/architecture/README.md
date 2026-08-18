@@ -80,3 +80,7 @@ graph TD
    - Authoritative reconnaissance baseline, bounded context constraints, and client ownership rules for Gym Management.
 7. **[Gym Management Bounded Context Specification (Phase 5.1-B)](./contexts/gym.md)**
    - Authoritative domain ownership, Context Map, and integration boundary specifications for Gym Management.
+8. **[Gym Management Canonical Domain Vocabulary (Phase 5.1-C)](../business/gym-vocabulary.md)**
+   - Authoritative ubiquitous language, semantic models, and term definitions for Gym Management.
+9. **[Gym Management Aggregate Boundaries & Consistency Architecture (Phase 5.1-D)](./gym-aggregate-boundaries.md)**
+   - Authoritative aggregate boundaries (`Membership`, `MembershipPlan`, `AttendanceRecord`), invariants, and concurrency rules.

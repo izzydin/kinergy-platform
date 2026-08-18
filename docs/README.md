@@ -37,6 +37,8 @@ docs/
 - **[Kinesiology Bounded Context](file:///c:/Projects/kinergy-platform/docs/architecture/contexts/kinesiology.md)**: Domain ownership boundaries, aggregate matrix, and cross-context contracts.
 - **[Gym Management Bounded Context](file:///c:/Projects/kinergy-platform/docs/architecture/contexts/gym.md)**: Domain ownership boundaries, Context Map, and integration matrix.
 - **[Gym Management Reconnaissance & Baseline](file:///c:/Projects/kinergy-platform/docs/architecture/gym-management-reconnaissance.md)**: Phase 5.1-A reconnaissance, context constraints, and client ownership rules.
+- **[Gym Management Canonical Vocabulary](file:///c:/Projects/kinergy-platform/docs/business/gym-vocabulary.md)**: Phase 5.1-C ubiquitous language, semantic models, and term definitions.
+- **[Gym Management Aggregate Boundaries](file:///c:/Projects/kinergy-platform/docs/architecture/gym-aggregate-boundaries.md)**: Phase 5.1-D aggregate boundaries (`Membership`, `MembershipPlan`, `AttendanceRecord`), invariants, and concurrency rules.
 
 ### 3. Frontend Architecture Vision & Principles
 

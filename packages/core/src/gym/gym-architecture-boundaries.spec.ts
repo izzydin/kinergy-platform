@@ -90,11 +90,21 @@ describe('Gym Management Bounded Context Architecture & Boundary Purity', () => 
       __dirname,
       '../../../../docs/adr/0055-gym-management-canonical-domain-vocabulary-and-semantic-contracts.md',
     );
+    const aggDocPath = path.resolve(
+      __dirname,
+      '../../../../docs/architecture/gym-aggregate-boundaries.md',
+    );
+    const adrAggDocPath = path.resolve(
+      __dirname,
+      '../../../../docs/adr/0056-gym-management-aggregate-discovery-and-boundary-decisions.md',
+    );
 
     expect(fs.existsSync(contextDocPath)).toBe(true);
     expect(fs.existsSync(adrDocPath)).toBe(true);
     expect(fs.existsSync(vocabDocPath)).toBe(true);
     expect(fs.existsSync(adrVocabDocPath)).toBe(true);
+    expect(fs.existsSync(aggDocPath)).toBe(true);
+    expect(fs.existsSync(adrAggDocPath)).toBe(true);
 
     const contextDocContent = fs.readFileSync(contextDocPath, 'utf-8');
     expect(contextDocContent).toContain('Gym Management Bounded Context');
@@ -106,5 +116,10 @@ describe('Gym Management Bounded Context Architecture & Boundary Purity', () => 
     expect(vocabDocContent).toContain('MembershipPlan');
     expect(vocabDocContent).toContain('AttendanceRecord');
     expect(vocabDocContent).toContain('GymDay');
+
+    const aggDocContent = fs.readFileSync(aggDocPath, 'utf-8');
+    expect(aggDocContent).toContain('Membership');
+    expect(aggDocContent).toContain('MembershipPlan');
+    expect(aggDocContent).toContain('AttendanceRecord');
   });
 });
