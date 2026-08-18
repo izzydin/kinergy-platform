@@ -133,9 +133,22 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
 
       const gymIndexContent = fs.readFileSync(gymIndexPath, 'utf-8');
       expect(gymIndexContent).toContain('GYM_BOUNDED_CONTEXT_NAME');
+      expect(gymIndexContent).toContain("export * from './domain'");
 
       const coreIndexContent = fs.readFileSync(coreIndexPath, 'utf-8');
       expect(coreIndexContent).toContain("export * from './gym'");
+    });
+
+    it('should cleanly export Membership aggregate, Value Objects, and Domain Events without kernel collision', () => {
+      const domainIndexPath = path.resolve(__dirname, 'domain/index.ts');
+      expect(fs.existsSync(domainIndexPath)).toBe(true);
+
+      const domainIndexContent = fs.readFileSync(domainIndexPath, 'utf-8');
+      expect(domainIndexContent).toContain("export * from './exceptions'");
+      expect(domainIndexContent).toContain("export * from './membership'");
+      expect(domainIndexContent).toContain("export * from './events'");
+      // Must not re-export ./shared directly to prevent global collision with root kernel
+      expect(domainIndexContent).not.toContain("export * from './shared'");
     });
   });
 
