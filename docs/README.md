@@ -39,6 +39,7 @@ docs/
 - **[Gym Management Reconnaissance & Baseline](file:///c:/Projects/kinergy-platform/docs/architecture/gym-management-reconnaissance.md)**: Phase 5.1-A reconnaissance, context constraints, and client ownership rules.
 - **[Gym Management Canonical Vocabulary](file:///c:/Projects/kinergy-platform/docs/business/gym-vocabulary.md)**: Phase 5.1-C ubiquitous language, semantic models, and term definitions.
 - **[Gym Management Aggregate Boundaries](file:///c:/Projects/kinergy-platform/docs/architecture/gym-aggregate-boundaries.md)**: Phase 5.1-D aggregate boundaries (`Membership`, `MembershipPlan`, `AttendanceRecord`), invariants, and concurrency rules.
+- **[Gym Management Lifecycle & Invariants](file:///c:/Projects/kinergy-platform/docs/architecture/gym-lifecycle-and-invariants.md)**: Phase 5.1-E state transitions, freeze/renewal mathematical rules, and time model.
 
 ### 3. Frontend Architecture Vision & Principles
 

@@ -84,3 +84,5 @@ graph TD
    - Authoritative ubiquitous language, semantic models, and term definitions for Gym Management.
 9. **[Gym Management Aggregate Boundaries & Consistency Architecture (Phase 5.1-D)](./gym-aggregate-boundaries.md)**
    - Authoritative aggregate boundaries (`Membership`, `MembershipPlan`, `AttendanceRecord`), invariants, and concurrency rules.
+10. **[Gym Management Lifecycle Models & Domain Invariants (Phase 5.1-E)](./gym-lifecycle-and-invariants.md)**
+    - Authoritative state machine transitions, freeze/renewal mathematical rules, access eligibility engine, and canonical time model.

@@ -98,6 +98,14 @@ describe('Gym Management Bounded Context Architecture & Boundary Purity', () => 
       __dirname,
       '../../../../docs/adr/0056-gym-management-aggregate-discovery-and-boundary-decisions.md',
     );
+    const lifecycleDocPath = path.resolve(
+      __dirname,
+      '../../../../docs/architecture/gym-lifecycle-and-invariants.md',
+    );
+    const adrLifecycleDocPath = path.resolve(
+      __dirname,
+      '../../../../docs/adr/0057-gym-management-domain-invariants-and-lifecycle-model.md',
+    );
 
     expect(fs.existsSync(contextDocPath)).toBe(true);
     expect(fs.existsSync(adrDocPath)).toBe(true);
@@ -105,6 +113,8 @@ describe('Gym Management Bounded Context Architecture & Boundary Purity', () => 
     expect(fs.existsSync(adrVocabDocPath)).toBe(true);
     expect(fs.existsSync(aggDocPath)).toBe(true);
     expect(fs.existsSync(adrAggDocPath)).toBe(true);
+    expect(fs.existsSync(lifecycleDocPath)).toBe(true);
+    expect(fs.existsSync(adrLifecycleDocPath)).toBe(true);
 
     const contextDocContent = fs.readFileSync(contextDocPath, 'utf-8');
     expect(contextDocContent).toContain('Gym Management Bounded Context');
@@ -121,5 +131,11 @@ describe('Gym Management Bounded Context Architecture & Boundary Purity', () => 
     expect(aggDocContent).toContain('Membership');
     expect(aggDocContent).toContain('MembershipPlan');
     expect(aggDocContent).toContain('AttendanceRecord');
+
+    const lifecycleDocContent = fs.readFileSync(lifecycleDocPath, 'utf-8');
+    expect(lifecycleDocContent).toContain('Membership');
+    expect(lifecycleDocContent).toContain('State Machine Strictness');
+    expect(lifecycleDocContent).toContain('Freeze Conservation');
+    expect(lifecycleDocContent).toContain('Anti-Passback');
   });
 });
