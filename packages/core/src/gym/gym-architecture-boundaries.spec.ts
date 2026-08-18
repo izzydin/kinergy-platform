@@ -214,6 +214,10 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         __dirname,
         '../../../../docs/architecture/gym-renew-membership-use-case.md',
       );
+      const expirationProcessingDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-automatic-membership-expiration-processing.md',
+      );
 
       expect(fs.existsSync(contextDocPath)).toBe(true);
       expect(fs.existsSync(reconDocPath)).toBe(true);
@@ -224,6 +228,12 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(useCaseDocPath)).toBe(true);
       expect(fs.existsSync(renewalDocPath)).toBe(true);
       expect(fs.existsSync(renewUseCaseDocPath)).toBe(true);
+      expect(fs.existsSync(expirationProcessingDocPath)).toBe(true);
+
+      const expirationDocContent = fs.readFileSync(expirationProcessingDocPath, 'utf-8');
+      expect(expirationDocContent).toContain('ExpireMembershipsHandler');
+      expect(expirationDocContent).toContain('findExpiringCandidates');
+      expect(expirationDocContent).toContain('Item-Level Fault Isolation');
 
       const renewUseCaseDocContent = fs.readFileSync(renewUseCaseDocPath, 'utf-8');
       expect(renewUseCaseDocContent).toContain('RenewMembershipHandler');

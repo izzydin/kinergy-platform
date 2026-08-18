@@ -61,6 +61,7 @@ describe('Commercial Rules & Membership Creation Test Suite (Phase 5.3-F)', () =
       save: jest.fn().mockResolvedValue(undefined),
       findById: jest.fn().mockResolvedValue(null),
       findByClientId: jest.fn().mockResolvedValue([]),
+      findExpiringCandidates: jest.fn().mockResolvedValue([]),
     };
 
     membershipPlanRepository = {
