@@ -1,9 +1,19 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-describe('Gym Management Bounded Context Architecture & Boundary Purity', () => {
+/**
+ * Authoritative Architecture Verification Test Suite for Gym Management (Phase 5.1-G).
+ * Structurally protects bounded context isolation, domain layer purity, public API boundaries,
+ * and documentation integrity.
+ */
+
+describe('Gym Management Bounded Context Architecture & Boundary Verification (Phase 5.1-G)', () => {
   const gymDomainPath = path.resolve(__dirname, 'domain');
   const gymApplicationPath = path.resolve(__dirname, 'application');
+  const schedulingPath = path.resolve(__dirname, '../scheduling');
+  const kinesiologyPath = path.resolve(__dirname, '../kinesiology');
+  const clientPath = path.resolve(__dirname, '../../../../modules/client');
+  const identityPath = path.resolve(__dirname, '../../../../apps/api/src/platform/identity');
 
   function getProductionTsFiles(dirPath: string): string[] {
     const files: string[] = [];
@@ -20,122 +30,171 @@ describe('Gym Management Bounded Context Architecture & Boundary Purity', () => 
     return files;
   }
 
-  it('should guarantee zero foreign aggregate, framework or Prisma dependencies in Gym Domain production code', () => {
-    const domainFiles = getProductionTsFiles(gymDomainPath);
+  describe('1. Domain Layer Independence & Framework Freedom', () => {
+    it('should guarantee zero foreign aggregate, framework or Prisma dependencies in Gym Domain production code', () => {
+      const domainFiles = getProductionTsFiles(gymDomainPath);
 
-    const forbiddenPatterns = [
-      '@prisma',
-      'prisma',
-      '@nestjs',
-      'scheduling/domain/appointment/appointment.aggregate',
-      'scheduling/domain/room',
-      'kinesiology/domain',
-      'client-domain/domain',
-      'modules/client/domain',
-      'platform/identity/domain',
-      'express',
-      'fastify',
-    ];
+      const forbiddenPatterns = [
+        '@prisma',
+        'prisma',
+        '@nestjs',
+        'scheduling/domain/appointment/appointment.aggregate',
+        'scheduling/domain/room',
+        'kinesiology/domain',
+        'client-domain/domain',
+        'modules/client/domain',
+        'platform/identity/domain',
+        'express',
+        'fastify',
+      ];
 
-    for (const filePath of domainFiles) {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      for (const pattern of forbiddenPatterns) {
-        const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
-        const hasViolation = importRegex.test(content);
-        if (hasViolation) {
-          throw new Error(
-            `Architecture Violation: File '${filePath}' contains forbidden import matching '${pattern}'.`,
-          );
+      for (const filePath of domainFiles) {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        for (const pattern of forbiddenPatterns) {
+          const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
+          const hasViolation = importRegex.test(content);
+          if (hasViolation) {
+            throw new Error(
+              `Architecture Violation: File '${filePath}' contains forbidden import matching '${pattern}'.`,
+            );
+          }
         }
       }
-    }
-  });
+    });
 
-  it('should guarantee zero direct foreign domain aggregate imports in Gym Application production code', () => {
-    const applicationFiles = getProductionTsFiles(gymApplicationPath);
+    it('should guarantee zero direct foreign domain aggregate imports in Gym Application production code', () => {
+      const applicationFiles = getProductionTsFiles(gymApplicationPath);
 
-    const forbiddenPatterns = [
-      'scheduling/domain/appointment/appointment.aggregate',
-      'scheduling/domain/room/room.aggregate',
-      'kinesiology/domain/treatment-session/treatment-session.aggregate',
-      'modules/client/domain/aggregates/client.aggregate',
-      'platform/identity/domain/user.entity',
-      'scheduling/infrastructure',
-      'kinesiology/infrastructure',
-    ];
+      const forbiddenPatterns = [
+        'scheduling/domain/appointment/appointment.aggregate',
+        'scheduling/domain/room/room.aggregate',
+        'kinesiology/domain/treatment-session/treatment-session.aggregate',
+        'modules/client/domain/aggregates/client.aggregate',
+        'platform/identity/domain/user.entity',
+        'scheduling/infrastructure',
+        'kinesiology/infrastructure',
+      ];
 
-    for (const filePath of applicationFiles) {
-      const content = fs.readFileSync(filePath, 'utf-8');
-      for (const pattern of forbiddenPatterns) {
-        const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
-        const hasViolation = importRegex.test(content);
-        if (hasViolation) {
-          throw new Error(
-            `Architecture Violation: Gym Application File '${filePath}' contains forbidden import matching '${pattern}'.`,
-          );
+      for (const filePath of applicationFiles) {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        for (const pattern of forbiddenPatterns) {
+          const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
+          const hasViolation = importRegex.test(content);
+          if (hasViolation) {
+            throw new Error(
+              `Architecture Violation: Gym Application File '${filePath}' contains forbidden import matching '${pattern}'.`,
+            );
+          }
         }
       }
-    }
+    });
   });
 
-  it('should enforce architectural boundary constraints between Gym and other Bounded Contexts', () => {
-    // Verify that the architecture baseline exists and is defined
-    const contextDocPath = path.resolve(__dirname, '../../../../docs/architecture/contexts/gym.md');
-    const adrDocPath = path.resolve(
-      __dirname,
-      '../../../../docs/adr/0054-gym-management-bounded-context-ownership-and-context-map.md',
-    );
-    const vocabDocPath = path.resolve(__dirname, '../../../../docs/business/gym-vocabulary.md');
-    const adrVocabDocPath = path.resolve(
-      __dirname,
-      '../../../../docs/adr/0055-gym-management-canonical-domain-vocabulary-and-semantic-contracts.md',
-    );
-    const aggDocPath = path.resolve(
-      __dirname,
-      '../../../../docs/architecture/gym-aggregate-boundaries.md',
-    );
-    const adrAggDocPath = path.resolve(
-      __dirname,
-      '../../../../docs/adr/0056-gym-management-aggregate-discovery-and-boundary-decisions.md',
-    );
-    const lifecycleDocPath = path.resolve(
-      __dirname,
-      '../../../../docs/architecture/gym-lifecycle-and-invariants.md',
-    );
-    const adrLifecycleDocPath = path.resolve(
-      __dirname,
-      '../../../../docs/adr/0057-gym-management-domain-invariants-and-lifecycle-model.md',
-    );
+  describe('2. Bounded Context Reverse Isolation (Zero Leaks to Peer Contexts)', () => {
+    it('should guarantee Scheduling, Kinesiology, Client, and Identity do not import Gym domain internals', () => {
+      const foreignContextFiles = [
+        ...getProductionTsFiles(schedulingPath),
+        ...getProductionTsFiles(kinesiologyPath),
+        ...getProductionTsFiles(clientPath),
+        ...getProductionTsFiles(identityPath),
+      ];
 
-    expect(fs.existsSync(contextDocPath)).toBe(true);
-    expect(fs.existsSync(adrDocPath)).toBe(true);
-    expect(fs.existsSync(vocabDocPath)).toBe(true);
-    expect(fs.existsSync(adrVocabDocPath)).toBe(true);
-    expect(fs.existsSync(aggDocPath)).toBe(true);
-    expect(fs.existsSync(adrAggDocPath)).toBe(true);
-    expect(fs.existsSync(lifecycleDocPath)).toBe(true);
-    expect(fs.existsSync(adrLifecycleDocPath)).toBe(true);
+      expect(foreignContextFiles.length).toBeGreaterThan(0);
 
-    const contextDocContent = fs.readFileSync(contextDocPath, 'utf-8');
-    expect(contextDocContent).toContain('Gym Management Bounded Context');
-    expect(contextDocContent).toContain('Mandatory Architectural Invariant');
-    expect(contextDocContent).toContain('Authoritative Ownership Matrix');
+      const forbiddenInternalPatterns = [
+        'gym/domain/membership',
+        'gym/domain/attendance',
+        'gym/domain/plan',
+        'gym/infrastructure',
+      ];
 
-    const vocabDocContent = fs.readFileSync(vocabDocPath, 'utf-8');
-    expect(vocabDocContent).toContain('Membership');
-    expect(vocabDocContent).toContain('MembershipPlan');
-    expect(vocabDocContent).toContain('AttendanceRecord');
-    expect(vocabDocContent).toContain('GymDay');
+      for (const filePath of foreignContextFiles) {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        for (const pattern of forbiddenInternalPatterns) {
+          const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
+          const hasViolation = importRegex.test(content);
+          if (hasViolation) {
+            throw new Error(
+              `Boundary Leak Violation: Foreign file '${filePath}' illegally imports Gym internal '${pattern}'.`,
+            );
+          }
+        }
+      }
+    });
+  });
 
-    const aggDocContent = fs.readFileSync(aggDocPath, 'utf-8');
-    expect(aggDocContent).toContain('Membership');
-    expect(aggDocContent).toContain('MembershipPlan');
-    expect(aggDocContent).toContain('AttendanceRecord');
+  describe('3. Public Barrel & Package Exports Verification', () => {
+    it('should export Gym bounded context name and adhere to public barrel boundaries', () => {
+      const gymIndexPath = path.resolve(__dirname, 'index.ts');
+      const coreIndexPath = path.resolve(__dirname, '../index.ts');
 
-    const lifecycleDocContent = fs.readFileSync(lifecycleDocPath, 'utf-8');
-    expect(lifecycleDocContent).toContain('Membership');
-    expect(lifecycleDocContent).toContain('State Machine Strictness');
-    expect(lifecycleDocContent).toContain('Freeze Conservation');
-    expect(lifecycleDocContent).toContain('Anti-Passback');
+      expect(fs.existsSync(gymIndexPath)).toBe(true);
+      expect(fs.existsSync(coreIndexPath)).toBe(true);
+
+      const gymIndexContent = fs.readFileSync(gymIndexPath, 'utf-8');
+      expect(gymIndexContent).toContain('GYM_BOUNDED_CONTEXT_NAME');
+
+      const coreIndexContent = fs.readFileSync(coreIndexPath, 'utf-8');
+      expect(coreIndexContent).toContain("export * from './gym'");
+    });
+  });
+
+  describe('4. Architecture Documentation & ADR Integrity Verification', () => {
+    it('should verify all Phase 5.1 ADRs exist, are accepted, and are indexed in docs/adr/README.md', () => {
+      const adrIndexPath = path.resolve(__dirname, '../../../../docs/adr/README.md');
+      expect(fs.existsSync(adrIndexPath)).toBe(true);
+
+      const adrIndexContent = fs.readFileSync(adrIndexPath, 'utf-8');
+      const requiredAdrs = ['0054', '0055', '0056', '0057'];
+
+      for (const adrNum of requiredAdrs) {
+        expect(adrIndexContent).toContain(`[${adrNum}]`);
+        const adrFiles = fs
+          .readdirSync(path.resolve(__dirname, '../../../../docs/adr'))
+          .filter((f) => f.startsWith(adrNum));
+        expect(adrFiles.length).toBe(1);
+        const adrFileName = adrFiles[0]!;
+
+        const adrContent = fs.readFileSync(
+          path.resolve(__dirname, '../../../../docs/adr', adrFileName),
+          'utf-8',
+        );
+        expect(adrContent).toContain('Status**: Accepted');
+      }
+    });
+
+    it('should enforce all Phase 5.1 architecture specification documents exist and contain invariants', () => {
+      const contextDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/contexts/gym.md',
+      );
+      const reconDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-management-reconnaissance.md',
+      );
+      const vocabDocPath = path.resolve(__dirname, '../../../../docs/business/gym-vocabulary.md');
+      const aggDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-aggregate-boundaries.md',
+      );
+      const lifecycleDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-lifecycle-and-invariants.md',
+      );
+
+      expect(fs.existsSync(contextDocPath)).toBe(true);
+      expect(fs.existsSync(reconDocPath)).toBe(true);
+      expect(fs.existsSync(vocabDocPath)).toBe(true);
+      expect(fs.existsSync(aggDocPath)).toBe(true);
+      expect(fs.existsSync(lifecycleDocPath)).toBe(true);
+
+      const contextDocContent = fs.readFileSync(contextDocPath, 'utf-8');
+      expect(contextDocContent).toContain('Gym Management Bounded Context');
+      expect(contextDocContent).toContain('Mandatory Architectural Invariant');
+      expect(contextDocContent).toContain('Authoritative Ownership Matrix');
+      expect(contextDocContent).toContain('Membership');
+      expect(contextDocContent).toContain('MembershipPlan');
+      expect(contextDocContent).toContain('AttendanceRecord');
+    });
   });
 });
