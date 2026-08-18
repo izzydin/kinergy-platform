@@ -4,13 +4,13 @@ import { ValueObject } from '../shared/value-object';
  * Value Object representing a unique Membership aggregate identifier.
  */
 export class MembershipId implements ValueObject<string> {
-  private readonly value: string;
+  private readonly _value: string;
 
   private constructor(id: string) {
     if (!id || id.trim().length === 0) {
       throw new Error('Membership ID cannot be empty.');
     }
-    this.value = id.trim();
+    this._value = id.trim();
     Object.freeze(this);
   }
 
@@ -24,17 +24,21 @@ export class MembershipId implements ValueObject<string> {
   }
 
   public getValue(): string {
-    return this.value;
+    return this._value;
+  }
+
+  public get value(): string {
+    return this._value;
   }
 
   public equals(other: ValueObject<string>): boolean {
     if (!other || !(other instanceof MembershipId)) {
       return false;
     }
-    return this.value === other.getValue();
+    return this._value === other.getValue();
   }
 
   public toString(): string {
-    return this.value;
+    return this._value;
   }
 }

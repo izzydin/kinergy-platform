@@ -7,6 +7,16 @@ import { MembershipPeriod } from './membership-period.vo';
 import { FreezeWindow } from './freeze-window.vo';
 import { TrainerAssignment } from './trainer-assignment.vo';
 import { InvalidMembershipTransitionException } from '../exceptions/invalid-membership-transition.exception';
+import {
+  MembershipCreatedEvent,
+  MembershipActivatedEvent,
+  MembershipFrozenEvent,
+  MembershipUnfrozenEvent,
+  MembershipRenewedEvent,
+  MembershipExpiredEvent,
+  MembershipCancelledEvent,
+  MembershipTerminatedEvent,
+} from '../events';
 
 /**
  * Properties required to create a new Membership aggregate root.
@@ -111,7 +121,7 @@ export class Membership implements AggregateRoot<MembershipId> {
           : MembershipStatus.ACTIVE;
     }
 
-    return new Membership({
+    const membership = new Membership({
       id: membershipId,
       version: 1,
       status: initialStatus,
@@ -123,6 +133,21 @@ export class Membership implements AggregateRoot<MembershipId> {
       createdAt: now,
       updatedAt: now,
     });
+
+    membership.recordEvent(
+      new MembershipCreatedEvent(
+        membership.id.value,
+        membership.clientId,
+        membership.planId,
+        membership.period.startDate,
+        membership.period.endDate,
+        membership.status,
+        membership.version,
+        now,
+      ),
+    );
+
+    return membership;
   }
 
   /**
@@ -151,7 +176,17 @@ export class Membership implements AggregateRoot<MembershipId> {
     }
     this._status = MembershipStatus.ACTIVE;
     this._version++;
+    const now = clock ? clock.now() : new Date();
     this.touch(clock);
+    this.recordEvent(
+      new MembershipActivatedEvent(
+        this._id.value,
+        this._clientId,
+        this._planId,
+        this._version,
+        now,
+      ),
+    );
   }
 
   /**
@@ -172,7 +207,19 @@ export class Membership implements AggregateRoot<MembershipId> {
     this._freezeHistory.push(window);
     this._status = MembershipStatus.FROZEN;
     this._version++;
+    const now = clock ? clock.now() : new Date();
     this.touch(clock);
+    this.recordEvent(
+      new MembershipFrozenEvent(
+        this._id.value,
+        this._clientId,
+        window.startDate,
+        window.endDate,
+        window.reason,
+        this._version,
+        now,
+      ),
+    );
   }
 
   /**
@@ -199,7 +246,18 @@ export class Membership implements AggregateRoot<MembershipId> {
 
     this._status = MembershipStatus.ACTIVE;
     this._version++;
+    const now = clock ? clock.now() : new Date();
     this.touch(clock);
+    this.recordEvent(
+      new MembershipUnfrozenEvent(
+        this._id.value,
+        this._clientId,
+        this._period.endDate,
+        durationDays,
+        this._version,
+        now,
+      ),
+    );
   }
 
   /**
@@ -216,7 +274,11 @@ export class Membership implements AggregateRoot<MembershipId> {
     }
     this._status = MembershipStatus.EXPIRED;
     this._version++;
+    const now = clock ? clock.now() : new Date();
     this.touch(clock);
+    this.recordEvent(
+      new MembershipExpiredEvent(this._id.value, this._clientId, this._planId, this._version, now),
+    );
   }
 
   /**
@@ -245,7 +307,19 @@ export class Membership implements AggregateRoot<MembershipId> {
     }
 
     this._version++;
+    const now = clock ? clock.now() : new Date();
     this.touch(clock);
+    this.recordEvent(
+      new MembershipRenewedEvent(
+        this._id.value,
+        this._clientId,
+        this._planId,
+        this._period.startDate,
+        this._period.endDate,
+        this._version,
+        now,
+      ),
+    );
   }
 
   /**
@@ -267,7 +341,18 @@ export class Membership implements AggregateRoot<MembershipId> {
     this._status = MembershipStatus.CANCELLED;
     this._cancellationReason = reason?.trim() || undefined;
     this._version++;
+    const now = clock ? clock.now() : new Date();
     this.touch(clock);
+    this.recordEvent(
+      new MembershipCancelledEvent(
+        this._id.value,
+        this._clientId,
+        this._planId,
+        this._cancellationReason,
+        this._version,
+        now,
+      ),
+    );
   }
 
   /**
@@ -285,7 +370,18 @@ export class Membership implements AggregateRoot<MembershipId> {
     this._status = MembershipStatus.TERMINATED;
     this._terminationReason = reason?.trim() || undefined;
     this._version++;
+    const now = clock ? clock.now() : new Date();
     this.touch(clock);
+    this.recordEvent(
+      new MembershipTerminatedEvent(
+        this._id.value,
+        this._clientId,
+        this._planId,
+        this._terminationReason,
+        this._version,
+        now,
+      ),
+    );
   }
 
   /**
