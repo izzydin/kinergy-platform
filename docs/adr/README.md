@@ -59,6 +59,10 @@ This directory contains records of key architectural and technical decisions mad
 | [0051](file:///c:/Projects/kinergy-platform/docs/adr/0051-clinical-progress-notes-soap-schema-medico-legal-immutability-and-treatment-history-query-architecture.md) | Clinical Progress Notes (SOAP) Schema, Medico-Legal Immutability & History Query    | Accepted   | 2026-08-17 |
 | [0052](file:///c:/Projects/kinergy-platform/docs/adr/0052-client-longitudinal-activity-timeline-and-cross-context-event-projection-architecture.md)                  | Client Activity Timeline & Cross-Context Event Projection Architecture              | Accepted   | 2026-08-17 |
 | [0053](file:///c:/Projects/kinergy-platform/docs/adr/0053-clinical-treatment-session-presentation-workflow-soap-workspace-and-api-architecture.md)                   | Clinical Treatment Session Presentation Workflow, SOAP Workspace & API Architecture | Accepted   | 2026-08-17 |
+| [0054](file:///c:/Projects/kinergy-platform/docs/adr/0054-gym-management-bounded-context-ownership-and-context-map.md)                                               | Gym Management Bounded Context Ownership & Context Map                              | Accepted   | 2026-08-18 |
+| [0055](file:///c:/Projects/kinergy-platform/docs/adr/0055-gym-management-canonical-domain-vocabulary-and-semantic-contracts.md)                                      | Gym Management Canonical Domain Vocabulary & Semantic Contracts                     | Accepted   | 2026-08-18 |
+| [0056](file:///c:/Projects/kinergy-platform/docs/adr/0056-gym-management-aggregate-discovery-and-boundary-decisions.md)                                              | Gym Management Aggregate Discovery & Boundary Decisions                             | Accepted   | 2026-08-18 |
+| [0057](file:///c:/Projects/kinergy-platform/docs/adr/0057-gym-management-domain-invariants-and-lifecycle-model.md)                                                   | Gym Management Domain Invariants & Lifecycle Model                                  | Accepted   | 2026-08-18 |
 
 ## Format
 
