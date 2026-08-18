@@ -74,8 +74,8 @@ export class MembershipPeriod implements ValueObject<MembershipPeriodValue> {
     }
     const otherVal = other.getValue();
     return (
-      this._startDate.getTime() <= otherVal.endDate.getTime() &&
-      this._endDate.getTime() >= otherVal.startDate.getTime()
+      this._startDate.getTime() < otherVal.endDate.getTime() &&
+      this._endDate.getTime() > otherVal.startDate.getTime()
     );
   }
 

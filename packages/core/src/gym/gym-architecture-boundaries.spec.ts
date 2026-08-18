@@ -161,7 +161,7 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(adrIndexPath)).toBe(true);
 
       const adrIndexContent = fs.readFileSync(adrIndexPath, 'utf-8');
-      const requiredAdrs = ['0054', '0055', '0056', '0057', '0058', '0059'];
+      const requiredAdrs = ['0054', '0055', '0056', '0057', '0058', '0059', '0060'];
 
       for (const adrNum of requiredAdrs) {
         expect(adrIndexContent).toContain(`[${adrNum}]`);

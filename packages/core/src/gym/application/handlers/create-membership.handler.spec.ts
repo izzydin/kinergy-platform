@@ -8,6 +8,7 @@ import { TestClock } from '../../domain/shared/clock';
 import { MembershipPlan } from '../../domain/plan/membership-plan.aggregate';
 import { PlanPrice } from '../../domain/plan/plan-price.vo';
 import { Membership } from '../../domain/membership/membership.aggregate';
+import { MembershipPeriod } from '../../domain/membership/membership-period.vo';
 import { PlanId } from '../../domain/plan/plan-id.vo';
 import { PlanCode } from '../../domain/plan/plan-code.vo';
 import { DomainEvent } from '../../domain/shared/domain-event';
@@ -255,6 +256,33 @@ describe('CreateMembershipHandler (Phase 5.3-D)', () => {
       expect(result.isFailure).toBe(true);
       expect(result.getError()).toContain("Invalid startDate 'not-a-valid-date'");
       expect(membershipRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('should reject creation when client already possesses an overlapping ACTIVE membership', async () => {
+      const existingPeriod = MembershipPeriod.create(
+        baseTime,
+        new Date('2026-09-18T10:00:00.000Z'),
+      );
+      const existingMembership = Membership.create({
+        clientId: 'client-123',
+        planId: 'plan-monthly-std',
+        period: existingPeriod,
+      });
+
+      membershipRepository.findByClientId.mockResolvedValueOnce([existingMembership]);
+
+      const command = new CreateMembershipCommand({
+        clientId: 'client-123',
+        planId: 'plan-monthly-std',
+        startDate: baseTime,
+      });
+
+      const result = await handler.execute(command);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toContain('overlaps with existing ACTIVE membership');
+      expect(membershipRepository.save).not.toHaveBeenCalled();
+      expect(eventPublisher.publish).not.toHaveBeenCalled();
     });
   });
 });

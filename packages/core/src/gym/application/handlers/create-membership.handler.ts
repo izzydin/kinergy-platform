@@ -13,6 +13,7 @@ import { MembershipId } from '../../domain/membership/membership-id.vo';
 import { MembershipPeriod } from '../../domain/membership/membership-period.vo';
 import { MembershipStatus } from '../../domain/membership/membership-status.enum';
 import { TrainerAssignment } from '../../domain/membership/trainer-assignment.vo';
+import { MembershipOverlapPolicy } from '../../domain/policies/membership-overlap.policy';
 
 /**
  * Use case handler orchestrating the creation of a new gym Membership for a validated Client.
@@ -21,20 +22,26 @@ import { TrainerAssignment } from '../../domain/membership/trainer-assignment.vo
  * 1. Validates external client reference via ClientLookupPort (zero cross-context coupling).
  * 2. Loads MembershipPlan and verifies commercial catalog availability.
  * 3. Authoritatively calculates MembershipPeriod from plan duration.
- * 4. Instantiates Membership aggregate root with domain invariant enforcement.
- * 5. Atomically persists membership and dispatches domain events.
+ * 4. Enforces MembershipOverlapPolicy across existing client memberships.
+ * 5. Instantiates Membership aggregate root with domain invariant enforcement.
+ * 6. Atomically persists membership and dispatches domain events.
  */
 export class CreateMembershipHandler implements CommandHandler<
   CreateMembershipCommand,
   ApplicationResult<MembershipDTO>
 > {
+  private readonly overlapPolicy: MembershipOverlapPolicy;
+
   constructor(
     private readonly membershipRepository: MembershipRepository,
     private readonly membershipPlanRepository: MembershipPlanRepository,
     private readonly clientLookupPort: ClientLookupPort,
     private readonly clock: Clock,
     private readonly eventPublisher?: GymEventPublisherPort,
-  ) {}
+    overlapPolicy?: MembershipOverlapPolicy,
+  ) {
+    this.overlapPolicy = overlapPolicy ?? new MembershipOverlapPolicy();
+  }
 
   public async execute(
     command: CreateMembershipCommand,
@@ -87,7 +94,17 @@ export class CreateMembershipHandler implements CommandHandler<
       const endDate = plan.duration.calculateEndDate(startDate);
       const period = MembershipPeriod.create(startDate, endDate);
 
-      // 5. Construct Aggregate Root
+      // 5. Enforce Duplicate & Overlap Policy (Phase 5.3-E)
+      const existingMemberships = await this.membershipRepository.findByClientId(clientId);
+      const overlapResult = this.overlapPolicy.evaluateOverlap(existingMemberships, period);
+      if (overlapResult.hasOverlap) {
+        return ApplicationResult.fail(
+          overlapResult.reason ??
+            `Client '${clientId}' already has an active or overlapping membership for this period.`,
+        );
+      }
+
+      // 6. Construct Aggregate Root
       const membershipId = input.customId ? MembershipId.create(input.customId) : undefined;
       const status = input.status ? (input.status as MembershipStatus) : undefined;
       const trainerAssignment = input.assignedTrainerId
@@ -103,10 +120,10 @@ export class CreateMembershipHandler implements CommandHandler<
         status,
       });
 
-      // 6. Atomic Persistence
+      // 7. Atomic Persistence
       await this.membershipRepository.save(membership);
 
-      // 7. Publish uncommitted domain events
+      // 8. Publish uncommitted domain events
       if (this.eventPublisher) {
         const events = membership.getUncommittedEvents();
         if (events.length > 0) {
@@ -115,7 +132,7 @@ export class CreateMembershipHandler implements CommandHandler<
         }
       }
 
-      // 8. Return mapped DTO
+      // 9. Return mapped DTO
       return ApplicationResult.ok(MembershipMapper.toDTO(membership));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

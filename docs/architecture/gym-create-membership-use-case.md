@@ -68,18 +68,28 @@ sequenceDiagram
    - Validates `plan.isAvailableForPurchase()` is `true` (`status === PlanStatus.ACTIVE`).
    - Rejects plans in `DRAFT` or `ARCHIVED` status.
 4. **Deterministic Period Calculation**:
-   - `startDate`: Provided timestamp or defaults to `clock.now()`.
-   - `endDate`: Computed authoritative via `plan.duration.calculateEndDate(startDate)`.
-   - Period instantiated as `MembershipPeriod.create(startDate, endDate)`.
-5. **Aggregate Construction**:
-   - `Membership.create({ id, clientId, planId, period, trainerAssignment, status })`.
-   - Emits `MembershipCreatedEvent`.
-6. **Atomic Persistence & Events**:
-   - `MembershipRepository.save(membership)` stores aggregate state.
-   - `GymEventPublisherPort.publish(events)` dispatches uncommitted domain events.
-   - `membership.clearEvents()` clears domain event buffer.
-7. **Response Mapping**:
-   - `MembershipMapper.toDTO(membership)` returns structured `MembershipDTO`.
+   - `startDate` defaults to `clock.now()` if unspecified.
+   - Calculates `endDate` via `plan.duration.calculateEndDate(startDate)`.
+   - Constructs `MembershipPeriod.create(startDate, endDate)`.
+
+5. **Duplicate & Overlap Enforcement (Phase 5.3-E & ADR-0060)**:
+   - Handler invokes `membershipRepository.findByClientId(clientId)`.
+   - Evaluates [`MembershipOverlapPolicy.evaluateOverlap()`](file:///c:/Projects/kinergy-platform/packages/core/src/gym/domain/policies/membership-overlap.policy.ts).
+   - Rejects with `ApplicationResult.fail` if the candidate period overlaps with any existing non-terminal (`ACTIVE`, `FROZEN`, `PENDING`) membership.
+   - Permits consecutive pre-scheduled renewals (`candidate.startDate >= current.endDate`) and purchases following `EXPIRED`, `CANCELLED`, or `TERMINATED` contracts.
+
+6. **Aggregate Instantiation**:
+   - Invokes `Membership.create({ id, clientId, planId, period, trainerAssignment, status })`.
+   - Fires `MembershipCreatedEvent`.
+
+7. **Atomic Persistence & Dispatch**:
+   - Calls `membershipRepository.save(membership)`.
+   - Dispatches events via `GymEventPublisherPort.publish(uncommittedEvents)`.
+   - Clears uncommitted events from aggregate.
+
+8. **Response Mapping**:
+   - Maps aggregate to `MembershipDTO` via `MembershipMapper.toDTO(membership)`.
+   - Wraps and returns `ApplicationResult.ok(dto)`.
 
 ---
 
