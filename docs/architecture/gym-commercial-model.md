@@ -176,10 +176,22 @@ The `MembershipPlan` aggregate root is responsible for:
   3. The `MembershipPeriod` is calculated as `[startDate, startDate + plan.duration.durationInDays]`.
 - If the club later raises the plan price or archives the plan:
   - The existing `Membership` continues until its contracted `endDate` without price or duration alterations.
+  - See [ADR-0059: Gym Management Membership Historical Integrity & Plan Decoupling Strategy](../adr/0059-gym-management-membership-historical-integrity-and-plan-decoupling-strategy.md).
 
 ---
 
-## 7. Open Commercial Decisions for Future Milestones
+## 7. Plan Domain Events
+
+The `MembershipPlan` aggregate root emits the following domain events:
+
+- `MembershipPlanCreatedEvent`: Emitted when a new plan is drafted.
+- `MembershipPlanPublishedEvent`: Emitted when a plan transitions `DRAFT -> ACTIVE`.
+- `MembershipPlanPriceChangedEvent`: Emitted when commercial pricing is updated.
+- `MembershipPlanArchivedEvent`: Emitted when a plan transitions to `ARCHIVED`.
+
+---
+
+## 8. Open Commercial Decisions for Future Milestones
 
 1. **Prorated Upgrades / Mid-term Plan Switches**:
    - Switching an active membership to a higher plan tier mid-term will be modeled via dedicated domain service in Phase 5.5.

@@ -6,3 +6,7 @@ export * from './membership-renewed.event';
 export * from './membership-expired.event';
 export * from './membership-cancelled.event';
 export * from './membership-terminated.event';
+export * from './membership-plan-created.event';
+export * from './membership-plan-published.event';
+export * from './membership-plan-price-changed.event';
+export * from './membership-plan-archived.event';

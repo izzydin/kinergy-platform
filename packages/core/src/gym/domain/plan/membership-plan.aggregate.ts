@@ -8,6 +8,12 @@ import { VisitQuota } from './visit-quota.vo';
 import { PlanStatus } from './plan-status.enum';
 import { InvalidPlanTransitionException } from '../exceptions/invalid-plan-transition.exception';
 import { MembershipPlanInvariantViolationException } from '../exceptions/membership-plan-invariant-violation.exception';
+import {
+  MembershipPlanCreatedEvent,
+  MembershipPlanPublishedEvent,
+  MembershipPlanPriceChangedEvent,
+  MembershipPlanArchivedEvent,
+} from '../events';
 
 export interface CreateMembershipPlanProps {
   id?: PlanId;
@@ -101,7 +107,7 @@ export class MembershipPlan implements AggregateRoot<PlanId> {
       ? new Date(props.createdAt.getTime())
       : new Date(atDate.getTime());
 
-    return new MembershipPlan(
+    const plan = new MembershipPlan(
       id,
       code,
       props.name,
@@ -114,6 +120,23 @@ export class MembershipPlan implements AggregateRoot<PlanId> {
       createdAt,
       new Date(atDate.getTime()),
     );
+
+    plan.recordEvent(
+      new MembershipPlanCreatedEvent(
+        id.value,
+        code.value,
+        plan.name,
+        duration.durationInDays,
+        price.amount,
+        price.currency,
+        status,
+        visitQuota?.maxVisits,
+        1,
+        createdAt,
+      ),
+    );
+
+    return plan;
   }
 
   public static reconstitute(props: ReconstituteMembershipPlanProps): MembershipPlan {
@@ -229,6 +252,15 @@ export class MembershipPlan implements AggregateRoot<PlanId> {
     this._status = PlanStatus.ACTIVE;
     this._version++;
     this._updatedAt = new Date(atDate.getTime());
+
+    this.recordEvent(
+      new MembershipPlanPublishedEvent(
+        this._id.value,
+        this._code.value,
+        this._version,
+        this._updatedAt,
+      ),
+    );
   }
 
   /**
@@ -242,6 +274,15 @@ export class MembershipPlan implements AggregateRoot<PlanId> {
     this._status = PlanStatus.ARCHIVED;
     this._version++;
     this._updatedAt = new Date(atDate.getTime());
+
+    this.recordEvent(
+      new MembershipPlanArchivedEvent(
+        this._id.value,
+        this._code.value,
+        this._version,
+        this._updatedAt,
+      ),
+    );
   }
 
   /**
@@ -261,9 +302,22 @@ export class MembershipPlan implements AggregateRoot<PlanId> {
       return;
     }
 
+    const previousPrice = this._price;
     this._price = newPrice;
     this._version++;
     this._updatedAt = new Date(atDate.getTime());
+
+    this.recordEvent(
+      new MembershipPlanPriceChangedEvent(
+        this._id.value,
+        previousPrice.amount,
+        previousPrice.currency,
+        newPrice.amount,
+        newPrice.currency,
+        this._version,
+        this._updatedAt,
+      ),
+    );
   }
 
   /**

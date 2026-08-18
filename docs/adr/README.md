@@ -64,6 +64,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0056](file:///c:/Projects/kinergy-platform/docs/adr/0056-gym-management-aggregate-discovery-and-boundary-decisions.md)                                              | Gym Management Aggregate Discovery & Boundary Decisions                             | Accepted   | 2026-08-18 |
 | [0057](file:///c:/Projects/kinergy-platform/docs/adr/0057-gym-management-domain-invariants-and-lifecycle-model.md)                                                   | Gym Management Domain Invariants & Lifecycle Model                                  | Accepted   | 2026-08-18 |
 | [0058](file:///c:/Projects/kinergy-platform/docs/adr/0058-gym-management-membership-plan-commercial-and-pricing-model.md)                                            | Gym Management MembershipPlan Commercial & Pricing Model                            | Accepted   | 2026-08-18 |
+| [0059](file:///c:/Projects/kinergy-platform/docs/adr/0059-gym-management-membership-historical-integrity-and-plan-decoupling-strategy.md)                            | Gym Management Membership Historical Integrity & Plan Decoupling Strategy           | Accepted   | 2026-08-18 |
 
 ## Format
 
