@@ -468,6 +468,17 @@ export class Membership implements AggregateRoot<MembershipId> {
     return this._status === MembershipStatus.TERMINATED;
   }
 
+  /**
+   * Determines whether the membership is currently eligible for facility attendance / check-in.
+   * Business invariant: Only ACTIVE status memberships within their validity period are eligible.
+   */
+  public isEligibleForAttendance(atDate: Date = new Date()): boolean {
+    if (this._status !== MembershipStatus.ACTIVE) {
+      return false;
+    }
+    return this._period.contains(atDate);
+  }
+
   /** Unique aggregate identifier */
   public get id(): MembershipId {
     return this._id;

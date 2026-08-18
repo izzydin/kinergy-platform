@@ -22,8 +22,10 @@ export class FreezeWindow implements ValueObject<FreezeWindowValue> {
     if (!endDate || !(endDate instanceof Date) || isNaN(endDate.getTime())) {
       throw new InvalidMembershipPeriodException('Freeze end date must be a valid Date.');
     }
-    if (endDate.getTime() < startDate.getTime()) {
-      throw new InvalidMembershipPeriodException('Freeze end date cannot precede start date.');
+    if (endDate.getTime() <= startDate.getTime()) {
+      throw new InvalidMembershipPeriodException(
+        'Freeze end date cannot precede or equal start date.',
+      );
     }
 
     this._startDate = new Date(startDate.getTime());

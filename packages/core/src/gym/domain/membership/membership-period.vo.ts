@@ -21,9 +21,9 @@ export class MembershipPeriod implements ValueObject<MembershipPeriodValue> {
     if (!endDate || !(endDate instanceof Date) || isNaN(endDate.getTime())) {
       throw new InvalidMembershipPeriodException('End date must be a valid Date.');
     }
-    if (endDate.getTime() < startDate.getTime()) {
+    if (endDate.getTime() <= startDate.getTime()) {
       throw new InvalidMembershipPeriodException(
-        `End date (${endDate.toISOString()}) cannot precede start date (${startDate.toISOString()}).`,
+        `End date (${endDate.toISOString()}) cannot precede or equal start date (${startDate.toISOString()}).`,
       );
     }
 
@@ -62,6 +62,21 @@ export class MembershipPeriod implements ValueObject<MembershipPeriodValue> {
       return false;
     }
     return date.getTime() > this._endDate.getTime();
+  }
+
+  public isExpired(date: Date): boolean {
+    return this.isExpiredAt(date);
+  }
+
+  public overlaps(other: MembershipPeriod): boolean {
+    if (!other || !(other instanceof MembershipPeriod)) {
+      return false;
+    }
+    const otherVal = other.getValue();
+    return (
+      this._startDate.getTime() <= otherVal.endDate.getTime() &&
+      this._endDate.getTime() >= otherVal.startDate.getTime()
+    );
   }
 
   public extend(additionalDays: number): MembershipPeriod {
