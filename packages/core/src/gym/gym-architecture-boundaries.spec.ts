@@ -162,7 +162,18 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(adrIndexPath)).toBe(true);
 
       const adrIndexContent = fs.readFileSync(adrIndexPath, 'utf-8');
-      const requiredAdrs = ['0054', '0055', '0056', '0057', '0058', '0059', '0060', '0061', '0062'];
+      const requiredAdrs = [
+        '0054',
+        '0055',
+        '0056',
+        '0057',
+        '0058',
+        '0059',
+        '0060',
+        '0061',
+        '0062',
+        '0063',
+      ];
 
       for (const adrNum of requiredAdrs) {
         expect(adrIndexContent).toContain(`[${adrNum}]`);
@@ -218,6 +229,10 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         __dirname,
         '../../../../docs/architecture/gym-automatic-membership-expiration-processing.md',
       );
+      const expirationIndicatorsDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-expiration-indicators-and-operational-read-models.md',
+      );
 
       expect(fs.existsSync(contextDocPath)).toBe(true);
       expect(fs.existsSync(reconDocPath)).toBe(true);
@@ -229,6 +244,12 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(renewalDocPath)).toBe(true);
       expect(fs.existsSync(renewUseCaseDocPath)).toBe(true);
       expect(fs.existsSync(expirationProcessingDocPath)).toBe(true);
+      expect(fs.existsSync(expirationIndicatorsDocPath)).toBe(true);
+
+      const indicatorsDocContent = fs.readFileSync(expirationIndicatorsDocPath, 'utf-8');
+      expect(indicatorsDocContent).toContain('GetExpiringMembershipsHandler');
+      expect(indicatorsDocContent).toContain('GetMembershipOperationalSummaryHandler');
+      expect(indicatorsDocContent).toContain('MembershipNotificationDispatcher');
 
       const expirationDocContent = fs.readFileSync(expirationProcessingDocPath, 'utf-8');
       expect(expirationDocContent).toContain('ExpireMembershipsHandler');

@@ -37,6 +37,8 @@ describe('RenewMembershipHandler (Phase 5.4-C)', () => {
       findById: jest.fn(),
       findByClientId: jest.fn().mockResolvedValue([]),
       findExpiringCandidates: jest.fn().mockResolvedValue([]),
+      findExpiringWithinHorizon: jest.fn().mockResolvedValue([]),
+      findAll: jest.fn().mockResolvedValue([]),
     };
 
     membershipPlanRepository = {

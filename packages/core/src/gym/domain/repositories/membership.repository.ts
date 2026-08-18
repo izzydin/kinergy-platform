@@ -11,4 +11,16 @@ export interface MembershipRepository {
    * @param limit Optional maximum batch size for paginated chunk processing
    */
   findExpiringCandidates(asOf: Date, limit?: number): Promise<Membership[]>;
+
+  /**
+   * Retrieves active or frozen memberships expiring within a specified future horizon in days.
+   * @param asOf Current evaluation timestamp (UTC)
+   * @param horizonDays Future lookahead window in days
+   */
+  findExpiringWithinHorizon(asOf: Date, horizonDays: number): Promise<Membership[]>;
+
+  /**
+   * Retrieves all memberships across statuses for operational summary aggregations.
+   */
+  findAll(): Promise<Membership[]>;
 }

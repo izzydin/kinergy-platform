@@ -34,6 +34,8 @@ describe('CreateMembershipHandler (Phase 5.3-D)', () => {
       findById: jest.fn().mockResolvedValue(null),
       findByClientId: jest.fn().mockResolvedValue([]),
       findExpiringCandidates: jest.fn().mockResolvedValue([]),
+      findExpiringWithinHorizon: jest.fn().mockResolvedValue([]),
+      findAll: jest.fn().mockResolvedValue([]),
     };
 
     membershipPlanRepository = {

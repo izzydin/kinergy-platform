@@ -47,6 +47,8 @@ describe('ExpireMembershipsHandler (Phase 5.4-E)', () => {
       findById: jest.fn(),
       findByClientId: jest.fn().mockResolvedValue([]),
       findExpiringCandidates: jest.fn().mockResolvedValue([]),
+      findExpiringWithinHorizon: jest.fn().mockResolvedValue([]),
+      findAll: jest.fn().mockResolvedValue([]),
     };
 
     eventPublisher = {
