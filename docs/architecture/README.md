@@ -78,3 +78,5 @@ graph TD
    - Single authoritative specification for Identity Aggregate, account lifecycle, RBAC/ABAC, Clean Architecture layering, and downstream context integration.
 6. **[Gym Management Reconnaissance & Baseline (Phase 5.1-A)](./gym-management-reconnaissance.md)**
    - Authoritative reconnaissance baseline, bounded context constraints, and client ownership rules for Gym Management.
+7. **[Gym Management Bounded Context Specification (Phase 5.1-B)](./contexts/gym.md)**
+   - Authoritative domain ownership, Context Map, and integration boundary specifications for Gym Management.
