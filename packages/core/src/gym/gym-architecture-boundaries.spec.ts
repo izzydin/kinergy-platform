@@ -150,13 +150,14 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(domainIndexContent).toContain("export * from './plan'");
       expect(domainIndexContent).toContain("export * from './events'");
       expect(domainIndexContent).toContain("export * from './repositories'");
+      expect(domainIndexContent).toContain("export * from './policies'");
       // Must not re-export ./shared directly to prevent global collision with root kernel
       expect(domainIndexContent).not.toContain("export * from './shared'");
     });
   });
 
   describe('4. Architecture Documentation & ADR Integrity Verification', () => {
-    it('should verify all Phase 5.1 ADRs exist, are accepted, and are indexed in docs/adr/README.md', () => {
+    it('should verify all Phase 5.1 & 5.3 ADRs exist, are accepted, and are indexed in docs/adr/README.md', () => {
       const adrIndexPath = path.resolve(__dirname, '../../../../docs/adr/README.md');
       expect(fs.existsSync(adrIndexPath)).toBe(true);
 
@@ -201,6 +202,10 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         __dirname,
         '../../../../docs/architecture/gym-commercial-model.md',
       );
+      const useCaseDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-create-membership-use-case.md',
+      );
 
       expect(fs.existsSync(contextDocPath)).toBe(true);
       expect(fs.existsSync(reconDocPath)).toBe(true);
@@ -208,12 +213,17 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(aggDocPath)).toBe(true);
       expect(fs.existsSync(lifecycleDocPath)).toBe(true);
       expect(fs.existsSync(commercialDocPath)).toBe(true);
+      expect(fs.existsSync(useCaseDocPath)).toBe(true);
 
       const commercialDocContent = fs.readFileSync(commercialDocPath, 'utf-8');
       expect(commercialDocContent).toContain('MembershipPlan');
       expect(commercialDocContent).toContain('PlanDuration');
       expect(commercialDocContent).toContain('PlanPrice');
       expect(commercialDocContent).toContain('PlanStatus');
+
+      const useCaseDocContent = fs.readFileSync(useCaseDocPath, 'utf-8');
+      expect(useCaseDocContent).toContain('CreateMembershipHandler');
+      expect(useCaseDocContent).toContain('MembershipOverlapPolicy');
 
       const contextDocContent = fs.readFileSync(contextDocPath, 'utf-8');
       expect(contextDocContent).toContain('Gym Management Bounded Context');
