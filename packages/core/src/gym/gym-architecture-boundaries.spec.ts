@@ -85,13 +85,26 @@ describe('Gym Management Bounded Context Architecture & Boundary Purity', () => 
       __dirname,
       '../../../../docs/adr/0054-gym-management-bounded-context-ownership-and-context-map.md',
     );
+    const vocabDocPath = path.resolve(__dirname, '../../../../docs/business/gym-vocabulary.md');
+    const adrVocabDocPath = path.resolve(
+      __dirname,
+      '../../../../docs/adr/0055-gym-management-canonical-domain-vocabulary-and-semantic-contracts.md',
+    );
 
     expect(fs.existsSync(contextDocPath)).toBe(true);
     expect(fs.existsSync(adrDocPath)).toBe(true);
+    expect(fs.existsSync(vocabDocPath)).toBe(true);
+    expect(fs.existsSync(adrVocabDocPath)).toBe(true);
 
     const contextDocContent = fs.readFileSync(contextDocPath, 'utf-8');
     expect(contextDocContent).toContain('Gym Management Bounded Context');
     expect(contextDocContent).toContain('Mandatory Architectural Invariant');
     expect(contextDocContent).toContain('Authoritative Ownership Matrix');
+
+    const vocabDocContent = fs.readFileSync(vocabDocPath, 'utf-8');
+    expect(vocabDocContent).toContain('Membership');
+    expect(vocabDocContent).toContain('MembershipPlan');
+    expect(vocabDocContent).toContain('AttendanceRecord');
+    expect(vocabDocContent).toContain('GymDay');
   });
 });
