@@ -71,6 +71,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0063](file:///c:/Projects/kinergy-platform/docs/adr/0063-gym-management-operational-read-models-expiring-soon-semantics-and-notification-boundaries.md)             | Gym Management Operational Read Models, Expiring-Soon Semantics & Notification Boundaries | Accepted   | 2026-08-18 |
 | [0064](file:///c:/Projects/kinergy-platform/docs/adr/0064-gym-management-attendance-domain-boundary-identity-and-append-only-log-model.md)                           | Gym Management Attendance Domain Boundary, Identity & Append-Only Log Model               | Accepted   | 2026-08-19 |
 | [0065](file:///c:/Projects/kinergy-platform/docs/adr/0065-gym-management-membership-eligibility-contract-and-cross-context-integration.md)                           | Gym Management Membership Eligibility Contract & Cross-Context Integration                | Accepted   | 2026-08-19 |
+| [0066](file:///c:/Projects/kinergy-platform/docs/adr/0066-gym-management-record-check-in-use-case-anti-passback-and-idempotency.md)                                  | Gym Management Record Check-In Use Case, Anti-Passback & Idempotency Architecture         | Accepted   | 2026-08-19 |
 
 ## Format
 
