@@ -177,6 +177,7 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         '0065',
         '0066',
         '0067',
+        '0068',
       ];
 
       for (const adrNum of requiredAdrs) {
@@ -257,6 +258,10 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         __dirname,
         '../../../../docs/architecture/gym-attendance-concurrency-and-idempotency.md',
       );
+      const queriesDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-attendance-history-and-operational-queries.md',
+      );
 
       expect(fs.existsSync(contextDocPath)).toBe(true);
       expect(fs.existsSync(reconDocPath)).toBe(true);
@@ -274,6 +279,11 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(eligibilityDocPath)).toBe(true);
       expect(fs.existsSync(recordCheckInDocPath)).toBe(true);
       expect(fs.existsSync(concurrencyDocPath)).toBe(true);
+      expect(fs.existsSync(queriesDocPath)).toBe(true);
+
+      const queriesDocContent = fs.readFileSync(queriesDocPath, 'utf-8');
+      expect(queriesDocContent).toContain('GetDailyAttendanceQuery');
+      expect(queriesDocContent).toContain('GetClientAttendanceHistoryQuery');
 
       const concurrencyDocContent = fs.readFileSync(concurrencyDocPath, 'utf-8');
       expect(concurrencyDocContent).toContain('Anti-Passback');

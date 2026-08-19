@@ -5,3 +5,6 @@ export * from './membership-operational-summary.dto';
 export * from './membership-eligibility-outcome.enum';
 export * from './membership-eligibility-result.dto';
 export * from './record-check-in-result.dto';
+export * from './attendance-item.dto';
+export * from './paginated-attendance.dto';
+export * from './attendance-summary.dto';

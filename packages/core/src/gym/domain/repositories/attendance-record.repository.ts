@@ -1,8 +1,30 @@
 import { AttendanceRecord } from '../attendance/attendance-record.aggregate';
 import { AttendanceId } from '../attendance/attendance-id.vo';
+import { AccessResult } from '../attendance/access-result.enum';
+import { CheckInMethod } from '../attendance/check-in-method.enum';
+
+export interface AttendanceQueryCriteria {
+  readonly clientId?: string;
+  readonly gymDay?: string;
+  readonly dateFrom?: Date;
+  readonly dateTo?: Date;
+  readonly facilityId?: string;
+  readonly result?: AccessResult;
+  readonly method?: CheckInMethod;
+  readonly page?: number;
+  readonly limit?: number;
+  readonly sortOrder?: 'ASC' | 'DESC';
+}
+
+export interface AttendanceDailyKPIs {
+  readonly totalCheckIns: number;
+  readonly grantedCount: number;
+  readonly deniedCount: number;
+  readonly uniqueClientsCount: number;
+}
 
 /**
- * Domain Repository Interface for append-only AttendanceRecord entities.
+ * Domain Repository Interface for append-only AttendanceRecord entities and query read-models.
  */
 export interface AttendanceRecordRepository {
   /**
@@ -40,4 +62,16 @@ export interface AttendanceRecordRepository {
    * Counts granted check-ins for a client on a specific GymDay (quota tracking).
    */
   countGrantedByClientAndGymDay(clientId: string, gymDay: string): Promise<number>;
+
+  /**
+   * Finds paginated attendance records satisfying multi-dimensional criteria.
+   */
+  findWithPagination?(
+    criteria: AttendanceQueryCriteria,
+  ): Promise<{ records: AttendanceRecord[]; total: number }>;
+
+  /**
+   * Computes high-efficiency daily operational KPIs for a given GymDay.
+   */
+  getDailyKPIs?(gymDay: string, facilityId?: string): Promise<AttendanceDailyKPIs>;
 }
