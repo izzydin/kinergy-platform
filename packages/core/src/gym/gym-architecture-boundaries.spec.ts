@@ -173,6 +173,7 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         '0061',
         '0062',
         '0063',
+        '0064',
       ];
 
       for (const adrNum of requiredAdrs) {
@@ -191,7 +192,7 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       }
     });
 
-    it('should enforce all Phase 5.1, 5.3 & 5.4 architecture specification documents exist and contain invariants', () => {
+    it('should enforce all Phase 5.1, 5.3, 5.4 & 5.5 architecture specification documents exist and contain invariants', () => {
       const contextDocPath = path.resolve(
         __dirname,
         '../../../../docs/architecture/contexts/gym.md',
@@ -237,6 +238,10 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         __dirname,
         '../../../../docs/architecture/gym-lifecycle-integration-and-consistency-audit.md',
       );
+      const attendanceDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-attendance-domain-and-boundaries.md',
+      );
 
       expect(fs.existsSync(contextDocPath)).toBe(true);
       expect(fs.existsSync(reconDocPath)).toBe(true);
@@ -250,6 +255,13 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(expirationProcessingDocPath)).toBe(true);
       expect(fs.existsSync(expirationIndicatorsDocPath)).toBe(true);
       expect(fs.existsSync(consistencyAuditDocPath)).toBe(true);
+      expect(fs.existsSync(attendanceDocPath)).toBe(true);
+
+      const attendanceDocContent = fs.readFileSync(attendanceDocPath, 'utf-8');
+      expect(attendanceDocContent).toContain('Authoritative Attendance Invariant');
+      expect(attendanceDocContent).toContain('AttendanceRecord');
+      expect(attendanceDocContent).toContain('GymDay');
+      expect(attendanceDocContent).toContain('Check-Out Decision');
 
       const auditDocContent = fs.readFileSync(consistencyAuditDocPath, 'utf-8');
       expect(auditDocContent).toContain('Lifecycle State Machine');
