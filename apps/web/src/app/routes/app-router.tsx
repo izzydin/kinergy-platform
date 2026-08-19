@@ -5,6 +5,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import '../../modules/dashboard';
 import '../../modules/identity/user-management';
 import '../../modules/settings';
+import '../../modules/attendance';
 
 import { AuthLayout, DashboardLayout, MainLayout } from '../layouts';
 import {
