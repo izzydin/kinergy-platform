@@ -72,6 +72,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0064](file:///c:/Projects/kinergy-platform/docs/adr/0064-gym-management-attendance-domain-boundary-identity-and-append-only-log-model.md)                           | Gym Management Attendance Domain Boundary, Identity & Append-Only Log Model               | Accepted   | 2026-08-19 |
 | [0065](file:///c:/Projects/kinergy-platform/docs/adr/0065-gym-management-membership-eligibility-contract-and-cross-context-integration.md)                           | Gym Management Membership Eligibility Contract & Cross-Context Integration                | Accepted   | 2026-08-19 |
 | [0066](file:///c:/Projects/kinergy-platform/docs/adr/0066-gym-management-record-check-in-use-case-anti-passback-and-idempotency.md)                                  | Gym Management Record Check-In Use Case, Anti-Passback & Idempotency Architecture         | Accepted   | 2026-08-19 |
+| [0067](file:///c:/Projects/kinergy-platform/docs/adr/0067-gym-management-duplicate-check-in-concurrency-and-idempotency-architecture.md)                             | Gym Management Duplicate Check-In, Concurrency & Idempotency Architecture                 | Accepted   | 2026-08-19 |
 
 ## Format
 

@@ -22,13 +22,14 @@ interface IdempotencyEntry {
  *
  * Operational Flow:
  * 1. Validate request parameters.
- * 2. Evaluate Idempotency: Check if request with identical idempotencyKey was previously processed.
- * 3. Evaluate Membership Eligibility: Delegate to MembershipEligibilityPort (ADR-0065).
- * 4. Record and persist denied attempt if ineligible (audit trail).
- * 5. Enforce Anti-Passback & Rapid Re-scan Duplicate Policy: Verify no granted entries within cooldown window.
- * 6. Record and persist GRANTED attendance event.
- * 7. Publish domain events via outbox / publisher.
- * 8. Return structured operational diagnostic response.
+ * 2. Acquire Client-Level Concurrency Mutex (prevents in-flight race conditions across turnstiles).
+ * 3. Evaluate Idempotency: Check if request with identical idempotencyKey was previously processed.
+ * 4. Evaluate Membership Eligibility: Delegate to MembershipEligibilityPort (ADR-0065).
+ * 5. Record and persist denied attempt if ineligible (audit trail).
+ * 6. Enforce Anti-Passback & Rapid Re-scan Duplicate Policy: Verify no granted entries within cooldown window.
+ * 7. Record and persist GRANTED attendance event.
+ * 8. Publish domain events via outbox / publisher.
+ * 9. Return structured operational diagnostic response.
  */
 export class RecordCheckInHandler implements CommandHandler<
   RecordCheckInCommand,
@@ -39,6 +40,7 @@ export class RecordCheckInHandler implements CommandHandler<
 
   private readonly antiPassbackCooldownMs: number;
   private readonly idempotencyCache = new Map<string, IdempotencyEntry>();
+  private readonly clientLocks = new Map<string, Promise<void>>();
 
   constructor(
     private readonly attendanceRepository: AttendanceRecordRepository,
@@ -54,25 +56,28 @@ export class RecordCheckInHandler implements CommandHandler<
   public async execute(
     command: RecordCheckInCommand,
   ): Promise<ApplicationResult<RecordCheckInResultDTO>> {
+    const { input } = command;
+
+    // 1. Basic input integrity check
+    const clientId = input.clientId?.trim();
+    if (!clientId) {
+      return ApplicationResult.fail('Client ID is required.');
+    }
+
+    if (!input.method || !Object.values(CheckInMethod).includes(input.method)) {
+      return ApplicationResult.fail(`Invalid check-in method: '${input.method}'.`);
+    }
+
+    // 2. Acquire concurrency lock for this specific client
+    const releaseLock = await this.acquireClientLock(clientId);
+
     try {
-      const { input } = command;
-
-      // 1. Basic input integrity check
-      const clientId = input.clientId?.trim();
-      if (!clientId) {
-        return ApplicationResult.fail('Client ID is required.');
-      }
-
-      if (!input.method || !Object.values(CheckInMethod).includes(input.method)) {
-        return ApplicationResult.fail(`Invalid check-in method: '${input.method}'.`);
-      }
-
       const now = input.asOf ? new Date(input.asOf.getTime()) : this.clock.now();
       const facilityId = input.facilityId?.trim() || 'main';
       const timezone = input.timezone?.trim() || this.clock.timezone();
       const gymDay = GymDay.fromUtc(now, timezone, facilityId);
 
-      // 2. Idempotency verification
+      // 3. Idempotency verification
       const idempotencyKey = input.idempotencyKey?.trim();
       if (idempotencyKey) {
         this.pruneExpiredIdempotency();
@@ -85,10 +90,10 @@ export class RecordCheckInHandler implements CommandHandler<
         }
       }
 
-      // 3. Evaluate Membership Eligibility (Cross-Context Port)
+      // 4. Evaluate Membership Eligibility (Cross-Context Port)
       const eligibility = await this.membershipEligibilityPort.evaluateEligibility(clientId, now);
 
-      // 4. Handle Ineligible Client / Membership
+      // 5. Handle Ineligible Client / Membership
       if (!eligibility.isEligible) {
         const deniedResult = this.mapOutcomeToAccessResult(eligibility.outcome);
         const deniedRecord = AttendanceRecord.record(
@@ -133,7 +138,7 @@ export class RecordCheckInHandler implements CommandHandler<
         return ApplicationResult.ok<RecordCheckInResultDTO>(responseDTO);
       }
 
-      // 5. Anti-Passback & Rapid Re-scan Duplicate Check
+      // 6. Anti-Passback & Rapid Re-scan Duplicate Check
       const cooldownSince = new Date(now.getTime() - this.antiPassbackCooldownMs);
       const recentRecords = await this.attendanceRepository.findRecentByClientId(
         clientId,
@@ -186,7 +191,7 @@ export class RecordCheckInHandler implements CommandHandler<
         return ApplicationResult.ok<RecordCheckInResultDTO>(responseDTO);
       }
 
-      // 6. Record and Persist Successful Admission
+      // 7. Record and Persist Successful Admission
       const grantedRecord = AttendanceRecord.record(
         {
           clientId,
@@ -230,7 +235,25 @@ export class RecordCheckInHandler implements CommandHandler<
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Unknown check-in error';
       return ApplicationResult.fail(`Failed to record check-in: ${message}`);
+    } finally {
+      releaseLock();
     }
+  }
+
+  private async acquireClientLock(clientId: string): Promise<() => void> {
+    while (this.clientLocks.has(clientId)) {
+      await this.clientLocks.get(clientId);
+    }
+    let releaseLock!: () => void;
+    const lockPromise = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+    this.clientLocks.set(clientId, lockPromise);
+
+    return () => {
+      this.clientLocks.delete(clientId);
+      releaseLock();
+    };
   }
 
   private mapOutcomeToAccessResult(outcome: MembershipEligibilityOutcome): AccessResult {
