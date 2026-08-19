@@ -174,6 +174,7 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         '0062',
         '0063',
         '0064',
+        '0065',
       ];
 
       for (const adrNum of requiredAdrs) {
@@ -242,6 +243,10 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
         __dirname,
         '../../../../docs/architecture/gym-attendance-domain-and-boundaries.md',
       );
+      const eligibilityDocPath = path.resolve(
+        __dirname,
+        '../../../../docs/architecture/gym-membership-eligibility-contract.md',
+      );
 
       expect(fs.existsSync(contextDocPath)).toBe(true);
       expect(fs.existsSync(reconDocPath)).toBe(true);
@@ -256,6 +261,12 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       expect(fs.existsSync(expirationIndicatorsDocPath)).toBe(true);
       expect(fs.existsSync(consistencyAuditDocPath)).toBe(true);
       expect(fs.existsSync(attendanceDocPath)).toBe(true);
+      expect(fs.existsSync(eligibilityDocPath)).toBe(true);
+
+      const eligibilityDocContent = fs.readFileSync(eligibilityDocPath, 'utf-8');
+      expect(eligibilityDocContent).toContain('MembershipEligibilityPort');
+      expect(eligibilityDocContent).toContain('MembershipEligibilityOutcome');
+      expect(eligibilityDocContent).toContain('CheckMembershipEligibilityHandler');
 
       const attendanceDocContent = fs.readFileSync(attendanceDocPath, 'utf-8');
       expect(attendanceDocContent).toContain('Authoritative Attendance Invariant');
