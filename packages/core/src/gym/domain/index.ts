@@ -4,3 +4,4 @@ export * from './plan';
 export * from './events';
 export * from './repositories';
 export * from './policies';
+export * from './attendance';

@@ -10,3 +10,4 @@ export * from './membership-plan-created.event';
 export * from './membership-plan-published.event';
 export * from './membership-plan-price-changed.event';
 export * from './membership-plan-archived.event';
+export * from './attendance-recorded.event';
