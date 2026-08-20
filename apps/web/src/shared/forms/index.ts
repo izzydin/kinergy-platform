@@ -11,6 +11,27 @@
  * @packageDocumentation
  */
 
+// ─── Form Primitives & Context ──────────────────────────────────────────────
+export {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormDescription,
+  FormMessage,
+  useFormField,
+  FormFieldContext,
+  FormItemContext,
+  type FormFieldContextValue,
+  type FormItemContextValue,
+  type FormItemProps,
+  type FormLabelProps,
+  type FormControlProps,
+  type FormDescriptionProps,
+  type FormMessageProps,
+} from './components/form';
+
 // ─── Layout ─────────────────────────────────────────────────────────────────
 export { FormLayout, type FormLayoutProps, type FormLayoutVariant } from './components/form-layout';
 export { FormSection, type FormSectionProps } from './components/form-section';
