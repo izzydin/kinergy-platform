@@ -7,8 +7,7 @@ import { ConfirmDiscardDialog } from '../components/confirm-discard-dialog';
 
 // Polyfill Request if undefined in jsdom environment for @remix-run/router
 if (typeof global.Request === 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  global.Request = class Request {} as any;
+  global.Request = class Request {} as unknown as typeof Request;
 }
 
 interface HarnessProps {
