@@ -13,6 +13,11 @@ export interface DirtyGuardOptions {
    * When true, the guard is deactivated regardless of `isDirty`.
    */
   isSubmitSuccessful: boolean;
+  /**
+   * Optional toggle to enable or disable the guard.
+   * @default true
+   */
+  enabled?: boolean;
 }
 
 export interface DirtyGuardResult {
@@ -36,23 +41,28 @@ export interface DirtyGuardResult {
 /**
  * useDirtyGuard
  *
- * Prevents accidental navigation away from a page form that has unsaved changes.
- * Covers two surfaces:
+ * Prevents accidental loss of unsaved changes in page-level forms.
+ * Covers two critical navigation vectors:
  *
- * 1. **Internal route transitions** — uses React Router v6 `useBlocker` to intercept
+ * 1. **Internal route transitions** — Uses React Router v6 `useBlocker` to intercept
  *    programmatic and link-driven navigation. When a transition is blocked, `isBlocked`
- *    becomes true — render `<ConfirmDiscardDialog>` to let the user decide.
+ *    becomes true — render `<ConfirmDiscardDialog>` to prompt the user.
  *
- * 2. **Browser close / refresh** — adds a `beforeunload` event listener when the form
- *    is dirty. The browser renders its own native "Leave site?" prompt. We cannot
- *    customise the message per modern browser policy.
+ * 2. **Browser close / refresh / reload** — Attaches a `beforeunload` listener to `window`
+ *    only while the form is dirty and not yet successfully submitted.
  *
  * **Safety invariants — the guard NEVER blocks when:**
  * - `isSubmitSuccessful` is `true`
  * - `isDirty` is `false`
+ * - `enabled` is `false`
  *
- * **For dialog forms** use `useDirtyDialogGuard` instead. That hook intercepts the
- * dialog's `onOpenChange` rather than router transitions.
+ * **Listener lifecycle:**
+ * - `beforeunload` is registered strictly while `shouldBlock` is true.
+ * - Listener is cleaned up immediately when the form becomes clean, submits, or unmounts.
+ *
+ * **For dialog forms:**
+ * Use `useDirtyDialogGuard` instead, which intercepts modal dialog `onOpenChange(false)`
+ * closures rather than top-level routing transitions.
  *
  * @example
  * ```tsx
@@ -70,11 +80,11 @@ export interface DirtyGuardResult {
 export function useDirtyGuard({
   isDirty,
   isSubmitSuccessful,
+  enabled = true,
 }: DirtyGuardOptions): DirtyGuardResult {
-  // Guard is active only when the form is dirty AND not yet successfully submitted.
-  const shouldBlock = isDirty && !isSubmitSuccessful;
+  const shouldBlock = Boolean(enabled && isDirty && !isSubmitSuccessful);
 
-  // React Router v6 useBlocker — intercepts internal route transitions.
+  // React Router v6 useBlocker with boolean flag
   const blocker = useBlocker(shouldBlock);
 
   // Browser close / refresh guard
@@ -82,9 +92,7 @@ export function useDirtyGuard({
     if (!shouldBlock) return;
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
-      // Modern browsers require returnValue to be set to show the prompt.
       event.preventDefault();
-      // Legacy browsers (and some modern ones) still check returnValue.
       event.returnValue = '';
     };
 
