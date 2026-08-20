@@ -1,104 +1,177 @@
 import * as React from 'react';
-import type { FieldErrors, FieldValues } from 'react-hook-form';
+import {
+  type FieldErrors,
+  type FieldValues,
+  type Path,
+  type UseFormSetFocus,
+  useFormContext,
+} from 'react-hook-form';
 import { AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle, cn } from '@kinergy-platform/ui';
+
+export interface FormValidationErrorItem {
+  /** Field path or name associated with the validation error */
+  name: string;
+  /** Human-readable error message */
+  message: string;
+}
 
 export interface FormValidationSummaryProps<
   TFieldValues extends FieldValues = FieldValues,
 > extends Omit<React.HTMLAttributes<HTMLDivElement>, 'children'> {
   /**
    * The `formState.errors` object from React Hook Form's `useForm`.
+   * Optional if component is rendered within `<Form {...form}>` (FormProvider).
    */
-  errors: FieldErrors<TFieldValues>;
+  errors?: FieldErrors<TFieldValues>;
   /**
    * Whether the form has been submitted at least once.
-   * The summary is only visible after a submission attempt.
-   * Corresponds to `formState.isSubmitted` from RHF.
+   * Optional if component is rendered within `<Form {...form}>` (FormProvider).
    */
-  isSubmitted: boolean;
+  isSubmitted?: boolean;
   /**
    * Optional override for the summary heading.
    * @default "Please fix the following errors"
    */
   title?: string;
   /**
-   * When true, the summary auto-focuses itself on first render when errors are present.
-   * This ensures screen readers announce the error list immediately after a failed submit.
+   * When true, auto-focuses the summary alert container upon failed submission.
+   * Ensures screen readers announce the error summary immediately.
    * @default true
    */
   autoFocus?: boolean;
+  /**
+   * When true, focuses the first invalid field upon failed submission instead of the summary alert.
+   * @default false
+   */
+  focusFirstError?: boolean;
+  /**
+   * Optional custom field focus callback when clicking an error item in the summary.
+   * If omitted, invokes `setFocus(fieldName)` from React Hook Form or DOM element `.focus()`.
+   */
+  onFocusField?: (fieldName: Path<TFieldValues>) => void;
+  /**
+   * Explicit React Hook Form `setFocus` function.
+   * If omitted, retrieved automatically from `useFormContext` if available.
+   */
+  setFocus?: UseFormSetFocus<TFieldValues>;
 }
 
-/** Recursively extract all string messages from an RHF FieldErrors tree. */
-function extractErrorMessages(errors: FieldErrors): string[] {
-  const messages: string[] = [];
+/** Recursively extracts field names and messages from an RHF FieldErrors tree. */
+export function extractValidationErrorItems(
+  errors: FieldErrors,
+  parentKey = '',
+): FormValidationErrorItem[] {
+  const items: FormValidationErrorItem[] = [];
 
-  for (const value of Object.values(errors)) {
+  for (const [key, value] of Object.entries(errors)) {
     if (!value) continue;
 
+    const fullKey = parentKey ? `${parentKey}.${key}` : key;
+
     if (typeof value.message === 'string' && value.message) {
-      messages.push(value.message);
+      items.push({ name: fullKey, message: value.message });
     } else if (typeof value === 'object' && !('message' in value)) {
-      // Nested object (e.g., nested schema)
-      messages.push(...extractErrorMessages(value as FieldErrors));
+      // Nested error tree
+      items.push(...extractValidationErrorItems(value as FieldErrors, fullKey));
     }
   }
 
-  return messages;
+  return items;
 }
 
 /**
- * FormValidationSummary
+ * FormValidationSummary Component
  *
- * Accessible validation error summary that aggregates all field errors into a single
- * announced region. Intended for page forms where the submit button may be far from
- * the individual field errors.
- *
- * **Opt-in**: Dialog forms should not include this; they rely on inline `FormErrorMessage`
- * per field. Page-level forms with many fields benefit most.
- *
- * Visibility: Only renders when `isSubmitted && hasErrors` to avoid showing on mount.
- *
- * Accessibility:
- * - `role="alert"` — announces immediately when rendered
- * - `aria-live="assertive"` — assertive live region for error announcements
- * - Auto-focuses on first visible render so keyboard users know where to look
+ * Accessible validation error summary that aggregates and presents form-level errors.
+ * Complies with WAI-ARIA alert practices:
+ * - `role="alert"` for assertive screen reader announcement
+ * - Focus management on failed submit without stealing focus during typing
+ * - Clickable error items to quickly navigate/focus invalid fields via `setFocus()`
+ * - Maintains individual field-level error messages alongside the summary
  *
  * @example
  * ```tsx
- * const { formState: { errors, isSubmitted } } = useForm<MySchema>();
+ * const form = useForm<FormValues>();
  *
- * <FormValidationSummary errors={errors} isSubmitted={isSubmitted} />
- * <FormLayout variant="page">
- *   ...
- * </FormLayout>
+ * <Form {...form}>
+ *   <form onSubmit={form.handleSubmit(onSubmit)}>
+ *     <FormValidationSummary />
+ *     <FormField ... />
+ *     <FormActions ... />
+ *   </form>
+ * </Form>
  * ```
  */
 export function FormValidationSummary<TFieldValues extends FieldValues = FieldValues>({
-  errors,
-  isSubmitted,
+  errors: propsErrors,
+  isSubmitted: propsIsSubmitted,
   title = 'Please fix the following errors',
   autoFocus = true,
+  focusFirstError = false,
+  onFocusField,
+  setFocus: propsSetFocus,
   className,
   id,
   ...props
-}: FormValidationSummaryProps<TFieldValues>) {
+}: FormValidationSummaryProps<TFieldValues>): React.ReactElement | null {
   const summaryRef = React.useRef<HTMLDivElement>(null);
-  const errorMessages = extractErrorMessages(errors as FieldErrors);
-  const hasErrors = errorMessages.length > 0;
+  const formContext = useFormContext<TFieldValues>();
+
+  const errors = propsErrors ?? formContext?.formState?.errors ?? ({} as FieldErrors<TFieldValues>);
+  const isSubmitted = propsIsSubmitted ?? formContext?.formState?.isSubmitted ?? false;
+  const setFocus = propsSetFocus ?? formContext?.setFocus;
+
+  const errorItems = React.useMemo(
+    () => extractValidationErrorItems(errors as FieldErrors),
+    [errors],
+  );
+  const hasErrors = errorItems.length > 0;
   const isVisible = isSubmitted && hasErrors;
 
-  // Focus the summary div the first time it becomes visible so screen readers
-  // announce it immediately after a failed submission attempt.
+  // Track submission count to detect new submit failures and avoid stealing focus during normal typing
+  const submitCount = formContext?.formState?.submitCount ?? (isSubmitted ? 1 : 0);
+  const prevSubmitCountRef = React.useRef(submitCount);
+
   React.useEffect(() => {
-    if (isVisible && autoFocus && summaryRef.current) {
-      summaryRef.current.focus();
+    const isNewFailedSubmit = submitCount > prevSubmitCountRef.current && isVisible;
+    prevSubmitCountRef.current = submitCount;
+
+    if (isVisible && isNewFailedSubmit) {
+      if (focusFirstError && errorItems[0]?.name) {
+        const firstFieldName = errorItems[0].name as Path<TFieldValues>;
+        if (setFocus) {
+          setFocus(firstFieldName);
+        }
+        const element =
+          document.querySelector<HTMLElement>(`[name="${firstFieldName}"]`) ||
+          document.getElementById(firstFieldName) ||
+          document.getElementById(`${firstFieldName}-form-item`);
+        element?.focus();
+      } else if (autoFocus && summaryRef.current) {
+        summaryRef.current.focus();
+      }
     }
-  }, [isVisible, autoFocus]);
+  }, [isVisible, submitCount, autoFocus, focusFirstError, setFocus, errorItems]);
 
   if (!isVisible) {
     return null;
   }
+
+  const handleFieldClick = (fieldName: string) => {
+    if (onFocusField) {
+      onFocusField(fieldName as Path<TFieldValues>);
+    } else {
+      if (setFocus) {
+        setFocus(fieldName as Path<TFieldValues>);
+      }
+      const element =
+        document.querySelector<HTMLElement>(`[name="${fieldName}"]`) ||
+        document.getElementById(fieldName) ||
+        document.getElementById(`${fieldName}-form-item`);
+      element?.focus();
+    }
+  };
 
   return (
     <Alert
@@ -107,16 +180,25 @@ export function FormValidationSummary<TFieldValues extends FieldValues = FieldVa
       variant="destructive"
       role="alert"
       aria-live="assertive"
-      tabIndex={autoFocus ? -1 : undefined}
+      tabIndex={autoFocus && !focusFirstError ? -1 : undefined}
       className={cn('focus:outline-none', className)}
       {...props}
     >
-      <AlertCircle className="h-4 w-4" />
+      <AlertCircle className="h-4 w-4 shrink-0" />
       <AlertTitle>{title}</AlertTitle>
       <AlertDescription>
-        <ul className="mt-1 list-inside list-disc space-y-0.5 text-xs">
-          {errorMessages.map((message, index) => (
-            <li key={index}>{message}</li>
+        <ul className="mt-1 list-inside list-disc space-y-1 text-xs">
+          {errorItems.map((item, index) => (
+            <li key={`${item.name}-${index}`}>
+              <button
+                type="button"
+                data-testid={`validation-summary-item-${item.name}`}
+                onClick={() => handleFieldClick(item.name)}
+                className="cursor-pointer text-left underline underline-offset-2 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded-xs"
+              >
+                {item.message}
+              </button>
+            </li>
           ))}
         </ul>
       </AlertDescription>

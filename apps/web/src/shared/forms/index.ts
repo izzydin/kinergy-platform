@@ -53,7 +53,9 @@ export { FormCancelButton, type FormCancelButtonProps } from './components/form-
 // ─── Validation Summary ──────────────────────────────────────────────────────
 export {
   FormValidationSummary,
+  extractValidationErrorItems,
   type FormValidationSummaryProps,
+  type FormValidationErrorItem,
 } from './components/form-validation-summary';
 
 // ─── Dirty Guard ─────────────────────────────────────────────────────────────

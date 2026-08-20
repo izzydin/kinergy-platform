@@ -17,33 +17,44 @@ import { ValidationError } from '../../query';
  */
 export type ServerValidationDetails = Record<string, string[]>;
 
+export interface ApplyServerErrorsOptions<TFieldValues extends FieldValues> {
+  /**
+   * Optional list of known form field names. If provided, any error key from the server
+   * that is not in this list will be collected and applied to `fallbackField`.
+   */
+  knownFields?: Array<Path<TFieldValues> | string>;
+  /**
+   * Field name to receive any server error messages that could not be mapped
+   * to a known form field or are designated as global/root errors.
+   *
+   * @default 'root' (if knownFields is provided and unmapped fields exist)
+   */
+  fallbackField?: Path<TFieldValues>;
+}
+
 /**
  * useApplyServerErrors
  *
- * Bridges the gap between the backend's normalized `ValidationError.details`
- * and React Hook Form's `setError()`.
+ * Bridges backend normalized `ValidationError.details` into React Hook Form's `setError()`.
  *
- * Called in a mutation's `onError` handler to map server field errors back
- * into the form's error state, rendering them as inline `FormErrorMessage` nodes
- * and (if present) in `FormValidationSummary`.
+ * Called in a mutation's `onError` handler to map server validation errors into the form's
+ * error state, rendering them as inline `FormMessage` nodes and in `FormValidationSummary`.
  *
- * Unknown fields (not present in the form schema) are silently ignored unless
- * a fallback field name is provided — in that case, aggregated errors are
- * displayed under the fallback field.
+ * Generic server errors (500, network loss, 401) should be handled via standard notification
+ * or error boundaries, not injected as form validation errors.
  *
  * @param setError - React Hook Form's `setError` function from `useForm`.
- *
- * @returns `applyServerErrors(error)` — call this in your mutation's `onError`.
+ * @returns `applyServerErrors(error, options)`
  *
  * @example
  * ```tsx
- * const { setError, ... } = useForm<CreateUserFormValues>();
+ * const { setError } = useForm<CreateUserFormValues>();
  * const applyServerErrors = useApplyServerErrors(setError);
  *
  * const mutation = useCreateUserMutation({
  *   onError: (error) => {
  *     if (error instanceof ValidationError) {
- *       applyServerErrors(error);
+ *       applyServerErrors(error, { fallbackField: 'root' });
  *     }
  *   },
  * });
@@ -57,6 +68,7 @@ export function useApplyServerErrors<TFieldValues extends FieldValues>(
       const details = error.details;
       if (!details || typeof details !== 'object') return;
 
+      const knownFieldsSet = options?.knownFields ? new Set(options.knownFields) : null;
       const unknownMessages: string[] = [];
 
       for (const [field, messages] of Object.entries(details)) {
@@ -65,22 +77,19 @@ export function useApplyServerErrors<TFieldValues extends FieldValues>(
         // Combine multiple messages for the same field into one readable string
         const combinedMessage = messages.join('. ');
 
-        // Attempt to set the error on the matching form field.
-        // RHF does not throw for unknown field names; unknown fields are silently
-        // collected for the fallback field.
-        setError(field as Path<TFieldValues>, {
-          type: 'server',
-          message: combinedMessage,
-        });
+        const isKnown = knownFieldsSet ? knownFieldsSet.has(field) : true;
 
-        // Track messages for fields that cannot be mapped visually
-        // (feature can use fallbackField to surface them via root error or a sentinel field)
-        if (options?.fallbackField && !(field in (error.details ?? {}))) {
+        if (isKnown) {
+          setError(field as Path<TFieldValues>, {
+            type: 'server',
+            message: combinedMessage,
+          });
+        } else {
           unknownMessages.push(combinedMessage);
         }
       }
 
-      // If a fallback field is provided, surface unknown/unmapped errors there
+      // If unknown messages exist and a fallback field is provided, assign them
       if (options?.fallbackField && unknownMessages.length > 0) {
         setError(options.fallbackField, {
           type: 'server',
@@ -90,15 +99,4 @@ export function useApplyServerErrors<TFieldValues extends FieldValues>(
     },
     [setError],
   );
-}
-
-export interface ApplyServerErrorsOptions<TFieldValues extends FieldValues> {
-  /**
-   * Field name to receive any server error messages that could not be mapped
-   * to a known form field. Useful for surfacing unexpected server-side validation
-   * rejections without losing the error message.
-   *
-   * @example `fallbackField: 'root'` (RHF root-level errors)
-   */
-  fallbackField?: Path<TFieldValues>;
 }

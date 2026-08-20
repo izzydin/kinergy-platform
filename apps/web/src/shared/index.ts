@@ -46,6 +46,7 @@ export {
   FormSection,
   FormSubmitButton,
   FormValidationSummary,
+  extractValidationErrorItems,
   useApplyServerErrors,
   useDirtyDialogGuard,
   useDirtyGuard,
@@ -72,6 +73,7 @@ export {
   type FormMessageProps,
   type FormSectionProps,
   type FormSubmitButtonProps,
+  type FormValidationErrorItem,
   type FormValidationSummaryProps,
   type ServerValidationDetails,
 } from './forms';
