@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { NotificationProvider } from '../../../../../app/providers/notification-provider';
 import type { ManagedUser } from '../../domain/user.types';
@@ -18,14 +18,20 @@ const MOCK_TARGET_USER: ManagedUser = {
   updatedAt: '2026-08-01T10:00:00Z',
 };
 
-function mockFetchResponse(body: unknown, status = 200): jest.Mock {
+function mockFetchResponse(body: unknown, status = 200, delayMs = 0): jest.Mock {
   const textPayload = typeof body === 'string' ? body : JSON.stringify(body);
-  const mockFn = jest.fn().mockResolvedValue({
-    ok: status >= 200 && status < 300,
-    status,
-    text: () => Promise.resolve(textPayload),
-    json: () => Promise.resolve(body),
-  } as Response);
+  const mockFn = jest.fn().mockImplementation(() => {
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        resolve({
+          ok: status >= 200 && status < 300,
+          status,
+          text: () => Promise.resolve(textPayload),
+          json: () => Promise.resolve(body),
+        } as Response);
+      }, delayMs);
+    });
+  });
   global.fetch = mockFn as unknown as typeof fetch;
   return mockFn;
 }
@@ -58,11 +64,12 @@ function renderUserEditDialog(props: {
   };
 }
 
-describe('UserEditDialog Component', () => {
+describe('UserEditDialog Component (Track C Integration)', () => {
   const handleOpenChange = jest.fn();
 
   afterEach(() => {
     jest.restoreAllMocks();
+    handleOpenChange.mockClear();
   });
 
   it('renders modal dialog with pre-filled user values when open is true', () => {
@@ -78,15 +85,18 @@ describe('UserEditDialog Component', () => {
     expect(screen.getByRole('button', { name: /save changes/i })).toBeInTheDocument();
   });
 
-  it('shows validation error when full name is cleared below 2 characters', async () => {
+  it('shows validation summary and error when full name is cleared below 2 characters', async () => {
     renderUserEditDialog({ user: MOCK_TARGET_USER, open: true, onOpenChange: handleOpenChange });
 
     const nameInput = screen.getByLabelText(/full name/i);
-    fireEvent.change(nameInput, { target: { value: 'A' } });
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    act(() => {
+      fireEvent.change(nameInput, { target: { value: 'A' } });
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    });
 
     await waitFor(() => {
-      expect(screen.getByText('Name must be at least 2 characters')).toBeInTheDocument();
+      expect(screen.getByText('Please fix the following errors')).toBeInTheDocument();
+      expect(screen.getAllByText('Name must be at least 2 characters')).toHaveLength(2);
     });
   });
 
@@ -99,14 +109,15 @@ describe('UserEditDialog Component', () => {
 
     renderUserEditDialog({ user: MOCK_TARGET_USER, open: true, onOpenChange: handleOpenChange });
 
-    fireEvent.change(screen.getByLabelText(/full name/i), {
-      target: { value: 'Updated Grid Operator' },
+    act(() => {
+      fireEvent.change(screen.getByLabelText(/full name/i), {
+        target: { value: 'Updated Grid Operator' },
+      });
+      fireEvent.change(screen.getByLabelText(/access role/i), {
+        target: { value: 'ADMIN' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
     });
-    fireEvent.change(screen.getByLabelText(/access role/i), {
-      target: { value: 'ADMIN' },
-    });
-
-    fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
 
     await waitFor(() => {
       expect(global.fetch).toHaveBeenCalledWith(
@@ -126,12 +137,61 @@ describe('UserEditDialog Component', () => {
     });
   });
 
-  it('closes dialog without submitting when Cancel button is clicked', () => {
+  it('closes dialog immediately when Cancel is clicked on clean form', () => {
     renderUserEditDialog({ user: MOCK_TARGET_USER, open: true, onOpenChange: handleOpenChange });
 
     const cancelButton = screen.getByRole('button', { name: /cancel/i });
-    fireEvent.click(cancelButton);
+    act(() => {
+      fireEvent.click(cancelButton);
+    });
 
     expect(handleOpenChange).toHaveBeenCalledWith(false);
+    expect(screen.queryByText('Discard unsaved changes?')).not.toBeInTheDocument();
+  });
+
+  it('intercepts cancel with ConfirmDiscardDialog when form is dirty', async () => {
+    renderUserEditDialog({ user: MOCK_TARGET_USER, open: true, onOpenChange: handleOpenChange });
+
+    // Modify field
+    act(() => {
+      fireEvent.change(screen.getByLabelText(/full name/i), {
+        target: { value: 'Modified Name' },
+      });
+    });
+
+    // Attempt cancel
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText('Discard unsaved changes?')).toBeInTheDocument();
+    });
+    expect(handleOpenChange).not.toHaveBeenCalled();
+
+    // Confirm discard
+    act(() => {
+      fireEvent.click(screen.getByRole('button', { name: /discard changes/i }));
+    });
+
+    expect(handleOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  it('shows pending state during in-flight edit mutation', async () => {
+    mockFetchResponse({ ...MOCK_TARGET_USER }, 200, 200);
+
+    renderUserEditDialog({ user: MOCK_TARGET_USER, open: true, onOpenChange: handleOpenChange });
+
+    act(() => {
+      fireEvent.change(screen.getByLabelText(/full name/i), {
+        target: { value: 'In-Flight Update' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /save changes/i }));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /saving changes\.\.\./i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /cancel/i })).toBeDisabled();
+    });
   });
 });
