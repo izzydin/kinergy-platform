@@ -4,7 +4,7 @@ import { Button, type ButtonProps } from '@kinergy-platform/ui';
 export interface FormCancelButtonProps extends Omit<ButtonProps, 'type' | 'onClick'> {
   /**
    * Callback invoked when the cancel button is clicked.
-   * Typically closes a dialog or navigates back.
+   * Typically closes a dialog, dismisses a drawer, or navigates back.
    */
   onCancel: () => void;
   /**
@@ -12,6 +12,10 @@ export interface FormCancelButtonProps extends Omit<ButtonProps, 'type' | 'onCli
    * When true, the cancel button is disabled to prevent interrupting an in-flight request.
    */
   isPending?: boolean;
+  /**
+   * Alias for `isPending` for compatibility with React Hook Form's `formState.isSubmitting`.
+   */
+  isSubmitting?: boolean;
 }
 
 /**
@@ -20,7 +24,8 @@ export interface FormCancelButtonProps extends Omit<ButtonProps, 'type' | 'onCli
  * Standardized form cancellation / dismissal trigger. Always renders as `type="button"`
  * to prevent accidental form submission.
  *
- * Disabled automatically when `isPending` to prevent interrupting an in-flight mutation.
+ * Automatically disabled when `isPending` or `isSubmitting` to prevent interrupting
+ * an in-flight mutation or request.
  *
  * @example
  * ```tsx
@@ -36,15 +41,26 @@ export interface FormCancelButtonProps extends Omit<ButtonProps, 'type' | 'onCli
  */
 export const FormCancelButton = React.forwardRef<HTMLButtonElement, FormCancelButtonProps>(
   (
-    { onCancel, isPending = false, variant = 'outline', disabled, children = 'Cancel', ...props },
+    {
+      onCancel,
+      isPending = false,
+      isSubmitting = false,
+      variant = 'outline',
+      disabled = false,
+      children = 'Cancel',
+      ...props
+    },
     ref,
   ) => {
+    const isBusy = Boolean(isPending || isSubmitting);
+    const isControlDisabled = Boolean(disabled || isBusy);
+
     return (
       <Button
         ref={ref}
         type="button"
         variant={variant}
-        disabled={isPending || disabled}
+        disabled={isControlDisabled}
         onClick={onCancel}
         {...props}
       >
