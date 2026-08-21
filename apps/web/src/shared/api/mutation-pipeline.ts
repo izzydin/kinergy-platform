@@ -42,13 +42,14 @@ export interface StandardMutationOptions<
   TVariables = void,
   TError = ApiError,
   TContext = unknown,
+  TQueryData = unknown,
 > {
   /** Transport execution function returning a Promise */
   mutationFn: (variables: TVariables) => Promise<TData>;
   /** Query keys to automatically invalidate upon successful mutation */
   invalidates?: QueryKey[] | ((data: TData, variables: TVariables) => QueryKey[]);
   /** Opt-in optimistic cache update configuration */
-  optimistic?: OptimisticConfig<TVariables, unknown>;
+  optimistic?: OptimisticConfig<TVariables, TQueryData>;
 
   /** Toast notification configuration for success and error events */
   notifications?: MutationNotificationConfig<TData, TVariables, TError>;
@@ -98,8 +99,9 @@ export function useStandardMutation<
   TVariables = void,
   TError extends ApiError = ApiError,
   TContext = unknown,
+  TQueryData = unknown,
 >(
-  options: StandardMutationOptions<TData, TVariables, TError, TContext>,
+  options: StandardMutationOptions<TData, TVariables, TError, TContext, TQueryData>,
 ): UseMutationResult<TData, TError, TVariables, PipelineContext<TContext>> {
   const queryClient = useQueryClient();
   const log = logger.withContext(options.loggerContext || 'StandardMutation');
@@ -132,7 +134,9 @@ export function useStandardMutation<
 
         // Apply optimistic cache update
         const updateFn = options.optimistic.update;
-        queryClient.setQueryData(optimisticKey, (oldData: unknown) => updateFn(oldData, variables));
+        queryClient.setQueryData(optimisticKey, (oldData: unknown) =>
+          updateFn(oldData as TQueryData | undefined, variables),
+        );
 
         log.debug('Applied optimistic update', { queryKey: optimisticKey });
       }

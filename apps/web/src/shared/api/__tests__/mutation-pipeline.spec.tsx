@@ -379,4 +379,43 @@ describe('Step A6.7 — Standard Mutation Pipeline', () => {
       expect(onErrorCallback).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('12. Query Cancellation During onMutate', () => {
+    it('cancels outgoing queries for the target key before applying optimistic update', async () => {
+      const wrapper = createWrapper();
+      queryClient.setQueryData(['items', 'active'], [{ id: '1', active: true }]);
+      const cancelSpy = jest.spyOn(queryClient, 'cancelQueries');
+
+      const mockApi = jest.fn().mockResolvedValue({ id: '1', active: false });
+
+      const { result } = renderHook(
+        () =>
+          useStandardMutation<
+            { id: string; active: boolean },
+            { id: string; active: boolean },
+            ServerError,
+            unknown,
+            Array<{ id: string; active: boolean }>
+          >({
+            mutationFn: mockApi,
+            optimistic: {
+              queryKey: ['items', 'active'],
+              update: (current = [], vars) =>
+                current.map((item) =>
+                  item.id === vars.id ? { ...item, active: vars.active } : item,
+                ),
+            },
+          }),
+        { wrapper },
+      );
+
+      act(() => {
+        result.current.mutate({ id: '1', active: false });
+      });
+
+      expect(cancelSpy).toHaveBeenCalledWith({ queryKey: ['items', 'active'] });
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(queryClient.getQueryData(['items', 'active'])).toEqual([{ id: '1', active: false }]);
+    });
+  });
 });
