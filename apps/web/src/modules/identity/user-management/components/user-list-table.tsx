@@ -1,10 +1,31 @@
 import { Button } from '@kinergy-platform/ui';
-import React from 'react';
+import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
+import React, { useMemo } from 'react';
+import {
+  DataTable,
+  DataTableColumnHeader,
+  DataTableRowActions,
+  type DataTableRowAction,
+} from '../../../../shared/table';
 import type { ManagedUser } from '../domain/user.types';
 import { UserStatusBadge } from './user-status-badge';
 
 export interface UserListTableProps {
   readonly users: readonly ManagedUser[];
+  readonly totalCount?: number;
+  readonly page?: number;
+  readonly pageSize?: number;
+  readonly onPageChange?: (page: number) => void;
+  readonly onPageSizeChange?: (pageSize: number) => void;
+  readonly sorting?: SortingState;
+  readonly onSortingChange?: OnChangeFn<SortingState>;
+  readonly isLoading?: boolean;
+  readonly isError?: boolean;
+  readonly errorMessage?: React.ReactNode;
+  readonly onRetry?: () => void;
+  readonly isFiltered?: boolean;
+  readonly onResetFilters?: () => void;
+  readonly toolbar?: React.ReactNode;
   readonly onActivate?: (user: ManagedUser) => void;
   readonly onDeactivate?: (user: ManagedUser) => void;
   readonly onEdit?: (user: ManagedUser) => void;
@@ -16,11 +37,25 @@ export interface UserListTableProps {
 /**
  * UserListTable Component
  *
- * Renders an accessible, responsive table listing Identity Users.
- * Implements accessible landmark table semantics and explicit action controls.
+ * Implements Track C — Step C2.5 DataTable Integration with User Management.
+ * Replaces bespoke table markup with standardized, accessible <DataTable />.
  */
 export const UserListTable: React.FC<UserListTableProps> = ({
   users,
+  totalCount,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange,
+  sorting,
+  onSortingChange,
+  isLoading = false,
+  isError = false,
+  errorMessage,
+  onRetry,
+  isFiltered = false,
+  onResetFilters,
+  toolbar,
   onActivate,
   onDeactivate,
   onEdit,
@@ -28,119 +63,164 @@ export const UserListTable: React.FC<UserListTableProps> = ({
   isDeactivating = false,
   canManageUsers = true,
 }) => {
+  const columns = useMemo<ColumnDef<ManagedUser, unknown>[]>(() => {
+    return [
+      {
+        accessorKey: 'name',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="User" />,
+        cell: ({ row }) => (
+          <div className="flex flex-col">
+            <span className="font-semibold text-foreground">{row.original.name}</span>
+            <span className="text-xs text-muted-foreground">{row.original.email}</span>
+          </div>
+        ),
+        enableSorting: true,
+        enableHiding: false,
+      },
+      {
+        accessorKey: 'status',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Status" />,
+        cell: ({ row }) => <UserStatusBadge status={row.original.status} />,
+        enableSorting: true,
+        enableHiding: true,
+      },
+      {
+        accessorKey: 'roles',
+        header: 'Role',
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">{row.original.roles.join(', ')}</span>
+        ),
+        enableSorting: false,
+        enableHiding: true,
+      },
+      {
+        accessorKey: 'lastLoginAt',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Last Login" />,
+        cell: ({ row }) => (
+          <span className="text-xs text-muted-foreground">
+            {row.original.lastLoginAt
+              ? new Date(row.original.lastLoginAt).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                })
+              : 'Never'}
+          </span>
+        ),
+        enableSorting: true,
+        enableHiding: true,
+      },
+      {
+        id: 'actions',
+        header: () => <span className="sr-only">Actions</span>,
+        cell: ({ row }) => {
+          const user = row.original;
+          const isUserActive = user.status === 'ACTIVE';
+
+          const rowActions: DataTableRowAction<ManagedUser>[] = [
+            {
+              id: 'edit',
+              label: 'Edit',
+              onClick: () => onEdit?.(user),
+              disabled: !canManageUsers,
+            },
+            {
+              id: 'activate',
+              label: 'Activate',
+              onClick: () => onActivate?.(user),
+              disabled: isActivating || !canManageUsers,
+              hidden: isUserActive,
+            },
+            {
+              id: 'deactivate',
+              label: 'Deactivate',
+              onClick: () => onDeactivate?.(user),
+              disabled: isDeactivating || !canManageUsers,
+              hidden: !isUserActive,
+              isDestructive: true,
+            },
+          ];
+
+          return (
+            <div className="flex items-center justify-end gap-2 whitespace-nowrap">
+              {/* Direct Quick Action Buttons for high ergonomics */}
+              {onEdit && canManageUsers && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => onEdit(user)}
+                  aria-label={`Edit details for user ${user.name}`}
+                  className="hidden sm:inline-flex"
+                >
+                  Edit
+                </Button>
+              )}
+
+              {!isUserActive && onActivate && canManageUsers && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isActivating}
+                  onClick={() => onActivate(user)}
+                  aria-label={`Activate user account for ${user.name}`}
+                  className="hidden sm:inline-flex text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                >
+                  Activate
+                </Button>
+              )}
+
+              {isUserActive && onDeactivate && canManageUsers && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isDeactivating}
+                  onClick={() => onDeactivate(user)}
+                  aria-label={`Deactivate user account for ${user.name}`}
+                  className="hidden sm:inline-flex text-destructive hover:text-destructive hover:bg-destructive/10"
+                >
+                  Deactivate
+                </Button>
+              )}
+
+              {/* Standard Accessible Row Action Menu */}
+              <DataTableRowActions row={user} actions={rowActions} />
+            </div>
+          );
+        },
+        enableHiding: false,
+      },
+    ];
+  }, [onActivate, onDeactivate, onEdit, isActivating, isDeactivating, canManageUsers]);
+
   return (
-    <div className="w-full overflow-x-auto rounded-lg border border-border bg-card">
-      <table className="w-full text-left text-sm" aria-label="User Accounts List">
-        <thead className="border-b border-border bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          <tr>
-            <th scope="col" className="px-4 py-3.5">
-              User
-            </th>
-            <th scope="col" className="px-4 py-3.5">
-              Status
-            </th>
-            <th scope="col" className="px-4 py-3.5">
-              Role
-            </th>
-            <th scope="col" className="px-4 py-3.5">
-              Last Login
-            </th>
-            <th scope="col" className="px-4 py-3.5 text-right">
-              Actions
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border font-medium">
-          {users.map((user) => {
-            const isUserActive = user.status === 'ACTIVE';
-
-            return (
-              <tr
-                key={user.id}
-                className="transition-colors hover:bg-muted/40 focus-within:bg-muted/40"
-              >
-                {/* User Name & Email */}
-                <th scope="row" className="px-4 py-3.5 font-normal">
-                  <div className="flex flex-col">
-                    <span className="font-semibold text-foreground">{user.name}</span>
-                    <span className="text-xs text-muted-foreground">{user.email}</span>
-                  </div>
-                </th>
-
-                {/* Status Badge */}
-                <td className="px-4 py-3.5 whitespace-nowrap">
-                  <UserStatusBadge status={user.status} />
-                </td>
-
-                {/* Role */}
-                <td className="px-4 py-3.5 whitespace-nowrap text-xs text-muted-foreground">
-                  {user.roles.join(', ')}
-                </td>
-
-                {/* Last Login */}
-                <td className="px-4 py-3.5 whitespace-nowrap text-xs text-muted-foreground">
-                  {user.lastLoginAt
-                    ? new Date(user.lastLoginAt).toLocaleDateString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })
-                    : 'Never'}
-                </td>
-
-                {/* Actions */}
-                <td className="px-4 py-3.5 whitespace-nowrap text-right">
-                  <div className="flex items-center justify-end gap-2">
-                    {/* Edit Action */}
-                    {onEdit && canManageUsers && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onEdit(user)}
-                        aria-label={`Edit details for user ${user.name}`}
-                      >
-                        Edit
-                      </Button>
-                    )}
-
-                    {/* Activate Action */}
-                    {!isUserActive && onActivate && canManageUsers && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={isActivating}
-                        onClick={() => onActivate(user)}
-                        aria-label={`Activate user account for ${user.name}`}
-                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                      >
-                        Activate
-                      </Button>
-                    )}
-
-                    {/* Deactivate Action */}
-                    {isUserActive && onDeactivate && canManageUsers && (
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        disabled={isDeactivating}
-                        onClick={() => onDeactivate(user)}
-                        aria-label={`Deactivate user account for ${user.name}`}
-                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      >
-                        Deactivate
-                      </Button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <DataTable
+      columns={columns}
+      data={users}
+      totalCount={totalCount}
+      page={page}
+      pageSize={pageSize}
+      onPageChange={onPageChange}
+      onPageSizeChange={onPageSizeChange}
+      sorting={sorting}
+      onSortingChange={onSortingChange}
+      isLoading={isLoading}
+      isError={isError}
+      errorMessage={errorMessage}
+      onRetry={onRetry}
+      isFiltered={isFiltered}
+      emptyTitle={isFiltered ? 'No users matching search filters' : 'No user accounts found'}
+      emptyDescription={
+        isFiltered
+          ? 'Try broadening your search query or clearing active status/role filters.'
+          : 'There are currently no user accounts registered in the platform.'
+      }
+      onResetFilters={onResetFilters}
+      ariaLabel="User Accounts List"
+      toolbar={toolbar}
+    />
   );
 };
 

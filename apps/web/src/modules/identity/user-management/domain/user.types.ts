@@ -29,6 +29,7 @@ export interface UserListParams {
   readonly limit?: number;
   readonly status?: UserStatus;
   readonly role?: UserRole;
+  readonly sort?: string;
 }
 
 export interface PaginatedUsersResponse {

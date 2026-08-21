@@ -1,4 +1,4 @@
-import { Button, Skeleton, StateView } from '@kinergy-platform/ui';
+import type { OnChangeFn, SortingState } from '@tanstack/react-table';
 import React, { useState } from 'react';
 import { useAuth } from '../../../../app/providers/auth-provider';
 import {
@@ -6,10 +6,10 @@ import {
   useDeactivateUserMutation,
   useUsersQuery,
 } from '../api/user-management-queries';
+import { DeactivateUserDialog } from '../components/deactivate-user-dialog';
+import { UserEditDialog } from '../components/user-edit-dialog';
 import { UserFilterBar } from '../components/user-filter-bar';
 import { UserFormDialog } from '../components/user-form-dialog';
-import { UserEditDialog } from '../components/user-edit-dialog';
-import { DeactivateUserDialog } from '../components/deactivate-user-dialog';
 import { UserListTable } from '../components/user-list-table';
 import type { ManagedUser } from '../domain/user.types';
 import { useUserFilters } from '../hooks/use-user-filters';
@@ -22,8 +22,8 @@ export interface UserListPageProps {
 /**
  * UserListPage View Component
  *
- * Renders the primary User Management list screen adhering to the 4-State UI contract,
- * URL search param state, semantic status badges, and accessible table layout.
+ * Implements Track C — Step C2.5 DataTable Integration with User Management.
+ * Derives query parameters strictly from URL state and renders the integrated <UserListTable />.
  */
 export const UserListPage: React.FC<UserListPageProps> = ({
   onCreateUserClick,
@@ -36,8 +36,18 @@ export const UserListPage: React.FC<UserListPageProps> = ({
   const { hasPermission, hasRole } = useAuth();
   const canManageUsers = hasPermission('manage:users') || hasRole('ADMIN');
 
-  const { params, isFiltered, setSearch, setStatus, setRole, setPage, resetFilters } =
-    useUserFilters();
+  const {
+    params,
+    isFiltered,
+    setSearch,
+    setStatus,
+    setRole,
+    setPage,
+    setLimit,
+    setSort,
+    resetFilters,
+    sortState,
+  } = useUserFilters();
 
   const { data, isLoading, isError, error, refetch } = useUsersQuery(params);
 
@@ -47,9 +57,6 @@ export const UserListPage: React.FC<UserListPageProps> = ({
   const items = data?.items ?? [];
   const total = data?.total ?? 0;
   const page = data?.page ?? 1;
-  const totalPages = data?.totalPages ?? 1;
-
-  const isEmpty = items.length === 0;
 
   const handleActivate = (user: ManagedUser) => {
     activateMutation.mutate(user.id);
@@ -67,26 +74,20 @@ export const UserListPage: React.FC<UserListPageProps> = ({
     });
   };
 
-  const handleCreateClick = onCreateUserClick ?? (() => setIsCreateDialogOpen(true));
+  const handleSortingChange: OnChangeFn<SortingState> = (updaterOrValue) => {
+    const nextSorting =
+      typeof updaterOrValue === 'function' ? updaterOrValue(sortState) : updaterOrValue;
+    if (nextSorting.length === 0) {
+      setSort(undefined);
+    } else {
+      const first = nextSorting[0];
+      if (first) {
+        setSort(`${first.id}.${first.desc ? 'desc' : 'asc'}`);
+      }
+    }
+  };
 
-  // Skeleton fallback for 4-State UI Contract Loading state
-  const loadingSkeleton = (
-    <div className="w-full space-y-4">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <Skeleton className="h-10 w-full sm:w-72" />
-        <div className="flex gap-2">
-          <Skeleton className="h-10 w-28" />
-          <Skeleton className="h-10 w-28" />
-        </div>
-      </div>
-      <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-        <Skeleton className="h-8 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-      </div>
-    </div>
-  );
+  const handleCreateClick = onCreateUserClick ?? (() => setIsCreateDialogOpen(true));
 
   return (
     <div className="container mx-auto px-4 py-6 max-w-7xl">
@@ -114,80 +115,29 @@ export const UserListPage: React.FC<UserListPageProps> = ({
         canCreate={canManageUsers}
       />
 
-      {/* 4-State UI View */}
-      <StateView
+      {/* Primary Data Table */}
+      <UserListTable
+        users={items}
+        totalCount={total}
+        page={page}
+        pageSize={params.limit ?? 10}
+        onPageChange={setPage}
+        onPageSizeChange={setLimit}
+        sorting={sortState}
+        onSortingChange={handleSortingChange}
         isLoading={isLoading}
-        loadingFallback={loadingSkeleton}
         isError={isError}
         errorMessage={error?.message || 'Failed to load user accounts from platform API.'}
         onRetry={() => void refetch()}
-        isEmpty={isEmpty}
-        emptyTitle={isFiltered ? 'No users matching search filters' : 'No user accounts found'}
-        emptyDescription={
-          isFiltered
-            ? 'Try broadening your search query or clearing active status/role filters.'
-            : 'There are currently no user accounts registered in the platform.'
-        }
-        emptyAction={
-          isFiltered ? (
-            <Button variant="outline" size="sm" onClick={resetFilters}>
-              Reset Filters
-            </Button>
-          ) : (
-            canManageUsers && (
-              <Button variant="default" size="sm" onClick={handleCreateClick}>
-                Create First User
-              </Button>
-            )
-          )
-        }
-      >
-        {/* Populated State */}
-        <div className="space-y-4">
-          <UserListTable
-            users={items}
-            onActivate={handleActivate}
-            onDeactivate={handleDeactivateRequest}
-            onEdit={onEditUserClick ?? ((user) => setEditingUser(user))}
-            isActivating={activateMutation.isPending}
-            isDeactivating={deactivateMutation.isPending}
-            canManageUsers={canManageUsers}
-          />
-
-          {/* Pagination Bar */}
-          {totalPages > 1 && (
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between py-2 text-sm text-muted-foreground">
-              <div>
-                Showing page <span className="font-semibold text-foreground">{page}</span> of{' '}
-                <span className="font-semibold text-foreground">{totalPages}</span> ({total} total
-                users)
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                  aria-label="Navigate to previous page"
-                >
-                  Previous
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= totalPages}
-                  onClick={() => setPage(page + 1)}
-                  aria-label="Navigate to next page"
-                >
-                  Next
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-      </StateView>
+        isFiltered={isFiltered}
+        onResetFilters={resetFilters}
+        onActivate={handleActivate}
+        onDeactivate={handleDeactivateRequest}
+        onEdit={onEditUserClick ?? ((user) => setEditingUser(user))}
+        isActivating={activateMutation.isPending}
+        isDeactivating={deactivateMutation.isPending}
+        canManageUsers={canManageUsers}
+      />
 
       {/* Create User Form Dialog Modal */}
       <UserFormDialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen} />

@@ -1,6 +1,11 @@
-import { useCallback, useMemo } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useMemo } from 'react';
+import { useTableUrlState } from '../../../../shared/table';
 import type { UserListParams, UserRole, UserStatus } from '../domain/user.types';
+
+export interface UserFilters {
+  readonly status?: UserStatus;
+  readonly role?: UserRole;
+}
 
 export interface UseUserFiltersReturn {
   readonly params: UserListParams;
@@ -9,132 +14,75 @@ export interface UseUserFiltersReturn {
   readonly setStatus: (status: UserStatus | 'ALL') => void;
   readonly setRole: (role: UserRole | 'ALL') => void;
   readonly setPage: (page: number) => void;
+  readonly setLimit: (limit: number) => void;
+  readonly setSort: (sort?: string) => void;
+  readonly toggleSort: (field: string) => void;
   readonly resetFilters: () => void;
+  readonly sortState: Array<{ id: string; desc: boolean }>;
 }
 
+const VALID_STATUSES: readonly string[] = ['ACTIVE', 'INACTIVE', 'PENDING', 'BLOCKED'];
+const VALID_ROLES: readonly string[] = ['ADMIN', 'OPERATOR', 'MEMBER'];
+
 /**
- * Custom Hook: URL-driven Filter, Search, and Pagination State
+ * Custom Hook: URL-driven Filter, Search, Sorting, and Pagination State
  *
- * Keeps search query, status filter, role filter, and page index synchronized
- * strictly with URL query parameters (`useSearchParams`). Zero state duplication.
+ * Integrates Track C DataTable URL State Infrastructure with User Management.
+ * Keeps query parameters strictly synchronized with the URL.
  */
 export function useUserFilters(): UseUserFiltersReturn {
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  const q = searchParams.get('q') ?? '';
-  const statusRaw = searchParams.get('status');
-  const roleRaw = searchParams.get('role');
-  const pageRaw = searchParams.get('page');
-  const limitRaw = searchParams.get('limit');
-
-  const status = (
-    ['ACTIVE', 'INACTIVE', 'PENDING', 'BLOCKED'].includes(statusRaw ?? '') ? statusRaw : undefined
-  ) as UserStatus | undefined;
-
-  const role = (['ADMIN', 'OPERATOR', 'MEMBER'].includes(roleRaw ?? '') ? roleRaw : undefined) as
-    UserRole | undefined;
-
-  const page = pageRaw ? Math.max(1, parseInt(pageRaw, 10) || 1) : 1;
-  const limit = limitRaw ? Math.max(1, parseInt(limitRaw, 10) || 10) : 10;
+  const { state, actions } = useTableUrlState<UserFilters>({
+    filterParsers: {
+      status: (val) => (val && VALID_STATUSES.includes(val) ? (val as UserStatus) : undefined),
+      role: (val) => (val && VALID_ROLES.includes(val) ? (val as UserRole) : undefined),
+    },
+    defaultLimit: 10,
+  });
 
   const params: UserListParams = useMemo(
     () => ({
-      q: q || undefined,
-      status,
-      role,
-      page,
-      limit,
+      q: state.q || undefined,
+      status: state.filters.status,
+      role: state.filters.role,
+      sort: state.sort,
+      page: state.page,
+      limit: state.limit,
     }),
-    [q, status, role, page, limit],
+    [state.q, state.filters.status, state.filters.role, state.sort, state.page, state.limit],
   );
 
-  const isFiltered = useMemo(() => Boolean(q || status || role), [q, status, role]);
+  const sortState = useMemo(() => {
+    if (!state.sortState) return [];
+    return [{ id: state.sortState.id, desc: state.sortState.desc }];
+  }, [state.sortState]);
 
-  const updateParams = useCallback(
-    (updater: (prev: URLSearchParams) => void) => {
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          updater(next);
-          return next;
-        },
-        { replace: true },
-      );
-    },
-    [setSearchParams],
-  );
+  const setStatus = (status: UserStatus | 'ALL') => {
+    if (status === 'ALL') {
+      actions.clearFilter('status');
+    } else {
+      actions.setFilter('status', status);
+    }
+  };
 
-  const setSearch = useCallback(
-    (newQ: string) => {
-      updateParams((prev) => {
-        if (newQ.trim()) {
-          prev.set('q', newQ.trim());
-        } else {
-          prev.delete('q');
-        }
-        prev.set('page', '1');
-      });
-    },
-    [updateParams],
-  );
-
-  const setStatus = useCallback(
-    (newStatus: UserStatus | 'ALL') => {
-      updateParams((prev) => {
-        if (newStatus !== 'ALL') {
-          prev.set('status', newStatus);
-        } else {
-          prev.delete('status');
-        }
-        prev.set('page', '1');
-      });
-    },
-    [updateParams],
-  );
-
-  const setRole = useCallback(
-    (newRole: UserRole | 'ALL') => {
-      updateParams((prev) => {
-        if (newRole !== 'ALL') {
-          prev.set('role', newRole);
-        } else {
-          prev.delete('role');
-        }
-        prev.set('page', '1');
-      });
-    },
-    [updateParams],
-  );
-
-  const setPage = useCallback(
-    (newPage: number) => {
-      updateParams((prev) => {
-        if (newPage > 1) {
-          prev.set('page', String(newPage));
-        } else {
-          prev.delete('page');
-        }
-      });
-    },
-    [updateParams],
-  );
-
-  const resetFilters = useCallback(() => {
-    updateParams((prev) => {
-      prev.delete('q');
-      prev.delete('status');
-      prev.delete('role');
-      prev.set('page', '1');
-    });
-  }, [updateParams]);
+  const setRole = (role: UserRole | 'ALL') => {
+    if (role === 'ALL') {
+      actions.clearFilter('role');
+    } else {
+      actions.setFilter('role', role);
+    }
+  };
 
   return {
     params,
-    isFiltered,
-    setSearch,
+    isFiltered: state.isFiltered,
+    setSearch: (q: string) => actions.setQ(q, { immediate: true }),
     setStatus,
     setRole,
-    setPage,
-    resetFilters,
+    setPage: actions.setPage,
+    setLimit: actions.setLimit,
+    setSort: actions.setSort,
+    toggleSort: actions.toggleSort,
+    resetFilters: actions.resetAll,
+    sortState,
   };
 }

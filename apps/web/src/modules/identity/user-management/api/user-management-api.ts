@@ -21,6 +21,7 @@ export async function fetchUsers(params?: UserListParams): Promise<PaginatedUser
   if (params?.limit) queryParams.limit = String(params.limit);
   if (params?.status) queryParams.status = params.status;
   if (params?.role) queryParams.role = params.role;
+  if (params?.sort) queryParams.sort = params.sort;
 
   return httpClient.get<PaginatedUsersResponse>(ADMIN_USERS_BASE_PATH, {
     params: queryParams,
