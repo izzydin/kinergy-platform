@@ -6,3 +6,6 @@ export * from './components/crud-state-view';
 export * from './types/crud-list.types';
 export * from './components/crud-list-header';
 export * from './components/crud-list-layout';
+export * from './types/crud-form.types';
+export * from './components/crud-form-header';
+export * from './components/crud-form-layout';
