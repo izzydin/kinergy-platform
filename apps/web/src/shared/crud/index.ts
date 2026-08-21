@@ -3,3 +3,6 @@ export * from './components/crud-loading';
 export * from './components/crud-empty';
 export * from './components/crud-error';
 export * from './components/crud-state-view';
+export * from './types/crud-list.types';
+export * from './components/crud-list-header';
+export * from './components/crud-list-layout';
