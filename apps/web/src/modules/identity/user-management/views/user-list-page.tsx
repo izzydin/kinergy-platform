@@ -6,6 +6,7 @@ import {
   useDeactivateUserMutation,
   useUsersQuery,
 } from '../api/user-management-queries';
+import { CrudListHeader, CrudListLayout } from '@/shared';
 import { DeactivateUserDialog } from '../components/deactivate-user-dialog';
 import { UserEditDialog } from '../components/user-edit-dialog';
 import { UserFilterBar } from '../components/user-filter-bar';
@@ -22,8 +23,8 @@ export interface UserListPageProps {
 /**
  * UserListPage View Component
  *
- * Implements Track C — Step C2.5 DataTable Integration with User Management.
- * Derives query parameters strictly from URL state and renders the integrated <UserListTable />.
+ * Implements Track C — Step C2.5 & C3.4 CRUD Integration with User Management.
+ * Composes standard CrudListLayout and CrudListHeader with DataTable and modal CRUD dialogs.
  */
 export const UserListPage: React.FC<UserListPageProps> = ({
   onCreateUserClick,
@@ -90,31 +91,28 @@ export const UserListPage: React.FC<UserListPageProps> = ({
   const handleCreateClick = onCreateUserClick ?? (() => setIsCreateDialogOpen(true));
 
   return (
-    <div className="container mx-auto px-4 py-6 max-w-7xl">
-      {/* Page Header */}
-      <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">User Management</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage user accounts, identity roles, and access status across the platform.
-          </p>
-        </div>
-      </div>
-
-      {/* Filter & Search Bar */}
-      <UserFilterBar
-        search={params.q ?? ''}
-        status={params.status}
-        role={params.role}
-        isFiltered={isFiltered}
-        onSearchChange={setSearch}
-        onStatusChange={setStatus}
-        onRoleChange={setRole}
-        onResetFilters={resetFilters}
-        onCreateClick={handleCreateClick}
-        canCreate={canManageUsers}
-      />
-
+    <CrudListLayout
+      header={
+        <CrudListHeader
+          title="User Management"
+          description="Manage user accounts, identity roles, and access status across the platform."
+        />
+      }
+      toolbar={
+        <UserFilterBar
+          search={params.q ?? ''}
+          status={params.status}
+          role={params.role}
+          isFiltered={isFiltered}
+          onSearchChange={setSearch}
+          onStatusChange={setStatus}
+          onRoleChange={setRole}
+          onResetFilters={resetFilters}
+          onCreateClick={handleCreateClick}
+          canCreate={canManageUsers}
+        />
+      }
+    >
       {/* Primary Data Table */}
       <UserListTable
         users={items}
@@ -157,7 +155,7 @@ export const UserListPage: React.FC<UserListPageProps> = ({
         onConfirm={handleConfirmDeactivate}
         isDeactivating={deactivateMutation.isPending}
       />
-    </div>
+    </CrudListLayout>
   );
 };
 
