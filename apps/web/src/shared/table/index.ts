@@ -7,6 +7,7 @@
 export * from './types/table-url-state.types';
 export * from './types/data-table.types';
 export * from './types/data-table-toolbar.types';
+export * from './types/data-table-actions.types';
 export * from './utils/table-url-serializer';
 export * from './hooks/use-table-url-state';
 export * from './components/data-table';
@@ -19,3 +20,4 @@ export * from './components/data-table-view-options';
 export * from './components/data-table-search';
 export * from './components/data-table-faceted-filter';
 export * from './components/data-table-toolbar';
+export * from './components/data-table-row-actions';
