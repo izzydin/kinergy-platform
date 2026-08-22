@@ -138,19 +138,32 @@ export class GetAssignedClientMembershipsHandler implements QueryHandler<
           if (!a.isExpiringSoon && b.isExpiringSoon) return 1;
         }
 
+        let primaryComparison: number;
         switch (sortBy) {
           case 'endDate':
-            return (new Date(a.endDate).getTime() - new Date(b.endDate).getTime()) * multiplier;
+            primaryComparison =
+              (new Date(a.endDate).getTime() - new Date(b.endDate).getTime()) * multiplier;
+            break;
           case 'startDate':
-            return (new Date(a.startDate).getTime() - new Date(b.startDate).getTime()) * multiplier;
+            primaryComparison =
+              (new Date(a.startDate).getTime() - new Date(b.startDate).getTime()) * multiplier;
+            break;
           case 'assignedAt':
-            return (
-              (new Date(a.assignedAt).getTime() - new Date(b.assignedAt).getTime()) * multiplier
-            );
+            primaryComparison =
+              (new Date(a.assignedAt).getTime() - new Date(b.assignedAt).getTime()) * multiplier;
+            break;
           case 'daysRemaining':
           default:
-            return (a.daysRemaining - b.daysRemaining) * multiplier;
+            primaryComparison = (a.daysRemaining - b.daysRemaining) * multiplier;
+            break;
         }
+
+        if (primaryComparison !== 0) {
+          return primaryComparison;
+        }
+
+        // Deterministic secondary tie-breaker ensuring stable page boundary splits
+        return a.membershipId.localeCompare(b.membershipId);
       });
 
       // Apply pagination if requested
