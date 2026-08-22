@@ -1,7 +1,11 @@
 import { Query } from '../shared/query.interface';
 
-export interface ListMembershipPlansInput {
+export interface ListMembershipPlansFilter {
   readonly activeOnly?: boolean;
+  readonly status?: string;
+  readonly search?: string;
+  readonly page?: number;
+  readonly limit?: number;
 }
 
 export class ListMembershipPlansQuery implements Query {
@@ -9,7 +13,7 @@ export class ListMembershipPlansQuery implements Query {
   public readonly timestamp: Date;
 
   constructor(
-    public readonly input: ListMembershipPlansInput = {},
+    public readonly filter: ListMembershipPlansFilter = {},
     queryId?: string,
     timestamp: Date = new Date(),
   ) {

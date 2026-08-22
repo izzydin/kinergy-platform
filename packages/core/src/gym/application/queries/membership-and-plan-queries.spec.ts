@@ -157,7 +157,8 @@ describe('Phase 5.7-A: Membership and Plan Application Queries Spec', () => {
       const result = await handler.execute(new ListMembershipPlansQuery({ activeOnly: true }));
 
       expect(result.isSuccess).toBe(true);
-      expect(result.getValue().length).toBe(1);
+      expect(result.getValue().items.length).toBe(1);
+      expect(result.getValue().total).toBe(1);
       expect(planRepo.findActive).toHaveBeenCalledTimes(1);
     });
 
@@ -170,7 +171,8 @@ describe('Phase 5.7-A: Membership and Plan Application Queries Spec', () => {
       const result = await handler.execute(new ListMembershipPlansQuery({ activeOnly: false }));
 
       expect(result.isSuccess).toBe(true);
-      expect(result.getValue().length).toBe(2);
+      expect(result.getValue().items.length).toBe(2);
+      expect(result.getValue().total).toBe(2);
     });
   });
 });
