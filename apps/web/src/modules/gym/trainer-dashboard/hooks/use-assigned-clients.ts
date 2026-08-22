@@ -1,16 +1,18 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, UseQueryResult } from '@tanstack/react-query';
 import { trainerDashboardApi } from '../api/trainer-dashboard-api';
 import { trainerDashboardQueryKeys } from '../api/trainer-dashboard-query-keys';
-import { AssignedClientMembershipVM, AssignedClientsFilterParams } from '../types';
+import { AssignedClientsFilterParams, PaginatedAssignedClientsVM } from '../types';
 
 /**
- * Hook to retrieve all active/frozen/pending client memberships assigned to the trainer.
+ * Hook to retrieve paginated and sorted assigned client memberships.
  */
-export function useAssignedClients(params: AssignedClientsFilterParams) {
-  return useQuery<AssignedClientMembershipVM[], Error>({
+export function useAssignedClients(
+  params?: AssignedClientsFilterParams,
+): UseQueryResult<PaginatedAssignedClientsVM, Error> {
+  return useQuery({
     queryKey: trainerDashboardQueryKeys.assignedClients(params),
     queryFn: () => trainerDashboardApi.getAssignedClients(params),
-    enabled: Boolean(params.trainerId && params.trainerId.trim().length > 0),
-    staleTime: 30000, // 30s fresh
+    staleTime: 30 * 1000,
+    retry: 2,
   });
 }

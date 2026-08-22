@@ -1,93 +1,124 @@
-import React, { useState, useMemo } from 'react';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardContent,
-  Button,
-  Badge,
-  Spinner,
-  Alert,
-} from '@kinergy-platform/ui';
+import React, { useState, useMemo, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Button, Badge, Card, CardHeader, CardTitle, CardContent } from '@kinergy-platform/ui';
 import { useAuth } from '../../../../app/providers/auth-provider';
-import { useAssignedClients } from '../hooks/use-assigned-clients';
-import { useExpiringClients } from '../hooks/use-expiring-clients';
-import { useTodayAssignedCheckIns } from '../hooks/use-today-assigned-check-ins';
-import { AssignedClientCard } from '../components/assigned-client-card';
-import { TrainerCheckInRow } from '../components/trainer-check-in-row';
-import { TrainerClientLookup } from '../components/trainer-client-lookup';
+import {
+  useTrainerDashboardSummary,
+  useAssignedClients,
+  useExpiringMemberships,
+  useTrainerAttendance,
+} from '../hooks';
+import {
+  TrainerSummaryKpiBanner,
+  AssignedClientsTable,
+  ExpiringMembershipsSection,
+  TrainerAttendanceFeed,
+  TrainerClientLookup,
+} from '../components';
 import { ClientSearchResultDTO } from '../types';
-
-type FilterTab = 'ALL' | 'EXPIRING' | 'ACTIVE' | 'FROZEN';
 
 export const TrainerDashboardPage: React.FC = () => {
   const { currentUser } = useAuth();
-  const trainerId = currentUser?.id ?? 'default_trainer';
+  const trainerId = currentUser?.id ?? '';
 
-  const [activeTab, setActiveTab] = useState<FilterTab>('ALL');
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  // URL-driven query state
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const limit = parseInt(searchParams.get('limit') || '10', 10);
+  const sortBy =
+    (searchParams.get('sortBy') as 'daysRemaining' | 'endDate' | 'startDate' | 'assignedAt') ||
+    'daysRemaining';
+  const sortOrder = (searchParams.get('sortOrder') as 'ASC' | 'DESC') || 'ASC';
+  const statusFilter = searchParams.get('status') || 'ALL';
+  const searchTerm = searchParams.get('search') || '';
+
   const [selectedClient, setSelectedClient] = useState<ClientSearchResultDTO | null>(null);
 
-  // 1. My Assigned Clients Query
-  const {
-    data: assignedMemberships = [],
-    isLoading: isLoadingAssigned,
-    error: assignedError,
-    refetch: refetchAssigned,
-    isFetching: isFetchingAssigned,
-  } = useAssignedClients({
-    trainerId,
-    horizonDays: 7,
-  });
-
-  // 2. Expiring Soon Query (Scoped to this Trainer)
-  const { data: expiringMemberships = [] } = useExpiringClients({
-    trainerId,
-    horizonDays: 7,
-  });
-
-  // Extract assigned client IDs for scoping today's attendance
-  const assignedClientIds = useMemo(
-    () => assignedMemberships.map((m) => m.clientId),
-    [assignedMemberships],
+  // Helper to update URL search parameters cleanly
+  const updateUrlParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          Object.entries(updates).forEach(([key, val]) => {
+            if (val === null || val === undefined || val === '') {
+              next.delete(key);
+            } else {
+              next.set(key, val);
+            }
+          });
+          return next;
+        },
+        { replace: true },
+      );
+    },
+    [setSearchParams],
   );
 
-  // 3. Today's Check-Ins (Assigned Clients Only, 30s polling)
+  // Convert status filter to array for backend
+  const backendStatuses = useMemo(() => {
+    if (statusFilter === 'ACTIVE') return ['ACTIVE'];
+    if (statusFilter === 'FROZEN') return ['FROZEN'];
+    if (statusFilter === 'EXPIRING') return ['ACTIVE'];
+    return undefined;
+  }, [statusFilter]);
+
+  // 1. Authoritative Top-Line Operational Summary KPIs
   const {
-    data: todayCheckIns = [],
-    isLoading: isLoadingCheckIns,
-    isFetching: isFetchingCheckIns,
-  } = useTodayAssignedCheckIns(trainerId, assignedClientIds);
+    data: summaryData,
+    isLoading: isLoadingSummary,
+    isError: isErrorSummary,
+    refetch: refetchSummary,
+  } = useTrainerDashboardSummary({
+    trainerId: trainerId || undefined,
+    horizonDays: 7,
+  });
 
-  // Filter assigned memberships by tab
-  const filteredMemberships = useMemo(() => {
-    switch (activeTab) {
-      case 'EXPIRING':
-        return assignedMemberships.filter((m) => m.isExpiringSoon);
-      case 'ACTIVE':
-        return assignedMemberships.filter((m) => m.status === 'ACTIVE');
-      case 'FROZEN':
-        return assignedMemberships.filter((m) => m.status === 'FROZEN' || m.isCurrentlyFrozen);
-      case 'ALL':
-      default:
-        return assignedMemberships;
-    }
-  }, [assignedMemberships, activeTab]);
+  // 2. Assigned Clients Roster (Paginated & Sorted)
+  const {
+    data: assignedClientsData,
+    isLoading: isLoadingClients,
+    isError: isErrorClients,
+    refetch: refetchClients,
+  } = useAssignedClients({
+    trainerId: trainerId || undefined,
+    page,
+    limit,
+    sortBy,
+    sortOrder,
+    statuses: backendStatuses,
+    horizonDays: 7,
+  });
 
-  // Statistics Summary
-  const stats = useMemo(() => {
-    const total = assignedMemberships.length;
-    const active = assignedMemberships.filter((m) => m.status === 'ACTIVE').length;
-    const expiring = assignedMemberships.filter((m) => m.isExpiringSoon).length;
-    const frozen = assignedMemberships.filter(
-      (m) => m.status === 'FROZEN' || m.isCurrentlyFrozen,
-    ).length;
-    const todayVisits = todayCheckIns.filter((c) => c.result === 'GRANTED').length;
+  // 3. Expiring Soon Memberships List (Lookahead Horizon: 7 days)
+  const {
+    data: expiringData,
+    isLoading: isLoadingExpiring,
+    isError: isErrorExpiring,
+    refetch: refetchExpiring,
+  } = useExpiringMemberships({
+    trainerId: trainerId || undefined,
+    horizonDays: 7,
+  });
 
-    return { total, active, expiring, frozen, todayVisits };
-  }, [assignedMemberships, todayCheckIns]);
+  // 4. Live Operational Attendance Feed (Trainer's Clients)
+  const {
+    data: attendanceData,
+    isLoading: isLoadingAttendance,
+    isError: isErrorAttendance,
+    isFetching: isFetchingAttendance,
+    refetch: refetchAttendance,
+  } = useTrainerAttendance(
+    {
+      trainerId: trainerId || undefined,
+      limit: 20,
+    },
+    { refetchInterval: 30 * 1000 },
+  );
 
   const handleSelectClientById = (clientId: string) => {
-    const match = assignedMemberships.find((m) => m.clientId === clientId);
+    const match = assignedClientsData?.items.find((m) => m.clientId === clientId);
     setSelectedClient({
       id: clientId,
       fullName: match ? `Client (${clientId})` : clientId,
@@ -96,271 +127,157 @@ export const TrainerDashboardPage: React.FC = () => {
     });
   };
 
+  const handleRefreshAll = () => {
+    refetchSummary();
+    refetchClients();
+    refetchExpiring();
+    refetchAttendance();
+  };
+
   return (
-    <div
-      className="container mx-auto p-4 md:p-6 space-y-6 max-w-7xl"
-      data-testid="trainer-dashboard-page"
-    >
-      {/* Header & Role Context */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border/60 pb-4">
+    <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+      {/* Dashboard Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
         <div>
-          <div className="flex items-center space-x-2.5">
-            <h1 className="text-xl font-bold tracking-tight text-foreground">
+          <div className="flex items-center space-x-3">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
               Trainer Operational Dashboard
             </h1>
-            <Badge
-              variant="outline"
-              className="bg-primary/10 text-primary border-primary/20 text-xs px-2 py-0.5"
-            >
-              Gym Floor Operations
-            </Badge>
+            <Badge variant="secondary">Gym Operations</Badge>
           </div>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            Real-time daily operations for assigned clients, membership expirations, and facility
-            attendance.
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+            Real-time client assignments, membership status, and facility check-ins for{' '}
+            <span className="font-semibold text-slate-700 dark:text-slate-200">
+              {currentUser?.email ?? 'Trainer'}
+            </span>
           </p>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => refetchAssigned()}
-            disabled={isFetchingAssigned}
-            className="text-xs h-8"
-          >
-            {isFetchingAssigned ? <Spinner size="sm" className="mr-1.5" /> : '↻ '}
-            Refresh
+        <div className="flex items-center space-x-3">
+          <Button variant="outline" size="sm" onClick={handleRefreshAll}>
+            🔄 Refresh Dashboard
           </Button>
         </div>
       </div>
 
-      {/* Operational KPI Metric Bar */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="bg-card shadow-sm border-border/70 p-3.5">
-          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider block">
-            My Assigned Clients
-          </span>
-          <div
-            className="text-2xl font-bold text-foreground mt-1 font-mono"
-            data-testid="kpi-assigned-clients"
-          >
-            {isLoadingAssigned ? '-' : stats.total}
-          </div>
-          <span className="text-[11px] text-muted-foreground mt-0.5 block">
-            {stats.active} active agreements
-          </span>
-        </Card>
+      {/* 1. Authoritative Operational KPI Banner */}
+      <section aria-labelledby="kpi-banner-heading">
+        <h2 id="kpi-banner-heading" className="sr-only">
+          Operational Summary Metrics
+        </h2>
+        <TrainerSummaryKpiBanner
+          summary={summaryData}
+          isLoading={isLoadingSummary}
+          isError={isErrorSummary}
+          onRetry={refetchSummary}
+        />
+      </section>
 
-        <Card className="bg-card shadow-sm border-border/70 p-3.5">
-          <span className="text-[11px] font-medium text-amber-600 dark:text-amber-400 uppercase tracking-wider block">
-            Expiring Soon (7d)
-          </span>
-          <div
-            className="text-2xl font-bold text-amber-600 dark:text-amber-400 mt-1 font-mono"
-            data-testid="kpi-expiring-soon"
-          >
-            {isLoadingAssigned ? '-' : stats.expiring}
-          </div>
-          <span className="text-[11px] text-muted-foreground mt-0.5 block">
-            Require renewal reminder
-          </span>
-        </Card>
+      {/* Main 2-Column Responsive Workspace */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left / Primary Column: Assigned Clients DataTable (7 cols on desktop) */}
+        <section className="lg:col-span-7 space-y-4" aria-labelledby="assigned-clients-heading">
+          <h2 id="assigned-clients-heading" className="sr-only">
+            Assigned Client Roster
+          </h2>
+          <AssignedClientsTable
+            data={assignedClientsData}
+            isLoading={isLoadingClients}
+            isError={isErrorClients}
+            page={page}
+            limit={limit}
+            sortBy={sortBy}
+            sortOrder={sortOrder}
+            statusFilter={statusFilter}
+            searchTerm={searchTerm}
+            onPageChange={(newPage) => updateUrlParams({ page: String(newPage) })}
+            onLimitChange={(newLimit) => updateUrlParams({ limit: String(newLimit), page: '1' })}
+            onSortChange={(newSortBy) =>
+              updateUrlParams({
+                sortBy: newSortBy,
+                sortOrder: sortBy === newSortBy && sortOrder === 'ASC' ? 'DESC' : 'ASC',
+              })
+            }
+            onStatusFilterChange={(newStatus) =>
+              updateUrlParams({ status: newStatus === 'ALL' ? null : newStatus, page: '1' })
+            }
+            onSearchChange={(newSearch) =>
+              updateUrlParams({ search: newSearch || null, page: '1' })
+            }
+            onRetry={refetchClients}
+            onSelectClient={handleSelectClientById}
+          />
+        </section>
 
-        <Card className="bg-card shadow-sm border-border/70 p-3.5">
-          <span className="text-[11px] font-medium text-sky-600 dark:text-sky-400 uppercase tracking-wider block">
-            Currently Frozen
-          </span>
-          <div
-            className="text-2xl font-bold text-sky-600 dark:text-sky-400 mt-1 font-mono"
-            data-testid="kpi-currently-frozen"
-          >
-            {isLoadingAssigned ? '-' : stats.frozen}
-          </div>
-          <span className="text-[11px] text-muted-foreground mt-0.5 block">
-            Temporary pause active
-          </span>
-        </Card>
+        {/* Right / Secondary Column: Expiring Memberships & Today's Attendance & Quick Lookup (5 cols on desktop) */}
+        <section className="lg:col-span-5 space-y-6" aria-labelledby="sidebar-operations-heading">
+          <h2 id="sidebar-operations-heading" className="sr-only">
+            Expiring Memberships & Live Attendance
+          </h2>
 
-        <Card className="bg-card shadow-sm border-border/70 p-3.5">
-          <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 uppercase tracking-wider block">
-            Checked In Today
-          </span>
-          <div
-            className="text-2xl font-bold text-emerald-600 dark:text-emerald-400 mt-1 font-mono"
-            data-testid="kpi-today-checkins"
-          >
-            {isLoadingCheckIns ? '-' : stats.todayVisits}
-          </div>
-          <span className="text-[11px] text-muted-foreground mt-0.5 block">
-            Assigned member arrivals
-          </span>
-        </Card>
-      </div>
-
-      {/* Proactive Expiring Soon Alert Notice */}
-      {expiringMemberships.length > 0 && (
-        <Alert
-          variant="default"
-          className="bg-amber-500/10 border-amber-500/30 text-amber-900 dark:text-amber-200"
-        >
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold">
-              🔔 {expiringMemberships.length} of your assigned clients have memberships expiring
-              within the next 7 days.
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-[11px] h-6 px-2 border-amber-500/40 hover:bg-amber-500/20 text-amber-900 dark:text-amber-200"
-              onClick={() => setActiveTab('EXPIRING')}
-            >
-              View Expiring
-            </Button>
-          </div>
-        </Alert>
-      )}
-
-      {/* Main Two-Column Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left Column: Assigned Clients Directory & Feed (8 Cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          {/* Assigned Clients Card */}
-          <Card className="bg-card shadow-sm border-border/80">
-            <CardHeader className="pb-3 border-b border-border/40 flex flex-row items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <CardTitle className="text-sm font-semibold text-foreground">
-                  My Assigned Clients
-                </CardTitle>
-                {isFetchingAssigned && <Spinner size="sm" />}
-              </div>
-
-              {/* Filter Tabs */}
-              <div className="flex items-center space-x-1">
-                {(['ALL', 'EXPIRING', 'ACTIVE', 'FROZEN'] as FilterTab[]).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setActiveTab(tab)}
-                    className={`px-2.5 py-1 text-xs rounded font-medium transition-colors ${
-                      activeTab === tab
-                        ? 'bg-primary text-primary-foreground shadow-xs'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/40'
-                    }`}
-                    data-testid={`filter-tab-${tab.toLowerCase()}`}
-                  >
-                    {tab === 'ALL'
-                      ? `All (${stats.total})`
-                      : tab === 'EXPIRING'
-                        ? `Expiring (${stats.expiring})`
-                        : tab === 'ACTIVE'
-                          ? `Active (${stats.active})`
-                          : `Frozen (${stats.frozen})`}
-                  </button>
-                ))}
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4">
-              {isLoadingAssigned ? (
-                <div className="p-8 text-center flex flex-col items-center justify-center space-y-2">
-                  <Spinner size="md" />
-                  <p className="text-xs text-muted-foreground">
-                    Loading your assigned client list...
-                  </p>
-                </div>
-              ) : assignedError ? (
-                <Alert variant="destructive" className="text-xs">
-                  Failed to load assigned clients: {assignedError.message}
-                </Alert>
-              ) : filteredMemberships.length === 0 ? (
-                <div className="p-8 text-center text-xs text-muted-foreground border border-dashed border-border/60 rounded-md">
-                  {activeTab === 'EXPIRING'
-                    ? 'No memberships expiring in the next 7 days for your assigned clients.'
-                    : activeTab === 'FROZEN'
-                      ? 'No clients currently on frozen membership status.'
-                      : 'You have no clients currently assigned to you.'}
-                </div>
-              ) : (
-                <div
-                  className="grid grid-cols-1 md:grid-cols-2 gap-3"
-                  data-testid="assigned-clients-grid"
-                >
-                  {filteredMemberships.map((client) => (
-                    <AssignedClientCard
-                      key={client.membershipId}
-                      client={client}
-                      onSelectClient={handleSelectClientById}
-                      isSelected={selectedClient?.id === client.clientId}
-                    />
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Today's Ingress / Check-In Feed for Assigned Clients */}
-          <Card className="bg-card shadow-sm border-border/80">
-            <CardHeader className="pb-3 border-b border-border/40 flex flex-row items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <CardTitle className="text-sm font-semibold text-foreground">
-                  Today&apos;s Check-Ins (My Clients)
-                </CardTitle>
-                {isFetchingCheckIns && <Spinner size="sm" />}
-              </div>
-              <span className="text-[11px] text-muted-foreground font-mono">Auto-refresh: 30s</span>
-            </CardHeader>
-
-            <CardContent className="p-0">
-              {isLoadingCheckIns ? (
-                <div className="p-6 text-center flex flex-col items-center justify-center space-y-2">
-                  <Spinner size="sm" />
-                  <p className="text-xs text-muted-foreground">
-                    Checking today&apos;s arrival records...
-                  </p>
-                </div>
-              ) : todayCheckIns.length === 0 ? (
-                <div className="p-6 text-center text-xs text-muted-foreground">
-                  None of your assigned clients have checked in today yet.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table
-                    className="w-full text-left text-xs border-collapse"
-                    data-testid="trainer-today-checkins-table"
-                  >
-                    <thead>
-                      <tr className="border-b border-border/40 bg-muted/30 text-muted-foreground font-medium">
-                        <th className="py-2 px-3">Time</th>
-                        <th className="py-2 px-3">Client</th>
-                        <th className="py-2 px-3">Method</th>
-                        <th className="py-2 px-3">Access Outcome</th>
-                        <th className="py-2 px-3">Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/30">
-                      {todayCheckIns.map((item) => (
-                        <TrainerCheckInRow
-                          key={item.id}
-                          item={item}
-                          onSelectClient={handleSelectClientById}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Right Column: Search & Live Eligibility Inspector (5 Cols) */}
-        <div className="lg:col-span-5 space-y-6">
+          {/* Quick Client Search & Inspection */}
           <TrainerClientLookup
             selectedClient={selectedClient}
-            onSelectClient={setSelectedClient}
+            onSelectClient={(client) => setSelectedClient(client)}
             onClearSelection={() => setSelectedClient(null)}
           />
-        </div>
+
+          {/* Selected Client Inspection Flyout / Card */}
+          {selectedClient && (
+            <Card className="border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30">
+              <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
+                <CardTitle className="text-sm font-bold text-indigo-900 dark:text-indigo-200">
+                  Client Inspection: {selectedClient.fullName}
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedClient(null)}
+                  className="text-xs text-indigo-600 dark:text-indigo-300"
+                >
+                  Close
+                </Button>
+              </CardHeader>
+              <CardContent className="p-4 pt-0 space-y-1.5 text-xs text-indigo-900 dark:text-indigo-200">
+                <p>
+                  <strong>Client ID:</strong> {selectedClient.id}
+                </p>
+                <p>
+                  <strong>Email:</strong> {selectedClient.email}
+                </p>
+                <p>
+                  <strong>Status:</strong>{' '}
+                  <Badge variant="secondary" size="sm">
+                    {selectedClient.status}
+                  </Badge>
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Memberships Expiring Soon Section */}
+          <ExpiringMembershipsSection
+            expiringItems={expiringData?.items ?? []}
+            totalExpiring={expiringData?.total ?? 0}
+            horizonDays={expiringData?.horizonDays ?? 7}
+            isLoading={isLoadingExpiring}
+            isError={isErrorExpiring}
+            onRetry={refetchExpiring}
+            onSelectClient={handleSelectClientById}
+          />
+
+          {/* Today's Check-Ins Attendance Feed */}
+          <TrainerAttendanceFeed
+            attendanceItems={attendanceData?.items ?? []}
+            totalVisits={attendanceData?.total ?? 0}
+            grantedCount={attendanceData?.grantedCount ?? 0}
+            isLoading={isLoadingAttendance}
+            isError={isErrorAttendance}
+            isFetching={isFetchingAttendance}
+            onRetry={refetchAttendance}
+            onSelectClient={handleSelectClientById}
+          />
+        </section>
       </div>
     </div>
   );

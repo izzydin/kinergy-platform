@@ -1,11 +1,18 @@
-import { AssignedClientsFilterParams, ExpiringMembershipsFilterParams } from '../types';
+import {
+  AssignedClientsFilterParams,
+  ExpiringMembershipsFilterParams,
+  TrainerAttendanceFilterParams,
+  TrainerSummaryFilterParams,
+} from '../types';
 
 export const trainerDashboardQueryKeys = {
   all: ['gym', 'trainer-dashboard'] as const,
+  summary: (params?: TrainerSummaryFilterParams) =>
+    ['gym', 'trainer-dashboard', 'summary', params] as const,
   assignedClients: (params?: AssignedClientsFilterParams) =>
     ['gym', 'trainer-dashboard', 'assigned-clients', params] as const,
-  expiringClients: (params?: ExpiringMembershipsFilterParams) =>
-    ['gym', 'trainer-dashboard', 'expiring-clients', params] as const,
-  todayCheckIns: (trainerId: string, assignedClientIds?: string[]) =>
-    ['gym', 'trainer-dashboard', 'today-check-ins', trainerId, assignedClientIds] as const,
+  expiringMemberships: (params?: ExpiringMembershipsFilterParams) =>
+    ['gym', 'trainer-dashboard', 'expiring-memberships', params] as const,
+  attendance: (params?: TrainerAttendanceFilterParams) =>
+    ['gym', 'trainer-dashboard', 'attendance', params] as const,
 };
