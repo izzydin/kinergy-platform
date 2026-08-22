@@ -7,4 +7,5 @@ export interface MembershipPlanRepository {
   findById(id: PlanId | string): Promise<MembershipPlan | null>;
   findByCode(code: PlanCode | string): Promise<MembershipPlan | null>;
   findActive(): Promise<MembershipPlan[]>;
+  findAll?(): Promise<MembershipPlan[]>;
 }

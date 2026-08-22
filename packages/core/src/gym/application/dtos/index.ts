@@ -1,4 +1,5 @@
 export * from './membership.dto';
+export * from './membership-plan.dto';
 export * from './expire-memberships-result.dto';
 export * from './expiring-membership-item.dto';
 export * from './membership-operational-summary.dto';
