@@ -1,5 +1,6 @@
 import { Membership } from '../membership/membership.aggregate';
 import { MembershipId } from '../membership/membership-id.vo';
+import { MembershipStatus } from '../membership/membership-status.enum';
 
 export interface MembershipRepository {
   save(membership: Membership): Promise<void>;
@@ -23,4 +24,13 @@ export interface MembershipRepository {
    * Retrieves all memberships across statuses for operational summary aggregations.
    */
   findAll(): Promise<Membership[]>;
+
+  /**
+   * Retrieves memberships assigned to a specific trainer via TrainerAssignment value object.
+   * Used exclusively by the Trainer Operational Dashboard read model.
+   *
+   * @param trainerId IAM User.id of the assigned trainer (matches Membership.TrainerAssignment.trainerId)
+   * @param statuses Optional filter by lifecycle status; defaults to [ACTIVE, FROZEN, PENDING]
+   */
+  findByTrainerId?(trainerId: string, statuses?: MembershipStatus[]): Promise<Membership[]>;
 }

@@ -8,3 +8,4 @@ export * from './record-check-in-result.dto';
 export * from './attendance-item.dto';
 export * from './paginated-attendance.dto';
 export * from './attendance-summary.dto';
+export * from './assigned-client-membership.dto';

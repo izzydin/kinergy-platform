@@ -61,6 +61,12 @@ export class GetDailyAttendanceHandler implements QueryHandler<
       let totalItems: number;
       let dailyKPIs: AttendanceDailyKPIsDTO;
 
+      // Build client-id filter set for Trainer Dashboard scoping
+      const clientIdFilter =
+        input.assignedClientIds && input.assignedClientIds.length > 0
+          ? new Set(input.assignedClientIds)
+          : null;
+
       if (this.attendanceRepository.findWithPagination) {
         const paginatedResult = await this.attendanceRepository.findWithPagination({
           gymDay: targetGymDay,
@@ -71,8 +77,10 @@ export class GetDailyAttendanceHandler implements QueryHandler<
           limit,
           sortOrder,
         });
-        items = paginatedResult.records;
-        totalItems = paginatedResult.total;
+        items = clientIdFilter
+          ? paginatedResult.records.filter((r) => clientIdFilter.has(r.clientId))
+          : paginatedResult.records;
+        totalItems = clientIdFilter ? items.length : paginatedResult.total;
 
         if (this.attendanceRepository.getDailyKPIs) {
           const kpis = await this.attendanceRepository.getDailyKPIs(targetGymDay, facilityId);
@@ -93,6 +101,9 @@ export class GetDailyAttendanceHandler implements QueryHandler<
         );
 
         let filtered = allDayRecords;
+        if (clientIdFilter) {
+          filtered = filtered.filter((r) => clientIdFilter.has(r.clientId));
+        }
         if (input.result) {
           filtered = filtered.filter((r) => r.result === input.result);
         }

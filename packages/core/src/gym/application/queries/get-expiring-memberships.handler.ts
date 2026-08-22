@@ -44,10 +44,16 @@ export class GetExpiringMembershipsHandler implements QueryHandler<
       const horizonMs = horizonDays * 24 * 60 * 60 * 1000;
 
       // Query candidate memberships within horizon
-      const memberships = await this.membershipRepository.findExpiringWithinHorizon(
+      let memberships = await this.membershipRepository.findExpiringWithinHorizon(
         asOf,
         horizonDays,
       );
+
+      // Optional trainer-scoped filtering (for Trainer Dashboard read model)
+      if (input.trainerId && input.trainerId.trim().length > 0) {
+        const tid = input.trainerId.trim();
+        memberships = memberships.filter((m) => m.trainerAssignment?.trainerId === tid);
+      }
 
       const items: ExpiringMembershipItemDTO[] = memberships.map((m) => {
         const endMs = m.period.endDate.getTime();

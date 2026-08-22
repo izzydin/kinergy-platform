@@ -38,6 +38,13 @@ export interface GetDailyAttendanceInput {
    * Sorting order by checkInTime. Defaults to 'DESC'.
    */
   readonly sortOrder?: 'ASC' | 'DESC';
+
+  /**
+   * Optional whitelist of clientIds to scope the attendance feed.
+   * When provided, only records whose clientId is in this set are returned.
+   * Used by the Trainer Operational Dashboard to show only assigned-client check-ins.
+   */
+  readonly assignedClientIds?: string[];
 }
 
 /**

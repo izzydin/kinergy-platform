@@ -12,6 +12,13 @@ export interface GetExpiringMembershipsInput {
    * Defaults to 7 days.
    */
   readonly horizonDays?: number;
+
+  /**
+   * Optional filter to scope expiring-soon results to memberships
+   * assigned to a specific trainer (IAM User.id).
+   * When provided, only memberships where TrainerAssignment.trainerId === trainerId are returned.
+   */
+  readonly trainerId?: string;
 }
 
 /**
