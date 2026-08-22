@@ -5,3 +5,6 @@ export * from './expiring-memberships-query.dto';
 export * from './expiring-memberships-response.dto';
 export * from './trainer-attendance-query.dto';
 export * from './trainer-attendance-response.dto';
+export * from './membership-plan.dto';
+export * from './membership.dto';
+export * from './attendance.dto';

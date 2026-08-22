@@ -5,3 +5,4 @@ export * from './events';
 export * from './repositories';
 export * from './policies';
 export * from './attendance';
+export type { GymDomainEvent } from './shared/domain-event';
