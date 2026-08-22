@@ -25,6 +25,26 @@ export interface GetAssignedClientMembershipsInput {
    * Defaults to 7 days when omitted.
    */
   readonly horizonDays?: number;
+
+  /**
+   * Optional 1-indexed page number for pagination.
+   */
+  readonly page?: number;
+
+  /**
+   * Optional max items per page (default all or max 100).
+   */
+  readonly limit?: number;
+
+  /**
+   * Field to sort by. Defaults to 'daysRemaining'.
+   */
+  readonly sortBy?: 'endDate' | 'startDate' | 'daysRemaining' | 'assignedAt';
+
+  /**
+   * Sort order direction. Defaults to 'ASC'.
+   */
+  readonly sortOrder?: 'ASC' | 'DESC';
 }
 
 /**

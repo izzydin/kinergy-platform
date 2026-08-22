@@ -127,12 +127,39 @@ export class GetAssignedClientMembershipsHandler implements QueryHandler<
         };
       });
 
-      // Sort: expiring-soon first, then by daysRemaining ascending
+      // Sort items based on requested criteria or default priority (expiring-soon first, then daysRemaining ascending)
+      const sortBy = input.sortBy ?? 'daysRemaining';
+      const sortOrder = input.sortOrder ?? 'ASC';
+      const multiplier = sortOrder === 'DESC' ? -1 : 1;
+
       items.sort((a, b) => {
-        if (a.isExpiringSoon && !b.isExpiringSoon) return -1;
-        if (!a.isExpiringSoon && b.isExpiringSoon) return 1;
-        return a.daysRemaining - b.daysRemaining;
+        if (!input.sortBy) {
+          if (a.isExpiringSoon && !b.isExpiringSoon) return -1;
+          if (!a.isExpiringSoon && b.isExpiringSoon) return 1;
+        }
+
+        switch (sortBy) {
+          case 'endDate':
+            return (new Date(a.endDate).getTime() - new Date(b.endDate).getTime()) * multiplier;
+          case 'startDate':
+            return (new Date(a.startDate).getTime() - new Date(b.startDate).getTime()) * multiplier;
+          case 'assignedAt':
+            return (
+              (new Date(a.assignedAt).getTime() - new Date(b.assignedAt).getTime()) * multiplier
+            );
+          case 'daysRemaining':
+          default:
+            return (a.daysRemaining - b.daysRemaining) * multiplier;
+        }
       });
+
+      // Apply pagination if requested
+      if (input.page !== undefined && input.limit !== undefined && input.limit > 0) {
+        const page = Math.max(1, input.page);
+        const limit = Math.min(100, Math.max(1, input.limit));
+        const startIndex = (page - 1) * limit;
+        return ApplicationResult.ok(items.slice(startIndex, startIndex + limit));
+      }
 
       return ApplicationResult.ok(items);
     } catch (err: unknown) {

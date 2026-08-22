@@ -12,3 +12,5 @@ export * from './get-attendance-summary.query';
 export * from './get-attendance-summary.handler';
 export * from './get-assigned-client-memberships.query';
 export * from './get-assigned-client-memberships.handler';
+export * from './get-trainer-dashboard-summary.query';
+export * from './get-trainer-dashboard-summary.handler';

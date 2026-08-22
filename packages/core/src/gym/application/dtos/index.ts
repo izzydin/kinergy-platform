@@ -9,3 +9,5 @@ export * from './attendance-item.dto';
 export * from './paginated-attendance.dto';
 export * from './attendance-summary.dto';
 export * from './assigned-client-membership.dto';
+export * from './trainer-dashboard-summary.dto';
+export * from './paginated-assigned-clients.dto';
