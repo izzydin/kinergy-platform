@@ -6,7 +6,7 @@ import '../../modules/dashboard';
 import '../../modules/identity/user-management';
 import '../../modules/settings';
 import '../../modules/attendance';
-import '../../modules/gym/trainer-dashboard';
+import '../../modules/gym';
 
 import { AuthLayout, DashboardLayout, MainLayout } from '../layouts';
 import {
