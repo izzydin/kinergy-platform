@@ -1,4 +1,5 @@
 export * from './application-result';
+export { ApplicationResult as GymApplicationResult } from './application-result';
 export * from './command.interface';
 export * from './command-handler.interface';
 export * from './query.interface';
