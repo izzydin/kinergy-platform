@@ -366,3 +366,112 @@ model TreatmentSession {
   @@index([appointmentId])
   @@map("treatment_sessions")
 }
+
+// ==========================================
+// GYM MANAGEMENT BOUNDED CONTEXT (PHASE 5)
+// ==========================================
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  FROZEN
+  EXPIRED
+  CANCELLED
+  TERMINATED
+}
+
+enum PlanStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum CheckInMethod {
+  QR_CODE
+  BARCODE
+  RFID
+  MANUAL_RECEPTION
+  BIOMETRIC
+}
+
+enum AccessResult {
+  GRANTED
+  DENIED_NO_MEMBERSHIP
+  DENIED_EXPIRED
+  DENIED_FROZEN
+  DENIED_INACTIVE_CLIENT
+  DENIED_OUT_OF_HOURS
+  DENIED_FACILITY_MISMATCH
+  DENIED_DUPLICATE_CHECKIN
+  DENIED_QUOTA_EXCEEDED
+  DENIED_SYSTEM_ERROR
+}
+
+model MembershipPlan {
+  id            String         @id @default(uuid())
+  code          String         @unique
+  name          String
+  description   String?
+  durationDays  Int            @map("duration_days")
+  priceAmount   Decimal        @db.Decimal(10, 2) @map("price_amount")
+  priceCurrency String         @default("USD") @map("price_currency")
+  visitQuota    Int?           @map("visit_quota")
+  status        PlanStatus     @default(DRAFT)
+  version       Int            @default(1)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  memberships   Membership[]   @relation("PlanToMemberships")
+
+  @@index([code])
+  @@index([status])
+  @@map("membership_plans")
+}
+
+model Membership {
+  id                 String             @id @default(uuid())
+  clientId           String             @map("client_id")
+  planId             String             @map("plan_id")
+  status             MembershipStatus   @default(ACTIVE)
+  startDate          DateTime           @map("start_date")
+  endDate            DateTime           @map("end_date")
+  assignedTrainerId  String?            @map("assigned_trainer_id")
+  freezeHistory      Json               @default("[]") @map("freeze_history")
+  cancellationReason String?            @map("cancellation_reason")
+  terminationReason  String?            @map("termination_reason")
+  version            Int                @default(1)
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  plan               MembershipPlan     @relation("PlanToMemberships", fields: [planId], references: [id], onDelete: Restrict)
+  attendanceRecords  AttendanceRecord[] @relation("MembershipToAttendance")
+
+  @@index([clientId, status])
+  @@index([planId])
+  @@index([status, endDate])
+  @@index([assignedTrainerId])
+  @@map("memberships")
+}
+
+model AttendanceRecord {
+  id             String         @id @default(uuid())
+  clientId       String         @map("client_id")
+  membershipId   String?        @map("membership_id")
+  checkInTime    DateTime       @map("check_in_time")
+  gymDay         String         @map("gym_day")
+  method         CheckInMethod
+  result         AccessResult
+  gateId         String?        @map("gate_id")
+  receptionistId String?        @map("receptionist_id")
+  notes          String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+
+  membership     Membership?    @relation("MembershipToAttendance", fields: [membershipId], references: [id], onDelete: SetNull)
+
+  @@index([clientId, checkInTime(sort: Desc)])
+  @@index([gymDay])
+  @@index([membershipId])
+  @@index([result])
+  @@map("attendance_records")
+}
+

@@ -88,6 +88,26 @@ export class GymDay implements ValueObject<GymDayValue> {
     }
   }
 
+  /**
+   * Factory method parsing a serialized GymDay string into a Value Object instance.
+   * Supports both 'YYYY-MM-DD@facilityId(timezone)' and simple 'YYYY-MM-DD'.
+   */
+  public static fromString(str: string): GymDay {
+    if (!str || typeof str !== 'string') {
+      throw new InvalidAttendanceException('Cannot parse GymDay from empty string.');
+    }
+    const match = str.trim().match(/^(\d{4}-\d{2}-\d{2})(?:@([^()]+)\(([^()]+)\))?$/);
+    if (!match) {
+      return GymDay.create(str.trim());
+    }
+    const [, localDate, facilityId, timezone] = match;
+    return new GymDay(
+      localDate!,
+      timezone ?? GymDay.DEFAULT_TIMEZONE,
+      facilityId ?? GymDay.DEFAULT_FACILITY_ID,
+    );
+  }
+
   public get localDate(): string {
     return this._localDate;
   }
