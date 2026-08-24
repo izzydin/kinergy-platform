@@ -86,3 +86,5 @@ graph TD
    - Authoritative aggregate boundaries (`Membership`, `MembershipPlan`, `AttendanceRecord`), invariants, and concurrency rules.
 10. **[Gym Management Lifecycle Models & Domain Invariants (Phase 5.1-E)](./gym-lifecycle-and-invariants.md)**
     - Authoritative state machine transitions, freeze/renewal mathematical rules, access eligibility engine, and canonical time model.
+11. **[Resources Management Architecture Hub (Phase 6)](./resources/README.md)**
+    - Central architecture documentation hub, baseline discovery, and governance for Phase 6: Consumable Inventory & Fixed Assets.
