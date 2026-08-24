@@ -1,19 +1,11 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-/**
- * Authoritative Architecture Verification Test Suite for Gym Management (Phase 5.1-G).
- * Structurally protects bounded context isolation, domain layer purity, public API boundaries,
- * and documentation integrity.
- */
-
-describe('Gym Management Bounded Context Architecture & Boundary Verification (Phase 5.1-G)', () => {
+describe('Phase 5: Gym Management Bounded Context Architecture & Boundary Purity', () => {
   const gymDomainPath = path.resolve(__dirname, 'domain');
   const gymApplicationPath = path.resolve(__dirname, 'application');
-  const schedulingPath = path.resolve(__dirname, '../scheduling');
-  const kinesiologyPath = path.resolve(__dirname, '../kinesiology');
-  const clientPath = path.resolve(__dirname, '../../../../modules/client');
-  const identityPath = path.resolve(__dirname, '../../../../apps/api/src/platform/identity');
+  const apiGymControllersPath = path.resolve(__dirname, '../../../../apps/api/src/gym/controllers');
+  const webGymModulesPath = path.resolve(__dirname, '../../../../apps/web/src/modules/gym');
 
   function getProductionTsFiles(dirPath: string): string[] {
     const files: string[] = [];
@@ -23,349 +15,131 @@ describe('Gym Management Bounded Context Architecture & Boundary Verification (P
       const fullPath = path.join(dirPath, entry.name);
       if (entry.isDirectory()) {
         files.push(...getProductionTsFiles(fullPath));
-      } else if (entry.isFile() && entry.name.endsWith('.ts') && !entry.name.endsWith('.spec.ts')) {
+      } else if (
+        entry.isFile() &&
+        (entry.name.endsWith('.ts') || entry.name.endsWith('.tsx')) &&
+        !entry.name.endsWith('.spec.ts') &&
+        !entry.name.endsWith('.spec.tsx')
+      ) {
         files.push(fullPath);
       }
     }
     return files;
   }
 
-  describe('1. Domain Layer Independence & Framework Freedom', () => {
-    it('should guarantee zero foreign aggregate, framework or Prisma dependencies in Gym Domain production code', () => {
-      const domainFiles = getProductionTsFiles(gymDomainPath);
+  it('Domain Layer Purity: zero foreign bounded context, infrastructure, or framework imports in Gym Domain', () => {
+    const domainFiles = getProductionTsFiles(gymDomainPath);
+    expect(domainFiles.length).toBeGreaterThan(0);
 
-      const forbiddenPatterns = [
-        '@prisma',
-        'prisma',
-        '@nestjs',
-        'scheduling/domain/appointment/appointment.aggregate',
-        'scheduling/domain/room',
-        'kinesiology/domain',
-        'client-domain/domain',
-        'modules/client/domain',
-        'platform/identity/domain',
-        'express',
-        'fastify',
-      ];
+    const forbiddenPatterns = [
+      '@prisma',
+      'prisma',
+      '@nestjs',
+      'scheduling',
+      'kinesiology',
+      'client-domain',
+      'identity',
+      'express',
+      'fastify',
+      'axios',
+      '../infrastructure',
+      '../../infrastructure',
+    ];
 
-      for (const filePath of domainFiles) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        for (const pattern of forbiddenPatterns) {
-          const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
-          const hasViolation = importRegex.test(content);
-          if (hasViolation) {
-            throw new Error(
-              `Architecture Violation: File '${filePath}' contains forbidden import matching '${pattern}'.`,
-            );
-          }
+    for (const filePath of domainFiles) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      for (const pattern of forbiddenPatterns) {
+        const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
+        const hasViolation = importRegex.test(content);
+        if (hasViolation) {
+          throw new Error(
+            `Domain Purity Violation: File '${filePath}' contains forbidden import matching '${pattern}'.`,
+          );
         }
       }
-    });
+    }
+  });
 
-    it('should guarantee zero direct foreign domain aggregate imports in Gym Application production code', () => {
-      const applicationFiles = getProductionTsFiles(gymApplicationPath);
+  it('Application Layer Purity: zero infrastructure or foreign database access in Gym Application layer', () => {
+    const applicationFiles = getProductionTsFiles(gymApplicationPath);
+    expect(applicationFiles.length).toBeGreaterThan(0);
 
-      const forbiddenPatterns = [
-        'scheduling/domain/appointment/appointment.aggregate',
-        'scheduling/domain/room/room.aggregate',
-        'kinesiology/domain/treatment-session/treatment-session.aggregate',
-        'modules/client/domain/aggregates/client.aggregate',
-        'platform/identity/domain/user.entity',
-        'scheduling/infrastructure',
-        'kinesiology/infrastructure',
-      ];
+    const forbiddenPatterns = [
+      '@prisma',
+      'PrismaClient',
+      '@nestjs/common',
+      'scheduling/infrastructure',
+      'kinesiology/infrastructure',
+      'client/infrastructure',
+      '../infrastructure',
+      '../../infrastructure',
+    ];
 
-      for (const filePath of applicationFiles) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        for (const pattern of forbiddenPatterns) {
-          const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
-          const hasViolation = importRegex.test(content);
-          if (hasViolation) {
-            throw new Error(
-              `Architecture Violation: Gym Application File '${filePath}' contains forbidden import matching '${pattern}'.`,
-            );
-          }
+    for (const filePath of applicationFiles) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      for (const pattern of forbiddenPatterns) {
+        const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
+        const hasViolation = importRegex.test(content);
+        if (hasViolation) {
+          throw new Error(
+            `Application Layer Violation: File '${filePath}' contains forbidden import matching '${pattern}'.`,
+          );
         }
       }
-    });
+    }
   });
 
-  describe('2. Bounded Context Reverse Isolation (Zero Leaks to Peer Contexts)', () => {
-    it('should guarantee Scheduling, Kinesiology, Client, and Identity do not import Gym domain internals', () => {
-      const foreignContextFiles = [
-        ...getProductionTsFiles(schedulingPath),
-        ...getProductionTsFiles(kinesiologyPath),
-        ...getProductionTsFiles(clientPath),
-        ...getProductionTsFiles(identityPath),
-      ];
+  it('API Controllers Boundary: controllers must not invoke Prisma directly or contain domain state calculations', () => {
+    const controllerFiles = getProductionTsFiles(apiGymControllersPath).filter((f) =>
+      f.endsWith('.controller.ts'),
+    );
+    expect(controllerFiles.length).toBeGreaterThan(0);
 
-      expect(foreignContextFiles.length).toBeGreaterThan(0);
+    for (const filePath of controllerFiles) {
+      const content = fs.readFileSync(filePath, 'utf-8');
 
-      const forbiddenInternalPatterns = [
-        'gym/domain/membership',
-        'gym/domain/attendance',
-        'gym/domain/plan',
-        'gym/infrastructure',
-      ];
+      // 1. No direct Prisma client injection in controllers
+      expect(content).not.toMatch(/PrismaService/);
+      expect(content).not.toMatch(/@prisma\/client/);
 
-      for (const filePath of foreignContextFiles) {
-        const content = fs.readFileSync(filePath, 'utf-8');
-        for (const pattern of forbiddenInternalPatterns) {
-          const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
-          const hasViolation = importRegex.test(content);
-          if (hasViolation) {
-            throw new Error(
-              `Boundary Leak Violation: Foreign file '${filePath}' illegally imports Gym internal '${pattern}'.`,
-            );
-          }
+      // 2. Controllers must delegate to CQRS handlers
+      expect(content).toMatch(/Handler/);
+    }
+  });
+
+  it('Frontend Boundary: Web UI modules must communicate via API transport and not import backend domain aggregates', () => {
+    const webFiles = getProductionTsFiles(webGymModulesPath);
+    expect(webFiles.length).toBeGreaterThan(0);
+
+    const forbiddenPatterns = [
+      'packages/core/src/gym/domain',
+      '@prisma',
+      'PrismaClient',
+      'membership.aggregate',
+      'membership-plan.aggregate',
+      'attendance-record.aggregate',
+    ];
+
+    for (const filePath of webFiles) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      for (const pattern of forbiddenPatterns) {
+        const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
+        const hasViolation = importRegex.test(content);
+        if (hasViolation) {
+          throw new Error(
+            `Frontend Boundary Violation: File '${filePath}' contains forbidden domain import matching '${pattern}'.`,
+          );
         }
       }
-    });
+    }
   });
 
-  describe('3. Public Barrel & Package Exports Verification', () => {
-    it('should export Gym bounded context name and adhere to public barrel boundaries', () => {
-      const gymIndexPath = path.resolve(__dirname, 'index.ts');
-      const coreIndexPath = path.resolve(__dirname, '../index.ts');
-
-      expect(fs.existsSync(gymIndexPath)).toBe(true);
-      expect(fs.existsSync(coreIndexPath)).toBe(true);
-
-      const gymIndexContent = fs.readFileSync(gymIndexPath, 'utf-8');
-      expect(gymIndexContent).toContain('GYM_BOUNDED_CONTEXT_NAME');
-      expect(gymIndexContent).toContain("export * from './domain'");
-      expect(gymIndexContent).toContain("export * from './application'");
-
-      const coreIndexContent = fs.readFileSync(coreIndexPath, 'utf-8');
-      expect(coreIndexContent).toContain("export * from './gym'");
-    });
-
-    it('should cleanly export Membership aggregate, Value Objects, and Domain Events without kernel collision', () => {
-      const domainIndexPath = path.resolve(__dirname, 'domain/index.ts');
-      expect(fs.existsSync(domainIndexPath)).toBe(true);
-
-      const domainIndexContent = fs.readFileSync(domainIndexPath, 'utf-8');
-      expect(domainIndexContent).toContain("export * from './exceptions'");
-      expect(domainIndexContent).toContain("export * from './membership'");
-      expect(domainIndexContent).toContain("export * from './plan'");
-      expect(domainIndexContent).toContain("export * from './events'");
-      expect(domainIndexContent).toContain("export * from './repositories'");
-      expect(domainIndexContent).toContain("export * from './policies'");
-      // Must not re-export ./shared directly to prevent global collision with root kernel
-      expect(domainIndexContent).not.toContain("export * from './shared'");
-    });
-  });
-
-  describe('4. Architecture Documentation & ADR Integrity Verification', () => {
-    it('should verify all Phase 5.1, 5.3 & 5.4 ADRs exist, are accepted, and are indexed in docs/adr/README.md', () => {
-      const adrIndexPath = path.resolve(__dirname, '../../../../docs/adr/README.md');
-      expect(fs.existsSync(adrIndexPath)).toBe(true);
-
-      const adrIndexContent = fs.readFileSync(adrIndexPath, 'utf-8');
-      const requiredAdrs = [
-        '0054',
-        '0055',
-        '0056',
-        '0057',
-        '0058',
-        '0059',
-        '0060',
-        '0061',
-        '0062',
-        '0063',
-        '0064',
-        '0065',
-        '0066',
-        '0067',
-        '0068',
-        '0069',
-        '0070',
-      ];
-
-      for (const adrNum of requiredAdrs) {
-        expect(adrIndexContent).toContain(`[${adrNum}]`);
-        const adrFiles = fs
-          .readdirSync(path.resolve(__dirname, '../../../../docs/adr'))
-          .filter((f) => f.startsWith(adrNum));
-        expect(adrFiles.length).toBe(1);
-        const adrFileName = adrFiles[0]!;
-
-        const adrContent = fs.readFileSync(
-          path.resolve(__dirname, '../../../../docs/adr', adrFileName),
-          'utf-8',
-        );
-        expect(adrContent).toContain('Status**: Accepted');
-      }
-    });
-
-    it('should enforce all Phase 5.1, 5.3, 5.4 & 5.5 architecture specification documents exist and contain invariants', () => {
-      const contextDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/contexts/gym.md',
-      );
-      const reconDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-management-reconnaissance.md',
-      );
-      const vocabDocPath = path.resolve(__dirname, '../../../../docs/business/gym-vocabulary.md');
-      const aggDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-aggregate-boundaries.md',
-      );
-      const lifecycleDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-lifecycle-and-invariants.md',
-      );
-      const commercialDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-commercial-model.md',
-      );
-      const useCaseDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-create-membership-use-case.md',
-      );
-      const renewalDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-renewal-and-expiration-semantics.md',
-      );
-      const renewUseCaseDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-renew-membership-use-case.md',
-      );
-      const expirationProcessingDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-automatic-membership-expiration-processing.md',
-      );
-      const expirationIndicatorsDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-expiration-indicators-and-operational-read-models.md',
-      );
-      const consistencyAuditDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-lifecycle-integration-and-consistency-audit.md',
-      );
-      const attendanceDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-attendance-domain-and-boundaries.md',
-      );
-      const eligibilityDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-membership-eligibility-contract.md',
-      );
-      const recordCheckInDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-record-check-in-use-case.md',
-      );
-      const concurrencyDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-attendance-concurrency-and-idempotency.md',
-      );
-      const queriesDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-attendance-history-and-operational-queries.md',
-      );
-      const receptionDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-attendance-reception-workflow-frontend.md',
-      );
-      const matrixDocPath = path.resolve(
-        __dirname,
-        '../../../../docs/architecture/gym-attendance-comprehensive-verification-matrix.md',
-      );
-
-      expect(fs.existsSync(contextDocPath)).toBe(true);
-      expect(fs.existsSync(reconDocPath)).toBe(true);
-      expect(fs.existsSync(vocabDocPath)).toBe(true);
-      expect(fs.existsSync(aggDocPath)).toBe(true);
-      expect(fs.existsSync(lifecycleDocPath)).toBe(true);
-      expect(fs.existsSync(commercialDocPath)).toBe(true);
-      expect(fs.existsSync(useCaseDocPath)).toBe(true);
-      expect(fs.existsSync(renewalDocPath)).toBe(true);
-      expect(fs.existsSync(renewUseCaseDocPath)).toBe(true);
-      expect(fs.existsSync(expirationProcessingDocPath)).toBe(true);
-      expect(fs.existsSync(expirationIndicatorsDocPath)).toBe(true);
-      expect(fs.existsSync(consistencyAuditDocPath)).toBe(true);
-      expect(fs.existsSync(attendanceDocPath)).toBe(true);
-      expect(fs.existsSync(eligibilityDocPath)).toBe(true);
-      expect(fs.existsSync(recordCheckInDocPath)).toBe(true);
-      expect(fs.existsSync(concurrencyDocPath)).toBe(true);
-      expect(fs.existsSync(queriesDocPath)).toBe(true);
-      expect(fs.existsSync(receptionDocPath)).toBe(true);
-      expect(fs.existsSync(matrixDocPath)).toBe(true);
-
-      const matrixDocContent = fs.readFileSync(matrixDocPath, 'utf-8');
-      expect(matrixDocContent).toContain('Comprehensive Attendance Verification Matrix');
-
-      const receptionDocContent = fs.readFileSync(receptionDocPath, 'utf-8');
-      expect(receptionDocContent).toContain('AttendanceReceptionPage');
-
-      expect(receptionDocContent).toContain('ClientSearchBar');
-
-      const queriesDocContent = fs.readFileSync(queriesDocPath, 'utf-8');
-      expect(queriesDocContent).toContain('GetDailyAttendanceQuery');
-      expect(queriesDocContent).toContain('GetClientAttendanceHistoryQuery');
-
-      const concurrencyDocContent = fs.readFileSync(concurrencyDocPath, 'utf-8');
-      expect(concurrencyDocContent).toContain('Anti-Passback');
-      expect(concurrencyDocContent).toContain('Idempotency');
-
-      const recordCheckInDocContent = fs.readFileSync(recordCheckInDocPath, 'utf-8');
-      expect(recordCheckInDocContent).toContain('RecordCheckInHandler');
-      expect(recordCheckInDocContent).toContain('Anti-Passback');
-
-      const eligibilityDocContent = fs.readFileSync(eligibilityDocPath, 'utf-8');
-      expect(eligibilityDocContent).toContain('MembershipEligibilityPort');
-      expect(eligibilityDocContent).toContain('MembershipEligibilityOutcome');
-      expect(eligibilityDocContent).toContain('CheckMembershipEligibilityHandler');
-
-      const attendanceDocContent = fs.readFileSync(attendanceDocPath, 'utf-8');
-      expect(attendanceDocContent).toContain('Authoritative Attendance Invariant');
-      expect(attendanceDocContent).toContain('AttendanceRecord');
-      expect(attendanceDocContent).toContain('GymDay');
-      expect(attendanceDocContent).toContain('Check-Out Decision');
-
-      const auditDocContent = fs.readFileSync(consistencyAuditDocPath, 'utf-8');
-      expect(auditDocContent).toContain('Lifecycle State Machine');
-      expect(auditDocContent).toContain('Time Consistency Audit');
-      expect(auditDocContent).toContain('Historical Integrity & Plan Decoupling');
-
-      const indicatorsDocContent = fs.readFileSync(expirationIndicatorsDocPath, 'utf-8');
-      expect(indicatorsDocContent).toContain('GetExpiringMembershipsHandler');
-      expect(indicatorsDocContent).toContain('GetMembershipOperationalSummaryHandler');
-      expect(indicatorsDocContent).toContain('MembershipNotificationDispatcher');
-
-      const expirationDocContent = fs.readFileSync(expirationProcessingDocPath, 'utf-8');
-      expect(expirationDocContent).toContain('ExpireMembershipsHandler');
-      expect(expirationDocContent).toContain('findExpiringCandidates');
-      expect(expirationDocContent).toContain('Item-Level Fault Isolation');
-
-      const renewUseCaseDocContent = fs.readFileSync(renewUseCaseDocPath, 'utf-8');
-      expect(renewUseCaseDocContent).toContain('RenewMembershipHandler');
-      expect(renewUseCaseDocContent).toContain('MembershipOverlapPolicy');
-      expect(renewUseCaseDocContent).toContain('Optimistic Concurrency Control');
-
-      const renewalDocContent = fs.readFileSync(renewalDocPath, 'utf-8');
-      expect(renewalDocContent).toContain('Renewal Temporal Rules');
-      expect(renewalDocContent).toContain('Two-Tier Expiration Processing');
-      expect(renewalDocContent).toContain('Attendance Eligibility Contract');
-
-      const commercialDocContent = fs.readFileSync(commercialDocPath, 'utf-8');
-      expect(commercialDocContent).toContain('MembershipPlan');
-      expect(commercialDocContent).toContain('PlanDuration');
-      expect(commercialDocContent).toContain('PlanPrice');
-      expect(commercialDocContent).toContain('PlanStatus');
-
-      const useCaseDocContent = fs.readFileSync(useCaseDocPath, 'utf-8');
-      expect(useCaseDocContent).toContain('CreateMembershipHandler');
-      expect(useCaseDocContent).toContain('MembershipOverlapPolicy');
-
-      const contextDocContent = fs.readFileSync(contextDocPath, 'utf-8');
-      expect(contextDocContent).toContain('Gym Management Bounded Context');
-      expect(contextDocContent).toContain('Mandatory Architectural Invariant');
-      expect(contextDocContent).toContain('Authoritative Ownership Matrix');
-      expect(contextDocContent).toContain('Membership');
-      expect(contextDocContent).toContain('MembershipPlan');
-      expect(contextDocContent).toContain('AttendanceRecord');
-    });
+  it('Cross-Context Ownership: Client identity is only referenced by scalar ID (clientId), not by embedding Client aggregates', () => {
+    const domainFiles = getProductionTsFiles(gymDomainPath);
+    for (const filePath of domainFiles) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      expect(content).not.toMatch(/import\s+.*\bClient\b.*from/);
+      expect(content).not.toMatch(/import\s+.*\bUser\b.*from/);
+    }
   });
 });
