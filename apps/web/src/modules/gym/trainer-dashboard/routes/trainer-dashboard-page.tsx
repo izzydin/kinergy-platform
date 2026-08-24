@@ -1,5 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { Button, Badge, Card, CardHeader, CardTitle, CardContent } from '@kinergy-platform/ui';
 import { useAuth } from '../../../../app/providers/auth-provider';
 import {
@@ -7,6 +6,7 @@ import {
   useAssignedClients,
   useExpiringMemberships,
   useTrainerAttendance,
+  useTrainerFilters,
 } from '../hooks';
 import {
   TrainerSummaryKpiBanner,
@@ -21,48 +21,38 @@ export const TrainerDashboardPage: React.FC = () => {
   const { currentUser } = useAuth();
   const trainerId = currentUser?.id ?? '';
 
-  const [searchParams, setSearchParams] = useSearchParams();
-
-  // URL-driven query state
-  const page = parseInt(searchParams.get('page') || '1', 10);
-  const limit = parseInt(searchParams.get('limit') || '10', 10);
-  const sortBy =
-    (searchParams.get('sortBy') as 'daysRemaining' | 'endDate' | 'startDate' | 'assignedAt') ||
-    'daysRemaining';
-  const sortOrder = (searchParams.get('sortOrder') as 'ASC' | 'DESC') || 'ASC';
-  const statusFilter = searchParams.get('status') || 'ALL';
-  const searchTerm = searchParams.get('search') || '';
+  const {
+    clientParams,
+    page,
+    limit,
+    sortBy,
+    sortOrder,
+    searchTerm,
+    statusFilter,
+    selectedClientId,
+    setSearch,
+    setPage,
+    setLimit,
+    setStatusFilter,
+    setSelectedClientId,
+    setRosterSort,
+  } = useTrainerFilters();
 
   const [selectedClient, setSelectedClient] = useState<ClientSearchResultDTO | null>(null);
 
-  // Helper to update URL search parameters cleanly
-  const updateUrlParams = useCallback(
-    (updates: Record<string, string | null>) => {
-      setSearchParams(
-        (prev) => {
-          const next = new URLSearchParams(prev);
-          Object.entries(updates).forEach(([key, val]) => {
-            if (val === null || val === undefined || val === '') {
-              next.delete(key);
-            } else {
-              next.set(key, val);
-            }
-          });
-          return next;
-        },
-        { replace: true },
-      );
-    },
-    [setSearchParams],
-  );
-
-  // Convert status filter to array for backend
-  const backendStatuses = useMemo(() => {
-    if (statusFilter === 'ACTIVE') return ['ACTIVE'];
-    if (statusFilter === 'FROZEN') return ['FROZEN'];
-    if (statusFilter === 'EXPIRING') return ['ACTIVE'];
-    return undefined;
-  }, [statusFilter]);
+  // Sync URL selectedClientId with local selectedClient state on mount or change
+  useEffect(() => {
+    if (selectedClientId && (!selectedClient || selectedClient.id !== selectedClientId)) {
+      setSelectedClient({
+        id: selectedClientId,
+        fullName: selectedClientId,
+        email: `${selectedClientId}@kinergy.client`,
+        status: 'ACTIVE',
+      });
+    } else if (!selectedClientId && selectedClient) {
+      setSelectedClient(null);
+    }
+  }, [selectedClientId, selectedClient]);
 
   // 1. Authoritative Top-Line Operational Summary KPIs
   const {
@@ -82,13 +72,8 @@ export const TrainerDashboardPage: React.FC = () => {
     isError: isErrorClients,
     refetch: refetchClients,
   } = useAssignedClients({
+    ...clientParams,
     trainerId: trainerId || undefined,
-    page,
-    limit,
-    sortBy,
-    sortOrder,
-    statuses: backendStatuses,
-    horizonDays: 7,
   });
 
   // 3. Expiring Soon Memberships List (Lookahead Horizon: 7 days)
@@ -102,29 +87,40 @@ export const TrainerDashboardPage: React.FC = () => {
     horizonDays: 7,
   });
 
-  // 4. Live Operational Attendance Feed (Trainer's Clients)
+  // 4. Scoped Attendance Stream (Today's check-ins for assigned clients)
   const {
     data: attendanceData,
     isLoading: isLoadingAttendance,
     isError: isErrorAttendance,
     isFetching: isFetchingAttendance,
     refetch: refetchAttendance,
-  } = useTrainerAttendance(
-    {
-      trainerId: trainerId || undefined,
-      limit: 20,
-    },
-    { refetchInterval: 30 * 1000 },
-  );
+  } = useTrainerAttendance({
+    trainerId: trainerId || undefined,
+    page: 1,
+    limit: 20,
+  });
+
+  // Select client from roster or quick lookup
+  const handleSelectClient = (client: ClientSearchResultDTO) => {
+    setSelectedClient(client);
+    setSelectedClientId(client.id);
+  };
 
   const handleSelectClientById = (clientId: string) => {
-    const match = assignedClientsData?.items.find((m) => m.clientId === clientId);
-    setSelectedClient({
+    const foundInRoster = assignedClientsData?.items.find((item) => item.clientId === clientId);
+    const clientDto: ClientSearchResultDTO = {
       id: clientId,
-      fullName: match ? `Client (${clientId})` : clientId,
+      fullName: foundInRoster ? foundInRoster.planName : clientId,
       email: `${clientId}@kinergy.client`,
-      status: match?.status ?? 'ACTIVE',
-    });
+      status: foundInRoster ? foundInRoster.status : 'ACTIVE',
+    };
+    setSelectedClient(clientDto);
+    setSelectedClientId(clientId);
+  };
+
+  const handleClearSelectedClient = () => {
+    setSelectedClient(null);
+    setSelectedClientId(undefined);
   };
 
   const handleRefreshAll = () => {
@@ -136,7 +132,7 @@ export const TrainerDashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-      {/* Dashboard Top Header */}
+      {/* Top Header & Context */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
         <div>
           <div className="flex items-center space-x-3">
@@ -148,19 +144,18 @@ export const TrainerDashboardPage: React.FC = () => {
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
             Real-time client assignments, membership status, and facility check-ins for{' '}
             <span className="font-semibold text-slate-700 dark:text-slate-200">
-              {currentUser?.email ?? 'Trainer'}
+              {currentUser?.email ?? 'Assigned Trainer'}
             </span>
           </p>
         </div>
-
         <div className="flex items-center space-x-3">
-          <Button variant="outline" size="sm" onClick={handleRefreshAll}>
+          <Button variant="outline" size="sm" onClick={handleRefreshAll} className="text-xs">
             🔄 Refresh Dashboard
           </Button>
         </div>
       </div>
 
-      {/* 1. Authoritative Operational KPI Banner */}
+      {/* Top Summary KPI Banner */}
       <section aria-labelledby="kpi-banner-heading">
         <h2 id="kpi-banner-heading" className="sr-only">
           Operational Summary Metrics
@@ -173,10 +168,10 @@ export const TrainerDashboardPage: React.FC = () => {
         />
       </section>
 
-      {/* Main 2-Column Responsive Workspace */}
+      {/* Main 2-Column Responsive Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left / Primary Column: Assigned Clients DataTable (7 cols on desktop) */}
-        <section className="lg:col-span-7 space-y-4" aria-labelledby="assigned-clients-heading">
+        {/* Left Column (8 cols): Assigned Client Roster */}
+        <section className="lg:col-span-8 space-y-6" aria-labelledby="assigned-clients-heading">
           <h2 id="assigned-clients-heading" className="sr-only">
             Assigned Client Roster
           </h2>
@@ -190,52 +185,46 @@ export const TrainerDashboardPage: React.FC = () => {
             sortOrder={sortOrder}
             statusFilter={statusFilter}
             searchTerm={searchTerm}
-            onPageChange={(newPage) => updateUrlParams({ page: String(newPage) })}
-            onLimitChange={(newLimit) => updateUrlParams({ limit: String(newLimit), page: '1' })}
-            onSortChange={(newSortBy) =>
-              updateUrlParams({
-                sortBy: newSortBy,
-                sortOrder: sortBy === newSortBy && sortOrder === 'ASC' ? 'DESC' : 'ASC',
-              })
-            }
-            onStatusFilterChange={(newStatus) =>
-              updateUrlParams({ status: newStatus === 'ALL' ? null : newStatus, page: '1' })
-            }
-            onSearchChange={(newSearch) =>
-              updateUrlParams({ search: newSearch || null, page: '1' })
-            }
+            onPageChange={setPage}
+            onLimitChange={setLimit}
+            onSortChange={setRosterSort}
+            onStatusFilterChange={setStatusFilter}
+            onSearchChange={setSearch}
             onRetry={refetchClients}
             onSelectClient={handleSelectClientById}
           />
         </section>
 
-        {/* Right / Secondary Column: Expiring Memberships & Today's Attendance & Quick Lookup (5 cols on desktop) */}
-        <section className="lg:col-span-5 space-y-6" aria-labelledby="sidebar-operations-heading">
+        {/* Right Column (4 cols): Quick Lookup, Expiring Memberships & Recent Arrivals */}
+        <section className="lg:col-span-4 space-y-6" aria-labelledby="sidebar-operations-heading">
           <h2 id="sidebar-operations-heading" className="sr-only">
-            Expiring Memberships & Live Attendance
+            Quick Operational Actions
           </h2>
 
-          {/* Quick Client Search & Inspection */}
+          {/* Quick Client Search & Real-Time Eligibility Card */}
           <TrainerClientLookup
             selectedClient={selectedClient}
-            onSelectClient={(client) => setSelectedClient(client)}
-            onClearSelection={() => setSelectedClient(null)}
+            onSelectClient={handleSelectClient}
+            onClearSelection={handleClearSelectedClient}
           />
 
-          {/* Selected Client Inspection Flyout / Card */}
+          {/* Selected Client Overview Card */}
           {selectedClient && (
-            <Card className="border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30">
+            <Card
+              className="bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/60 shadow-sm"
+              data-testid="selected-client-inspection-card"
+            >
               <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-sm font-bold text-indigo-900 dark:text-indigo-200">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
                   Client Inspection: {selectedClient.fullName}
                 </CardTitle>
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setSelectedClient(null)}
-                  className="text-xs text-indigo-600 dark:text-indigo-300"
+                  className="h-6 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-900"
+                  onClick={handleClearSelectedClient}
                 >
-                  Close
+                  ✕ Close
                 </Button>
               </CardHeader>
               <CardContent className="p-4 pt-0 space-y-1.5 text-xs text-indigo-900 dark:text-indigo-200">

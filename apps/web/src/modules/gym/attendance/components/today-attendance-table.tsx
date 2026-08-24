@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Card,
   CardHeader,
@@ -9,6 +9,7 @@ import {
   Spinner,
 } from '@kinergy-platform/ui';
 import { useTodayAttendance } from '../hooks/use-gym-attendance';
+import { useAttendanceFilters } from '../hooks/use-attendance-filters';
 import { AccessResult, CheckInMethod } from '../types';
 
 interface TodayAttendanceTableProps {
@@ -18,16 +19,16 @@ interface TodayAttendanceTableProps {
 export const TodayAttendanceTable: React.FC<TodayAttendanceTableProps> = ({
   onInspectClientHistory,
 }) => {
-  const [page, setPage] = useState(1);
-  const [resultFilter, setResultFilter] = useState<string | undefined>(undefined);
-  const [methodFilter, setMethodFilter] = useState<string | undefined>(undefined);
-
-  const { data, isLoading, error, isFetching, refetch } = useTodayAttendance({
-    page,
-    limit: 15,
+  const {
+    params,
     result: resultFilter,
     method: methodFilter,
-  });
+    setResultFilter,
+    setMethodFilter,
+    setPage,
+  } = useAttendanceFilters();
+
+  const { data, isLoading, error, isFetching, refetch } = useTodayAttendance(params);
 
   const getResultBadge = (result: string) => {
     switch (result) {
@@ -159,10 +160,7 @@ export const TodayAttendanceTable: React.FC<TodayAttendanceTableProps> = ({
           <div className="flex items-center space-x-2">
             <select
               value={resultFilter ?? ''}
-              onChange={(e) => {
-                setResultFilter(e.target.value ? e.target.value : undefined);
-                setPage(1);
-              }}
+              onChange={(e) => setResultFilter(e.target.value || undefined)}
               className="text-xs h-7 px-2 rounded border border-input bg-background text-foreground"
               aria-label="Filter by result"
               data-testid="filter-result-select"
@@ -177,10 +175,7 @@ export const TodayAttendanceTable: React.FC<TodayAttendanceTableProps> = ({
 
             <select
               value={methodFilter ?? ''}
-              onChange={(e) => {
-                setMethodFilter(e.target.value ? e.target.value : undefined);
-                setPage(1);
-              }}
+              onChange={(e) => setMethodFilter(e.target.value || undefined)}
               className="text-xs h-7 px-2 rounded border border-input bg-background text-foreground"
               aria-label="Filter by method"
               data-testid="filter-method-select"
@@ -306,7 +301,7 @@ export const TodayAttendanceTable: React.FC<TodayAttendanceTableProps> = ({
                   variant="outline"
                   size="sm"
                   disabled={!data.pagination.hasPreviousPage}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  onClick={() => setPage(Math.max(1, data.pagination.page - 1))}
                   data-testid="pagination-prev-btn"
                 >
                   Previous
@@ -315,7 +310,7 @@ export const TodayAttendanceTable: React.FC<TodayAttendanceTableProps> = ({
                   variant="outline"
                   size="sm"
                   disabled={!data.pagination.hasNextPage}
-                  onClick={() => setPage((p) => p + 1)}
+                  onClick={() => setPage(data.pagination.page + 1)}
                   data-testid="pagination-next-btn"
                 >
                   Next

@@ -1,19 +1,20 @@
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { TrainerDashboardPage } from '../routes/trainer-dashboard-page';
 import { useAuth } from '../../../../app/providers/auth-provider';
-import {
-  useTrainerDashboardSummary,
-  useAssignedClients,
-  useExpiringMemberships,
-  useTrainerAttendance,
-} from '../hooks';
+import { useTrainerDashboardSummary } from '../hooks/use-trainer-dashboard-summary';
+import { useAssignedClients } from '../hooks/use-assigned-clients';
+import { useExpiringMemberships } from '../hooks/use-expiring-memberships';
+import { useTrainerAttendance } from '../hooks/use-trainer-attendance';
 import { useClientSearch, useClientEligibility } from '../../attendance/hooks/use-gym-attendance';
 import { AccessResult, CheckInMethod, MembershipEligibilityOutcome } from '../types';
 
 jest.mock('../../../../app/providers/auth-provider');
-jest.mock('../hooks');
+jest.mock('../hooks/use-trainer-dashboard-summary');
+jest.mock('../hooks/use-assigned-clients');
+jest.mock('../hooks/use-expiring-memberships');
+jest.mock('../hooks/use-trainer-attendance');
 jest.mock('../../attendance/hooks/use-gym-attendance');
 
 const mockUseAuth = useAuth as jest.Mock;
@@ -58,8 +59,8 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
         planName: 'VIP Training Pass',
         status: 'FROZEN',
         startDate: '2026-07-01T00:00:00.000Z',
-        endDate: '2026-09-15T00:00:00.000Z',
-        daysRemaining: 24,
+        endDate: '2027-07-01T00:00:00.000Z',
+        daysRemaining: 313,
         isExpiringSoon: false,
         isExpired: false,
         isCurrentlyFrozen: true,
@@ -72,13 +73,26 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
     totalPages: 1,
   };
 
-  const mockExpiringData = {
-    items: [mockAssignedClients.items[0]],
+  const mockExpiringMemberships = {
+    items: [
+      {
+        membershipId: 'mem_101',
+        clientId: 'client_alpha',
+        planId: 'plan_std',
+        planName: 'Standard Monthly',
+        status: 'ACTIVE',
+        startDate: '2026-08-01T00:00:00.000Z',
+        endDate: '2026-08-25T00:00:00.000Z',
+        daysRemaining: 3,
+        isExpiringSoon: true,
+        isExpired: false,
+      },
+    ],
     total: 1,
     horizonDays: 7,
   };
 
-  const mockAttendanceData = {
+  const mockAttendance = {
     items: [
       {
         id: 'att_201',
@@ -86,9 +100,9 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
         membershipId: 'mem_101',
         checkInTime: '2026-08-22T08:30:00.000Z',
         gymDay: '2026-08-22',
-        method: CheckInMethod.RFID,
+        method: CheckInMethod.QR_CODE,
         result: AccessResult.GRANTED,
-        gateId: 'Turnstile 1',
+        gateId: 'turnstile_1',
       },
     ],
     total: 1,
@@ -103,11 +117,12 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
 
     mockUseAuth.mockReturnValue({
       currentUser: {
-        id: 'trainer_007',
-        email: 'trainer@kinergy.platform',
+        id: 'usr_trainer_1',
+        email: 'trainer@kinergy.test',
         roles: ['Trainer'],
-        permissions: ['clients.read'],
+        permissions: ['clients.read', 'memberships.read'],
       },
+      isAuthenticated: true,
     });
 
     mockUseSummary.mockReturnValue({
@@ -125,14 +140,14 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
     });
 
     mockUseExpiringMemberships.mockReturnValue({
-      data: mockExpiringData,
+      data: mockExpiringMemberships,
       isLoading: false,
       isError: false,
       refetch: jest.fn(),
     });
 
     mockUseTrainerAttendance.mockReturnValue({
-      data: mockAttendanceData,
+      data: mockAttendance,
       isLoading: false,
       isError: false,
       isFetching: false,
@@ -146,6 +161,7 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
 
     mockUseClientEligibility.mockReturnValue({
       data: {
+        clientId: 'client_alpha',
         isEligible: true,
         outcome: MembershipEligibilityOutcome.ELIGIBLE,
         membershipId: 'mem_101',
@@ -191,24 +207,28 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
     expect(screen.getByText("Today's Check-Ins")).toBeInTheDocument();
   });
 
-  it('2. In-memory filter on client roster works cleanly', () => {
+  it('2. In-memory filter on client roster works cleanly', async () => {
     renderDashboard();
 
     const searchInput = screen.getByLabelText('Filter roster');
     fireEvent.change(searchInput, { target: { value: 'client_alpha' } });
 
+    await waitFor(() => {
+      expect(screen.queryByText('client_beta')).not.toBeInTheDocument();
+    });
     expect(screen.getByText('client_alpha')).toBeInTheDocument();
-    expect(screen.queryByText('client_beta')).not.toBeInTheDocument();
   });
 
-  it('3. Selects a client for detailed inspection', () => {
+  it('3. Selects a client for detailed inspection', async () => {
     renderDashboard();
 
     const detailsButtons = screen.getAllByRole('button', { name: /Details/i });
     expect(detailsButtons.length).toBeGreaterThan(0);
     fireEvent.click(detailsButtons[0]!);
 
-    expect(screen.getByText(/Client Inspection:/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByText(/Client Inspection:/i)).toBeInTheDocument();
+    });
     expect(screen.getAllByText(/client_alpha@kinergy.client/i).length).toBeGreaterThan(0);
   });
 

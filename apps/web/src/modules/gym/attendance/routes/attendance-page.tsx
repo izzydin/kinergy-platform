@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from '@kinergy-platform/ui';
 import {
   ClientSearchBar,
@@ -9,19 +9,37 @@ import {
 } from '../components';
 import { ClientSearchResultDTO, RecordCheckInResponseVM } from '../types';
 import { useClientEligibility } from '../hooks/use-gym-attendance';
+import { useAttendanceFilters } from '../hooks/use-attendance-filters';
 
 export const AttendancePage: React.FC = () => {
+  const { clientId, historyClientId, setClientId, setHistoryClientId } = useAttendanceFilters();
+
   const [selectedClient, setSelectedClient] = useState<ClientSearchResultDTO | null>(null);
-  const [historyClientId, setHistoryClientId] = useState<string | null>(null);
+
+  // Synchronize URL clientId with selectedClient state on direct URL mount/change
+  useEffect(() => {
+    if (clientId && (!selectedClient || selectedClient.id !== clientId)) {
+      setSelectedClient({
+        id: clientId,
+        fullName: clientId,
+        email: '',
+        status: 'ACTIVE',
+      });
+    } else if (!clientId && selectedClient) {
+      setSelectedClient(null);
+    }
+  }, [clientId, selectedClient]);
 
   const { data: eligibility } = useClientEligibility(selectedClient?.id);
 
   const handleSelectClient = (client: ClientSearchResultDTO) => {
     setSelectedClient(client);
+    setClientId(client.id);
   };
 
   const handleClearSelection = () => {
     setSelectedClient(null);
+    setClientId(undefined);
   };
 
   const handleCheckInSuccess = (_result: RecordCheckInResponseVM) => {
@@ -101,18 +119,16 @@ export const AttendancePage: React.FC = () => {
 
         {/* Right Column: Today's Live Attendance Feed & Real-Time KPIs (7 cols) */}
         <div className="lg:col-span-7">
-          <TodayAttendanceTable
-            onInspectClientHistory={(clientId) => setHistoryClientId(clientId)}
-          />
+          <TodayAttendanceTable onInspectClientHistory={(id) => setHistoryClientId(id)} />
         </div>
       </div>
 
       {/* Client Attendance History Modal Dialog */}
       <ClientAttendanceHistoryDialog
-        clientId={historyClientId}
+        clientId={historyClientId ?? null}
         open={Boolean(historyClientId)}
         onOpenChange={(open) => {
-          if (!open) setHistoryClientId(null);
+          if (!open) setHistoryClientId(undefined);
         }}
       />
     </div>
