@@ -64,7 +64,7 @@ kinergy-platform/
 │   ├── testing/          # Testing Strategies & Quality Gates
 │   ├── configuration/    # Centralized Zod Environment Reference
 │   ├── api/              # OpenAPI / Swagger Reference Guide
-│   ├── adr/              # Architecture Decision Records (0001 - 0040)
+│   ├── adr/              # Architecture Decision Records (0001 - 0080)
 │   └── glossary.md       # Platform Glossary & Terminology Index
 ├── .gitignore            # Git ignore definitions
 ├── CHANGELOG.md          # Release history and unreleased changes
