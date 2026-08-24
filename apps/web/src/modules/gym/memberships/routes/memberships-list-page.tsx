@@ -1,57 +1,150 @@
-import React from 'react';
-import { useMemberships } from '../hooks/use-memberships';
+import type { OnChangeFn, SortingState } from '@tanstack/react-table';
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../../../app/providers/auth-provider';
+import { CrudListHeader, CrudListLayout } from '../../../../shared/crud';
+import { CancelMembershipDialog } from '../components/cancel-membership-dialog';
+import { FreezeMembershipDialog } from '../components/freeze-membership-dialog';
+import { MembershipFilterBar } from '../components/membership-filter-bar';
+import { MembershipListTable } from '../components/membership-list-table';
+import { RenewMembershipDialog } from '../components/renew-membership-dialog';
+import { UnfreezeMembershipDialog } from '../components/unfreeze-membership-dialog';
+import { useMembershipFilters } from '../hooks/use-membership-filters';
+import { useMembershipMutations, useMemberships } from '../hooks/use-memberships';
+import type { MembershipVM } from '../types';
 
 export const MembershipsListPage: React.FC = () => {
-  const { data, isLoading, isError, error } = useMemberships({ page: 1, limit: 20 });
+  const navigate = useNavigate();
+  const { hasPermission, hasRole } = useAuth();
+  const canManageMemberships =
+    hasPermission('memberships.create') ||
+    hasPermission('memberships.update') ||
+    hasRole('ADMIN') ||
+    hasRole('OWNER') ||
+    hasRole('RECEPTIONIST');
+
+  const [renewingMembership, setRenewingMembership] = useState<MembershipVM | null>(null);
+  const [freezingMembership, setFreezingMembership] = useState<MembershipVM | null>(null);
+  const [unfreezingMembership, setUnfreezingMembership] = useState<MembershipVM | null>(null);
+  const [cancellingMembership, setCancellingMembership] = useState<MembershipVM | null>(null);
+
+  const {
+    params,
+    search,
+    status,
+    planId,
+    isFiltered,
+    sortState,
+    setSearch,
+    setStatus,
+    setPlanId,
+    setPage,
+    setLimit,
+    setSort,
+    resetFilters,
+  } = useMembershipFilters();
+
+  const { data, isLoading, isError, error, refetch } = useMemberships(params);
+  const { renewMembership, freezeMembership, unfreezeMembership, cancelMembership } =
+    useMembershipMutations();
+
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const page = data?.page ?? 1;
+
+  const sorting: SortingState = sortState ? [sortState] : [];
+
+  const handleSortingChange: OnChangeFn<SortingState> = (updaterOrValue) => {
+    const nextSorting =
+      typeof updaterOrValue === 'function' ? updaterOrValue(sorting) : updaterOrValue;
+    if (nextSorting.length === 0) {
+      setSort(undefined);
+    } else {
+      const first = nextSorting[0];
+      if (first) {
+        setSort({ id: first.id, desc: first.desc });
+      }
+    }
+  };
 
   return (
-    <div className="p-6 space-y-6" data-testid="memberships-list-page">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Gym Memberships</h1>
-          <p className="text-sm text-gray-500">
-            Client membership agreements and subscription lifecycle
-          </p>
-        </div>
+    <CrudListLayout
+      header={
+        <CrudListHeader
+          title="Gym Memberships"
+          description="Client membership agreements, subscription lifecycles, and facility access permissions."
+        />
+      }
+      toolbar={
+        <MembershipFilterBar
+          search={search}
+          status={status}
+          planId={planId}
+          isFiltered={isFiltered}
+          onSearchChange={setSearch}
+          onStatusChange={setStatus}
+          onPlanChange={setPlanId}
+          onResetFilters={resetFilters}
+          onCreateClick={() => navigate('/gym/memberships/new')}
+          canCreate={canManageMemberships}
+        />
+      }
+    >
+      <div data-testid="memberships-list-page">
+        <MembershipListTable
+          memberships={items}
+          totalCount={total}
+          page={page}
+          pageSize={params.limit ?? 10}
+          onPageChange={setPage}
+          onPageSizeChange={setLimit}
+          sorting={sorting}
+          onSortingChange={handleSortingChange}
+          isLoading={isLoading}
+          isError={isError}
+          errorMessage={error?.message || 'Failed to load memberships from server.'}
+          onRetry={() => void refetch()}
+          isFiltered={isFiltered}
+          onResetFilters={resetFilters}
+          onViewDetails={(m) => navigate(`/gym/memberships/${encodeURIComponent(m.id)}`)}
+          onRenew={(m) => setRenewingMembership(m)}
+          onFreeze={(m) => setFreezingMembership(m)}
+          onUnfreeze={(m) => setUnfreezingMembership(m)}
+          onCancel={(m) => setCancellingMembership(m)}
+          isRenewing={renewMembership.isPending}
+          isFreezing={freezeMembership.isPending}
+          isUnfreezing={unfreezeMembership.isPending}
+          isCancelling={cancelMembership.isPending}
+          canManageMemberships={canManageMemberships}
+        />
+
+        {/* Lifecycle Dialog Modals */}
+        <RenewMembershipDialog
+          membership={renewingMembership}
+          open={Boolean(renewingMembership)}
+          onOpenChange={(open) => !open && setRenewingMembership(null)}
+        />
+
+        <FreezeMembershipDialog
+          membership={freezingMembership}
+          open={Boolean(freezingMembership)}
+          onOpenChange={(open) => !open && setFreezingMembership(null)}
+        />
+
+        <UnfreezeMembershipDialog
+          membership={unfreezingMembership}
+          open={Boolean(unfreezingMembership)}
+          onOpenChange={(open) => !open && setUnfreezingMembership(null)}
+        />
+
+        <CancelMembershipDialog
+          membership={cancellingMembership}
+          open={Boolean(cancellingMembership)}
+          onOpenChange={(open) => !open && setCancellingMembership(null)}
+        />
       </div>
-
-      {isLoading && <div className="text-sm text-gray-500">Loading memberships...</div>}
-      {isError && <div className="text-sm text-red-500">Error: {(error as Error)?.message}</div>}
-
-      {data && (
-        <div
-          className="border rounded-lg overflow-hidden bg-white"
-          data-testid="memberships-table-container"
-        >
-          <table className="min-w-full divide-y divide-gray-200 text-sm">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left font-medium text-gray-500">Client ID</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500">Plan ID</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500">Validity Period</th>
-                <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {data.items.map((membership) => (
-                <tr key={membership.id} data-testid={`membership-row-${membership.id}`}>
-                  <td className="px-4 py-3 font-mono text-xs">{membership.clientId}</td>
-                  <td className="px-4 py-3 font-mono text-xs">{membership.planId}</td>
-                  <td className="px-4 py-3 text-xs text-gray-600">
-                    {new Date(membership.period.startDate).toLocaleDateString()} -{' '}
-                    {new Date(membership.period.endDate).toLocaleDateString()}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs px-2 py-0.5 rounded uppercase font-semibold bg-blue-50 text-blue-700">
-                      {membership.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+    </CrudListLayout>
   );
 };
+
+MembershipsListPage.displayName = 'MembershipsListPage';
