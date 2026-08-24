@@ -225,10 +225,146 @@ apps/web/src/modules/
 
 ### 5.2 Persistence & Database Architecture (`prisma/`)
 
-- **ORM**: Prisma 6.3.1 with PostgreSQL 16.
-- **Schema Topology**: Single monolithic schema file (`prisma/schema.prisma`) maintaining all platform tables.
-- **Naming Conventions**: PascalCase model names (`MembershipPlan`), snake_case database table mappings (`@@map("membership_plans")`), snake_case column mappings (`@map("created_at")`).
-- **Isolation Constraint**: Models belonging to different bounded contexts must not establish hard relational foreign-key constraints (`@relation`) if cross-context cascades would violate aggregate boundaries. Scalar ID columns (`client_id String`, `therapist_id String`, `user_id String`) are used instead.
+The persistence tier of the Kinergy Platform is built on **PostgreSQL 16** managed through **Prisma ORM 6.3.1**.
+
+#### 5.2.1 Schema Topology & Model Organization
+
+- **Unified Physical Schema**: All platform models reside in a single schema file (`prisma/schema.prisma`).
+- **Context Partitioning**: Models are grouped into explicit bounded-context sections using header banners:
+  1. _Identity & Access Management (IAM)_: `User`, `RefreshToken`, `Role`, `Permission`, `RolePermission`.
+  2. _Client Management_: `Client`, `ClientTimelineEntry`.
+  3. _Scheduling_: `RecurrenceSeries`, `RecurrenceException`, `Appointment`, `AppointmentNote`, `Room`, `MaintenanceWindow`.
+  4. _Kinesiology_: `TreatmentSession`.
+  5. _Gym Management_: `MembershipPlan`, `Membership`, `AttendanceRecord`.
+- **Primary Key & ID Strategy**: All entity IDs use client-generated or default string UUIDs (`id String @id @default(uuid())`) mapped to PostgreSQL `TEXT` columns.
+- **Naming Conventions**:
+  - Models: PascalCase singular (`MembershipPlan`, `AttendanceRecord`, `Room`).
+  - Tables: snake_case plural with explicit `@@map("table_names")` (e.g., `@@map("membership_plans")`, `@@map("attendance_records")`, `@@map("rooms")`).
+  - Columns: camelCase in TypeScript, snake_case in PostgreSQL with explicit `@map("column_name")` (e.g., `@map("created_at")`, `@map("price_amount")`, `@map("start_time")`).
+  - Enums: PascalCase enum types (`MembershipStatus`, `RoomStatus`, `AccessResult`, `ResourceType`), UPPER_SNAKE_CASE values (`PENDING_ACTIVATION`, `DENIED_DUPLICATE_CHECKIN`, `QR_CODE`).
+
+#### 5.2.2 Temporal & Audit Fields
+
+- **Standard Timestamps**: Every mutable business entity declares `createdAt DateTime @default(now()) @map("created_at")` and `updatedAt DateTime @updatedAt @map("updated_at")`.
+- **Append-Only Immutable Logs**: Pure log models (`AttendanceRecord`, `ClientTimelineEntry`) declare only `createdAt` (and business occurrence times `checkInTime`, `occurredAt`), deliberately omitting `updatedAt`.
+- **Terminal State Auditing**: Terminal lifecycle state changes require dedicated audit reason fields (e.g., `cancellationReason String? @map("cancellation_reason")`, `terminationReason String? @map("termination_reason")`, `maintenanceReason String? @map("maintenance_reason")`).
+- **Lifecycle & History JSON**: Historical transition arrays (such as `freezeHistory Json @default("[]")` on `Membership` or `metadata Json @default("{}")` on `ClientTimelineEntry`) store immutable chronological objects without requiring bloated relation tables.
+
+#### 5.2.3 Monetary & Precision Conventions
+
+- **Monetary Values**: All financial amounts are stored as exact decimal types (`Decimal @db.Decimal(10, 2)` @map("price_amount")), paired with ISO currency codes (`priceCurrency String @default("USD") @map("price_currency")`). Floating-point types (`Float`) are strictly forbidden for pricing, costs, or asset valuations.
+
+#### 5.2.4 Relation & Foreign Key Conventions
+
+- **Intra-Context Relations**: Hard database foreign keys (`@relation`) are strictly confined to parent-child aggregate hierarchies within a single bounded context (e.g., `Room` $\rightarrow$ `MaintenanceWindow` with `onDelete: Cascade`, `RecurrenceSeries` $\rightarrow$ `RecurrenceException` with `onDelete: Cascade`, `MembershipPlan` $\rightarrow$ `Membership` with `onDelete: Restrict`).
+- **Cross-Context References**: Strictly stored as scalar string UUIDs (`clientId: string`, `therapistId: string`, `userId: string`, `roomId: string`). Cross-context `@relation` foreign keys are prohibited to prevent cascading deletes and tight coupling across context boundaries.
+
+#### 5.2.5 Indexing Strategy
+
+- **Scalar Foreign Key Indexes**: Every scalar foreign identifier has a dedicated B-tree index (`@@index([clientId])`, `@@index([therapistId])`, `@@index([roomId])`, `@@index([planId])`).
+- **Compound Temporal Indexes**: Fast range queries rely on compound indexes: `@@index([clientId, startTime, endTime])`, `@@index([roomId, startTime, endTime])`, `@@index([status, endDate])`.
+- **Chronological Sorting Indexes**: Descending index scans for activity feeds and logs: `@@index([clientId, checkInTime(sort: Desc)])`, `@@index([clientId, occurredAt(sort: Desc)])`.
+- **Trigram GIN Indexes**: Fast text search indexes using PostgreSQL `pg_trgm` extension (established in migration `20260730000000_add_client_search_trgm_indexes` for `normalized_search_name`, `email`, `phone`).
+- **Business Idempotency Constraints**: Compound unique constraints protecting business invariants (e.g., `@@unique([seriesId, occurrenceIndex])`, `@@unique([roleId, permissionId])`).
+
+#### 5.2.6 Concurrency & Transaction Conventions
+
+- **Optimistic Concurrency Control (OCC)**: Every mutable aggregate table declares an integer `version Int @default(1) @map("version")`. Repositories execute updates with atomic version checks:
+  ```typescript
+  const result = await this.prisma.entity.updateMany({
+    where: { id: entity.id, version: priorVersion },
+    data: { ...data, version: { increment: 1 } },
+  });
+  if (result.count === 0) throw new OptimisticLockException(entityName, id, priorVersion);
+  ```
+- **Unit of Work & Ambient Transaction Context**: `PrismaUnitOfWork` implements `IUnitOfWork`. `PrismaService` uses Node.js `AsyncLocalStorage<Prisma.TransactionClient>` (`runInTransaction`) allowing repository operations to automatically join the ambient transaction without passing database handles across layer boundaries.
+
+#### 5.2.7 Relevant Existing Database Migrations
+
+- `20260730000000_add_client_search_trgm_indexes`: Enabled `pg_trgm` extension and GIN trigram indexes for text search.
+- `20260730000001_add_client_timeline_entries`: Established append-only client activity timeline projection table with JSONB metadata.
+- `20260815000000_add_room_and_maintenance_windows`: Created `rooms` and `maintenance_windows` with OCC versioning, `RoomStatus`, and `ResourceType` enums.
+
+---
+
+### 5.3 Answers to Core Persistence Questions
+
+| #      | Architectural Question                                                                 | Evidence-Backed Finding & Repository Reference                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| :----- | :------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **1**  | **How should a Resource relate to existing business entities?**                        | **Strictly via scalar string UUID identifiers.** Entities in Phase 6 must reference `recordedByUserId: string` (IAM `User.id`), `roomId?: string` (Scheduling `Room.id`), `clientId?: string` (Client `Client.id`), or `treatmentSessionId?: string` (Kinesiology `TreatmentSession.id`) without cross-context Prisma `@relation` foreign keys.                                                                                                                                                                                                                                                                                                                      |
+| **2**  | **Should consumable inventory and fixed assets share a persistence abstraction?**      | **They should share common primitive value objects (Money, Location, VendorId) but use distinct, dedicated database tables and aggregate roots.** Consumables require ledger-based stock balances, batches, and reorder thresholds; Fixed Assets require serial numbers, depreciation schedules, warranty periods, and maintenance histories. Sharing a single table would cause column nullability pollution and aggregate confusion. _(See Strategy Analysis in 5.6)._                                                                                                                                                                                             |
+| **3**  | **Are stock mutations currently modeled as direct updates or ledger/history records?** | **Existing operational records use append-only ledgers.** In Gym Management, `AttendanceRecord` is an append-only log (`prisma.attendanceRecord.create()`). For Consumable Inventory, updating a single quantity field directly without a ledger creates untraceable stock drift. Stock movements must be modeled as an **append-only stock movement ledger** (`stock_transactions` / `inventory_movements`) alongside an aggregated stock balance.                                                                                                                                                                                                                  |
+| **4**  | **Are historical business records immutable?**                                         | **Yes, historical platform records are strictly immutable.** `AttendanceRecord` and `ClientTimelineEntry` lack `updatedAt` and have no update operations in their repositories. Clinical SOAP notes in `TreatmentSession` become read-only upon completion (ADR-0051). `Membership.freezeHistory` is an append-only JSON history log. Phase 6 asset maintenance histories and stock transaction records must be equally immutable.                                                                                                                                                                                                                                   |
+| **5**  | **How are state transitions currently represented?**                                   | **Via PostgreSQL/Prisma Enums coupled with Pure Domain State Machines.** State fields (`UserStatus`, `AppointmentStatus`, `SessionStatus`, `MembershipStatus`, `PlanStatus`, `RoomStatus`) use Prisma enums. Valid transitions are enforced by domain methods throwing domain exceptions (e.g., `InvalidMembershipTransitionException`), with terminal states capturing mandatory audit reasons (`cancellationReason`, `terminationReason`).                                                                                                                                                                                                                         |
+| **6**  | **How are concurrent writes handled?**                                                 | **Via integer `version` field Optimistic Concurrency Control (OCC) and atomic compound uniqueness constraints.** Repositories verify `version: priorVersion` during updates (`PrismaRoomRepository.ts`, `PrismaClientRepository.ts`). Idempotency keys (`@@unique([seriesId, occurrenceIndex])`) prevent duplicate concurrent creations.                                                                                                                                                                                                                                                                                                                             |
+| **7**  | **What transaction boundaries are already established?**                               | **Local, single-context database transactions managed via `PrismaUnitOfWork` and `PrismaService.runInTransaction()`.** Ambient transaction clients are propagated seamlessly via `AsyncLocalStorage`. Distributed transactions across bounded contexts are strictly prohibited.                                                                                                                                                                                                                                                                                                                                                                                      |
+| **8**  | **What database constraints are used to protect business invariants?**                 | **Unique constraints** (`@@unique([code])`, `@@unique([email])`, `@@unique([reference_number])`), **foreign keys within aggregates** (`onDelete: Cascade` / `Restrict`), **exact decimal column constraints** (`@db.Decimal(10, 2)`), and **check/enum constraints** on operational state columns.                                                                                                                                                                                                                                                                                                                                                                   |
+| **9**  | **What audit/history mechanisms already exist?**                                       | 1. `ClientTimelineEntry` for client-facing longitudinal event projections.<br>2. `IAuditService` (`PlatformLoggerService`) for system security and admin audit events.<br>3. Actor ID attribution (`recordedByUserId`, `authorId`, `receptionistId`) on domain records.<br>4. JSON historical audit logs (`freezeHistory`).                                                                                                                                                                                                                                                                                                                                          |
+| **10** | **Which existing patterns should Phase 6 reuse?**                                      | 1. 4-Layer Clean Architecture structure (`domain` $\rightarrow$ `application` $\rightarrow$ `infrastructure` $\rightarrow$ `presentation`).<br>2. `Decimal(10, 2)` precision for asset costs, purchase prices, and depreciation values.<br>3. Append-only transaction ledger for stock adjustments, receipts, and clinical usage logs.<br>4. OCC `version` counter on `InventoryItem` and `FixedAsset` aggregate tables.<br>5. Explicit enum state machines (`AssetStatus`, `InventoryStatus`).<br>6. Two-way persistence mappers (`<Aggregate>Mapper.toDomain()` / `toPersistence()`).<br>7. In-memory repository fakes for deterministic unit/integration testing. |
+
+---
+
+### 5.4 Phase 6 Persistence Constraints
+
+Phase 6 database schema and repository implementations must strictly obey the following rules:
+
+1. **No Cross-Context Foreign Keys**: Phase 6 models in `prisma/schema.prisma` must NOT declare `@relation` references to `clients`, `users`, `appointments`, `treatment_sessions`, or `memberships`. References must use scalar strings (`client_id String?`, `user_id String`, `room_id String?`).
+2. **Exact Decimal Monetary Storage**: Purchase prices, unit costs, replacement values, accumulated depreciation, and salvage values must use `Decimal @db.Decimal(10, 2)` mapped to snake_case columns with a companion ISO currency string column (`currency String @default("USD")`).
+3. **Mandatory OCC Versioning**: All mutable aggregate tables (`inventory_items`, `fixed_assets`) must include `version Int @default(1) @map("version")`.
+4. **Append-Only Stock Ledger**: Stock quantities must never be mutated via arbitrary overwrites. Every increase, decrease, transfer, or clinical consumption must create an immutable `stock_transactions` (or `inventory_movements`) record containing `quantityDelta`, `resultingQuantity`, `reason`, `occurredAt`, `recordedByUserId`, and optional `batchNumber` / `expirationDate`.
+5. **Immutable Asset Maintenance & Valuation History**: Asset service records and periodic depreciation entries must be modeled as append-only records referencing the parent asset.
+6. **Unique Natural Business Keys**: Unique SKU/Barcode codes on inventory items (`@@unique([sku])`) and Unique Asset Tags / Serial Numbers on fixed assets (`@@unique([asset_tag])`, `@@unique([serial_number])`) must be enforced at the database level.
+7. **Snake_Case Table & Column Mappings**: All models must use `@@map("table_names")` and `@map("column_names")` preserving PostgreSQL snake_case naming conventions.
+
+---
+
+### 5.5 Persistence Anti-Patterns to Avoid
+
+| Anti-Pattern                            | Description                                                                                                                                                                               | Why It Is Dangerous for Phase 6                                                                                                                          | Recommended Alternative                                                                                                                                                    |
+| :-------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Direct Stock Overwrite**              | Executing `UPDATE inventory_items SET quantity = quantity - 5` without recording a movement record.                                                                                       | Destroys auditability; impossible to reconcile inventory shrinkage, clinical supply usage, or supplier discrepancies; susceptible to race conditions.    | **Append-only stock ledger**: Every mutation creates an immutable transaction record within an atomic unit of work updating the aggregate balance.                         |
+| **Float Precision for Asset Valuation** | Using `Float` or Javascript `number` for purchase cost, book value, or depreciation schedules.                                                                                            | Floating-point IEEE 754 rounding errors produce cumulative financial discrepancies in depreciation accounting and audit logs.                            | **Prisma `Decimal(10, 2)`** paired with pure `Money` domain value objects.                                                                                                 |
+| **Polymorphic "Mega-Resource" Table**   | Forcing Consumables and Fixed Assets into a single `resources` table with dozens of nullable columns (e.g., `batch_number`, `depreciation_rate`, `warranty_expiry`, `reorder_threshold`). | Violates Single Responsibility, pollutes database schema with nullable fields, complicates OCC, and entangles distinct domain invariants.                | **Dedicated Aggregate Tables**: `inventory_items` for consumables, `fixed_assets` for capital equipment.                                                                   |
+| **Cross-Context Relational Cascades**   | Adding `@relation` foreign keys from `fixed_assets` to `rooms` or `users` with `onDelete: Cascade`.                                                                                       | Deleting or archiving a user or room in Scheduling could inadvertently trigger cascading deletions of physical assets or historical maintenance records. | **Scalar ID references** (`roomId String?`, `assignedToUserId String?`) with application-level integrity checks.                                                           |
+| **Blind In-Memory Stock Calculations**  | Fetching all historical stock transactions and summing them in memory for every stock lookup without an aggregate balance.                                                                | Causes severe O(N) performance degradation as transaction history grows into tens of thousands of records.                                               | **Materialized Stock Balance with OCC**: Maintain `currentQuantityOnHand` on the item aggregate root, updated atomically alongside ledger inserts in the same transaction. |
+| **Mutable Asset Service History**       | Overwriting a single `last_service_date` column on the asset table instead of preserving past maintenance history.                                                                        | Eliminates warranty proof, regulatory compliance records for clinical equipment, and total cost of ownership (TCO) tracking.                             | **Append-only maintenance records**: Each service event is an immutable `asset_maintenance_records` entry.                                                                 |
+
+---
+
+### 5.6 Viable Persistence Strategies Analysis
+
+The architectural discovery identified two viable persistence strategies for Phase 6. Both are documented below for formal evaluation in Milestone 6.1:
+
+```mermaid
+graph TD
+    subgraph "Strategy A: Dedicated Aggregate Tables (Recommended)"
+        A_INV[inventory_items<br/>sku, name, category, current_stock, min_threshold, unit_cost]
+        A_TX[stock_transactions<br/>item_id, delta, resulting_qty, type, batch, actor_id, occurred_at]
+        A_ASSET[fixed_assets<br/>asset_tag, serial_no, category, status, purchase_price, salvage_val]
+        A_MAINT[asset_maintenance_records<br/>asset_id, service_date, cost, performed_by, notes]
+        A_INV --> A_TX
+        A_ASSET --> A_MAINT
+    end
+
+    subgraph "Strategy B: Shared Resource Base Table"
+        B_RES[resources<br/>id, type: CONSUMABLE | FIXED_ASSET, name, code, category, status]
+        B_INV_EXT[consumable_details<br/>resource_id, min_threshold, unit_cost]
+        B_ASSET_EXT[asset_details<br/>resource_id, serial_no, purchase_price, depreciation_rate]
+        B_RES --> B_INV_EXT
+        B_RES --> B_ASSET_EXT
+    end
+```
+
+#### Strategy Comparison Matrix
+
+| Attribute                     | Strategy A: Dedicated Aggregate Tables (Recommended)                                                                                  | Strategy B: Shared Resource Base Table                                                                |
+| :---------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------- |
+| **Schema Design**             | Two clean, distinct table hierarchies (`inventory_items` + `stock_transactions`, `fixed_assets` + `asset_maintenance_records`).       | Single `resources` master table with 1:1 extension tables (`consumable_details`, `asset_details`).    |
+| **Domain Boundary Alignment** | **100% aligned** with tactical DDD aggregate roots (`InventoryItem` vs `FixedAsset`).                                                 | Artificially unites two distinct lifecycles under a shared persistence model.                         |
+| **Nullability & Constraints** | Zero nullable column pollution; non-null database constraints protect all mandatory fields directly.                                  | Requires either nullable columns on the base table or mandatory $1:1$ joins to fetch core attributes. |
+| **Query Performance**         | Direct queries on specific indexes (`sku`, `asset_tag`, `status`); no multi-table polymorphic joins.                                  | Requires joining base and detail tables for every operational query.                                  |
+| **Cross-Context Clarity**     | Unambiguous distinction: Scheduling links to `assetId`, Clinical sessions consume `inventoryItemId`.                                  | Ambiguous `resourceId` could reference either a bottle of massage oil or an MRI machine.              |
+| **Recommendation**            | **Architectural Recommendation for Milestone 6.1**: Adopt Strategy A for maximum boundary purity, type safety, and query performance. | Documented as alternative; not recommended due to join overhead and schema dilution.                  |
 
 ---
 
