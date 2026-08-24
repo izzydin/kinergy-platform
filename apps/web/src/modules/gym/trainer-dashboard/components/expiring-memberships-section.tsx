@@ -30,7 +30,10 @@ export const ExpiringMembershipsSection: React.FC<ExpiringMembershipsSectionProp
   onSelectClient,
 }) => {
   return (
-    <Card className="border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm">
+    <Card
+      className="border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm"
+      data-testid="expiring-memberships-section"
+    >
       <CardHeader className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between">
         <div className="flex items-center space-x-2">
           <span className="text-amber-500 font-bold" aria-hidden="true">

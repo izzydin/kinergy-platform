@@ -65,20 +65,44 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
 
   const getStatusBadge = (status: string, isFrozen: boolean) => {
     if (isFrozen || status === 'FROZEN') {
-      return <Badge variant="outline">FROZEN</Badge>;
+      return (
+        <Badge variant="outline" data-testid="status-badge-frozen">
+          FROZEN
+        </Badge>
+      );
     }
     switch (status) {
       case 'ACTIVE':
-        return <Badge variant="default">ACTIVE</Badge>;
+        return (
+          <Badge variant="default" data-testid="status-badge-active">
+            ACTIVE
+          </Badge>
+        );
       case 'EXPIRED':
-        return <Badge variant="destructive">EXPIRED</Badge>;
+        return (
+          <Badge variant="destructive" data-testid="status-badge-expired">
+            EXPIRED
+          </Badge>
+        );
       case 'PENDING_ACTIVATION':
-        return <Badge variant="secondary">PENDING</Badge>;
+        return (
+          <Badge variant="secondary" data-testid="status-badge-pending">
+            PENDING
+          </Badge>
+        );
       case 'CANCELLED':
       case 'TERMINATED':
-        return <Badge variant="destructive">{status}</Badge>;
+        return (
+          <Badge variant="destructive" data-testid="status-badge-cancelled">
+            {status}
+          </Badge>
+        );
       default:
-        return <Badge variant="secondary">{status}</Badge>;
+        return (
+          <Badge variant="secondary" data-testid="status-badge-other">
+            {status}
+          </Badge>
+        );
     }
   };
 
@@ -105,7 +129,10 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
   };
 
   return (
-    <Card className="border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm">
+    <Card
+      className="border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm"
+      data-testid="assigned-clients-table-container"
+    >
       <CardHeader className="p-4 border-b border-slate-100 dark:border-slate-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
@@ -135,6 +162,7 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
               onChange={(e) => onStatusFilterChange(e.target.value)}
               className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
               aria-label="Filter by membership status"
+              data-testid="status-filter-select"
             >
               <option value="ALL">All Statuses</option>
               <option value="ACTIVE">Active Only</option>

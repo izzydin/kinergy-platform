@@ -9,12 +9,12 @@ import {
   useExpiringMemberships,
   useTrainerAttendance,
 } from '../hooks';
-import { useClientSearch, useClientEligibility } from '../../../attendance/hooks/use-attendance';
+import { useClientSearch, useClientEligibility } from '../../attendance/hooks/use-gym-attendance';
 import { AccessResult, CheckInMethod, MembershipEligibilityOutcome } from '../types';
 
 jest.mock('../../../../app/providers/auth-provider');
 jest.mock('../hooks');
-jest.mock('../../../attendance/hooks/use-attendance');
+jest.mock('../../attendance/hooks/use-gym-attendance');
 
 const mockUseAuth = useAuth as jest.Mock;
 const mockUseSummary = useTrainerDashboardSummary as jest.Mock;

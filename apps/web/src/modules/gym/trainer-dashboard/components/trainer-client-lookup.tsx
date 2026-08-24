@@ -1,7 +1,6 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@kinergy-platform/ui';
-import { ClientSearchBar } from '../../../attendance/components/client-search-bar';
-import { MembershipEligibilityCard } from '../../../attendance/components/membership-eligibility-card';
+import { ClientSearchBar, MembershipEligibilityCard } from '../../attendance/components';
 import { ClientSearchResultDTO } from '../types';
 
 interface TrainerClientLookupProps {

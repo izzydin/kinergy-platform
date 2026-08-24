@@ -16,4 +16,7 @@ export const attendanceQueryKeys = {
   ) => [...attendanceQueryKeys.all, 'client', clientId, params ?? {}] as const,
   search: (params?: Record<string, unknown>) =>
     [...attendanceQueryKeys.all, 'search', params ?? {}] as const,
+  eligibility: (clientId?: string, asOf?: string) =>
+    [...attendanceQueryKeys.all, 'eligibility', clientId, asOf] as const,
+  clientSearch: (query: string) => [...attendanceQueryKeys.all, 'client-search', query] as const,
 };

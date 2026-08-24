@@ -21,6 +21,7 @@ export const TrainerSummaryKpiBanner: React.FC<TrainerSummaryKpiBannerProps> = (
         role="alert"
         aria-live="assertive"
         className="flex items-center justify-between p-4 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800 rounded-xl"
+        data-testid="kpi-banner-error"
       >
         <div className="flex items-center space-x-3">
           <span className="text-red-500 font-bold text-lg">⚠️</span>
@@ -95,6 +96,7 @@ export const TrainerSummaryKpiBanner: React.FC<TrainerSummaryKpiBannerProps> = (
     <div
       className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4"
       aria-label="Trainer Operational KPIs"
+      data-testid="kpi-banner-container"
     >
       {kpis.map((kpi) => (
         <Card

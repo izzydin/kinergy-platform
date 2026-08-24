@@ -32,7 +32,10 @@ export const TrainerAttendanceFeed: React.FC<TrainerAttendanceFeedProps> = ({
   onSelectClient,
 }) => {
   return (
-    <Card className="border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm">
+    <Card
+      className="border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm"
+      data-testid="trainer-attendance-feed"
+    >
       <CardHeader className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between">
         <div className="flex items-center space-x-2">
           <span className="text-violet-500 font-bold" aria-hidden="true">
@@ -91,6 +94,7 @@ export const TrainerAttendanceFeed: React.FC<TrainerAttendanceFeedProps> = ({
                 <div
                   key={item.id}
                   className="p-2.5 bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-700/60 rounded-lg flex items-center justify-between transition-colors hover:bg-slate-100 dark:hover:bg-slate-800"
+                  data-testid={`trainer-checkin-${item.id}`}
                 >
                   <div className="flex items-center space-x-3 min-w-0">
                     <span className="text-base select-none" aria-hidden="true">

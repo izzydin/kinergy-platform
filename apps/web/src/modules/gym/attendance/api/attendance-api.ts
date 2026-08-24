@@ -1,7 +1,35 @@
 import { httpClient } from '../../../../shared/api/http-client';
-import { PaginatedAttendanceVM, RecordCheckInInputVM, RecordCheckInResponseVM } from '../types';
+import {
+  ClientSearchResultDTO,
+  MembershipEligibilityDTO,
+  PaginatedAttendanceVM,
+  RecordCheckInInputVM,
+  RecordCheckInResponseVM,
+  TodayAttendanceFilterParams,
+} from '../types';
 
 export const attendanceApi = {
+  /**
+   * Searches clients by name, email, or client ID for rapid check-in selection.
+   */
+  async searchClients(query: string): Promise<ClientSearchResultDTO[]> {
+    if (!query || query.trim().length === 0) {
+      return [];
+    }
+    return httpClient.get<ClientSearchResultDTO[]>('/api/v1/clients/search', {
+      params: { q: query.trim() },
+    });
+  },
+
+  /**
+   * Evaluates authoritative Membership eligibility for a client right now.
+   */
+  async checkEligibility(clientId: string, asOf?: string): Promise<MembershipEligibilityDTO> {
+    return httpClient.get<MembershipEligibilityDTO>('/api/v1/gym/memberships/eligibility/check', {
+      params: { clientId, asOf },
+    });
+  },
+
   /**
    * Records and evaluates physical check-in entry attempt.
    */
@@ -12,16 +40,9 @@ export const attendanceApi = {
   /**
    * Retrieves today's operational check-in feed and summary KPIs for the active facility.
    */
-  async getToday(params?: {
-    date?: string;
-    facilityId?: string;
-    result?: string;
-    method?: string;
-    page?: number;
-    limit?: number;
-  }): Promise<PaginatedAttendanceVM> {
+  async getToday(params?: TodayAttendanceFilterParams): Promise<PaginatedAttendanceVM> {
     return httpClient.get<PaginatedAttendanceVM>('/api/v1/gym/attendance/today', {
-      params,
+      params: params as Record<string, string | number | boolean | null | undefined>,
     });
   },
 
@@ -34,7 +55,7 @@ export const attendanceApi = {
   ): Promise<PaginatedAttendanceVM> {
     return httpClient.get<PaginatedAttendanceVM>(
       `/api/v1/gym/attendance/client/${encodeURIComponent(clientId)}`,
-      { params },
+      { params: params as Record<string, string | number | boolean | null | undefined> },
     );
   },
 
@@ -53,7 +74,7 @@ export const attendanceApi = {
     limit?: number;
   }): Promise<PaginatedAttendanceVM> {
     return httpClient.get<PaginatedAttendanceVM>('/api/v1/gym/attendance/search', {
-      params,
+      params: params as Record<string, string | number | boolean | null | undefined>,
     });
   },
 };

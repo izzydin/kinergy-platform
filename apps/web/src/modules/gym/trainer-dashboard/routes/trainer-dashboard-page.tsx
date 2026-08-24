@@ -245,12 +245,12 @@ export const TrainerDashboardPage: React.FC = () => {
                 <p>
                   <strong>Email:</strong> {selectedClient.email}
                 </p>
-                <p>
-                  <strong>Status:</strong>{' '}
+                <div className="flex items-center space-x-1">
+                  <strong>Status:</strong>
                   <Badge variant="secondary" size="sm">
                     {selectedClient.status}
                   </Badge>
-                </p>
+                </div>
               </CardContent>
             </Card>
           )}
