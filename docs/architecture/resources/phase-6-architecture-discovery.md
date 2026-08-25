@@ -355,16 +355,200 @@ apps/web/src/modules/
 └── settings/          # Facility configuration & system preferences
 ```
 
-### 4.3 Standardized Frontend Contracts (ADR-0071 & ADR-0072)
+### 4.3 Frontend Architecture Standards
 
-1. **4-State UI Contract**: Every list and detail view must explicitly handle all 4 lifecycle states:
-   - `LOADING`: Render standardized skeleton loaders (`CrudLoading`).
-   - `ERROR`: Render structured error banners with retry action (`CrudError`).
-   - `EMPTY`: Render contextual empty states with actionable primary buttons (`CrudEmpty`).
-   - `DATA`: Render populated data tables or detail cards.
-2. **Unified CRUD Composition**: Standardized layout wrappers in `apps/web/src/shared/crud/` (`CrudListLayout`, `CrudListHeader`, `CrudFormLayout`, `CrudFormHeader`).
-3. **Query Key Factory Pattern**: All TanStack Query keys must be centralized in typed factory objects per feature module (e.g., `resourceKeys.all`, `resourceKeys.lists()`, `resourceKeys.detail(id)`).
-4. **Optimistic UX Decision Policy (ADR-0072)**: Optimistic mutations are strictly reserved for low-risk, reversible operations (e.g., toggling tags, UI preferences). High-stakes state transitions, stock adjustments, financial transactions, and asset disposals require **pessimistic UI mutations** with loading indicators.
+Frontend applications in Kinergy follow strict enterprise architectural standards across routing, state management, layouts, data fetching, and presentation:
+
+#### 1. Feature-Module Structure
+
+Every bounded context module under `apps/web/src/modules/` follows a uniform directory topology:
+
+```
+apps/web/src/modules/<context>/
+├── api/            # TanStack Query custom hooks, API fetch functions, query key factories
+├── components/     # Feature-specific presenter and compound components (forms, dialogs, cards)
+├── hooks/          # Feature-specific state and presentation hooks
+├── routes/         # Page-level route components mounted in router
+├── types/          # Domain TypeScript types, DTO contracts, form schemas
+└── __tests__/      # Integration and unit test suites
+```
+
+- **Phase 6 Implication**: Resources management must be partitioned into `apps/web/src/modules/resources/` (with dedicated sub-areas for `inventory/` and `assets/`).
+
+#### 2. Route Organization & Security
+
+- **Router**: React Router DOM 6 with centralized route definitions in `apps/web/src/app/routes/`.
+- **Route Protection**: Routes requiring specific roles or permissions are wrapped with `<PermissionGuard requiredPermission="..." requiredRole="..." />` (`apps/web/src/app/routes/permission-guard.tsx`).
+- **Code Splitting**: Route components are lazy-loaded via `React.lazy()` with `<Suspense fallback={<RouteLoadingFallback />}>`.
+
+#### 3. Layout Architecture
+
+- **Shell**: `AppLayout` (`apps/web/src/shared/components/layout/app-layout.tsx`) provides the authenticated application shell:
+  - Top navigation header with user profile menu (`UserMenu`), notification center, theme toggle (`ThemeToggle`), and search trigger.
+  - Collapsible desktop sidebar and mobile overlay navigation drawer with permission-filtered nav items.
+  - Dynamic breadcrumb bar synchronizing with route hierarchy.
+  - Main scrollable content container with maximum fluid width constraints (`max-w-7xl`).
+
+#### 4. Data Fetching & TanStack Query Conventions
+
+- **Client Configuration**: Global `QueryClient` initialized with:
+  - `staleTime: 5 * 60 * 1000` (5 minutes default cache freshness).
+  - `gcTime: 24 * 60 * 60 * 1000` (24 hours garbage collection retention).
+  - `retry: 1` (single retry for network errors; 0 retries for 4xx client errors).
+  - `refetchOnWindowFocus: false` (avoids unexpected network bursts).
+- **Query Key Factory Pattern (ADR-FE-0018)**:
+  Every module defines a centralized query key factory using `createQueryKeyFactory('resources')` (`apps/web/src/shared/query/query-key-factory.ts`):
+  ```typescript
+  export const resourceKeys = {
+    ...createQueryKeyFactory('resources'),
+    inventory: {
+      all: ['resources', 'inventory'] as const,
+      lists: () => ['resources', 'inventory', 'list'] as const,
+      list: (filters: InventoryFilters) => ['resources', 'inventory', 'list', { filters }] as const,
+      detail: (id: string) => ['resources', 'inventory', 'detail', id] as const,
+    },
+    assets: {
+      all: ['resources', 'assets'] as const,
+      lists: () => ['resources', 'assets', 'list'] as const,
+      list: (filters: AssetFilters) => ['resources', 'assets', 'list', { filters }] as const,
+      detail: (id: string) => ['resources', 'assets', 'detail', id] as const,
+    },
+  };
+  ```
+- **Mutation & Invalidation Conventions**:
+  - Mutations execute API write operations via `useMutation()`.
+  - Upon success (`onSuccess`) or settlement (`onSettled`), relevant query keys are invalidated via `queryClient.invalidateQueries({ queryKey: ... })`.
+  - Notifications are triggered inside mutation callbacks via `useNotification()`.
+
+---
+
+### 4.4 DataTable Standards
+
+The platform maintains a single, unified, domain-agnostic `DataTable` component (`apps/web/src/shared/table/components/data-table.tsx`) built on TanStack Table v8. **Phase 6 must strictly reuse this component and must NOT introduce parallel table implementations.**
+
+```mermaid
+graph TD
+    URL[Browser URLSearchParams<br/>?q=tape&category=CLINICAL&page=2&limit=20&sort=stock:asc]
+    HOOK[useTableUrlState Hook<br/>Parses & debounces query params]
+    QUERY[TanStack Query Hook<br/>useInventoryListQuery]
+    TABLE[DataTable Component<br/>TanStack Table v8 engine]
+    TOOLBAR[DataTableToolbar<br/>Search, Faceted Filters, View Options]
+    PAGINATION[DataTablePagination<br/>Page navigation, Limit select]
+
+    URL <--> HOOK
+    HOOK --> QUERY
+    HOOK --> TOOLBAR
+    HOOK --> TABLE
+    QUERY --> TABLE
+    TABLE --> PAGINATION
+```
+
+#### DataTable Capabilities & Architecture
+
+1. **URL-Driven State Engine (`useTableUrlState`)**:
+   - Single source of truth in the browser URL (`q`, `page`, `limit`, `sort`, `filters`).
+   - Debounced search input (300ms default) without creating excess browser history entries (uses `replaceState`).
+   - Automatic page reset (`page=1`) whenever search query or filters change.
+   - Resilient parameter serialization and parsing with safe fallbacks (`parsePageParam`, `parseLimitParam`, `parseSortParam`).
+2. **Server-Side Pagination & Sorting**:
+   - `manualPagination: true` and `manualSorting: true` passed to TanStack Table instance.
+   - Pagination component (`DataTablePagination`) displays row counts, total pages, fast jump controls, and page size selector (`[10, 20, 50, 100]`).
+   - Sortable column headers (`DataTableColumnHeader`) toggle `asc`, `desc`, and clear sort states.
+3. **Filtering & Search**:
+   - Full-text search input (`DataTableSearch`) with clear button.
+   - Multi-select faceted filters (`DataTableFacetedFilter`) with badge counts and popover dropdowns.
+4. **Column Visibility & Action Menus**:
+   - Dynamic column toggle dropdown (`DataTableViewOptions`) allowing users to show/hide optional columns.
+   - Row action menu (`DataTableRowActions`) with accessible dropdown items (`Edit`, `View Details`, `Adjust Stock`, `Retire`).
+5. **4-State Visual Presentation**:
+   - `Loading`: Skeleton row placeholders (`DataTableSkeleton`).
+   - `Error`: Error banner with message and retry trigger (`DataTableError`).
+   - `Empty`: Contextual empty state with reset filters button or primary creation CTA (`DataTableEmpty`).
+   - `Populated`: Clean, responsive HTML table with accessible ARIA semantics.
+
+---
+
+### 4.5 Form Standards
+
+All forms in Kinergy adhere to a strict React Hook Form + Zod validation architecture:
+
+1. **Form Schema & Typing**:
+   - Form schemas are defined using Zod (`z.object({ ... })`) in the module's `types/` directory.
+   - TypeScript form values type is inferred via `z.infer<typeof formSchema>`.
+2. **Form Instantiation**:
+   - Forms are initialized via `useForm<FormValues>({ resolver: zodResolver(formSchema), defaultValues: { ... } })`.
+   - Wrapped in `<Form {...form}>` (`FormProvider`) providing context to all nested child fields (`apps/web/src/shared/forms/components/form.tsx`).
+3. **Compound Field Architecture**:
+   - Fields use compound components: `<FormField name="..." render={({ field }) => (<FormItem><FormLabel required>Label</FormLabel><FormControl><Input {...field} /></FormControl><FormDescription>Help text</FormDescription><FormMessage /></FormItem>)} />`.
+   - Automatically handles accessible `id`, `aria-describedby`, and `aria-invalid` bindings.
+4. **Server Validation Error Mapping**:
+   - Backend class-validator errors (`ValidationError.details`) are mapped directly onto form fields using `useApplyServerErrors(form.setError)` (`apps/web/src/shared/forms/hooks/use-apply-server-errors.ts`).
+   - Non-field or root errors are displayed via `<FormValidationSummary />`.
+5. **Dirty State & Navigation Protection**:
+   - `useDirtyGuard({ isDirty: form.formState.isDirty })` warns users before navigating away with unsaved changes.
+   - Dialog forms use `useDirtyDialogGuard` with `<ConfirmDiscardDialog />` on cancel / close attempts.
+6. **Form Action Controls**:
+   - Unified buttons: `<FormSubmitButton isSubmitting={...}>Save</FormSubmitButton>`, `<FormCancelButton onCancel={...} />`, `<FormResetButton onReset={...} />`.
+
+---
+
+### 4.6 Notification & Feedback Standards
+
+The application uses a centralized notification framework powered by `@kinergy-platform/ui` toast primitives and `NotificationProvider` (`apps/web/src/app/providers/notification-provider.tsx`):
+
+1. **Notification Hook (`useNotification`)**:
+   - `notify.success(title, { description })`: Displays green toast for successful creations, updates, or adjustments.
+   - `notify.error(errorOrTitle, { description })`: Automatically parses `ApiError`, `ValidationError`, `ConflictError`, or generic errors into user-friendly messages with sanitized text.
+   - `notify.warning(title, { description })`: Warns of approaching thresholds (e.g. low stock alerts).
+   - `notify.info(title, { description })`: Informational operational updates.
+2. **Destructive Action Confirmation**:
+   - Irreversible actions (e.g., asset disposal, stock write-off, item deletion) must NOT rely on simple toasts.
+   - They MUST trigger a modal confirmation dialog (`Dialog` / `AlertDialog`) with a destructive action button (`Button variant="destructive"`), explicit description of consequences, and optional confirmation phrase.
+3. **Optimistic UX Decision Policy (ADR-0072)**:
+   - High-stakes inventory and asset operations (stock adjustments, receipts, asset retirement, depreciation runs) **must use pessimistic mutations** with loading spinners and disabled action buttons.
+   - Optimistic updates are strictly limited to reversible, cosmetic UI state (e.g., column visibility, theme mode).
+
+---
+
+### 4.7 Phase 6 UX Constraints
+
+Phase 6 user interfaces must strictly adhere to the following interaction rules:
+
+1. **Pessimistic Stock Mutation Feedback**:
+   - Stock adjustments, receipts, and waste write-offs must display a loading spinner on the submit button and prevent duplicate submissions.
+   - Success must invalidate the item query, update the table row, and display a confirmation toast with resulting stock quantity.
+2. **Deep-Linkable Table URLs**:
+   - All inventory and asset filter dimensions (`category`, `status`, `locationId`, `lowStockOnly`, `page`, `limit`, `sort`, `q`) must be stored in URLSearchParams.
+   - Users must be able to bookmark, refresh, and share exact filtered views (e.g., `?lowStockOnly=true&category=CLINICAL`).
+3. **Two-Panel or Modal Inspection**:
+   - Fast item/asset inspection should use a side sheet drawer or detail modal rather than forcing a full page navigation, preserving the user's active table filters and pagination state.
+4. **Mandatory Disposal & Adjustment Audit Reasons**:
+   - Form UIs for stock adjustments and asset retirements must make the `reason` field mandatory, validating minimum character lengths before allowing submission.
+5. **Clear Financial Formatters**:
+   - Monetary figures (purchase price, unit cost, book value, salvage value) must be rendered using standardized currency formatters (`formatCurrency(amount, currency)`), never raw unformatted numbers.
+
+---
+
+### 4.8 Frontend Reuse Inventory
+
+The following mature frontend building blocks must be reused in Phase 6:
+
+| Component / Hook / Utility     | File Location                                                        | Purpose & Capabilities                                                                           | Maturity              | Phase 6 Suitability                                                   |
+| :----------------------------- | :------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- | :-------------------- | :-------------------------------------------------------------------- |
+| **`DataTable`**                | `apps/web/src/shared/table/components/data-table.tsx`                | Core TanStack Table v8 presenter with pagination, sorting, row selection, and 4-state visual UI. | **Production (100%)** | **Mandatory** for Inventory and Asset catalog tables.                 |
+| **`useTableUrlState`**         | `apps/web/src/shared/table/hooks/use-table-url-state.ts`             | URLSearchParams synchronizer for debounced search, typed filters, sorting, and pagination.       | **Production (100%)** | **Mandatory** for list screen query management.                       |
+| **`DataTableSearch`**          | `apps/web/src/shared/table/components/data-table-search.tsx`         | Accessible search input with debounced callback and clear button.                                | **Production (100%)** | **Mandatory** for inventory/asset search bars.                        |
+| **`DataTableFacetedFilter`**   | `apps/web/src/shared/table/components/data-table-faceted-filter.tsx` | Multi-select popover filter with item count badges for categories/statuses.                      | **Production (100%)** | **Mandatory** for category, status, and location filters.             |
+| **`DataTableViewOptions`**     | `apps/web/src/shared/table/components/data-table-view-options.tsx`   | Column visibility toggle dropdown.                                                               | **Production (100%)** | **Mandatory** for wide asset data tables.                             |
+| **`DataTableRowActions`**      | `apps/web/src/shared/table/components/data-table-row-actions.tsx`    | Dropdown action menu for row-level operations (`Edit`, `Adjust`, `Retire`).                      | **Production (100%)** | **Mandatory** for table row contextual menus.                         |
+| **`Form` / `FormField` Suite** | `apps/web/src/shared/forms/components/form.tsx`                      | React Hook Form compound components (`FormItem`, `FormLabel`, `FormControl`, `FormMessage`).     | **Production (100%)** | **Mandatory** for inventory creation, adjustment, and asset forms.    |
+| **`useApplyServerErrors`**     | `apps/web/src/shared/forms/hooks/use-apply-server-errors.ts`         | Maps NestJS/class-validator `ValidationError.details` to RHF form fields.                        | **Production (100%)** | **Mandatory** for all Phase 6 form mutation error handlers.           |
+| **`useDirtyGuard`**            | `apps/web/src/shared/forms/hooks/use-dirty-guard.ts`                 | Unsaved form changes browser navigation protector.                                               | **Production (100%)** | **Mandatory** for complex multi-field asset registration forms.       |
+| **`ConfirmDiscardDialog`**     | `apps/web/src/shared/forms/components/confirm-discard-dialog.tsx`    | Confirmation modal when user cancels an unsaved dirty form.                                      | **Production (100%)** | **Mandatory** for modal form cancellation workflows.                  |
+| **`CrudStateView`**            | `apps/web/src/shared/crud/components/crud-state-view.tsx`            | Standardized 4-state lifecycle container (`Loading`, `Error`, `Empty`, `Populated`).             | **Production (100%)** | **Mandatory** for detail cards, summary widgets, and overview panels. |
+| **`useNotification`**          | `apps/web/src/app/providers/notification-provider.tsx`               | Toast notification trigger with automatic API error parsing and formatting.                      | **Production (100%)** | **Mandatory** for all Phase 6 mutation feedback.                      |
+| **`createQueryKeyFactory`**    | `apps/web/src/shared/query/query-key-factory.ts`                     | Standardized hierarchical TanStack Query key factory generator.                                  | **Production (100%)** | **Mandatory** for `resourceKeys` definition.                          |
+| **`PermissionGuard`**          | `apps/web/src/app/routes/permission-guard.tsx`                       | Route and component authorization guard evaluating active session permissions.                   | **Production (100%)** | **Mandatory** for protecting `/resources/*` routes.                   |
 
 ---
 
