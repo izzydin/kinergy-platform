@@ -46,7 +46,8 @@ The phase is partitioned into two distinct sub-domains:
 | **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)**   | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline   |
 | **[Domain Boundary Design](./domain-boundaries.md)**                        | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Baseline   |
 | **[Production Persistence Strategy](./persistence-strategy.md)**            | Database schema topology, table models, indexing, OCC concurrency controls, and asset history reconstruction          | Complete / Baseline   |
-| **[Consumable Inventory Domain Model](./domain-model.md)**                  | Authoritative Consumable Inventory domain model, Value Objects, aggregate boundaries, invariants, and mutation rules  | Complete / Baseline   |
+| **[Domain Model Specification](./domain-model.md)**                         | Canonical entities, aggregates, value objects, lifecycle state machines, and invariants                               | Approved & Active     |
+| **[Fixed Asset Domain Model Specification](./asset-domain-model.md)**       | Non-fungible fixed asset aggregate, lifecycle state machine, history, and maintenance records                         | Approved & Active     |
 | **[Executable Business Rules Specification](./business-rules.md)**          | Deterministic business rules, invariant tier classification, stock mutation semantics, and error conditions           | Complete / Executable |
 | **[Milestone 6.0 Architecture Gate](./milestone-6.0-architecture-gate.md)** | Formal Architecture Review Board (ARB) evaluation, evidence matrix, and implementation authorization                  | **Approved (100%)**   |
 | **[Milestone 6.1 Consistency Review](./phase-6.1-review.md)**               | Architectural consistency verification, ADR audit, and domain-persistence parity review                               | Complete / Verified   |
@@ -74,15 +75,15 @@ Architectural Decision Records governing Phase 6:
 
 ## 6. Status of the Architectural Baseline
 
-- **Current Milestone**: Phase 6.1 — Domain Model & Business Rules Implementation.
-- **Status**: **DOMAIN FOUNDATIONS IMPLEMENTED & 100% VERIFIED**.
-- **Gate Result**: **APPROVED** (See [Milestone 6.1 Consistency Review](./phase-6.1-review.md)).
-- **Next Milestone**: Phase 6.2 — Application Services, Use Cases & CQRS Handlers (REST Endpoints & Frontend UI in Phase 6.3+).
+- **Current Milestone**: Phase 6.2 — Fixed Asset Domain Model.
+- **Status**: **SPECIFICATION APPROVED & ACTIVE**.
+- **Gate Result**: **APPROVED** (See [Milestone 6.1 Quality Gate](./milestone-6.1-quality-gate.md)).
+- **Next Milestone**: Phase 6.3 — Application Services, Use Cases & CQRS Handlers (REST Endpoints & Frontend UI in Phase 6.4+).
 
 > [!NOTE]
 >
 > ### ARCHITECTURAL GOVERNANCE STATUS
 >
-> **Milestone 6.0 has been formally reviewed and APPROVED by the Architecture Review Board.**
+> **Milestone 6.0 and Milestone 6.1 have been formally reviewed and APPROVED by the Architecture Review Board.**
 >
-> The team is authorized to proceed with Phase 6.1 implementation (Domain kernel, Prisma schema updates, migrations, application CQRS handlers, controllers, and UI views) in accordance with the baseline design documents and ADRs.
+> The team is authorized to proceed with Phase 6.2 implementation (Fixed Asset Domain kernel, aggregate invariants, child entities, and test suites) in accordance with baseline design documents and ADRs.
