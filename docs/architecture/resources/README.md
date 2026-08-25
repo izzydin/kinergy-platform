@@ -41,12 +41,13 @@ The phase is partitioned into two distinct sub-domains:
 
 ## 4. Document Index
 
-| Document                                                                  | Description                                                                                                           | Status                  |
-| :------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------- | :---------------------- |
-| **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)** | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline     |
-| **[Domain Boundary Design](./domain-boundaries.md)**                      | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Proposed     |
-| **[Production Persistence Strategy](./persistence-strategy.md)**          | Database schema topology, table models, indexing, OCC concurrency controls, and asset history reconstruction          | Complete / Proposed     |
-| **Integration Contracts & Context Map (Upcoming)**                        | Cross-context contracts with Scheduling, Kinesiology, IAM, and Client contexts                                        | Planned (Milestone 6.1) |
+| Document                                                                    | Description                                                                                                           | Status                  |
+| :-------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :---------------------- |
+| **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)**   | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline     |
+| **[Domain Boundary Design](./domain-boundaries.md)**                        | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Baseline     |
+| **[Production Persistence Strategy](./persistence-strategy.md)**            | Database schema topology, table models, indexing, OCC concurrency controls, and asset history reconstruction          | Complete / Baseline     |
+| **[Milestone 6.0 Architecture Gate](./milestone-6.0-architecture-gate.md)** | Formal Architecture Review Board (ARB) evaluation, evidence matrix, and implementation authorization                  | **Approved (100%)**     |
+| **Integration Contracts & Context Map (Upcoming)**                          | Cross-context contracts with Scheduling, Kinesiology, IAM, and Client contexts                                        | Planned (Milestone 6.1) |
 
 ---
 
@@ -69,13 +70,14 @@ Architectural Decision Records governing Phase 6:
 ## 6. Status of the Architectural Baseline
 
 - **Current Milestone**: Phase 6.0 — Phase Discovery & Architectural Baseline.
-- **Status**: **DISCOVERY COMPLETE — BASELINE ESTABLISHED**.
-- **Gate**: Milestone 6.0 Review.
+- **Status**: **BASELINE APPROVED — READY FOR IMPLEMENTATION**.
+- **Gate Result**: **APPROVED** (See [Milestone 6.0 Architecture Gate](./milestone-6.0-architecture-gate.md)).
+- **Next Milestone**: Phase 6.1 — Domain Implementation & Persistence.
 
-> [!CAUTION]
+> [!NOTE]
 >
-> ### STRICT ARCHITECTURAL GOVERNANCE RULE
+> ### ARCHITECTURAL GOVERNANCE STATUS
 >
-> **Implementation must not begin until Milestone 6.0 is formally reviewed and approved.**
+> **Milestone 6.0 has been formally reviewed and APPROVED by the Architecture Review Board.**
 >
-> No Prisma schema migrations, domain aggregates, application handlers, NestJS controllers, services, or frontend components for Phase 6 may be authored until the baseline and domain design milestones are officially signed off.
+> The team is authorized to proceed with Phase 6.1 implementation (Domain kernel, Prisma schema updates, migrations, application CQRS handlers, controllers, and UI views) in accordance with the baseline design documents and ADRs.
