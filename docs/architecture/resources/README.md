@@ -41,14 +41,15 @@ The phase is partitioned into two distinct sub-domains:
 
 ## 4. Document Index
 
-| Document                                                                    | Description                                                                                                           | Status                  |
-| :-------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :---------------------- |
-| **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)**   | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline     |
-| **[Domain Boundary Design](./domain-boundaries.md)**                        | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Baseline     |
-| **[Production Persistence Strategy](./persistence-strategy.md)**            | Database schema topology, table models, indexing, OCC concurrency controls, and asset history reconstruction          | Complete / Baseline     |
-| **[Consumable Inventory Domain Model](./domain-model.md)**                  | Authoritative Consumable Inventory domain model, Value Objects, aggregate boundaries, invariants, and mutation rules  | Complete / Baseline     |
-| **[Milestone 6.0 Architecture Gate](./milestone-6.0-architecture-gate.md)** | Formal Architecture Review Board (ARB) evaluation, evidence matrix, and implementation authorization                  | **Approved (100%)**     |
-| **Integration Contracts & Context Map (Upcoming)**                          | Cross-context contracts with Scheduling, Kinesiology, IAM, and Client contexts                                        | Planned (Milestone 6.1) |
+| Document                                                                    | Description                                                                                                           | Status                |
+| :-------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :-------------------- |
+| **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)**   | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline   |
+| **[Domain Boundary Design](./domain-boundaries.md)**                        | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Baseline   |
+| **[Production Persistence Strategy](./persistence-strategy.md)**            | Database schema topology, table models, indexing, OCC concurrency controls, and asset history reconstruction          | Complete / Baseline   |
+| **[Consumable Inventory Domain Model](./domain-model.md)**                  | Authoritative Consumable Inventory domain model, Value Objects, aggregate boundaries, invariants, and mutation rules  | Complete / Baseline   |
+| **[Executable Business Rules Specification](./business-rules.md)**          | Deterministic business rules, invariant tier classification, stock mutation semantics, and error conditions           | Complete / Executable |
+| **[Milestone 6.0 Architecture Gate](./milestone-6.0-architecture-gate.md)** | Formal Architecture Review Board (ARB) evaluation, evidence matrix, and implementation authorization                  | **Approved (100%)**   |
+| **[Milestone 6.1 Consistency Review](./phase-6.1-review.md)**               | Architectural consistency verification, ADR audit, and domain-persistence parity review                               | Complete / Verified   |
 
 ---
 
@@ -66,15 +67,16 @@ Architectural Decision Records governing Phase 6:
 | **[ADR-0086](./adr/0086-fixed-asset-maintenance-history-and-service-tracking-model.md)**                   | Fixed Asset Maintenance History & Service Tracking Model                   | Accepted | 2026-08-25 |
 | **[ADR-0087](./adr/0087-resource-valuation-and-on-demand-asset-depreciation-strategy.md)**                 | Resource Valuation & On-Demand Asset Depreciation Strategy                 | Accepted | 2026-08-25 |
 | **[ADR-0088](./adr/0088-inventory-category-classification-strategy.md)**                                   | Inventory Category Classification Strategy                                 | Accepted | 2026-08-25 |
+| **[ADR-0089](./adr/0089-inventory-monetary-quantity-and-unit-precision-semantics.md)**                     | Inventory Monetary, Quantity, and Unit Precision Semantics                 | Accepted | 2026-08-25 |
 
 ---
 
 ## 6. Status of the Architectural Baseline
 
-- **Current Milestone**: Phase 6.0 — Phase Discovery & Architectural Baseline.
-- **Status**: **BASELINE APPROVED — READY FOR IMPLEMENTATION**.
-- **Gate Result**: **APPROVED** (See [Milestone 6.0 Architecture Gate](./milestone-6.0-architecture-gate.md)).
-- **Next Milestone**: Phase 6.1 — Domain Implementation & Persistence.
+- **Current Milestone**: Phase 6.1 — Domain Model & Business Rules Implementation.
+- **Status**: **DOMAIN FOUNDATIONS IMPLEMENTED & 100% VERIFIED**.
+- **Gate Result**: **APPROVED** (See [Milestone 6.1 Consistency Review](./phase-6.1-review.md)).
+- **Next Milestone**: Phase 6.2 — Application Services, Use Cases & CQRS Handlers (REST Endpoints & Frontend UI in Phase 6.3+).
 
 > [!NOTE]
 >
