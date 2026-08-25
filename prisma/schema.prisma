@@ -567,4 +567,108 @@ model StockMovement {
   @@map("stock_movements")
 }
 
+enum AssetCategory {
+  GYM_EQUIPMENT
+  THERAPY_EQUIPMENT
+  KITCHEN_EQUIPMENT
+  OFFICE_FURNITURE
+  ELECTRONICS
+  CLEANING_EQUIPMENT
+}
+
+enum AssetStatus {
+  ACTIVE
+  UNDER_MAINTENANCE
+  DAMAGED
+  RETIRED
+  SOLD
+}
+
+enum AssetCondition {
+  EXCELLENT
+  GOOD
+  FAIR
+  NEEDS_REPAIR
+  OUT_OF_SERVICE
+}
+
+enum AssetHistoryEventType {
+  CREATED
+  UPDATED
+  TRANSFERRED
+  STATUS_CHANGED
+  CONDITION_CHANGED
+  VALUE_UPDATED
+  MAINTENANCE_RECORDED
+  RETIRED
+  SOLD
+}
+
+model FixedAsset {
+  id                          String                   @id @default(uuid())
+  tenantId                    String?                  @map("tenant_id")
+  assetTag                    String                   @unique @map("asset_tag")
+  name                        String
+  description                 String?
+  category                    AssetCategory
+  purchaseDate                DateTime                 @map("purchase_date")
+  purchaseValueAmount         Decimal                  @db.Decimal(10, 2) @map("purchase_value_amount")
+  purchaseValueCurrency       String                   @default("USD") @map("purchase_value_currency")
+  currentEstimatedValueAmount Decimal                  @db.Decimal(10, 2) @map("current_estimated_value_amount")
+  currentEstimatedValueCurrency String                 @default("USD") @map("current_estimated_value_currency")
+  condition                   AssetCondition           @default(EXCELLENT)
+  status                      AssetStatus              @default(ACTIVE)
+  location                    Json                     @map("location")
+  notes                       String?
+  version                     Int                      @default(1)
+  createdAt                   DateTime                 @default(now()) @map("created_at")
+  updatedAt                   DateTime                 @updatedAt @map("updated_at")
+
+  historyEvents               AssetHistoryEvent[]      @relation("AssetToHistoryEvents")
+  maintenanceRecords          AssetMaintenanceRecord[] @relation("AssetToMaintenanceRecords")
+
+  @@index([assetTag])
+  @@index([tenantId])
+  @@index([status])
+  @@index([category])
+  @@index([condition])
+  @@map("fixed_assets")
+}
+
+model AssetHistoryEvent {
+  id               String                @id @default(uuid())
+  assetId          String                @map("asset_id")
+  eventType        AssetHistoryEventType @map("event_type")
+  description      String
+  details          Json?                 @map("details")
+  recordedByUserId String                @map("recorded_by_user_id")
+  recordedAt       DateTime              @default(now()) @map("recorded_at")
+
+  asset            FixedAsset            @relation("AssetToHistoryEvents", fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([assetId, recordedAt(sort: Desc)])
+  @@index([eventType])
+  @@index([recordedByUserId])
+  @@map("asset_history_events")
+}
+
+model AssetMaintenanceRecord {
+  id               String                @id @default(uuid())
+  assetId          String                @map("asset_id")
+  serviceDate      DateTime              @map("service_date")
+  description      String
+  costAmount       Decimal               @default(0) @db.Decimal(10, 2) @map("cost_amount")
+  costCurrency     String                @default("USD") @map("cost_currency")
+  performedBy      String                @map("performed_by")
+  notes            String?
+  recordedByUserId String                @map("recorded_by_user_id")
+  createdAt        DateTime              @default(now()) @map("created_at")
+
+  asset            FixedAsset            @relation("AssetToMaintenanceRecords", fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@index([assetId, serviceDate(sort: Desc)])
+  @@index([recordedByUserId])
+  @@map("asset_maintenance_records")
+}
+
 
