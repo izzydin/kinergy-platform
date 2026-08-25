@@ -9,6 +9,7 @@ import {
   FindInventoryItemsFilter,
 } from '../../../../domain/inventory/repositories/inventory-item.repository.interface';
 import { InventoryItem } from '../../../../domain/inventory/inventory-item.aggregate';
+import { OptimisticLockException } from '../../../../domain/inventory/exceptions/optimistic-lock.exception';
 import { PrismaInventoryItemMapper } from '../mappers/prisma-inventory-item.mapper';
 import { PrismaStockMovementMapper } from '../mappers/prisma-stock-movement.mapper';
 
@@ -20,49 +21,83 @@ export class PrismaInventoryItemRepository implements InventoryItemRepository {
     const movementsData = item.movements.map(PrismaStockMovementMapper.toPersistence);
 
     await this.prisma.$transaction(async (tx) => {
-      // 1. Upsert InventoryItem
-      await tx.inventoryItem.upsert({
-        where: { id: data.id },
-        create: {
-          id: data.id,
-          tenantId: data.tenantId,
-          sku: data.sku,
-          name: data.name,
-          description: data.description,
-          category: data.category,
-          unit: data.unit,
-          minimumStock: data.minimumStock,
-          quantityOnHand: data.quantityOnHand,
-          purchaseCostAmount: data.purchaseCostAmount,
-          purchaseCostCurrency: data.purchaseCostCurrency,
-          sellingPriceAmount: data.sellingPriceAmount,
-          sellingPriceCurrency: data.sellingPriceCurrency,
-          status: data.status,
-          locationRef: data.locationRef
-            ? (data.locationRef as Prisma.InputJsonValue)
-            : Prisma.DbNull,
-          version: data.version,
-        },
-        update: {
-          tenantId: data.tenantId,
-          sku: data.sku,
-          name: data.name,
-          description: data.description,
-          category: data.category,
-          unit: data.unit,
-          minimumStock: data.minimumStock,
-          quantityOnHand: data.quantityOnHand,
-          purchaseCostAmount: data.purchaseCostAmount,
-          purchaseCostCurrency: data.purchaseCostCurrency,
-          sellingPriceAmount: data.sellingPriceAmount,
-          sellingPriceCurrency: data.sellingPriceCurrency,
-          status: data.status,
-          locationRef: data.locationRef
-            ? (data.locationRef as Prisma.InputJsonValue)
-            : Prisma.DbNull,
-          version: { increment: 1 },
-        },
-      });
+      if (item.version === 1) {
+        // Initial insert / create
+        await tx.inventoryItem.upsert({
+          where: { id: data.id },
+          create: {
+            id: data.id,
+            tenantId: data.tenantId,
+            sku: data.sku,
+            name: data.name,
+            description: data.description,
+            category: data.category,
+            unit: data.unit,
+            minimumStock: data.minimumStock,
+            quantityOnHand: data.quantityOnHand,
+            purchaseCostAmount: data.purchaseCostAmount,
+            purchaseCostCurrency: data.purchaseCostCurrency,
+            sellingPriceAmount: data.sellingPriceAmount,
+            sellingPriceCurrency: data.sellingPriceCurrency,
+            status: data.status,
+            locationRef: data.locationRef
+              ? (data.locationRef as Prisma.InputJsonValue)
+              : Prisma.DbNull,
+            version: 1,
+          },
+          update: {
+            tenantId: data.tenantId,
+            sku: data.sku,
+            name: data.name,
+            description: data.description,
+            category: data.category,
+            unit: data.unit,
+            minimumStock: data.minimumStock,
+            quantityOnHand: data.quantityOnHand,
+            purchaseCostAmount: data.purchaseCostAmount,
+            purchaseCostCurrency: data.purchaseCostCurrency,
+            sellingPriceAmount: data.sellingPriceAmount,
+            sellingPriceCurrency: data.sellingPriceCurrency,
+            status: data.status,
+            locationRef: data.locationRef
+              ? (data.locationRef as Prisma.InputJsonValue)
+              : Prisma.DbNull,
+            version: 1,
+          },
+        });
+      } else {
+        // Optimistic Concurrency Control: verify prior version before updating
+        const priorVersion = item.version - 1;
+        const result = await tx.inventoryItem.updateMany({
+          where: {
+            id: data.id,
+            version: priorVersion,
+          },
+          data: {
+            tenantId: data.tenantId,
+            sku: data.sku,
+            name: data.name,
+            description: data.description,
+            category: data.category,
+            unit: data.unit,
+            minimumStock: data.minimumStock,
+            quantityOnHand: data.quantityOnHand,
+            purchaseCostAmount: data.purchaseCostAmount,
+            purchaseCostCurrency: data.purchaseCostCurrency,
+            sellingPriceAmount: data.sellingPriceAmount,
+            sellingPriceCurrency: data.sellingPriceCurrency,
+            status: data.status,
+            locationRef: data.locationRef
+              ? (data.locationRef as Prisma.InputJsonValue)
+              : Prisma.DbNull,
+            version: data.version,
+          },
+        });
+
+        if (result.count === 0) {
+          throw new OptimisticLockException('InventoryItem', data.id, priorVersion);
+        }
+      }
 
       // 2. Persist append-only StockMovements that don't exist yet
       if (movementsData.length > 0) {

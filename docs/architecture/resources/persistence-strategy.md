@@ -195,27 +195,39 @@ erDiagram
 
 ## 8. Transaction Boundaries & Atomicity
 
-Every stock mutation and asset status update is enclosed in a single database transaction (`prisma.$transaction`):
+Every stock mutation is executed within an atomic database transaction boundary (`prisma.$transaction`):
 
 ```mermaid
 sequenceDiagram
     autonumber
-    participant App as CQRS Application Handler
+    participant App as Application Service
     participant Tx as Prisma $transaction
     participant ItemTable as inventory_items Table
     participant MovTable as stock_movements Table
 
     App->>Tx: Begin Transaction
-    Tx->>ItemTable: SELECT * FROM inventory_items WHERE id = ? FOR UPDATE
-    Note over Tx,ItemTable: Validates: expectedVersion == item.version AND balance + delta >= 0
-    Tx->>ItemTable: UPDATE inventory_items SET quantity_on_hand = balance + delta, version = version + 1 WHERE id = ? AND version = expectedVersion
-    Tx->>MovTable: INSERT INTO stock_movements (id, item_id, type, delta, balance_after, ...)
-    Tx->>App: Commit Transaction
+    Tx->>ItemTable: UPDATE inventory_items SET quantity_on_hand = newBalance, version = version + 1 WHERE id = ? AND version = priorVersion
+    alt OCC Conflict (rows updated === 0)
+        Tx-->>App: Throw OptimisticLockException & Rollback
+    else OCC Success (rows updated === 1)
+        Tx->>MovTable: INSERT INTO stock_movements (id, item_id, type, delta, balance_after, ...)
+        Tx->>App: Commit Transaction
+    end
 ```
+
+### 8.1 Concrete Transaction Steps
+
+1. **Domain Request Validation**: Validate input scalar $> 0$ and verify non-negative invariant ($QOH - \Delta \ge 0$).
+2. **Deterministic Mutation**: Aggregate computes signed `quantityDelta`, new `balanceAfter`, and appends immutable `StockMovement` child entity.
+3. **Atomic Persistence**:
+   - `tx.inventoryItem.updateMany({ where: { id: data.id, version: priorVersion }, data: { ...version: data.version } })`
+   - If `result.count === 0`, throw `OptimisticLockException('InventoryItem', data.id, priorVersion)` immediately triggering transaction abort.
+   - `tx.stockMovement.upsert({ where: { id: mv.id }, create: { ... } })`
+4. **Failure Isolation**: Any failure in step 3 aborts the entire transaction, ensuring zero partial movements and zero stock drift.
 
 ---
 
-## 9. Concurrency Strategy: Answering the Critical Concurrency Question
+## 9. Concurrency Strategy & Non-Negotiable Mutation Invariants
 
 > ### CRITICAL ARCHITECTURAL GUARANTEE:
 >
@@ -234,9 +246,18 @@ graph TD
     end
 ```
 
-1. **Domain Layer**: The `InventoryItem` aggregate root validates that stock cannot drop below zero.
-2. **Application / ORM Layer**: The repository uses OCC (`version` increment). If two users consume stock simultaneously, the second write fails with a version mismatch, preventing phantom writes.
-3. **Database Engine Floor**: PostgreSQL enforces `CHECK (quantity_on_hand >= 0)`. Even if application checks were somehow bypassed, PostgreSQL aborts and rolls back the transaction.
+### 9.1 Non-Negotiable Stock Mutation Rules
+
+1. **Zero Negative Stock**: Stock can never drop below zero ($QOH \ge 0$).
+2. **1-to-1 Movement Parity**: Every stock mutation creates exactly one corresponding immutable `StockMovement` ledger record.
+3. **PURCHASE**: Increases stock by $+\Delta$ and records vendor provenance.
+4. **SALE**: Decreases stock by $-\Delta$ and records retail POS correlation.
+5. **CONSUMPTION**: Decreases stock by $-\Delta$ and records clinical treatment session correlation.
+6. **ADJUSTMENT_IN**: Increases stock by $+\Delta$ and records audit discovery reason.
+7. **ADJUSTMENT_OUT**: Decreases stock by $-\Delta$ and records audit shrinkage/damage reason.
+8. **All-or-Nothing Atomicity**: A failed mutation never leaves a partial movement or partial stock update.
+9. **Ledger Mathematical Consistency**: At all times, $\text{quantityOnHand} = \sum_{m \in \text{Movements}} m.\text{quantityDelta}$.
+10. **Race Condition Immunity**: Concurrent writers are serialized via OCC version checks. Only one writer succeeds; colliding writers receive `OptimisticLockException` and must reload authoritative state before retrying.
 
 ---
 
