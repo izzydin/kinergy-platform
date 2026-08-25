@@ -388,12 +388,16 @@ packages/core/src/resources/
 
 ---
 
-## 15. Persistence Mapping Principles
+## 15. Persistence Mapping Principles & Implementation Reality
 
-1. **Table Isolation**: Maps directly to `inventory_items` and `stock_movements` PostgreSQL tables.
-2. **OCC Mapping**: Aggregate `version` maps to `inventory_items.version INT NOT NULL DEFAULT 1`.
-3. **Database Constraint Parity**: The database enforces `CHECK (quantity_on_hand >= 0)` as defense-in-depth behind domain invariants.
-4. **Prisma Mapper Pattern**: `PrismaInventoryItemMapper` reconstitutes domain entities from persistence models via `InventoryItem.reconstitute(...)`.
+1. **Table Isolation**: Maps directly to `inventory_items` and `stock_movements` PostgreSQL tables in `prisma/schema.prisma`.
+2. **OCC Mapping**: Aggregate `version` maps to `inventory_items.version INT NOT NULL DEFAULT 1` with atomic transactional increment in `PrismaInventoryItemRepository`.
+3. **Database Constraint Parity**: The database schema defines strict non-null fields, relational integrity (`onDelete: Restrict`), unique constraints (`sku`), and composite B-Tree indexes (`[sku]`, `[tenantId]`, `[status]`, `[category]`, `[quantityOnHand]`, `[inventoryItemId, recordedAt]`).
+4. **Prisma Mapper Pattern**:
+   - `PrismaInventoryItemMapper`: Reconstitutes `InventoryItem` aggregate roots from Prisma query records with strict decimal precision and strongly typed Value Objects.
+   - `PrismaStockMovementMapper`: Reconstitutes immutable `StockMovement` child entities.
+5. **Atomic Transaction Scope**: `PrismaInventoryItemRepository.save()` commits aggregate updates and append-only movement ledger entries within a single `prisma.$transaction`.
+6. **Architecture Boundary Purity**: Validated via `resources-architecture-boundaries.spec.ts` ensuring zero leaky abstractions or framework couplings inside the pure domain.
 
 ---
 

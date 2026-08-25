@@ -475,3 +475,93 @@ model AttendanceRecord {
   @@map("attendance_records")
 }
 
+// ============================================================================
+// PHASE 6: RESOURCES MANAGEMENT (CONSUMABLE INVENTORY & FIXED ASSETS)
+// ============================================================================
+
+enum InventoryItemStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum StockMovementType {
+  PURCHASE
+  SALE
+  CONSUMPTION
+  ADJUSTMENT_IN
+  ADJUSTMENT_OUT
+  CORRECTION
+  SCRAP
+}
+
+enum UnitOfMeasure {
+  UNITS
+  BOXES
+  BOTTLES
+  ROLLS
+  MILLILITERS
+  GRAMS
+}
+
+enum InventoryCategory {
+  CLINICAL_SUPPLIES
+  THERAPY_CONSUMABLES
+  RETAIL_PRODUCTS
+  FACILITY_SUPPLIES
+  OFFICE_ADMIN
+}
+
+model InventoryItem {
+  id                   String              @id @default(uuid())
+  tenantId             String?             @map("tenant_id")
+  sku                  String              @unique
+  name                 String
+  description          String?
+  category             InventoryCategory   @default(CLINICAL_SUPPLIES)
+  unit                 UnitOfMeasure       @default(UNITS)
+  minimumStock         Decimal             @default(0) @db.Decimal(10, 2) @map("minimum_stock")
+  quantityOnHand       Decimal             @default(0) @db.Decimal(10, 2) @map("quantity_on_hand")
+  purchaseCostAmount   Decimal             @default(0) @db.Decimal(10, 2) @map("purchase_cost_amount")
+  purchaseCostCurrency String              @default("USD") @map("purchase_cost_currency")
+  sellingPriceAmount   Decimal             @default(0) @db.Decimal(10, 2) @map("selling_price_amount")
+  sellingPriceCurrency String              @default("USD") @map("selling_price_currency")
+  status               InventoryItemStatus @default(ACTIVE)
+  locationRef          Json?               @map("location_ref")
+  version              Int                 @default(1)
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+
+  movements            StockMovement[]     @relation("ItemToStockMovements")
+
+  @@index([sku])
+  @@index([tenantId])
+  @@index([status])
+  @@index([category])
+  @@index([quantityOnHand])
+  @@map("inventory_items")
+}
+
+model StockMovement {
+  id                String            @id @default(uuid())
+  inventoryItemId   String            @map("inventory_item_id")
+  movementType      StockMovementType @map("movement_type")
+  quantityDelta     Decimal           @db.Decimal(10, 2) @map("quantity_delta")
+  balanceAfter      Decimal           @db.Decimal(10, 2) @map("balance_after")
+  unitCostAmount    Decimal           @default(0) @db.Decimal(10, 2) @map("unit_cost_amount")
+  unitCostCurrency  String            @default("USD") @map("unit_cost_currency")
+  reason            String
+  recordedByUserId  String            @map("recorded_by_user_id")
+  referenceId       String?           @map("reference_id")
+  recordedAt        DateTime          @default(now()) @map("recorded_at")
+
+  item              InventoryItem     @relation("ItemToStockMovements", fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([inventoryItemId, recordedAt(sort: Desc)])
+  @@index([recordedByUserId])
+  @@index([movementType])
+  @@index([referenceId])
+  @@map("stock_movements")
+}
+
+
