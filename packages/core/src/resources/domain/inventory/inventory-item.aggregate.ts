@@ -6,7 +6,7 @@ import { Quantity } from './value-objects/quantity.vo';
 import { Money } from './value-objects/money.vo';
 import { LocationRef, LocationRefProps } from './value-objects/location-ref.vo';
 import { InventoryCategory, isValidInventoryCategory } from './enums/inventory-category.enum';
-import { UnitOfMeasure } from './enums/unit-of-measure.enum';
+import { UnitOfMeasure, isValidUnitOfMeasure } from './enums/unit-of-measure.enum';
 import { InventoryItemStatus } from './enums/inventory-item-status.enum';
 import { StockMovementType } from './enums/stock-movement-type.enum';
 import { StockMovement } from './entities/stock-movement.entity';
@@ -148,7 +148,7 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
 
     const sku = props.sku instanceof SKU ? props.sku : SKU.create(props.sku);
     const category = InventoryItem.validateCategory(props.category);
-    const unit = props.unit ?? UnitOfMeasure.UNITS;
+    const unit = InventoryItem.validateUnit(props.unit);
 
     const minimumStock =
       props.minimumStock instanceof Quantity
@@ -684,7 +684,7 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
       this._category = InventoryItem.validateCategory(props.category);
     }
     if (props.unit !== undefined) {
-      this._unit = props.unit;
+      this._unit = InventoryItem.validateUnit(props.unit);
     }
     if (props.minimumStock !== undefined) {
       this._minimumStock =
@@ -925,6 +925,18 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
       );
     }
     return category;
+  }
+
+  private static validateUnit(unit: unknown): UnitOfMeasure {
+    if (unit === undefined || unit === null) {
+      return UnitOfMeasure.UNITS;
+    }
+    if (!isValidUnitOfMeasure(unit)) {
+      throw new InvalidInventoryItemStateException(
+        `Invalid unit of measure: '${unit}'. Valid units are: ${Object.values(UnitOfMeasure).join(', ')}`,
+      );
+    }
+    return unit;
   }
 
   private assertActiveCatalogStatus(operation: string): void {

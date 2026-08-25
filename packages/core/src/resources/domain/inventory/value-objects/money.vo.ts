@@ -10,6 +10,7 @@ export interface MoneyProps {
 /**
  * Value Object representing commercial and inventory valuation amounts.
  * Stores non-negative amounts with explicit ISO-4217 currency.
+ * Precision: Fixed 2 decimal places (cents/hundredths).
  */
 export class Money implements ValueObject<MoneyProps> {
   private readonly _amount: number;
@@ -65,10 +66,25 @@ export class Money implements ValueObject<MoneyProps> {
     return new Money(Math.round((this._amount + other.amount) * 100) / 100, this._currency);
   }
 
+  public subtract(other: Money): Money {
+    if (this._currency !== other.currency) {
+      throw new InvalidMoneyException(
+        `Cannot subtract money with different currencies: ${this._currency} and ${other.currency}.`,
+      );
+    }
+    const result = Math.round((this._amount - other.amount) * 100) / 100;
+    if (result < 0) {
+      throw new InvalidMoneyException(
+        `Resulting monetary amount cannot be negative (${this._amount} - ${other.amount} = ${result}).`,
+      );
+    }
+    return new Money(result, this._currency);
+  }
+
   public multiply(quantity: Quantity | number): Money {
     const factor = typeof quantity === 'number' ? quantity : quantity.value;
-    if (factor < 0) {
-      throw new InvalidMoneyException('Cannot multiply money by negative quantity.');
+    if (typeof factor !== 'number' || isNaN(factor) || !isFinite(factor) || factor < 0) {
+      throw new InvalidMoneyException('Cannot multiply money by invalid or negative quantity.');
     }
     return new Money(Math.round(this._amount * factor * 100) / 100, this._currency);
   }
@@ -78,6 +94,10 @@ export class Money implements ValueObject<MoneyProps> {
       amount: this._amount,
       currency: this._currency,
     };
+  }
+
+  public toJSON(): MoneyProps {
+    return this.getValue();
   }
 
   public equals(other: ValueObject<MoneyProps>): boolean {

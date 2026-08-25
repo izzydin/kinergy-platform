@@ -3,7 +3,7 @@ import { InvalidQuantityException } from '../exceptions/invalid-quantity.excepti
 
 /**
  * Value Object representing physical or transactional stock quantity.
- * Governed with Scale 2 decimal precision (e.g. 10.00 units, 2.50 liters).
+ * Governed with Scale 2 decimal precision (e.g. 10.00 units, 2.50 liters, 0.75 kg).
  */
 export class Quantity implements ValueObject<number> {
   private readonly _value: number;
@@ -69,6 +69,15 @@ export class Quantity implements ValueObject<number> {
     return new Quantity(result, false);
   }
 
+  public multiply(factor: number): Quantity {
+    if (typeof factor !== 'number' || isNaN(factor) || !isFinite(factor) || factor < 0) {
+      throw new InvalidQuantityException(
+        `Multiplication factor must be a non-negative number, got: ${factor}.`,
+      );
+    }
+    return new Quantity(Math.round(this._value * factor * 100) / 100, false);
+  }
+
   public isGreaterThan(other: Quantity): boolean {
     return this._value > other.value;
   }
@@ -90,6 +99,10 @@ export class Quantity implements ValueObject<number> {
       return false;
     }
     return this._value === other.getValue();
+  }
+
+  public toJSON(): number {
+    return this._value;
   }
 
   public toString(): string {

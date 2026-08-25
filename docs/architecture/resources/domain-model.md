@@ -212,34 +212,88 @@ The `StockMovement` child entity serves as the authoritative, immutable audit le
 
 ## 6. Stock Semantics
 
-1. **Materialized Authoritative Balance**: `InventoryItem.quantityOnHand` is the materialized authoritative balance. It is never allowed to drift from the cumulative sum of `StockMovement.quantityDelta`.
-2. **Non-Negative Invariant**: At no point in time may `quantityOnHand` be less than zero ($QOH \ge 0$). Any operation that would result in $QOH - \Delta < 0$ is rejected at the domain boundary with an `InsufficientStockException`.
-3. **Atomic Balance and Ledger Update**: The modification of `quantityOnHand` and the creation of the `StockMovement` ledger entry are performed within the same aggregate method and persisted atomically.
+1. **Materialized Authoritative Balance**: `InventoryItem.quantityOnHand` is the materialized authoritative balance. It is never allowed to drift from the cumulative sum of `StockMovement.quantityDelta`:
+   $$\text{quantityOnHand} \equiv \sum_{m \in \text{movements}} m.\text{quantityDelta}$$
+2. **Non-Negative Invariant [INV-1]**: At no point in time may `quantityOnHand` be less than zero ($QOH \ge 0.00$). Any operation that would result in $QOH - \Delta < 0.00$ is rejected at the domain boundary with an `InsufficientStockException`.
+3. **Atomic Balance and Ledger Update**: The modification of `quantityOnHand` and the creation of the `StockMovement` ledger entry are performed within the same aggregate method and persisted atomically inside `prisma.$transaction`.
 4. **Reorder Alert Threshold**: When `quantityOnHand` drops below `minimumStock`, the aggregate raises a `LowStockThresholdReachedDomainEvent` to notify clinical managers.
+5. **Concrete Operational Example**:
+   - Initial physical inventory: `quantityOnHand = 15.00`
+   - Clinical treatment consumes 3 units: `consumeStock({ quantity: 3.00, ... })`
+   - New physical balance: `quantityOnHand = 12.00`
+   - Appended ledger movement: `quantityDelta = -3.00`, `balanceAfter = 12.00`.
 
 ---
 
 ## 7. Quantity Semantics
 
-1. **Precision & Scale**: All quantities are modeled using the `Quantity` Value Object backed by `Prisma.Decimal` / `Decimal.js` with **Scale 2** (`Decimal(10, 2)`).
-   - Allows discrete items: `10.00` units, `50.00` boxes.
-   - Allows fractional/continuous supplies: `2.50` liters of ultrasound gel, `0.75` kg of therapeutic wax.
-2. **Strict Positivity for Deltas**: All input parameters to mutation methods (`receiveStock`, `consumeStock`, `sellStock`) accept positive `Quantity` values $> 0$. The sign of `quantityDelta` is governed internally by the domain method.
-3. **Arithmetic Immutability**: All arithmetic operations on `Quantity` (`add`, `subtract`, `multiply`) return new immutable instances.
+In accordance with **[ADR-0089](./adr/0089-inventory-monetary-quantity-and-unit-precision-semantics.md)**, all quantities across the Consumable Inventory domain follow strict fixed-point decimal rules:
+
+1. **Fixed Scale 2 Representation**: All quantities are modeled using the `Quantity` Value Object backed by `Prisma.Decimal` / `Decimal.js` with **Scale 2** (`DECIMAL(10, 2)`).
+   - Arbitrary precision floating-point numbers are strictly forbidden.
+   - Minimum discrete step / precision is `0.01` (hundredths).
+   - Excess decimal precision is normalized via half-up rounding (`Math.round(value * 100) / 100`).
+2. **Discrete Count vs Continuous Physical Quantities**:
+   - **Discrete Counts**: Represented as whole numbers with `.00` (e.g., `10.00` boxes of needles, `24.00` bottles of recovery drink).
+   - **Continuous Physical Metrics**: Represented as fractional hundredths (e.g., `2.50` bottles of sanitizer, `250.00` milliliters of ultrasound gel, `0.75` kg of powder).
+3. **Zero Behavior**:
+   - `quantityOnHand = 0.00` is permitted and indicates an out-of-stock item (`isOutOfStock() === true`).
+   - `minimumStock = 0.00` is permitted and indicates that no automated safety threshold is set for this SKU.
+   - Stock mutation delta magnitude `quantity` must be strictly positive ($> 0.00$). Zero-quantity mutations are rejected.
+4. **Negative Value Behavior**:
+   - Negative values are strictly forbidden for `quantityOnHand` and `minimumStock`.
+   - Negative inputs for `receiveStock`, `consumeStock`, `sellStock`, `adjustStockIn`, `adjustStockOut`, or `scrapStock` throw `InvalidInventoryItemStateException` or `InvalidQuantityException`.
+   - Negative quantities are permitted _exclusively_ within the immutable `StockMovement.quantityDelta` field for outbound stock decreases (`SALE`, `CONSUMPTION`, `ADJUSTMENT_OUT`, `SCRAP`).
+5. **Concrete Operational Examples**:
+   - `"Quantity 1.00"` means exactly one discrete unit, box, bottle, or roll.
+   - `"Quantity 1.25"` means one and a quarter units (e.g., 1.25 bottles of sanitizer consumed across two treatment rooms).
+   - `"Quantity 0.50"` means half a box or half a container (e.g., 0.50 box of 100 sterile gauze swabs, representing 50 swabs).
+   - `"Quantity 25.50"` means 25.50 grams of nutritional supplement or electrolyte powder.
 
 ---
 
 ## 8. Monetary Semantics
 
-1. **Currency Representation**: Modeled via `Money` Value Object containing `amount` (`Decimal(10, 2)`) and `currency` (ISO-4217, default `CAD`).
-2. **Non-Negative Valuation**: `purchaseCost` and `sellingPrice` must be $\ge 0.00$.
-3. **Total Inventory Value Calculation**: The valuation of an inventory item on hand is computed dynamically via pure domain arithmetic:
+In accordance with **[ADR-0089](./adr/0089-inventory-monetary-quantity-and-unit-precision-semantics.md)**, all financial values (`purchaseCost`, `sellingPrice`, `unitCost`) follow strict banking and valuation standards:
+
+1. **Explicit Currency Value Object**: Modeled via the `Money` Value Object wrapping `amount: number` (fixed Scale 2) and `currency: string` (ISO-4217, uppercase 3-letter code, baseline default `USD`).
+2. **Zero Float Financial Arithmetic**: IEEE-754 floating point arithmetic is strictly prohibited for persistent financial calculations. All operations (`add`, `subtract`, `multiply`) round half-up to exact cents.
+3. **Non-Negative Valuation**: `purchaseCost` and `sellingPrice` must be $\ge 0.00$. Negative monetary amounts throw `InvalidMoneyException`.
+4. **Zero-Priced Items**:
+   - `sellingPrice = Money.zero("USD")` is explicitly permitted for non-retail clinical supplies (e.g., disposable gloves, acupuncture needles) that are used internally in treatment sessions and never sold directly to clients.
+   - `purchaseCost = Money.zero("USD")` is permitted for promotional samples, donated items, or bundled supplier kits.
+5. **Dynamic Inventory Valuation Formula**:
    $$\text{TotalStockValuation} = \text{quantityOnHand} \times \text{purchaseCost}$$
-4. **Zero Float Usage**: IEEE-754 floating point numbers are strictly forbidden. All monetary operations use fixed-point decimal arithmetic.
+   Example: `12.50` units $\times$ `10.00 USD` purchase cost $= \$125.00\text{ USD}$.
+6. **Concrete Operational Examples**:
+   - `"Purchase cost 12.50 USD"` means the clinic acquired the item for twelve dollars and fifty cents per unit of measure.
+   - `"Selling price 24.99 USD"` means the retail price charged to a client at point-of-sale is twenty-four dollars and ninety-nine cents.
+   - `"Selling price 0.00 USD"` means the item is strictly a clinical or facility consumable not available for retail sale.
 
 ---
 
-## 9. Status Semantics & Catalog Lifecycle
+## 9. Unit of Measure (UOM) Semantics
+
+In accordance with **[ADR-0089](./adr/0089-inventory-monetary-quantity-and-unit-precision-semantics.md)**, units of measure are classified via the canonical `UnitOfMeasure` domain enum:
+
+1. **Standardized Taxonomy**:
+   - `UNITS`: Discrete individual items (e.g., single meal portion, resistance band, foam roller).
+   - `BOXES`: Multi-item packaging cartons (e.g., box of 100 gloves, box of 50 needles).
+   - `BOTTLES`: Individual liquid or spray containers (e.g., 500ml beverage bottle, 1L disinfectant spray).
+   - `ROLLS`: Rolled continuous goods (e.g., 5m roll of kinesiology tape, exam table paper).
+   - `MILLILITERS`: Volumetric clinical liquids and gels (e.g., ultrasound transmission gel, massage oil).
+   - `GRAMS`: Continuous mass measurements (e.g., electrolyte powder, whey protein tubs).
+2. **Discrete vs Continuous Enforcement**:
+   - Discrete units (`UNITS`, `BOXES`, `BOTTLES`, `ROLLS`) typically transact in integer or half-unit increments.
+   - Continuous units (`MILLILITERS`, `GRAMS`) support fractional hundredths precision (`0.01` ml / g).
+3. **Consistency with Architectural Baseline**: Implemented as a pure code-defined domain enum with validation metadata (`UNIT_OF_MEASURE_REGISTRY`), avoiding unneeded CRUD infrastructure while ensuring type-safe database storage via PostgreSQL enum.
+4. **Concrete Operational Examples**:
+   - An item with `name: "Electrolyte Recovery Drink"`, `unit: UnitOfMeasure.BOTTLES`, `quantityOnHand: 24.00` represents 24 discrete bottles in the retail refrigerator.
+   - An item with `name: "Therapeutic Ultrasound Gel"`, `unit: UnitOfMeasure.MILLILITERS`, `quantityOnHand: 1500.00` represents 1,500 ml of bulk gel across clinical treatment carts.
+
+---
+
+## 10. Status Semantics & Catalog Lifecycle
 
 ```mermaid
 stateDiagram-v2
@@ -260,7 +314,7 @@ stateDiagram-v2
 
 ---
 
-## 10. Business Invariants
+## 11. Business Invariants
 
 The Consumable Inventory domain strictly enforces the following ten invariants:
 
@@ -279,51 +333,51 @@ The Consumable Inventory domain strictly enforces the following ten invariants:
 
 ---
 
-## 11. Stock Mutation Rules
+## 12. Stock Mutation Rules
 
-### 11.1 Purchase Receipt (`receiveStock`)
+### 12.1 Purchase Receipt (`receiveStock`)
 
 - **Operation**: `PURCHASE`
 - **Formula**: $QOH_{\text{new}} = QOH_{\text{current}} + \Delta$
 - **Invariants**: $\Delta > 0$, Item is `ACTIVE`, valid vendor/invoice reference provided.
 - **Resulting Movement**: Positive $\Delta$, updated `unitCost`.
 
-### 11.2 Clinical Consumption (`consumeStock`)
+### 12.2 Clinical Consumption (`consumeStock`)
 
 - **Operation**: `CONSUMPTION`
 - **Formula**: $QOH_{\text{new}} = QOH_{\text{current}} - \Delta$
 - **Invariants**: $\Delta > 0$, Item is `ACTIVE`, $QOH_{\text{current}} - \Delta \ge 0$, valid clinician actor and optional `TreatmentSession.id`.
 - **Resulting Movement**: Negative $-\Delta$.
 
-### 11.3 Retail Sale (`sellStock`)
+### 12.3 Retail Sale (`sellStock`)
 
 - **Operation**: `SALE`
 - **Formula**: $QOH_{\text{new}} = QOH_{\text{current}} - \Delta$
 - **Invariants**: $\Delta > 0$, Item is `ACTIVE`, $QOH_{\text{current}} - \Delta \ge 0$, selling price recorded.
 - **Resulting Movement**: Negative $-\Delta$.
 
-### 11.4 Positive Stock Adjustment (`adjustStockIn`)
+### 12.4 Positive Stock Adjustment (`adjustStockIn`)
 
 - **Operation**: `ADJUSTMENT_IN`
 - **Formula**: $QOH_{\text{new}} = QOH_{\text{current}} + \Delta$
 - **Invariants**: Physical count higher than ledger; explicit audit reason required.
 - **Resulting Movement**: Positive $+\Delta$.
 
-### 11.5 Negative Stock Adjustment (`adjustStockOut`)
+### 12.5 Negative Stock Adjustment (`adjustStockOut`)
 
 - **Operation**: `ADJUSTMENT_OUT`
 - **Formula**: $QOH_{\text{new}} = QOH_{\text{current}} - \Delta$
 - **Invariants**: Physical count lower than ledger; $QOH_{\text{current}} - \Delta \ge 0$; explicit audit reason required.
 - **Resulting Movement**: Negative $-\Delta$.
 
-### 11.6 Discrepancy Correction (`correctStock`)
+### 12.6 Discrepancy Correction (`correctStock`)
 
 - **Operation**: `CORRECTION`
 - **Formula**: Sets $QOH_{\text{new}} = \text{targetCount}$, where $\Delta = \text{targetCount} - QOH_{\text{current}}$.
 - **Invariants**: $\text{targetCount} \ge 0$, explicit managerial reason required.
 - **Resulting Movement**: Signed $\Delta$ with type `CORRECTION`.
 
-### 11.7 Stock Scrap / Spoilage (`scrapStock`)
+### 12.7 Stock Scrap / Spoilage (`scrapStock`)
 
 - **Operation**: `SCRAP`
 - **Formula**: $QOH_{\text{new}} = QOH_{\text{current}} - \Delta$
@@ -332,7 +386,7 @@ The Consumable Inventory domain strictly enforces the following ten invariants:
 
 ---
 
-## 12. History & Audit Requirements
+## 13. History & Audit Requirements
 
 1. **Zero Data Destruction**: No `StockMovement` may ever be deleted or edited.
 2. **Discrepancy Resolution**: If an erroneous movement was entered (e.g., recorded 100 boxes received instead of 10), the error is rectified exclusively by issuing a compensating `CORRECTION` or `ADJUSTMENT_OUT` movement with a referenced audit reason.
@@ -345,7 +399,7 @@ The Consumable Inventory domain strictly enforces the following ten invariants:
 
 ---
 
-## 13. Aggregate Boundaries & Clean Architecture Isolation
+## 14. Aggregate Boundaries & Clean Architecture Isolation
 
 ```
 packages/core/src/resources/
@@ -391,7 +445,7 @@ packages/core/src/resources/
 
 ---
 
-## 14. Domain vs. Application Responsibility Split
+## 15. Domain vs. Application Responsibility Split
 
 | Responsibility                          | Domain Layer (`InventoryItem`, VOs)   | Application Layer (Use Cases, Handlers) |
 | :-------------------------------------- | :------------------------------------ | :-------------------------------------- |
@@ -406,7 +460,7 @@ packages/core/src/resources/
 
 ---
 
-## 15. Persistence Mapping Principles & Implementation Reality
+## 16. Persistence Mapping Principles & Implementation Reality
 
 1. **Table Isolation**: Maps directly to `inventory_items` and `stock_movements` PostgreSQL tables in `prisma/schema.prisma`.
 2. **OCC Mapping**: Aggregate `version` maps to `inventory_items.version INT NOT NULL DEFAULT 1` with atomic transactional increment in `PrismaInventoryItemRepository`.
@@ -419,7 +473,7 @@ packages/core/src/resources/
 
 ---
 
-## 16. Explicit Non-Goals
+## 17. Explicit Non-Goals
 
 The following features are intentionally **out of scope** for Phase 6.1:
 
@@ -431,7 +485,7 @@ The following features are intentionally **out of scope** for Phase 6.1:
 
 ---
 
-## 17. Open Questions & Resolutions
+## 18. Open Questions & Resolutions
 
 | #     | Architectural Question                                       | Domain Resolution                                                                                                                                        |
 | :---- | :----------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------- |
