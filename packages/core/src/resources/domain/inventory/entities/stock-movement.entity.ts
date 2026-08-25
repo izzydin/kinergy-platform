@@ -138,4 +138,16 @@ export class StockMovement {
   public get recordedAt(): Date {
     return this._recordedAt;
   }
+
+  public isIncrease(): boolean {
+    return this._quantityDelta.isPositive();
+  }
+
+  public isDecrease(): boolean {
+    return this._quantityDelta.isNegative();
+  }
+
+  public isCorrection(): boolean {
+    return this._movementType === StockMovementType.CORRECTION;
+  }
 }

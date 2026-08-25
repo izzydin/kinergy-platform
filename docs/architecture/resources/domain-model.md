@@ -193,6 +193,21 @@ stateDiagram-v2
     StockBalance --> CORRECTION: Admin Discrepancy (±Delta)
 ```
 
+### 5.3 Inventory Movement Semantics
+
+The `StockMovement` child entity serves as the authoritative, immutable audit ledger for every stock mutation across Kinergy facilities. It strictly implements the following operational semantics:
+
+| Dimension               | Domain Specification                                                                                                                                                                 | Implementation & Governance Rule                                                                 |
+| :---------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------- |
+| **Type**                | Canonical `StockMovementType` enum (`PURCHASE`, `SALE`, `CONSUMPTION`, `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`, `CORRECTION`, `SCRAP`).                                                    | Explicitly classified; prevents generic or unclassified inventory mutations.                     |
+| **Direction**           | `INCREASE` ($+\Delta$), `DECREASE` ($-\Delta$), or `VARIABLE` ($\pm\Delta$ for `CORRECTION`).                                                                                        | Deterministic directional mapping governed by domain aggregate methods.                          |
+| **Quantity Meaning**    | Mutation methods accept strictly positive scalar quantities (`quantity > 0`). The aggregate computes signed `quantityDelta` and resulting non-negative `balanceAfter` ($QOH \ge 0$). | Makes invalid states unrepresentable; avoids ambiguity over who supplies the sign.               |
+| **Actor**               | Reuses Kinergy's unified `UserId` string format (`recordedByUserId`).                                                                                                                | Non-empty string mandatory for every single movement; complete audit provenance.                 |
+| **Reason**              | Non-empty string ($\ge 3$ characters, max 255). Mandatory for all manual adjustments, vendor receipts, clinical consumptions, sales, and scraps.                                     | Answers _why_ the stock mutation occurred without free-form ambiguous metadata.                  |
+| **Timestamp**           | Immutable UTC `DateTime` (`recordedAt = Clock.now()`).                                                                                                                               | Chronologically ordered and immutable timestamp recording _when_ mutation occurred.              |
+| **Immutability**        | `Object.freeze(this)` enforced in domain entity; database rows are write-once append-only (`onDelete: Restrict`, no `UPDATE` or `DELETE` endpoints).                                 | The movement ledger is an immutable historical record; past records cannot be edited or deleted. |
+| **Correction Strategy** | Historical errors are corrected exclusively via **compensating movements** (`CORRECTION` or `ADJUSTMENT_IN` / `ADJUSTMENT_OUT`) rather than mutating past rows.                      | Preserves complete forensic auditability and prevents silent revision of accounting history.     |
+
 ---
 
 ## 6. Stock Semantics
