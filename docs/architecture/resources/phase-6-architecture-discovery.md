@@ -168,6 +168,164 @@ Located in `apps/api/src/platform/`:
 
 ---
 
+### 3.4 Cross-Cutting Backend Standards
+
+Every backend module and HTTP endpoint in the Kinergy Platform follows a rigorous set of standardized cross-cutting conventions:
+
+#### 1. Authentication Standard
+
+- **Mechanism**: Stateless Bearer JWT token validation via `AuthenticationGuard` (`apps/api/src/platform/identity/guards/authentication.guard.ts`).
+- **Identity Propagation**: Upon validating the token signature, expiry, and active status (`user.status === 'ACTIVE'`), `AuthenticationGuard` constructs an `AuthenticatedUserContext` object and binds it to `req.user`.
+- **Async Execution Context**: Populates `RequestContext` via Node.js `AsyncLocalStorage` (`apps/api/src/platform/identity/request-context.ts`), allowing background operations or downstream services to read caller identity without parameter passing.
+- **Controller Access**: Controllers extract identity payload via `@CurrentUser() currentUser: AuthenticatedUserPayload` (`apps/api/src/platform/identity/decorators/current-user.decorator.ts`).
+- **Public Endpoints**: Public routes (e.g. login, health check) are explicitly marked with `@Public()` decorator.
+- **Phase 6 Implication**: All Phase 6 endpoints (`/api/v1/resources/*`) must apply `@UseGuards(AuthenticationGuard, AuthorizationGuard)` at the controller class level.
+
+#### 2. Authorization & Permissions Standard
+
+- **Mechanism**: Declarative route guards via `AuthorizationGuard` (`apps/api/src/platform/identity/authorization/authorization.guard.ts`).
+- **Route Metadata**: Decorated with `@Roles('Admin', 'Owner', ...)` and `@Permissions('resources.inventory.read', ...)` (`apps/api/src/platform/identity/decorators/`).
+- **Policy Evaluation**: `AuthorizationGuard` delegates evaluation to `IAuthorizationEvaluator` (`DefaultAuthorizationEvaluator`).
+- **Object-Level & Business Scoping**: Handlers/Controllers enforce data scoping (e.g., verifying if the caller possesses `Admin`/`Owner` roles before allowing cross-department asset reallocation or stock write-offs).
+- **Forbidden Errors**: Non-authorized requests immediately throw `ForbiddenException` (HTTP 403) with descriptive failure reasons.
+- **Phase 6 Implication**: Phase 6 must define hierarchical permission codes:
+  - Consumable Inventory: `resources.inventory.read`, `resources.inventory.write`, `resources.inventory.adjust`, `resources.inventory.receive`.
+  - Fixed Assets: `resources.assets.read`, `resources.assets.write`, `resources.assets.retire`, `resources.assets.maintain`, `resources.assets.depreciate`.
+
+#### 3. Pagination, Filtering, Sorting & Search Standards
+
+- **Request Format (`List<Resource>QueryDto`)**:
+  - `page`: Optional integer, default `1`, `@Min(1)`, transformed via `@Type(() => Number)`.
+  - `limit`: Optional integer, default `20` (max `100`), `@Min(1)`, transformed via `@Type(() => Number)`.
+  - Filtering parameters: Explicit typed query fields (e.g., `category?: string`, `status?: string`, `locationId?: string`, `minQuantity?: number`, `depreciationStatus?: string`).
+  - Date filtering: Standard ISO 8601 strings (`startDateFrom?: string`, `startDateTo?: string`).
+  - Search queries: Optional string `query?: string` (or `search?: string`) matching SKU, asset tags, or descriptions using trigram/ILIKE indexes.
+  - Sorting: Parameter `sortBy?: string` with `sortOrder?: 'asc' | 'desc'` or implicit default `orderBy: { createdAt: 'desc' }`.
+- **Response Format (`PaginatedResultDto<T>` / `Paginated<Resource>ResponseDto`)**:
+  ```json
+  {
+    "items": [...],
+    "total": 120,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 6,
+    "hasNextPage": true,
+    "hasPreviousPage": false
+  }
+  ```
+  - Standard helper: `PaginatedResultDto.create(items, total, page, limit)` (`modules/client/application/dto/paginated-result.dto.ts`).
+- **Phase 6 Implication**: All listing endpoints (e.g. `GET /api/v1/resources/inventory`, `GET /api/v1/resources/assets`, `GET /api/v1/resources/inventory/transactions`) must implement this exact pagination query and response envelope.
+
+#### 4. API Response Envelopes & HTTP Status Standards
+
+- **Single Resource Read/Update**: Returns raw DTO object with HTTP 200 OK (e.g. `InventoryItemResponseDto`, `FixedAssetResponseDto`).
+- **Resource Creation**: Returns newly created DTO with HTTP 201 Created.
+- **Batch / Action Mutations**: Returns structured summary DTO with HTTP 200 OK (e.g. `StockAdjustmentResponseDto`, `BatchDepreciationResponseDto`).
+- **No-Content Mutations**: HTTP 204 No Content for pure deletions or state terminations.
+- **Serialization & Transformation**: Enabled globally via `GlobalSanitizationValidationPipe` with `transform: true` and `enableImplicitConversion: true`.
+- **Phase 6 Implication**: All Phase 6 controllers must define explicit DTO response models annotated with Swagger `@ApiResponse({ status, type: ... })`.
+
+#### 5. Validation & Input Sanitization Standard
+
+- **Global Sanitization Pipe**: `GlobalSanitizationValidationPipe` (`apps/api/src/common/pipes/global-sanitization-validation.pipe.ts`) is registered globally on `APP_PIPE`.
+- **Sanitization Pipeline**: Incoming string inputs are automatically trimmed, control characters stripped, and XSS vectors neutralized via `InputSanitizer`.
+- **Strict DTO Validation**:
+  - `whitelist: true` (strips undeclared properties).
+  - `forbidNonWhitelisted: true` (rejects requests containing unapproved properties with HTTP 400).
+- **Validation Decorators**: All request DTOs must use `class-validator` (`@IsString()`, `@IsNotEmpty()`, `@IsOptional()`, `@IsNumber()`, `@Min()`, `@IsDateString()`, `@IsEnum()`).
+- **Phase 6 Implication**: All Phase 6 request DTOs must declare explicit `class-validator` and `class-transformer` rules on every property.
+
+#### 6. Error Handling & Exception Mapping Standard
+
+- **Exception Strategy**: `GlobalExceptionFilter` (`apps/api/src/common/filters/global-exception.filter.ts`) catches unhandled exceptions and maps domain/HTTP errors:
+  - `400 Bad Request`: Payload validation failures or invalid query parameters.
+  - `401 Unauthorized`: Missing, expired, or invalid JWT access tokens.
+  - `403 Forbidden`: Insufficient user roles or permissions.
+  - `404 Not Found`: Target entity ID not found (`NotFoundException`).
+  - `409 Conflict`: `OptimisticLockException` (OCC version conflict) or unique constraint violations (duplicate SKU / Asset Tag).
+  - `422 Unprocessable Entity`: Domain business rule violations (e.g. attempting to decrement stock below zero, transitioning asset from `DISPOSED` to `OPERATIONAL`).
+  - `500 Internal Server Error`: Unhandled errors with masked user-safe message and logged stack trace.
+- **Error Response Shape**:
+  ```json
+  {
+    "statusCode": 400,
+    "timestamp": "2026-08-25T11:40:00.000Z",
+    "path": "/api/v1/resources/inventory/adjust",
+    "error": {
+      "message": "Stock quantity cannot be reduced below zero."
+    }
+  }
+  ```
+- **Phase 6 Implication**: Domain exceptions in `packages/core/src/resources/domain/exceptions/` must map cleanly to standard HTTP status codes in controllers or via a dedicated `ResourcesExceptionFilter`.
+
+#### 7. Logging, Audit & Request Correlation Standard
+
+- **Logger Port**: Injected via `ILoggerPort` / `PlatformLoggerService` (`apps/api/src/platform/logging/`).
+- **Structured Error Logging**: Catches format `Http Status: ${status} Error Message: ${JSON.stringify(message)} Path: ${request.url}`.
+- **Audit Service**: Security, permission changes, and high-impact administrative actions publish audit events via `IAuditService` (`apps/api/src/platform/audit/`).
+- **Actor Attribution**: All write commands must capture caller ID (`recordedByUserId: currentUser.id`) in stock ledger records and asset maintenance histories.
+- **Phase 6 Implication**: Every stock movement, inventory count reconciliation, asset purchase, maintenance log, and asset disposal must persist `recordedByUserId` and emit audit log events.
+
+#### 8. API Documentation (Swagger / OpenAPI) Standard
+
+- Every controller must declare `@ApiTags('Resources - <SubDomain>')` and `@ApiBearerAuth()`.
+- Every route handler must declare `@ApiOperation({ summary, description })`.
+- All response codes (200, 201, 400, 401, 403, 404, 409, 422) must be documented via `@ApiResponse({ status, description, type })`.
+- Route parameters must declare `@ApiParam()`; Query filters must declare `@ApiQuery()`.
+- **Phase 6 Implication**: Full Swagger OpenAPI coverage for all Phase 6 routes under `/api/docs`.
+
+---
+
+### 3.5 Phase 6 API Contract Constraints
+
+Phase 6 API implementations must inherit and adhere to the following contract rules:
+
+1. **Inventory Adjustment (`POST /api/v1/resources/inventory/adjust`)**:
+   - Requires `resources.inventory.adjust` permission.
+   - Must accept `itemId`, `quantityDelta` (integer, non-zero), `type` (enum: `PURCHASE`, `USAGE`, `SPOILAGE`, `CORRECTION`, `TRANSFER`), `reason` (non-empty string), and optional `batchNumber`/`expirationDate`.
+   - Must execute in an atomic transaction updating `currentQuantityOnHand` with OCC `version` check and inserting an immutable `stock_transactions` record capturing `recordedByUserId`.
+   - Must reject adjustments that would cause negative inventory with HTTP 422 Unprocessable Entity unless backorders are explicitly configured.
+2. **Stock Inbound Receipt (`POST /api/v1/resources/inventory/receive`)**:
+   - Requires `resources.inventory.receive` permission.
+   - Accepts batch receiving payload with purchase order reference, vendor ID, unit purchase price, and received quantities.
+   - Updates moving average unit cost or lot cost and increments stock balance.
+3. **Asset Registration (`POST /api/v1/resources/assets`)**:
+   - Requires `resources.assets.write` permission.
+   - Enforces unique natural keys (`assetTag` and `serialNumber`) returning HTTP 409 on duplicates.
+   - Initial status must be `DRAFT` or `OPERATIONAL`.
+4. **Asset Maintenance Logging (`POST /api/v1/resources/assets/:id/maintenance`)**:
+   - Requires `resources.assets.maintain` permission.
+   - Appends an immutable maintenance record (`serviceDate`, `cost`, `performedBy`, `workDetails`, `nextServiceDue`).
+   - If maintenance is active, transitions asset status to `MAINTENANCE`.
+5. **Asset Retirement / Disposal (`POST /api/v1/resources/assets/:id/retire`)**:
+   - Requires `resources.assets.retire` permission (restricted to `Admin` / `Owner`).
+   - Requires mandatory disposal reason, disposal method (`SOLD`, `SCRAPPED`, `DONATED`, `RECYCLED`), and final salvage amount.
+   - Terminal state transition to `DISPOSED` preventing further maintenance or allocation.
+6. **Asset Valuation & Depreciation (`GET /api/v1/resources/assets/valuation` / `POST /api/v1/resources/assets/depreciate`)**:
+   - Requires `resources.assets.depreciate` permission.
+   - Computes book value based on purchase cost, salvage value, useful life (months), and elapsed periods using exact `Decimal(10, 2)` calculations.
+
+---
+
+### 3.6 Cross-Cutting Gaps & Ambiguities Identified
+
+The discovery revealed several minor cross-cutting inconsistencies across existing modules:
+
+1. **Error Response Schema Inconsistency**:
+   - `GlobalExceptionFilter` formats errors as: `{ statusCode, timestamp, path, error: { message } }`.
+   - `SchedulingExceptionFilter` formats errors as: `{ statusCode, error, code, message }` without `timestamp` or `path`.
+   - _Resolution for Phase 6_: Phase 6 should use a dedicated `ResourcesExceptionFilter` or rely on the root `GlobalExceptionFilter` ensuring consistent `{ statusCode, timestamp, path, error: { message, code } }` response format.
+2. **Controller Unwrapping vs Result Envelope**:
+   - Domain and application use cases return `Result<T, E>` / `ApplicationResult<T>`.
+   - Controllers currently unwrap `result.getValue()` directly or throw NestJS exceptions (`BadRequestException(result.getError())`).
+   - _Resolution for Phase 6_: Preserve this existing pattern: CQRS handlers return `Result<T, E>`, and controllers unpack success values to HTTP DTOs or map failures to NestJS HTTP exceptions.
+3. **Permission Namespacing Granularity**:
+   - Legacy permissions in `identity.seed.ts` use single dot `inventory.read` and `inventory.write`.
+   - Newer Phase 4/5 permissions use module sub-namespaces (e.g. `kinesiology.sessions.treat`, `memberships.create`).
+   - _Resolution for Phase 6_: Adopt clean hierarchical naming (`resources.inventory.read`, `resources.inventory.adjust`, `resources.assets.read`, `resources.assets.write`) while aliasing legacy `inventory.*` permissions for backward compatibility.
+
+---
+
 ## 4. Frontend Architecture
 
 ### 4.1 Framework & Core Technologies
