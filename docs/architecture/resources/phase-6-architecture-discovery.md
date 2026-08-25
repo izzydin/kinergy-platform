@@ -767,9 +767,149 @@ The following mature patterns must be reused in Phase 6:
 | **4-State UI & CRUD Layout Components**         | Unified React wrappers for loading, error, empty, and data states.                                                                                   | `CrudListLayout`, `CrudStateView` (`apps/web/src/shared/crud/`)                                                                                         |
 | **In-Memory Repository Test Harnesses**         | Standalone Map-based in-memory repository fakes allowing instant, isolated unit and handler testing.                                                 | `DefaultGymMembershipRepository`, `packages/testing/src/database/`                                                                                      |
 
+### 7.2 Testing Architecture & Infrastructure
+
+The Kinergy platform enforces a rigorous multi-tier testing pyramid across both backend and frontend layers:
+
+```mermaid
+graph TD
+    subgraph "Testing Pyramid & Verification Layers"
+        E2E["5. Full-Stack E2E Workflows<br/>(Cross-domain business journeys)"]
+        INTEG["4. Persistence & Concurrency Integration Tests<br/>(Prisma repository mappings, OCC conflict detection, ambient transactions)"]
+        APP["3. Application Use Case / Handler Tests<br/>(CQRS command/query handlers, ACL adapters, mock repositories)"]
+        UI["2. Frontend Component & Form Integration Tests<br/>(RHF validation, DataTable URL state, 4-state visual UI)"]
+        UNIT["1. Pure Domain Unit Tests<br/>(Entity invariants, Value objects, State machines, Boundary purity)"]
+        E2E --> INTEG
+        INTEG --> APP
+        APP --> UI
+        UI --> UNIT
+    end
+```
+
+#### 1. Backend Testing Hierarchy
+
+- **Pure Domain Unit Tests (`*.spec.ts`)**:
+  - Located directly beside domain files (e.g. `inventory-item.aggregate.spec.ts`, `depreciation-schedule.vo.spec.ts`).
+  - Zero database or framework mocks; pure deterministic TypeScript execution.
+  - Tests entity state machines, value object validation invariants, and calculation accuracy.
+- **Application Handler Tests (`*.handler.spec.ts`)**:
+  - Tests CQRS command and query handlers using in-memory repository fakes (`RepositoryMockFactory` or custom Map stores).
+  - Verifies business rule enforcement, event dispatching, and output DTO projection.
+- **Persistence & Concurrency Integration Tests (`prisma-*-persistence.spec.ts`, `*-concurrency-reliability.integration.spec.ts`)**:
+  - Tests real Prisma repository adapters against transactional contexts.
+  - Tests Optimistic Concurrency Control (OCC) version increments and throws `OptimisticLockException` under simulated concurrent writes.
+- **Controller & API Integration Tests (`*-controllers-comprehensive.spec.ts`)**:
+  - Tests NestJS controller route bindings, `@UseGuards(AuthenticationGuard, AuthorizationGuard)` enforcement, `@Roles(...)` and `@Permissions(...)` metadata, and HTTP status code mappings.
+- **Boundary Purity Tests (`*-boundaries.spec.ts`)**:
+  - Automated file system scan asserting zero `@nestjs/*`, `@prisma/*`, or external context imports in `domain/` and `application/` layers.
+
+#### 2. Frontend Testing Hierarchy
+
+- **Design System Component Tests (`*.spec.tsx`)**:
+  - Located in `packages/ui/src/components/__tests__/` and `apps/web/src/shared/`.
+  - Verifies accessible ARIA roles, states, and keyboard navigation using `@testing-library/react` and `jest-axe`.
+- **Custom Hook & URL State Tests (`use-table-url-state.spec.ts`)**:
+  - Verifies bi-directional URL parameter synchronization, debouncing, and filter state serialization.
+- **Form & Validation Tests (`crud-create-edit-experience.spec.tsx`)**:
+  - Verifies React Hook Form + Zod schema validation, inline error messages, server error injection (`useApplyServerErrors`), and dirty state navigation warnings.
+- **DataTable Integration Tests (`*-data-table-integration.spec.tsx`)**:
+  - Verifies server-side pagination, sorting column toggles, faceted filtering, search inputs, and 4-state visual transitions (`Loading`, `Error`, `Empty`, `Populated`).
+- **Feature & Workflow Tests (`*-critical-business-workflows.e2e.spec.tsx`)**:
+  - End-to-end frontend user journey tests using Mock Service Worker (MSW) or mock providers (`renderWithProviders()`).
+
+#### 3. Shared Test Infrastructure (`packages/testing/`)
+
+- **Persona Test Factories (`persona-test.factories.ts`)**: Pre-configured test personas (`Admin`, `Owner`, `Trainer`, `Therapist`, `Receptionist`, `Client`).
+- **Repository Mock Factory (`repository-mock.factory.ts`)**: Standardized Jest mocks for common CRUD and search operations.
+- **Database Test Helpers (`database-test-cleaner.ts`, `database-seed.helper.ts`)**: Utilities for cleaning and seeding test databases.
+- **Clock & Security Mocks (`clock.mock.ts`, `security-event-publisher.mock.ts`, `logger.mock.ts`)**: Deterministic time travel and security event capture.
+
 ---
 
-## 8. Existing Architectural Constraints
+### 7.3 Audit & History Patterns
+
+The platform implements a standardized set of audit and historical tracking mechanisms:
+
+1. **System & Security Audit Logging (`IAuditService`)**:
+   - `PlatformLoggerService` captures security and administrative lifecycle events (e.g., role modifications, failed logins, sensitive asset write-offs).
+2. **Append-Only Event Ledgers**:
+   - High-integrity historical domains avoid mutable rows in favor of immutable append-only logs:
+     - `AttendanceRecord`: Append-only gym entry log.
+     - `ClientTimelineEntry`: Append-only client activity log.
+     - _Phase 6 Requirement_: `StockTransaction` (or `InventoryMovement`) and `AssetMaintenanceRecord` must be strictly append-only records.
+3. **Actor Attribution**:
+   - Every write operation records the responsible actor: `recordedByUserId` (IAM `User.id`), `authorId`, or `assignedTrainerId`.
+4. **Terminal State Audit Fields**:
+   - Irreversible state transitions require explicit audit reason fields (e.g., `cancellationReason: string`, `terminationReason: string`, `disposalReason: string`).
+5. **JSON State History Arrays**:
+   - Entities with multiple historical intervals (such as `Membership.freezeHistory`) store immutable JSON arrays containing `{ startDate, endDate, reason }` snapshots.
+
+---
+
+### 7.4 Quality Gate Inventory
+
+The repository enforces the following exact, non-negotiable verification commands configured in `package.json`:
+
+| Quality Gate                 | Exact Repository Command                                         | Purpose & Coverage                                                  | Mandatory Stage           |
+| :--------------------------- | :--------------------------------------------------------------- | :------------------------------------------------------------------ | :------------------------ |
+| **Code Style Formatting**    | `pnpm format:check`                                              | Verifies 100% Prettier formatting across all workspace files.       | Pre-commit & CI           |
+| **Monorepo Linting**         | `pnpm lint` (`nx run-many -t lint`)                              | Runs ESLint rules across all 10 projects.                           | Pre-commit & CI           |
+| **Strict Typecheck**         | `pnpm typecheck` (`tsc --noEmit -p tsconfig.base.json`)          | Typechecks all packages and applications with zero error tolerance. | Pre-commit & CI           |
+| **Automated Test Suite**     | `pnpm test` (`nx run-many -t test`)                              | Executes all unit, integration, and UI test suites.                 | Pre-commit & CI           |
+| **Production Build**         | `pnpm build` (`nx run-many -t build`)                            | Compiles all 10 libraries and applications for production.          | Pre-commit & CI           |
+| **Full Quality Gate**        | `pnpm validate` (`run-s format:check lint typecheck test build`) | Complete sequential execution of all 5 gates.                       | **Milestone Completion**  |
+| **Prisma Schema Validation** | `pnpm prisma:generate`                                           | Generates Prisma client types and validates schema syntax.          | Post-install & DB changes |
+| **Database Migration Check** | `pnpm prisma:migrate`                                            | Verifies Prisma migrations against local database.                  | Database Schema changes   |
+
+---
+
+### 7.5 Phase 6 Testing Requirements
+
+Every milestone in Phase 6 must provide comprehensive automated test suites categorized by architectural layer:
+
+1. **Unit-Level Invariant Tests**:
+   - `InventoryItem`: Invariants on reorder threshold, negative stock prevention, unit cost precision (`Decimal`), and state transitions.
+   - `FixedAsset`: Depreciation calculations (straight-line, declining balance), salvage value constraints, warranty expiration checks, and status machine (`DRAFT`, `OPERATIONAL`, `MAINTENANCE`, `DISPOSED`).
+   - Value Objects: `Money`, `LotBatch`, `AssetTag`, `SerialNumber`, `DepreciationSchedule`.
+2. **Application CQRS Handler Tests**:
+   - Command Handlers: `AdjustStockHandler`, `ReceiveInboundStockHandler`, `RegisterAssetHandler`, `LogAssetMaintenanceHandler`, `RetireAssetHandler`, `DepreciateAssetHandler`.
+   - Query Handlers: `GetInventoryItemByIdHandler`, `ListInventoryItemsHandler`, `GetAssetByIdHandler`, `ListAssetsHandler`, `GetAssetValuationSummaryHandler`.
+   - Anti-Corruption Layer: Schedulable resource link adapter and clinical consumption event handlers.
+3. **Persistence & Database Constraint Tests**:
+   - Unique natural key constraints (`sku`, `assetTag`, `serialNumber`).
+   - Non-null mandatory column constraints.
+   - Exact `Decimal(10, 2)` monetary storage verification.
+   - Append-only `stock_transactions` and `asset_maintenance_records` insert tests.
+4. **Transaction & Concurrency Tests**:
+   - Simultaneous stock adjustments on the same `InventoryItem` asserting OCC version check and `OptimisticLockException`.
+   - Simultaneous asset status updates asserting atomic transaction locking.
+5. **Authorization & Security Tests**:
+   - Permission enforcement tests for `resources.inventory.*` and `resources.assets.*`.
+   - Object-level scoping tests (e.g., ordinary staff restricted from asset retirement or bulk write-offs).
+6. **API Contract & DTO Tests**:
+   - Request DTO sanitization and validation (`GlobalSanitizationValidationPipe`).
+   - Response DTO shape and Swagger `@ApiResponse` alignment.
+   - Error mapping tests for 400, 401, 403, 404, 409, 422, and 500 status codes.
+7. **Frontend Component & DataTable Tests**:
+   - `InventoryListPage` and `AssetListPage` DataTable rendering, URL state management (`useTableUrlState`), faceted category/status filters, and debounced search.
+   - 4-state visual presentation tests (`Loading`, `Error`, `Empty`, `Populated`).
+   - Form tests for stock adjustment dialog and asset creation modal (`useApplyServerErrors`, `useDirtyDialogGuard`, `ConfirmDiscardDialog`).
+8. **End-to-End Business Flow Tests**:
+   - Complete lifecycle test: Register Asset $\rightarrow$ Schedule Maintenance $\rightarrow$ Complete Maintenance $\rightarrow$ Depreciate $\rightarrow$ Retire/Dispose.
+   - Complete inventory flow: Register Item $\rightarrow$ Receive Inbound Batch $\rightarrow$ Consume in Clinical Session $\rightarrow$ Reconcile Count $\rightarrow$ Low Stock Alert.
+9. **Boundary Purity Automated Test**:
+   - `resources-architecture-boundaries.spec.ts` asserting 100% purity of domain and application layers.
+
+#### Mandatory Milestone Completion Criteria
+
+No Phase 6 milestone will be approved without:
+
+1. `100%` passing unit, integration, and UI tests.
+2. `0` TypeScript compilation errors (`pnpm typecheck`).
+3. `0` ESLint violations (`pnpm lint`).
+4. `0` Prettier formatting issues (`pnpm format:check`).
+5. Successful production build of all 10 projects (`pnpm build`).
+6. Passing boundary purity test suite (`resources-architecture-boundaries.spec.ts`).
 
 The repository strictly enforces the following hard constraints that govern Phase 6 design:
 
