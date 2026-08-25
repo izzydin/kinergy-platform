@@ -46,6 +46,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)**   | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline     |
 | **[Domain Boundary Design](./domain-boundaries.md)**                        | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Baseline     |
 | **[Production Persistence Strategy](./persistence-strategy.md)**            | Database schema topology, table models, indexing, OCC concurrency controls, and asset history reconstruction          | Complete / Baseline     |
+| **[Consumable Inventory Domain Model](./domain-model.md)**                  | Authoritative Consumable Inventory domain model, Value Objects, aggregate boundaries, invariants, and mutation rules  | Complete / Baseline     |
 | **[Milestone 6.0 Architecture Gate](./milestone-6.0-architecture-gate.md)** | Formal Architecture Review Board (ARB) evaluation, evidence matrix, and implementation authorization                  | **Approved (100%)**     |
 | **Integration Contracts & Context Map (Upcoming)**                          | Cross-context contracts with Scheduling, Kinesiology, IAM, and Client contexts                                        | Planned (Milestone 6.1) |
 
