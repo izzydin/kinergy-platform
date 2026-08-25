@@ -141,15 +141,18 @@ Categories group inventory items for catalog organization, reporting, clinical s
 
 ### Category Taxonomy
 
-- `CLINICAL_SUPPLIES`: Medical consumables, disposable electrodes, ultrasound gel, needles, bandages, disinfectant.
+- `HEALTHY_MEALS`: Fresh and prepared nutritional meal portions for clients and athletes (perishable, retail eligible).
+- `HEALTHY_DRINKS`: Electrolyte beverages, smoothies, juices, and functional wellness drinks (perishable, retail eligible).
+- `CLEANING_SUPPLIES`: Disinfectants, sanitizing wipes, detergents, and facility hygiene materials (non-perishable, operational).
+- `OFFICE_SUPPLIES`: Administrative consumables, paper goods, printing items, and stationery (non-perishable, operational).
+- `SUPPLEMENTS`: Nutritional powders, vitamins, protein bars, and performance supplements (non-perishable, retail eligible).
+- `CLINICAL_SUPPLIES`: Acupuncture needles, ultrasound gel, massage lotions, and exam disposables.
 - `THERAPY_CONSUMABLES`: Kinesiology tape, resistance bands, massage creams, rehabilitation grips.
-- `RETAIL_PRODUCTS`: Client-facing goods, nutritional supplements, branded apparel, ergonomic braces.
-- `FACILITY_SUPPLIES`: Cleaning chemicals, paper towels, sanitizers, gym floor maintenance consumables.
-- `OFFICE_ADMIN`: Administrative supplies, stationery, client intake folders.
+- `RETAIL_PRODUCTS`: Commercial merchandise, foam rollers, branded apparel, and gear for sale.
 
-### Design Decision
+### Design Decision (ADR-0088)
 
-In accordance with Kinergy's pragmatic domain guidelines, `InventoryCategory` is implemented as an extensible Domain Value Object with predefined canonical types and optional tenant-defined taxonomy codes, avoiding premature recursive category trees.
+In accordance with [ADR-0088](./adr/0088-inventory-category-classification-strategy.md) and Kinergy's architectural conventions, `InventoryCategory` is implemented as a **code-defined domain enum** backed by a domain metadata registry and native PostgreSQL enum, avoiding unnecessary CRUD infrastructure and ensuring strict report aggregation consistency.
 
 ---
 

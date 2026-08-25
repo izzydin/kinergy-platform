@@ -5,7 +5,7 @@ import { SKU } from './value-objects/sku.vo';
 import { Quantity } from './value-objects/quantity.vo';
 import { Money } from './value-objects/money.vo';
 import { LocationRef, LocationRefProps } from './value-objects/location-ref.vo';
-import { InventoryCategory } from './enums/inventory-category.enum';
+import { InventoryCategory, isValidInventoryCategory } from './enums/inventory-category.enum';
 import { UnitOfMeasure } from './enums/unit-of-measure.enum';
 import { InventoryItemStatus } from './enums/inventory-item-status.enum';
 import { StockMovementType } from './enums/stock-movement-type.enum';
@@ -147,7 +147,7 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
         : InventoryItemId.create(typeof props.id === 'string' ? props.id : undefined);
 
     const sku = props.sku instanceof SKU ? props.sku : SKU.create(props.sku);
-    const category = props.category ?? InventoryCategory.CLINICAL_SUPPLIES;
+    const category = InventoryItem.validateCategory(props.category);
     const unit = props.unit ?? UnitOfMeasure.UNITS;
 
     const minimumStock =
@@ -286,7 +286,7 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
       id,
       sku,
       props.name,
-      props.category,
+      InventoryItem.validateCategory(props.category),
       props.unit,
       minimumStock,
       quantityOnHand,
@@ -681,7 +681,7 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
       this._description = props.description.trim() || undefined;
     }
     if (props.category !== undefined) {
-      this._category = props.category;
+      this._category = InventoryItem.validateCategory(props.category);
     }
     if (props.unit !== undefined) {
       this._unit = props.unit;
@@ -913,6 +913,18 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
       );
     }
     return qty;
+  }
+
+  private static validateCategory(category: unknown): InventoryCategory {
+    if (category === undefined || category === null) {
+      return InventoryCategory.CLINICAL_SUPPLIES;
+    }
+    if (!isValidInventoryCategory(category)) {
+      throw new InvalidInventoryItemStateException(
+        `Invalid inventory category: '${category}'. Valid categories are: ${Object.values(InventoryCategory).join(', ')}`,
+      );
+    }
+    return category;
   }
 
   private assertActiveCatalogStatus(operation: string): void {
