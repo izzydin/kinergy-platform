@@ -44,8 +44,7 @@ The phase is partitioned into two distinct sub-domains:
 | Document                                                                  | Description                                                                                                           | Status                  |
 | :------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------- | :---------------------- |
 | **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)** | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline     |
-| **Domain Model & Vocabulary (Upcoming)**                                  | Canonical vocabulary, entity specifications, and value object definitions for Inventory & Assets                      | Planned (Milestone 6.1) |
-| **Aggregate Boundaries & Invariants (Upcoming)**                          | Aggregate root definitions, transactional boundaries, state machines, and concurrency controls                        | Planned (Milestone 6.1) |
+| **[Domain Boundary Design](./domain-boundaries.md)**                      | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Proposed     |
 | **Integration Contracts & Context Map (Upcoming)**                        | Cross-context contracts with Scheduling, Kinesiology, IAM, and Client contexts                                        | Planned (Milestone 6.1) |
 
 ---
