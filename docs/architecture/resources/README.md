@@ -45,20 +45,24 @@ The phase is partitioned into two distinct sub-domains:
 | :------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------- | :---------------------- |
 | **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)** | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline     |
 | **[Domain Boundary Design](./domain-boundaries.md)**                      | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Proposed     |
+| **[Production Persistence Strategy](./persistence-strategy.md)**          | Database schema topology, table models, indexing, OCC concurrency controls, and asset history reconstruction          | Complete / Proposed     |
 | **Integration Contracts & Context Map (Upcoming)**                        | Cross-context contracts with Scheduling, Kinesiology, IAM, and Client contexts                                        | Planned (Milestone 6.1) |
 
 ---
 
-## 5. Architectural Decision Records (ADR) Index Placeholder
+## 5. Architectural Decision Records (ADR) Index
 
-Architectural Decision Records governing Phase 6 will be authored in `docs/adr/` adhering to the MADR format established by ADR-0001:
+Architectural Decision Records governing Phase 6:
 
-| ADR ID  | Title                                                                         | Status     | Date                    |
-| :------ | :---------------------------------------------------------------------------- | :--------- | :---------------------- |
-| _0081+_ | _Phase 6 Resources Bounded Context Ownership & Context Map_                   | _Proposed_ | _Pending Milestone 6.1_ |
-| _0082+_ | _Consumable Inventory Aggregate Boundaries & Stock Tracking Strategy_         | _Proposed_ | _Pending Milestone 6.1_ |
-| _0083+_ | _Fixed Asset Lifecycle, Maintenance & Depreciation Strategy_                  | _Proposed_ | _Pending Milestone 6.1_ |
-| _0084+_ | _SchedulableResource (Phase 3) vs Fixed Asset (Phase 6) Integration Contract_ | _Proposed_ | _Pending Milestone 6.1_ |
+| ADR ID                                                                                                     | Title                                                                      | Status   | Date       |
+| :--------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- | :------- | :--------- |
+| **[ADR-0081](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md)**                    | Resources Bounded Context Topology & Domain Segregation                    | Accepted | 2026-08-25 |
+| **[ADR-0082](./adr/0082-fixed-asset-domain-modeling-and-complete-segregation-from-inventory.md)**          | Fixed Asset Domain Modeling & Complete Segregation from Inventory          | Accepted | 2026-08-25 |
+| **[ADR-0083](./adr/0083-inventory-movement-ledger-and-materialized-stock-mutation-strategy.md)**           | Inventory Movement Ledger & Materialized Stock Mutation Strategy           | Accepted | 2026-08-25 |
+| **[ADR-0084](./adr/0084-inventory-concurrency-control-and-race-condition-prevention.md)**                  | Inventory Concurrency Control & Race Condition Prevention                  | Accepted | 2026-08-25 |
+| **[ADR-0085](./adr/0085-fixed-asset-operational-lifecycle-state-machine-and-terminal-disposal-policy.md)** | Fixed Asset Operational Lifecycle State Machine & Terminal Disposal Policy | Accepted | 2026-08-25 |
+| **[ADR-0086](./adr/0086-fixed-asset-maintenance-history-and-service-tracking-model.md)**                   | Fixed Asset Maintenance History & Service Tracking Model                   | Accepted | 2026-08-25 |
+| **[ADR-0087](./adr/0087-resource-valuation-and-on-demand-asset-depreciation-strategy.md)**                 | Resource Valuation & On-Demand Asset Depreciation Strategy                 | Accepted | 2026-08-25 |
 
 ---
 
