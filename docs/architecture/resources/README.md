@@ -55,6 +55,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Milestone 6.0 Architecture Gate](./milestone-6.0-architecture-gate.md)** | Formal Architecture Review Board (ARB) evaluation, evidence matrix, and implementation authorization                  | **Approved (100%)**   |
 | **[Milestone 6.1 Consistency Review](./phase-6.1-review.md)**               | Architectural consistency verification, ADR audit, and domain-persistence parity review                               | Complete / Verified   |
 | **[Milestone 6.1 Quality Gate](./milestone-6.1-quality-gate.md)**           | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.2                          | **Approved (100%)**   |
+| **[Milestone 6.2 Consistency Review](./phase-6.2-review.md)**               | Fixed asset architectural consistency verification, ADR parity audit, and lifecycle invariant review                  | Complete / Verified   |
 
 ---
 
