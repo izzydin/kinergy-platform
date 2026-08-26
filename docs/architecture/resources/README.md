@@ -70,6 +70,7 @@ Architectural Decision Records governing Phase 6:
 | **[ADR-0087](./adr/0087-resource-valuation-and-on-demand-asset-depreciation-strategy.md)**                 | Resource Valuation & On-Demand Asset Depreciation Strategy                 | Accepted | 2026-08-25 |
 | **[ADR-0088](./adr/0088-inventory-category-classification-strategy.md)**                                   | Inventory Category Classification Strategy                                 | Accepted | 2026-08-25 |
 | **[ADR-0089](./adr/0089-inventory-monetary-quantity-and-unit-precision-semantics.md)**                     | Inventory Monetary, Quantity, and Unit Precision Semantics                 | Accepted | 2026-08-25 |
+| **[ADR-0090](./adr/0090-fixed-asset-classification-lifecycle-state-and-condition-rating-strategy.md)**     | Fixed Asset Classification, Lifecycle State, & Condition Rating Strategy   | Accepted | 2026-08-26 |
 
 ---
 

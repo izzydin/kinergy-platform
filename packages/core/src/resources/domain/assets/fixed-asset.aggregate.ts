@@ -513,6 +513,7 @@ export class FixedAsset implements AggregateRoot<AssetId> {
     actorId: string,
   ): AssetMaintenanceRecord {
     this.assertNotSold('perform maintenance on');
+    this.assertNotRetired('perform maintenance on');
     this.assertActor(actorId);
 
     const record = AssetMaintenanceRecord.create({
@@ -531,8 +532,12 @@ export class FixedAsset implements AggregateRoot<AssetId> {
       this._condition = FixedAsset.validateCondition(params.updateConditionTo);
     }
 
-    // Automatically return from UNDER_MAINTENANCE to ACTIVE upon servicing completion if currently undergoing maintenance
-    if (this._status === AssetStatus.UNDER_MAINTENANCE) {
+    // Automatically return from UNDER_MAINTENANCE or DAMAGED to ACTIVE upon servicing completion if condition is serviceable
+    if (
+      (this._status === AssetStatus.UNDER_MAINTENANCE || this._status === AssetStatus.DAMAGED) &&
+      this._condition !== AssetCondition.OUT_OF_SERVICE &&
+      this._condition !== AssetCondition.NEEDS_REPAIR
+    ) {
       this._status = AssetStatus.ACTIVE;
     }
 

@@ -125,79 +125,101 @@ classDiagram
 
 ---
 
-## 4. Category Semantics
+## 4. Classification & State Architectural Strategy
 
-Fixed Assets belong to a strict, code-defined **`AssetCategory`** domain taxonomy:
+In accordance with **[ADR-0090](./adr/0090-fixed-asset-classification-lifecycle-state-and-condition-rating-strategy.md)**, Fixed Asset attributes are partitioned into three distinct semantic dimensions that are strictly **non-interchangeable**:
 
-```typescript
-export enum AssetCategory {
-  GYM_EQUIPMENT = 'GYM_EQUIPMENT',
-  THERAPY_EQUIPMENT = 'THERAPY_EQUIPMENT',
-  KITCHEN_EQUIPMENT = 'KITCHEN_EQUIPMENT',
-  OFFICE_FURNITURE = 'OFFICE_FURNITURE',
-  ELECTRONICS = 'ELECTRONICS',
-  CLEANING_EQUIPMENT = 'CLEANING_EQUIPMENT',
-}
+1. **Category**: _What the asset is_ (Capital taxonomy for balance-sheet grouping, depreciation schedules, and facility audits).
+2. **Status**: _Where the asset is in its operational lifecycle_ (Finite state machine governing domain aggregate mutation permissions).
+3. **Condition**: _Physical and functional degradation rating_ (Wear-and-tear score assessed during inspections and maintenance).
+
+```mermaid
+graph TD
+    subgraph Fixed Asset Aggregate
+        AST[FixedAsset Aggregate Root]
+        CAT[AssetCategory Enum + Metadata Registry<br/>Taxonomic Classification]
+        STA[AssetStatus Enum + Finite State Machine<br/>Operational Lifecycle Phase]
+        CND[AssetCondition Enum + Severity Hierarchy<br/>Physical Degradation Rating]
+    end
+
+    AST --> CAT
+    AST --> STA
+    AST --> CND
 ```
 
-### Category Metadata Registry
+### 4.1 Category Strategy
 
-| Category Code        | Display Name       |       Maintenance Requirement       | Primary Operational Subdomain             |
-| :------------------- | :----------------- | :---------------------------------: | :---------------------------------------- |
-| `GYM_EQUIPMENT`      | Gym Equipment      | Periodic Safety & Cable Inspection  | Strength, Cardio, Functional Fitness      |
-| `THERAPY_EQUIPMENT`  | Therapy Equipment  | Clinical Calibration & Safety Audit | Kinesiology, Physical Therapy, Ultrasound |
-| `KITCHEN_EQUIPMENT`  | Kitchen Equipment  |    Hygiene & Electrical Testing     | Nutrition, Athlete Shake Bar, Cafeteria   |
-| `OFFICE_FURNITURE`   | Office Furniture   |          As-Needed Repair           | Administration, Consultation Desks        |
-| `ELECTRONICS`        | Electronics        |  Electrical Compliance & Firmware   | Front Desk POS, Audio Systems, Computers  |
-| `CLEANING_EQUIPMENT` | Cleaning Equipment |        Mechanical Servicing         | Facility Janitorial, Floor Polishers      |
+- **Representation**: Code-defined domain enum (`AssetCategory`) coupled with an in-memory descriptor registry (`ASSET_CATEGORY_REGISTRY`).
+- **Required Categories**:
+  - `GYM_EQUIPMENT`: Heavy machinery, cardio machines, free weights, functional training stations.
+  - `THERAPY_EQUIPMENT`: Clinical lasers, ultrasound devices, shockwave therapy units, treatment tables.
+  - `KITCHEN_EQUIPMENT`: Commercial blenders, refrigeration, athlete shake bar appliances, ice machines.
+  - `OFFICE_FURNITURE`: Desks, consultation chairs, reception counters, filing cabinets.
+  - `ELECTRONICS`: POS terminals, sound systems, computers, check-in tablets, network infrastructure.
+  - `CLEANING_EQUIPMENT`: Industrial floor scrubbers, sanitization foggers, wet-dry vacuums.
+- **Why Code-Defined Enum (No Database CRUD)**: Categories define corporate financial accounting classes and standardized cross-facility performance reporting. Introducing runtime database CRUD introduces relational join overhead, cascade/deletion ambiguities, and breaks reporting consistency.
+- **Persistence Mapping**: Native PostgreSQL enum `AssetCategory` with B-tree index `@@index([category])`.
+
+### 4.2 Status Strategy
+
+- **Representation**: Code-defined domain enum (`AssetStatus`) governed by a strict finite state machine.
+- **Required Statuses**:
+  - `ACTIVE`
+  - `UNDER_MAINTENANCE`
+  - `DAMAGED`
+  - `RETIRED`
+  - `SOLD`
+- **Capabilities Registry**: `ASSET_STATUS_REGISTRY` provides type-safe capability query helpers (`isOperational`, `isTerminal`, `allowsLocationTransfer`, `allowsMaintenance`, `allowsRevaluation`).
+- **Terminal & Invariant Guarantees**:
+  - `SOLD` is an absolute terminal state; all mutations are permanently prohibited (`[AST-INV-1]`). Liquidation proceeds equal final estimated book value.
+  - `RETIRED` assets cannot undergo physical location transfers (`[AST-INV-2]`) or maintenance servicing.
+  - Direct assignment to `SOLD` via `changeStatus` is blocked; liquidation must occur via `asset.sell(saleAmount, actorId, reason)`.
+- **Persistence Mapping**: Native PostgreSQL enum `AssetStatus` with B-tree index `@@index([status])`.
+
+### 4.3 Condition Strategy
+
+- **Representation**: Code-defined domain enum (`AssetCondition`) structured as a 5-point severity ranking.
+- **Required Conditions**:
+  - `EXCELLENT` (Severity Rank: 1 — Best)
+  - `GOOD` (Severity Rank: 2)
+  - `FAIR` (Severity Rank: 3)
+  - `NEEDS_REPAIR` (Severity Rank: 4)
+  - `OUT_OF_SERVICE` (Severity Rank: 5 — Worst)
+- **Metadata Registry**: `ASSET_CONDITION_REGISTRY` provides severity ranking, serviceability flags (`isServiceable`), and technician intervention indicators (`requiresTechnicianAttention`).
+- **Persistence Mapping**: Native PostgreSQL enum `AssetCondition` with B-tree index `@@index([condition])`.
 
 ---
 
-## 5. Status Semantics
+## 5. Semantic Definitions
 
-Asset operational lifecycle is governed by the **`AssetStatus`** finite state machine:
+### 5.1 Status Operational Semantics Matrix
 
-```typescript
-export enum AssetStatus {
-  ACTIVE = 'ACTIVE',
-  UNDER_MAINTENANCE = 'UNDER_MAINTENANCE',
-  DAMAGED = 'DAMAGED',
-  RETIRED = 'RETIRED',
-  SOLD = 'SOLD',
-}
-```
+| Status                  | Meaning                                                                                        | Allowed Operations                                                                                                                                           | Prohibited Operations                                                                                                                                  | Transition Implications                                                                                                 |
+| :---------------------- | :--------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------- |
+| **`ACTIVE`**            | Fully operational and commissioned for facility, gym, or clinical treatment use.               | `transferLocation`, `updateCondition`, `changeStatus`, `updateEstimatedValue`, `recordMaintenance`, `retire`, `sell`, `updateDetails`.                       | None.                                                                                                                                                  | Normal operational state.                                                                                               |
+| **`UNDER_MAINTENANCE`** | Temporarily offline for scheduled servicing, preventive maintenance, calibration, or overhaul. | `transferLocation` (to workshop), `updateCondition`, `recordMaintenance`, `changeStatus`, `updateEstimatedValue`, `retire`, `sell`.                          | Clinical appointment scheduling / member check-in assignment.                                                                                          | Completing maintenance automatically restores status to `ACTIVE` if post-service condition is serviceable.              |
+| **`DAMAGED`**           | Impaired due to mechanical malfunction, breakdown, or safety defect pending diagnostic repair. | `transferLocation` (to workshop), `updateCondition`, `recordMaintenance`, `changeStatus` (to `UNDER_MAINTENANCE`), `updateEstimatedValue`, `retire`, `sell`. | Operational use in gym/clinic.                                                                                                                         | Can transition to `UNDER_MAINTENANCE` or directly to `ACTIVE` upon completing maintenance with a serviceable condition. |
+| **`RETIRED`**           | Permanently decommissioned from active service due to obsolescence or end of lifecycle.        | `updateEstimatedValue`, `sell` (salvage liquidation), read-only audit.                                                                                       | `transferLocation` (`[AST-INV-2]`), `recordMaintenance`, returning to `ACTIVE` / `UNDER_MAINTENANCE` / `DAMAGED`.                                      | Preserved for historic audit until salvage liquidation.                                                                 |
+| **`SOLD`**              | Permanently liquidated or sold for salvage value. Terminal state.                              | Read-only audit inspection.                                                                                                                                  | ALL mutations (`transferLocation`, `changeStatus`, `updateCondition`, `updateEstimatedValue`, `recordMaintenance`, `retire`, `sell`, `updateDetails`). | Irreversible. Final book valuation equals realized liquidation proceeds (`[AST-INV-1]`).                                |
 
-### State Semantics
+### 5.2 Condition Semantics & Status Orthogonality Matrix
 
-- **`ACTIVE`**: Fully operational and available for staff, clinicians, and members.
-- **`UNDER_MAINTENANCE`**: Temporarily taken out of service for inspection, repair, or calibration.
-- **`DAMAGED`**: Physically defective or impaired; unsafe for use until repaired.
-- **`RETIRED`**: Formally decommissioned from active service; stored permanently or pending disposal.
-- **`SOLD`**: Transferred to a third party for salvage or liquidation value (Terminal State).
+| Condition            | Severity Rank | Serviceable | Meaning                                                                                           | Coexistence Rules with Status                                                     | Maintenance Transition Rule                                                  |
+| :------------------- | :-----------: | :---------: | :------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------- | :--------------------------------------------------------------------------- |
+| **`EXCELLENT`**      |       1       |     Yes     | Like-new condition with zero mechanical or aesthetic degradation.                                 | Valid in `ACTIVE`, `UNDER_MAINTENANCE`.                                           | Assigned upon initial asset commissioning or comprehensive factory overhaul. |
+| **`GOOD`**           |       2       |     Yes     | Normal operational condition with minimal superficial wear and flawless performance.              | Valid in `ACTIVE`, `UNDER_MAINTENANCE`.                                           | Standard operating rating for active equipment.                              |
+| **`FAIR`**           |       3       |     Yes     | Noticeable wear or minor cosmetic degradation; fully functional but nearing service interval.     | Valid in `ACTIVE`, `UNDER_MAINTENANCE`.                                           | Serves as early warning indicator for scheduled preventive maintenance.      |
+| **`NEEDS_REPAIR`**   |       4       |     No      | Mechanical faults, calibration drift, or component wear requiring prompt technician intervention. | Coexists with `ACTIVE` (with warning), `UNDER_MAINTENANCE`, `DAMAGED`, `RETIRED`. | Triggers dispatch of maintenance order.                                      |
+| **`OUT_OF_SERVICE`** |       5       |     No      | Complete breakdown, structural failure, or safety hazard prohibiting any operation.               | Coexists with `DAMAGED`, `UNDER_MAINTENANCE`, `RETIRED`.                          | Prohibits returning asset to `ACTIVE` until repaired.                        |
 
----
+### 5.3 Independence of Status and Condition
 
-## 6. Condition Semantics
-
-Physical equipment condition is evaluated via the **`AssetCondition`** scale:
-
-```typescript
-export enum AssetCondition {
-  EXCELLENT = 'EXCELLENT',
-  GOOD = 'GOOD',
-  FAIR = 'FAIR',
-  NEEDS_REPAIR = 'NEEDS_REPAIR',
-  OUT_OF_SERVICE = 'OUT_OF_SERVICE',
-}
-```
-
-### Condition Guidelines
-
-- `EXCELLENT`: Like-new condition with full cosmetic and functional integrity.
-- `GOOD`: Minor normal wear-and-tear; 100% operational functionality.
-- `FAIR`: Noticeable cosmetic wear; fully operational but approaching service interval.
-- `NEEDS_REPAIR`: Functional impairment requiring scheduled maintenance before deterioration.
-- `OUT_OF_SERVICE`: Severe mechanical or electrical defect; strictly prohibited from operation.
+- **Status and Condition are Orthogonal**: Status represents the _governance state_ (e.g. is it commissioned, in the shop, or decommissioned?), whereas Condition represents the _physical wear_ score.
+- **Coexistence Examples**:
+  - An asset in `ACTIVE` status can be in `FAIR` condition without immediately shutting down the machine.
+  - An asset in `UNDER_MAINTENANCE` can be in `FAIR` condition (routine 90-day inspection) or `NEEDS_REPAIR` condition (corrective repair).
+  - An asset in `DAMAGED` status typically holds `NEEDS_REPAIR` or `OUT_OF_SERVICE` condition.
+- **Explicit Maintenance Transitions**: Condition is **never mutated implicitly or guessed by the system**. When maintenance is performed via `recordMaintenance(...)`, the technician or manager can explicitly provide `updateConditionTo?: AssetCondition`. If omitted, the existing condition is preserved. If the resulting condition is serviceable (`EXCELLENT`, `GOOD`, `FAIR`), an asset under maintenance or damaged is automatically returned to `ACTIVE`.
 
 ---
 
