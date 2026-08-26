@@ -10,6 +10,7 @@ import { AssetHistoryEventType } from './enums/asset-history-event-type.enum';
 import { AssetHistoryEvent } from './entities/asset-history-event.entity';
 import { AssetMaintenanceRecord } from './entities/asset-maintenance-record.entity';
 import { InvalidAssetStateException } from './exceptions/invalid-asset-state.exception';
+import { AssetLifecycleStateMachine } from './services/asset-lifecycle.state-machine';
 import {
   AssetCreatedDomainEvent,
   AssetTransferredDomainEvent,
@@ -126,6 +127,7 @@ export class FixedAsset implements AggregateRoot<AssetId> {
     const assetId = props.id ?? AssetId.create();
     const condition = props.condition ?? AssetCondition.EXCELLENT;
     const status = props.status ?? AssetStatus.ACTIVE;
+    AssetLifecycleStateMachine.assertValidInitialStatus(status);
     const estimatedValue = props.currentEstimatedValue ?? props.purchaseValue;
     const now = new Date();
 
@@ -376,14 +378,17 @@ export class FixedAsset implements AggregateRoot<AssetId> {
    * Change operational status (e.g. ACTIVE -> UNDER_MAINTENANCE).
    * Invariant [AST-INV-1], [AST-INV-4].
    */
-  public changeStatus(newStatus: AssetStatus, actorId: string, reason?: string): void {
+  public changeStatus(newStatus: AssetStatus, actorId: string, reason: string): void {
     this.assertNotSold('change status of');
     this.assertActor(actorId);
-    const validatedStatus = FixedAsset.validateStatus(newStatus);
 
-    if (this._status === validatedStatus) {
-      return; // Idempotent no-op
+    if (!reason || reason.trim().length < 3) {
+      throw new InvalidAssetStateException(
+        'Mandatory reason for status change must be at least 3 characters.',
+      );
     }
+
+    const validatedStatus = FixedAsset.validateStatus(newStatus);
 
     if (validatedStatus === AssetStatus.SOLD) {
       throw new InvalidAssetStateException(
@@ -391,17 +396,22 @@ export class FixedAsset implements AggregateRoot<AssetId> {
       );
     }
 
+    if (validatedStatus === AssetStatus.RETIRED) {
+      this.retire(actorId, reason);
+      return;
+    }
+
+    AssetLifecycleStateMachine.assertTransitionValid(this._status, validatedStatus);
+
     const priorStatus = this._status;
     this._status = validatedStatus;
 
-    const eventDesc = reason?.trim()
-      ? `Status changed from ${priorStatus} to ${validatedStatus}: ${reason.trim()}`
-      : `Status changed from ${priorStatus} to ${validatedStatus}`;
+    const eventDesc = `Status changed from ${priorStatus} to ${validatedStatus}: ${reason.trim()}`;
 
     this.appendHistoryAndTouch(actorId, AssetHistoryEventType.STATUS_CHANGED, eventDesc, {
       priorStatus,
       newStatus: validatedStatus,
-      reason: reason?.trim() || undefined,
+      reason: reason.trim(),
     });
 
     this.addDomainEvent(
@@ -413,11 +423,37 @@ export class FixedAsset implements AggregateRoot<AssetId> {
           priorStatus,
           newStatus: validatedStatus,
           actorId,
-          reason,
+          reason: reason.trim(),
         },
         this._updatedAt,
       ),
     );
+  }
+
+  /**
+   * Transition asset to UNDER_MAINTENANCE status for inspection or repair.
+   */
+  public sendToMaintenance(actorId: string, reason: string): void {
+    this.changeStatus(AssetStatus.UNDER_MAINTENANCE, actorId, reason);
+  }
+
+  /**
+   * Mark asset as DAMAGED due to breakdown, defect, or safety incident.
+   */
+  public markAsDamaged(actorId: string, reason: string): void {
+    this.changeStatus(AssetStatus.DAMAGED, actorId, reason);
+  }
+
+  /**
+   * Restore asset to ACTIVE status from UNDER_MAINTENANCE or DAMAGED.
+   */
+  public restoreToActive(actorId: string, reason: string): void {
+    if (this._condition === AssetCondition.OUT_OF_SERVICE) {
+      throw new InvalidAssetStateException(
+        `Cannot restore fixed asset '${this._assetTag}' to ACTIVE while condition is 'OUT_OF_SERVICE'. Perform repairs and update condition first.`,
+      );
+    }
+    this.changeStatus(AssetStatus.ACTIVE, actorId, reason);
   }
 
   /**
@@ -587,6 +623,8 @@ export class FixedAsset implements AggregateRoot<AssetId> {
       );
     }
 
+    AssetLifecycleStateMachine.assertTransitionValid(this._status, AssetStatus.RETIRED);
+
     if (this._status === AssetStatus.RETIRED) {
       return;
     }
@@ -627,6 +665,8 @@ export class FixedAsset implements AggregateRoot<AssetId> {
         'Mandatory sale liquidation reason must be at least 3 characters.',
       );
     }
+
+    AssetLifecycleStateMachine.assertTransitionValid(this._status, AssetStatus.SOLD);
 
     this._status = AssetStatus.SOLD;
     this._currentEstimatedValue = saleAmount;

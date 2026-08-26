@@ -377,7 +377,7 @@ describe('FixedAsset Domain Aggregate & Invariants', () => {
       // Verify all further mutations are strictly prohibited
       const newLoc = AssetLocation.create({ facilityId: 'fac_other' });
       expect(() => asset.transferLocation(newLoc, actorId)).toThrow(InvalidAssetStateException);
-      expect(() => asset.changeStatus(AssetStatus.ACTIVE, actorId)).toThrow(
+      expect(() => asset.changeStatus(AssetStatus.ACTIVE, actorId, 'Reactivate')).toThrow(
         InvalidAssetStateException,
       );
       expect(() => asset.updateCondition(AssetCondition.GOOD, actorId)).toThrow(
