@@ -294,42 +294,58 @@ export class FixedAsset implements AggregateRoot<AssetId> {
   /**
    * Update descriptive metadata (name, description, notes).
    */
+  /**
+   * Update mutable descriptive attributes (name, description, notes).
+   * Meaningful changes record an UPDATED history event; no-ops produce no history.
+   * Invariant [AST-INV-1].
+   */
   public updateDetails(
     params: { name?: string; description?: string; notes?: string },
     actorId: string,
+    reason?: string,
   ): void {
     this.assertNotSold('update details on');
     this.assertActor(actorId);
 
-    let changed = false;
+    const changedFields: Record<string, { from: unknown; to: unknown }> = {};
 
     if (params.name !== undefined) {
       const validatedName = FixedAsset.validateName(params.name);
       if (validatedName !== this._name) {
+        changedFields['name'] = { from: this._name, to: validatedName };
         this._name = validatedName;
-        changed = true;
       }
     }
 
     if (params.description !== undefined) {
       const trimmedDesc = params.description.trim() || undefined;
       if (trimmedDesc !== this._description) {
+        changedFields['description'] = { from: this._description, to: trimmedDesc };
         this._description = trimmedDesc;
-        changed = true;
       }
     }
 
     if (params.notes !== undefined) {
       const trimmedNotes = params.notes.trim() || undefined;
       if (trimmedNotes !== this._notes) {
+        changedFields['notes'] = { from: this._notes, to: trimmedNotes };
         this._notes = trimmedNotes;
-        changed = true;
       }
     }
 
-    if (changed) {
-      this.touch(actorId, AssetHistoryEventType.UPDATED, 'Asset details updated');
+    const changedKeys = Object.keys(changedFields);
+    if (changedKeys.length === 0) {
+      return; // Meaningless technical no-op update; produce NO history event
     }
+
+    const eventDesc = reason?.trim()
+      ? `Asset details updated (${changedKeys.join(', ')}): ${reason.trim()}`
+      : `Asset details updated (${changedKeys.join(', ')})`;
+
+    this.appendHistoryAndTouch(actorId, AssetHistoryEventType.UPDATED, eventDesc, {
+      changedFields,
+      reason: reason?.trim() || undefined,
+    });
   }
 
   /**
@@ -629,13 +645,18 @@ export class FixedAsset implements AggregateRoot<AssetId> {
       return;
     }
 
+    const priorStatus = this._status;
     this._status = AssetStatus.RETIRED;
 
     this.appendHistoryAndTouch(
       actorId,
       AssetHistoryEventType.RETIRED,
       `Asset decommissioned and retired: ${reason.trim()}`,
-      { reason: reason.trim() },
+      {
+        priorStatus,
+        newStatus: AssetStatus.RETIRED,
+        reason: reason.trim(),
+      },
     );
 
     this.addDomainEvent(
@@ -668,6 +689,9 @@ export class FixedAsset implements AggregateRoot<AssetId> {
 
     AssetLifecycleStateMachine.assertTransitionValid(this._status, AssetStatus.SOLD);
 
+    const priorStatus = this._status;
+    const priorEstimatedValue = this._currentEstimatedValue;
+
     this._status = AssetStatus.SOLD;
     this._currentEstimatedValue = saleAmount;
 
@@ -676,6 +700,9 @@ export class FixedAsset implements AggregateRoot<AssetId> {
       AssetHistoryEventType.SOLD,
       `Asset sold for ${saleAmount.toString()}: ${reason.trim()}`,
       {
+        priorStatus,
+        newStatus: AssetStatus.SOLD,
+        priorEstimatedValue: priorEstimatedValue.toJSON(),
         saleAmount: saleAmount.toJSON(),
         reason: reason.trim(),
       },
@@ -723,10 +750,6 @@ export class FixedAsset implements AggregateRoot<AssetId> {
         'Authenticated actor ID is mandatory for asset mutations.',
       );
     }
-  }
-
-  private touch(actorId: string, eventType: AssetHistoryEventType, description: string): void {
-    this.appendHistoryAndTouch(actorId, eventType, description);
   }
 
   private appendHistoryAndTouch(
