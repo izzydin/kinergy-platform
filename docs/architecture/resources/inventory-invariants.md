@@ -203,3 +203,47 @@ To maintain high performance and simplicity:
 - **No Distributed Two-Phase Commit (2PC)**: Single database boundary.
 - **No Complex Manufacturing Bill of Materials (BOM)**: Resources domain handles finished goods and supply items, not multi-stage assembly lines.
 - **No Speculative Stock Reservations / Holds**: Immediate double-entry decrements prevent dangling reservation timeouts.
+
+---
+
+## 10. Direct Mutation & Bypass Vector Audit
+
+| Target Path / Operation                 | Audit Finding & Protection                                                                                                                                                                                 |    Status     |
+| :-------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-----------: |
+| `item.quantityOnHand = newQty`          | **Impossible**: `_quantityOnHand` is private; no public setters exist on `InventoryItem`.                                                                                                                  | **PROTECTED** |
+| `item.updateCatalogDetails({ ... })`    | **Protected**: Only mutates catalog metadata (`name`, `description`, `category`, `unit`, `minimumStock`, `purchaseCost`, `sellingPrice`, `locationRef`). Zero stock fields can be passed.                  | **PROTECTED** |
+| `repository.update({ quantityOnHand })` | **Impossible**: `InventoryItemRepository` interface only exposes `save(item: InventoryItem)`.                                                                                                              | **PROTECTED** |
+| Direct Negative Delta input (`-5`)      | **Protected**: `parsePositiveQuantity()` asserts strictly positive input magnitudes ($> 0.00$) on all 5 mutation methods (`receiveStock`, `sellStock`, `consumeStock`, `adjustStockIn`, `adjustStockOut`). | **PROTECTED** |
+| Zero Delta input (`0.00`)               | **Protected**: `parsePositiveQuantity()` rejects zero inputs with `InvalidInventoryItemStateException`.                                                                                                    | **PROTECTED** |
+| Mutations on `INACTIVE` item            | **Protected**: `assertActiveCatalogStatus()` blocks any stock mutation on suspended items.                                                                                                                 | **PROTECTED** |
+| Mutations on `ARCHIVED` item            | **Protected**: `assertActiveCatalogStatus()` blocks any stock mutation on terminal items.                                                                                                                  | **PROTECTED** |
+
+---
+
+## 11. Automated Test Suite Verification & Proof of Invariants
+
+The implementation is verified by 34 dedicated unit and integration tests across 3 suites:
+
+### 11.1 Test Suite Breakdown
+
+| Test Suite                                      | File Location                                                                                                                                                                                            | Tests | Verification Focus                                                                                                                                                                          |
+| :---------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Stock Mutation & Concurrency Invariants**     | [`inventory-stock-mutation-invariants.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/inventory-stock-mutation-invariants.spec.ts)                           |  18   | Deterministic 5 movement types, zero/negative rejection, exact depletion, catalog bypass audit, lost update race proof, overdraft race proof, competing sales/adjustments, atomic rollback. |
+| **Stock Mutation Atomicity & OCC Verification** | [`inventory-stock-mutation-concurrency.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/inventory-stock-mutation-concurrency.spec.ts)                         |  11   | Multi-operation sequence proofs, ledger reconciliation invariant ($\text{balance} = \sum \Delta$), concurrent consumer race simulation.                                                     |
+| **Prisma Repository Transactional Persistence** | [`prisma-inventory-item-persistence.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/infrastructure/persistence/prisma/repositories/prisma-inventory-item-persistence.spec.ts) |   5   | Single `$transaction` execution, OCC version checking in `updateMany`, `OptimisticLockException` trigger, rollback on movement insertion failure.                                           |
+
+### 11.2 Proof of Lost Update & Overdraft Prevention
+
+```
+[TEST PROVEN: Lost Update Race]
+Thread A (v1) reads QOH = 10 ───> Consumes 3 ───> Commits QOH = 7, v2
+Thread B (v1) reads QOH = 10 ───> Consumes 4 ───> Collides on OCC WHERE v1 (count=0) ───> Throws OptimisticLockException
+Thread B retries ───> Reads QOH = 7, v2 ───> Consumes 4 ───> Commits QOH = 3, v3
+Final Stock = 3.00 (Zero Lost Updates)
+
+[TEST PROVEN: Overdraft Race]
+Initial QOH = 5.00
+Thread A (v1) consumes 4.00 ───> Commits QOH = 1.00, v2
+Thread B (v1) attempts 4.00 ───> Fails OCC / Domain re-evaluation (1.00 < 4.00) ───> Throws InsufficientStockException
+Final Stock = 1.00 (NEVER -3.00, and NEVER 1.00 with 8.00 total consumed)
+```
