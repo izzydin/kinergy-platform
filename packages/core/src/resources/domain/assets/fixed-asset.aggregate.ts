@@ -417,6 +417,15 @@ export class FixedAsset implements AggregateRoot<AssetId> {
       return;
     }
 
+    if (
+      validatedStatus === AssetStatus.ACTIVE &&
+      this._condition === AssetCondition.OUT_OF_SERVICE
+    ) {
+      throw new InvalidAssetStateException(
+        `Cannot restore fixed asset '${this._assetTag}' to ACTIVE while condition is 'OUT_OF_SERVICE'. Perform repairs and update condition first.`,
+      );
+    }
+
     AssetLifecycleStateMachine.assertTransitionValid(this._status, validatedStatus);
 
     const priorStatus = this._status;
@@ -464,20 +473,16 @@ export class FixedAsset implements AggregateRoot<AssetId> {
    * Restore asset to ACTIVE status from UNDER_MAINTENANCE or DAMAGED.
    */
   public restoreToActive(actorId: string, reason: string): void {
-    if (this._condition === AssetCondition.OUT_OF_SERVICE) {
-      throw new InvalidAssetStateException(
-        `Cannot restore fixed asset '${this._assetTag}' to ACTIVE while condition is 'OUT_OF_SERVICE'. Perform repairs and update condition first.`,
-      );
-    }
     this.changeStatus(AssetStatus.ACTIVE, actorId, reason);
   }
 
   /**
    * Update physical condition rating.
-   * Invariant [AST-INV-1], [AST-INV-5].
+   * Invariant [AST-INV-1], [AST-INV-5], [AST-INV-8].
    */
   public updateCondition(newCondition: AssetCondition, actorId: string, reason?: string): void {
     this.assertNotSold('update condition of');
+    this.assertNotRetired('update condition of');
     this.assertActor(actorId);
     const validatedCondition = FixedAsset.validateCondition(newCondition);
 

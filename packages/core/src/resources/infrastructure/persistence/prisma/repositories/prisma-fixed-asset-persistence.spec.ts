@@ -91,4 +91,100 @@ describe('PrismaFixedAsset Persistence Mappers', () => {
     expect(reconstituted.historyEvents).toHaveLength(2);
     expect(reconstituted.maintenanceRecords).toHaveLength(1);
   });
+
+  describe('PrismaFixedAssetRepository Transaction Atomicity & Rollback', () => {
+    it('executes status mutation and history persistence inside a single atomic $transaction', async () => {
+      const asset = FixedAsset.create(
+        {
+          id: AssetId.create('b0000000-0000-4000-a000-000000000001'),
+          tenantId: 'tenant_kinergy_01',
+          assetTag: 'AST-GYM-101',
+          name: 'Dual Cable Cross',
+          category: AssetCategory.GYM_EQUIPMENT,
+          purchaseDate: new Date('2024-02-01T00:00:00Z'),
+          purchaseValue: Money.create(5400, 'USD'),
+          location,
+          condition: AssetCondition.GOOD,
+          status: AssetStatus.ACTIVE,
+        },
+        actorId,
+      );
+
+      asset.sendToMaintenance(actorId, 'Cable fraying observed');
+
+      const mockTx = {
+        fixedAsset: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        assetHistoryEvent: {
+          upsert: jest.fn().mockResolvedValue({}),
+        },
+        assetMaintenanceRecord: {
+          upsert: jest.fn().mockResolvedValue({}),
+        },
+      };
+
+      const mockPrisma = {
+        $transaction: jest.fn().mockImplementation(async (callback) => {
+          return callback(mockTx);
+        }),
+      };
+
+      const { PrismaFixedAssetRepository } =
+        await import('../repositories/prisma-fixed-asset.repository');
+      const repo = new PrismaFixedAssetRepository(
+        mockPrisma as unknown as import('@prisma/client').PrismaClient,
+      );
+
+      await repo.save(asset);
+
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockTx.fixedAsset.updateMany).toHaveBeenCalledTimes(1);
+      expect(mockTx.assetHistoryEvent.upsert).toHaveBeenCalledTimes(2); // Initial created + status changed
+    });
+
+    it('rolls back completely if history event insertion fails partway through transaction', async () => {
+      const asset = FixedAsset.create(
+        {
+          id: AssetId.create('c0000000-0000-4000-a000-000000000001'),
+          tenantId: 'tenant_kinergy_01',
+          assetTag: 'AST-GYM-102',
+          name: 'Smith Machine',
+          category: AssetCategory.GYM_EQUIPMENT,
+          purchaseDate: new Date('2024-02-01T00:00:00Z'),
+          purchaseValue: Money.create(4200, 'USD'),
+          location,
+          condition: AssetCondition.GOOD,
+          status: AssetStatus.ACTIVE,
+        },
+        actorId,
+      );
+
+      asset.retire(actorId, 'Decommissioned');
+
+      const mockTx = {
+        fixedAsset: {
+          updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        },
+        assetHistoryEvent: {
+          upsert: jest.fn().mockRejectedValue(new Error('DB History Disk Write Error')),
+        },
+      };
+
+      const mockPrisma = {
+        $transaction: jest.fn().mockImplementation(async (callback) => {
+          return callback(mockTx);
+        }),
+      };
+
+      const { PrismaFixedAssetRepository } =
+        await import('../repositories/prisma-fixed-asset.repository');
+      const repo = new PrismaFixedAssetRepository(
+        mockPrisma as unknown as import('@prisma/client').PrismaClient,
+      );
+
+      await expect(repo.save(asset)).rejects.toThrow('DB History Disk Write Error');
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+    });
+  });
 });

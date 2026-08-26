@@ -246,7 +246,9 @@ describe('Fixed Asset Business Operations & Invariants Suite', () => {
       expect(() => active.updateCondition(AssetCondition.GOOD, actorId)).not.toThrow();
       expect(() => underMaint.updateCondition(AssetCondition.GOOD, actorId)).not.toThrow();
       expect(() => damaged.updateCondition(AssetCondition.GOOD, actorId)).not.toThrow();
-      expect(() => retired.updateCondition(AssetCondition.GOOD, actorId)).not.toThrow();
+      expect(() => retired.updateCondition(AssetCondition.GOOD, actorId)).toThrow(
+        InvalidAssetStateException,
+      );
       expect(() => sold.updateCondition(AssetCondition.GOOD, actorId)).toThrow(
         InvalidAssetStateException,
       );

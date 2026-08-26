@@ -193,3 +193,27 @@ Every possible state pair evaluated deterministically:
 - **[ADR-0085: Fixed Asset Operational Lifecycle State Machine & Terminal Disposal Policy](./adr/0085-fixed-asset-operational-lifecycle-state-machine-and-terminal-disposal-policy.md)**: Governs all lifecycle states, terminal locks, and transition rules.
 - **[ADR-0090: Fixed Asset Classification, Lifecycle State, & Condition Rating Strategy](./adr/0090-fixed-asset-classification-lifecycle-state-and-condition-rating-strategy.md)**: Governs condition ratings and category metadata.
 - **Decision**: No new ADR required; existing ADR-0085 and ADR-0090 completely cover the formal state machine architecture.
+
+---
+
+## 10. Direct Mutation & Bypass Vector Audit
+
+The codebase was audited to verify that no direct mutation or repository-level bypass vectors exist:
+
+| Potential Bypass Vector                                                           | Architectural Safeguard & Enforcement                                                                                               |    Result     |
+| :-------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------- | :-----------: |
+| **Direct Field Assignment** (`asset.status = ...`)                                | Private encapsulated fields (`_status`, `_condition`); no public setters on `FixedAsset`.                                           | **PROTECTED** |
+| **Bypassing Serviceability Guard** (`changeStatus(ACTIVE)` when `OUT_OF_SERVICE`) | Invariant assertion inside `changeStatus` rejects transition if condition is `OUT_OF_SERVICE`.                                      | **PROTECTED** |
+| **Direct Assignment to `SOLD`**                                                   | `changeStatus(SOLD)` rejected; liquidation requires explicit `sell(saleAmount, actorId, reason)`.                                   | **PROTECTED** |
+| **Mutations on `RETIRED` Asset**                                                  | Invariant assertions (`assertNotRetired`) protect `transferLocation`, `recordMaintenance`, and `updateCondition`.                   | **PROTECTED** |
+| **Generic Repository Updates**                                                    | `FixedAssetRepositoryInterface` exposes only `save(asset: FixedAsset)`, ensuring all persistence originates from aggregate roots.   | **PROTECTED** |
+| **Partial Transaction Failures**                                                  | `PrismaFixedAssetRepository.save()` executes aggregate update, history logging, and maintenance records in a single `$transaction`. | **PROTECTED** |
+
+---
+
+## 11. Automated Test Suite Verification
+
+1. **Unit & Invariant Suite**: [`packages/core/src/resources/domain/__tests__/asset-lifecycle-transition-enforcement.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/asset-lifecycle-transition-enforcement.spec.ts) (31 tests).
+2. **State Machine Graph Suite**: [`packages/core/src/resources/domain/__tests__/asset-lifecycle-state-machine.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/asset-lifecycle-state-machine.spec.ts) (27 tests).
+3. **Business Operations Matrix Suite**: [`packages/core/src/resources/domain/__tests__/asset-business-operations-invariants.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/asset-business-operations-invariants.spec.ts) (15 tests).
+4. **Persistence & Atomicity Rollback Suite**: [`packages/core/src/resources/infrastructure/persistence/prisma/repositories/prisma-fixed-asset-persistence.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/infrastructure/persistence/prisma/repositories/prisma-fixed-asset-persistence.spec.ts) (3 tests).
