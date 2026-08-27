@@ -67,6 +67,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Resources Persistence Model Specification](./persistence-model.md)**           | Detailed domain-to-persistence mapping matrix, relational topology, immutability, and check constraints               | Approved & Active     |
 | **[Persistence Decisions & Precision](./persistence-decisions.md)**               | Explicit precision (Scale 2 Decimal), enum strategy, timestamps, timezone, and decoupled actor audit metadata         | Approved & Active     |
 | **[Persistence Integrity & Relational Architecture](./persistence-integrity.md)** | Foreign key actions, unique constraints, index justifications, and database invariants                                | Approved & Active     |
+| **[Persistence Boundaries & Isolation](./persistence-boundaries.md)**             | Repository contracts, Prisma isolation, mapping strategy, transaction participation, and bypass prevention            | Approved & Active     |
 
 ---
 
