@@ -68,6 +68,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Persistence Decisions & Precision](./persistence-decisions.md)**               | Explicit precision (Scale 2 Decimal), enum strategy, timestamps, timezone, and decoupled actor audit metadata         | Approved & Active     |
 | **[Persistence Integrity & Relational Architecture](./persistence-integrity.md)** | Foreign key actions, unique constraints, index justifications, and database invariants                                | Approved & Active     |
 | **[Persistence Boundaries & Isolation](./persistence-boundaries.md)**             | Repository contracts, Prisma isolation, mapping strategy, transaction participation, and bypass prevention            | Approved & Active     |
+| **[Persistence Migration & Validation](./persistence-migration-validation.md)**   | Clean database validation, schema synchronization, CHECK constraints, and deployment review                           | Approved & Active     |
 
 ---
 
