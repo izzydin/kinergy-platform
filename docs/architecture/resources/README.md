@@ -63,6 +63,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Milestone 6.2 Quality Gate](./milestone-6.2-quality-gate.md)**           | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.3                          | **Approved (100%)**   |
 | **[Milestone 6.3 Consistency Review](./phase-6.3-review.md)**               | State machines & invariants consistency review, concurrency analysis, and ARB authorization                           | Complete / Verified   |
 | **[Milestone 6.3 Quality Gate](./milestone-6.3-quality-gate.md)**           | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.4                          | **Approved (100%)**   |
+| **[Persistence Layer Baseline Analysis](./persistence-baseline.md)**        | Prisma schema conventions, PostgreSQL constraints, OCC transactions, and domain mapping baseline                      | Approved & Active     |
 
 ---
 
