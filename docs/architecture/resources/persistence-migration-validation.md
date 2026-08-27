@@ -118,3 +118,28 @@ ALTER TABLE "asset_maintenance_records" ADD CONSTRAINT "chk_asset_maintenance_no
 - **Forward-Only Strategy**: Consistent with Kinergy's architectural standard for production migrations, database migrations are forward-only.
 - **CI/CD Deployment Command**: Production deployments execute `pnpm exec prisma migrate deploy`, applying unapplied migrations idempotently in sequence.
 - **Zero-Downtime Compatibility**: All added tables, columns, and enums are additive and non-breaking for existing active sessions.
+
+---
+
+## 7. Prisma Generation, Type Validation & Compatibility Findings
+
+### 7.1 Prisma Generation
+
+- **Validation Command**: `pnpm exec prisma validate`
+  - Output: `The schema at prisma\schema.prisma is valid 🚀`
+- **Generation Command**: `pnpm prisma:generate` / `pnpm exec prisma generate`
+  - Output: `✔ Generated Prisma Client (v6.19.3)` in 167ms.
+  - Generated client types reside in `@prisma/client` and are immediately resolvable by TypeScript.
+
+### 7.2 Type Validation & Boundary Enforcement
+
+- **TypeScript Typecheck**: `pnpm typecheck` (`tsc --noEmit -p tsconfig.base.json`) executed with **0 errors**.
+- **Domain Layer Purity**:
+  - `packages/core/src/resources/domain/` contains **0** imports of `@prisma/client` or `Prisma.Decimal`.
+  - Reconstitution and persistence serialization are isolated entirely within `packages/core/src/resources/infrastructure/persistence/prisma/mappers/`.
+- **Decimal Type Handling**:
+  - Monetary values and quantities are explicitly converted between Domain Value Objects (`Money`, `Quantity`) and `Prisma.Decimal` instances.
+  - Zero floating-point arithmetic leakage or precision drift across repository boundaries.
+- **Relation & Stale Type Review**:
+  - All relation queries (`include: { movements: true }`, `include: { historyEvents: true, maintenanceRecords: true }`) are strongly typed without `any` bypasses.
+  - Zero stale fields or broken relations detected across monorepo workspaces.
