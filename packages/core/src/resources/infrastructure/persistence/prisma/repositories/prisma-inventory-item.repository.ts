@@ -157,6 +157,39 @@ export class PrismaInventoryItemRepository implements InventoryItemRepository {
 
   async findMany(filter?: FindInventoryItemsFilter): Promise<InventoryItem[]> {
     const where = this.buildWhereClause(filter);
+    const orderBy = this.buildOrderByClause(filter);
+
+    // If stockStatus or lowStockOnly requires cross-column evaluation (LOW_STOCK or IN_STOCK), fetch and filter
+    const needsCrossColumnFilter =
+      filter?.stockStatus === 'LOW_STOCK' ||
+      filter?.stockStatus === 'IN_STOCK' ||
+      filter?.lowStockOnly;
+
+    if (needsCrossColumnFilter) {
+      const list = await this.prisma.inventoryItem.findMany({
+        where,
+        include: {
+          movements: {
+            orderBy: { recordedAt: 'asc' },
+          },
+        },
+        orderBy,
+      });
+
+      let domainItems = list.map(PrismaInventoryItemMapper.toDomain);
+
+      if (filter?.stockStatus === 'LOW_STOCK') {
+        domainItems = domainItems.filter((item) => item.isLowStock() && !item.isOutOfStock());
+      } else if (filter?.stockStatus === 'IN_STOCK') {
+        domainItems = domainItems.filter((item) => !item.isLowStock());
+      } else if (filter?.lowStockOnly) {
+        domainItems = domainItems.filter((item) => item.isLowStock());
+      }
+
+      const offset = filter?.offset ?? 0;
+      const limit = filter?.limit ?? domainItems.length;
+      return domainItems.slice(offset, offset + limit);
+    }
 
     const list = await this.prisma.inventoryItem.findMany({
       where,
@@ -165,7 +198,7 @@ export class PrismaInventoryItemRepository implements InventoryItemRepository {
           orderBy: { recordedAt: 'asc' },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy,
       take: filter?.limit,
       skip: filter?.offset,
     });
@@ -174,6 +207,16 @@ export class PrismaInventoryItemRepository implements InventoryItemRepository {
   }
 
   async count(filter?: FindInventoryItemsFilter): Promise<number> {
+    const needsCrossColumnFilter =
+      filter?.stockStatus === 'LOW_STOCK' ||
+      filter?.stockStatus === 'IN_STOCK' ||
+      filter?.lowStockOnly;
+
+    if (needsCrossColumnFilter) {
+      const items = await this.findMany({ ...filter, limit: undefined, offset: undefined });
+      return items.length;
+    }
+
     const where = this.buildWhereClause(filter);
     return this.prisma.inventoryItem.count({ where });
   }
@@ -184,29 +227,77 @@ export class PrismaInventoryItemRepository implements InventoryItemRepository {
     });
   }
 
+  private buildOrderByClause(
+    filter?: FindInventoryItemsFilter,
+  ): Prisma.InventoryItemOrderByWithRelationInput[] {
+    const sortOrder: Prisma.SortOrder = filter?.sortOrder === 'desc' ? 'desc' : 'asc';
+    const sortBy = filter?.sortBy ?? 'name';
+
+    const orderMap: Record<string, Prisma.InventoryItemOrderByWithRelationInput> = {
+      name: { name: sortOrder },
+      sku: { sku: sortOrder },
+      category: { category: sortOrder },
+      quantityOnHand: { quantityOnHand: sortOrder },
+      sellingPrice: { sellingPriceAmount: sortOrder },
+      createdAt: { createdAt: sortOrder },
+      updatedAt: { updatedAt: sortOrder },
+    };
+
+    const primaryOrder = orderMap[sortBy] || { name: 'asc' };
+    return [primaryOrder, { id: 'asc' }];
+  }
+
   private buildWhereClause(filter?: FindInventoryItemsFilter): Prisma.InventoryItemWhereInput {
     const where: Prisma.InventoryItemWhereInput = {};
 
     if (!filter) {
+      where.status = {
+        in: [PrismaInventoryItemStatus.ACTIVE, PrismaInventoryItemStatus.INACTIVE],
+      };
       return where;
     }
 
     if (filter.tenantId) {
       where.tenantId = filter.tenantId;
     }
+
     if (filter.category) {
-      where.category = filter.category as unknown as PrismaInventoryCategory;
+      if (Array.isArray(filter.category)) {
+        where.category = {
+          in: filter.category as unknown as PrismaInventoryCategory[],
+        };
+      } else {
+        where.category = filter.category as unknown as PrismaInventoryCategory;
+      }
     }
+
     if (filter.status) {
-      where.status = filter.status as unknown as PrismaInventoryItemStatus;
+      if (Array.isArray(filter.status)) {
+        where.status = {
+          in: filter.status as unknown as PrismaInventoryItemStatus[],
+        };
+      } else {
+        where.status = filter.status as unknown as PrismaInventoryItemStatus;
+      }
+    } else if (!filter.includeArchived) {
+      where.status = {
+        in: [PrismaInventoryItemStatus.ACTIVE, PrismaInventoryItemStatus.INACTIVE],
+      };
     }
+
+    if (filter.stockStatus === 'OUT_OF_STOCK') {
+      where.quantityOnHand = { equals: 0 };
+    }
+
     if (filter.search) {
-      const query = filter.search.trim();
-      where.OR = [
-        { name: { contains: query, mode: 'insensitive' } },
-        { sku: { contains: query, mode: 'insensitive' } },
-        { description: { contains: query, mode: 'insensitive' } },
-      ];
+      const query = filter.search.trim().slice(0, 100);
+      if (query.length > 0) {
+        where.OR = [
+          { name: { contains: query, mode: 'insensitive' } },
+          { sku: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+        ];
+      }
     }
 
     return where;

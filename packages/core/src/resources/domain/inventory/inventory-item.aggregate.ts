@@ -684,7 +684,16 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
       this._category = InventoryItem.validateCategory(props.category);
     }
     if (props.unit !== undefined) {
-      this._unit = InventoryItem.validateUnit(props.unit);
+      const validatedUnit = InventoryItem.validateUnit(props.unit);
+      if (
+        validatedUnit !== this._unit &&
+        (this._quantityOnHand.isPositive() || this._movements.length > 0)
+      ) {
+        throw new InvalidInventoryItemStateException(
+          'Cannot change unit of measure for a product with positive stock on hand or existing inventory movements.',
+        );
+      }
+      this._unit = validatedUnit;
     }
     if (props.minimumStock !== undefined) {
       this._minimumStock =
@@ -770,10 +779,16 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
 
   /**
    * Permanently archives an item (terminal read-only state).
+   * Invariant: Requires zero stock on hand (quantityOnHand == 0.00).
    */
   public archive(actorId: string, reason?: string): void {
     if (this._status === InventoryItemStatus.ARCHIVED) {
       return;
+    }
+    if (this._quantityOnHand.isPositive()) {
+      throw new InvalidInventoryItemStateException(
+        'Cannot archive an inventory item with remaining stock on hand. Stock must be zero.',
+      );
     }
 
     const previousStatus = this._status;

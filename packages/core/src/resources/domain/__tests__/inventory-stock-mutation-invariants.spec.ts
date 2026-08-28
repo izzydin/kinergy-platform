@@ -371,11 +371,20 @@ describe('Consumable Inventory Stock Mutation & Concurrency Invariants (Phase 6.
         item.receiveStock({ quantity: 5, actorId, reason: 'Illegal inactive restock' });
       }).toThrow(InvalidInventoryItemStateException);
 
-      item.archive(actorId, 'Discontinued permanently');
-      expect(item.status).toBe(InventoryItemStatus.ARCHIVED);
+      const archivedItem = InventoryItem.create({
+        sku: 'STATUS-ARCHIVE-01',
+        name: 'Archived Item',
+        initialStock: 0,
+        recordedByUserId: actorId,
+      });
+      archivedItem.archive(actorId, 'Discontinued permanently');
+      expect(archivedItem.status).toBe(InventoryItemStatus.ARCHIVED);
 
       expect(() => {
-        item.sellStock({ quantity: 1, actorId, reason: 'Illegal archived sale' });
+        archivedItem.sellStock({ quantity: 1, actorId, reason: 'Illegal archived sale' });
+      }).toThrow(InvalidInventoryItemStateException);
+      expect(() => {
+        archivedItem.receiveStock({ quantity: 5, actorId, reason: 'Illegal archived restock' });
       }).toThrow(InvalidInventoryItemStateException);
     });
   });

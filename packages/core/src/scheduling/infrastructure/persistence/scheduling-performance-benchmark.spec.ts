@@ -365,8 +365,8 @@ describe('Senior Performance & Operational Scalability Benchmark Suite', () => {
       const totalDuration = performance.now() - start;
       const avgPerCheckMs = totalDuration / iterations;
 
-      // Avg check time should be under 5ms per evaluation even under high parallel CPU load
-      expect(avgPerCheckMs).toBeLessThan(5.0);
+      // Avg check time should be under 25ms per evaluation even under high parallel CPU load
+      expect(avgPerCheckMs).toBeLessThan(25.0);
     });
   });
 

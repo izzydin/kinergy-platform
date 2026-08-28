@@ -49,4 +49,12 @@ export class ApplicationResult<T, E = string> {
     }
     return this._error;
   }
+
+  public get value(): T {
+    return this.getValue();
+  }
+
+  public get error(): E {
+    return this.getError();
+  }
 }

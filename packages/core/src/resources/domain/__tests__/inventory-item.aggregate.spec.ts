@@ -407,11 +407,11 @@ describe('Phase 6.1: Consumable Inventory Aggregate Root (InventoryItem)', () =>
       expect(item.quantityOnHand.value).toBe(9);
     });
 
-    it('permanently archives an item and forbids future mutations', () => {
+    it('permanently archives an item with zero stock and forbids future mutations', () => {
       const item = InventoryItem.create({
         sku: 'MED-PAD-01',
         name: 'Electrode Pads 4pk',
-        initialStock: 10,
+        initialStock: 0,
         recordedByUserId: actorId,
       });
 
@@ -421,6 +421,19 @@ describe('Phase 6.1: Consumable Inventory Aggregate Root (InventoryItem)', () =>
       expect(() => item.activate(actorId)).toThrow(InvalidInventoryItemStateException);
       expect(() => item.deactivate(actorId)).toThrow(InvalidInventoryItemStateException);
       expect(() => item.updateCatalogDetails({ name: 'New Name' })).toThrow(
+        InvalidInventoryItemStateException,
+      );
+    });
+
+    it('forbids archiving an item when positive stock remains on hand', () => {
+      const item = InventoryItem.create({
+        sku: 'MED-PAD-02',
+        name: 'Electrode Pads 4pk With Stock',
+        initialStock: 10,
+        recordedByUserId: actorId,
+      });
+
+      expect(() => item.archive(actorId, 'Premature archival attempt')).toThrow(
         InvalidInventoryItemStateException,
       );
     });
