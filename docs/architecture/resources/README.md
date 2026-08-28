@@ -63,6 +63,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Milestone 6.2 Quality Gate](./milestone-6.2-quality-gate.md)**                 | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.3                          | **Approved (100%)**   |
 | **[Milestone 6.3 Consistency Review](./phase-6.3-review.md)**                     | State machines & invariants consistency review, concurrency analysis, and ARB authorization                           | Complete / Verified   |
 | **[Milestone 6.3 Quality Gate](./milestone-6.3-quality-gate.md)**                 | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.4                          | **Approved (100%)**   |
+| **[Milestone 6.4 Quality Gate](./milestone-6.4-quality-gate.md)**                 | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.5                          | **Approved (100%)**   |
 | **[Persistence Layer Baseline Analysis](./persistence-baseline.md)**              | Prisma schema conventions, PostgreSQL constraints, OCC transactions, and domain mapping baseline                      | Approved & Active     |
 | **[Resources Persistence Model Specification](./persistence-model.md)**           | Detailed domain-to-persistence mapping matrix, relational topology, immutability, and check constraints               | Approved & Active     |
 | **[Persistence Decisions & Precision](./persistence-decisions.md)**               | Explicit precision (Scale 2 Decimal), enum strategy, timestamps, timezone, and decoupled actor audit metadata         | Approved & Active     |
@@ -70,6 +71,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Persistence Boundaries & Isolation](./persistence-boundaries.md)**             | Repository contracts, Prisma isolation, mapping strategy, transaction participation, and bypass prevention            | Approved & Active     |
 | **[Persistence Migration & Validation](./persistence-migration-validation.md)**   | Clean database validation, schema synchronization, CHECK constraints, and deployment review                           | Approved & Active     |
 | **[Persistence Testing Specification](./persistence-testing.md)**                 | Precision verification, relational integrity, historical ledger immutability, and atomic unit-of-work tests           | Approved & Active     |
+| **[Inventory Application Layer Baseline](./inventory-application-baseline.md)**   | CQRS commands, queries, handler contracts, authorization, pagination, and application workflow standard               | Approved & Active     |
 
 ---
 
@@ -77,32 +79,33 @@ The phase is partitioned into two distinct sub-domains:
 
 Architectural Decision Records governing Phase 6:
 
-| ADR ID                                                                                                     | Title                                                                      | Status   | Date       |
-| :--------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------- | :------- | :--------- |
-| **[ADR-0081](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md)**                    | Resources Bounded Context Topology & Domain Segregation                    | Accepted | 2026-08-25 |
-| **[ADR-0082](./adr/0082-fixed-asset-domain-modeling-and-complete-segregation-from-inventory.md)**          | Fixed Asset Domain Modeling & Complete Segregation from Inventory          | Accepted | 2026-08-25 |
-| **[ADR-0083](./adr/0083-inventory-movement-ledger-and-materialized-stock-mutation-strategy.md)**           | Inventory Movement Ledger & Materialized Stock Mutation Strategy           | Accepted | 2026-08-25 |
-| **[ADR-0084](./adr/0084-inventory-concurrency-control-and-race-condition-prevention.md)**                  | Inventory Concurrency Control & Race Condition Prevention                  | Accepted | 2026-08-25 |
-| **[ADR-0085](./adr/0085-fixed-asset-operational-lifecycle-state-machine-and-terminal-disposal-policy.md)** | Fixed Asset Operational Lifecycle State Machine & Terminal Disposal Policy | Accepted | 2026-08-25 |
-| **[ADR-0086](./adr/0086-fixed-asset-maintenance-history-and-service-tracking-model.md)**                   | Fixed Asset Maintenance History & Service Tracking Model                   | Accepted | 2026-08-25 |
-| **[ADR-0087](./adr/0087-resource-valuation-and-on-demand-asset-depreciation-strategy.md)**                 | Resource Valuation & On-Demand Asset Depreciation Strategy                 | Accepted | 2026-08-25 |
-| **[ADR-0088](./adr/0088-inventory-category-classification-strategy.md)**                                   | Inventory Category Classification Strategy                                 | Accepted | 2026-08-25 |
-| **[ADR-0089](./adr/0089-inventory-monetary-quantity-and-unit-precision-semantics.md)**                     | Inventory Monetary, Quantity, and Unit Precision Semantics                 | Accepted | 2026-08-25 |
-| **[ADR-0090](./adr/0090-fixed-asset-classification-lifecycle-state-and-condition-rating-strategy.md)**     | Fixed Asset Classification, Lifecycle State, & Condition Rating Strategy   | Accepted | 2026-08-26 |
+| ADR ID                                                                                                              | Title                                                                                | Status   | Date       |
+| :------------------------------------------------------------------------------------------------------------------ | :----------------------------------------------------------------------------------- | :------- | :--------- |
+| **[ADR-0081](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md)**                             | Resources Bounded Context Topology & Domain Segregation                              | Accepted | 2026-08-25 |
+| **[ADR-0082](./adr/0082-fixed-asset-domain-modeling-and-complete-segregation-from-inventory.md)**                   | Fixed Asset Domain Modeling & Complete Segregation from Inventory                    | Accepted | 2026-08-25 |
+| **[ADR-0083](./adr/0083-inventory-movement-ledger-and-materialized-stock-mutation-strategy.md)**                    | Inventory Movement Ledger & Materialized Stock Mutation Strategy                     | Accepted | 2026-08-25 |
+| **[ADR-0084](./adr/0084-inventory-concurrency-control-and-race-condition-prevention.md)**                           | Inventory Concurrency Control & Race Condition Prevention                            | Accepted | 2026-08-25 |
+| **[ADR-0085](./adr/0085-fixed-asset-operational-lifecycle-state-machine-and-terminal-disposal-policy.md)**          | Fixed Asset Operational Lifecycle State Machine & Terminal Disposal Policy           | Accepted | 2026-08-25 |
+| **[ADR-0086](./adr/0086-fixed-asset-maintenance-history-and-service-tracking-model.md)**                            | Fixed Asset Maintenance History & Service Tracking Model                             | Accepted | 2026-08-25 |
+| **[ADR-0087](./adr/0087-resource-valuation-and-on-demand-asset-depreciation-strategy.md)**                          | Resource Valuation & On-Demand Asset Depreciation Strategy                           | Accepted | 2026-08-25 |
+| **[ADR-0088](./adr/0088-inventory-category-classification-strategy.md)**                                            | Inventory Category Classification Strategy                                           | Accepted | 2026-08-25 |
+| **[ADR-0089](./adr/0089-inventory-monetary-quantity-and-unit-precision-semantics.md)**                              | Inventory Monetary, Quantity, and Unit Precision Semantics                           | Accepted | 2026-08-25 |
+| **[ADR-0090](./adr/0090-fixed-asset-classification-lifecycle-state-and-condition-rating-strategy.md)**              | Fixed Asset Classification, Lifecycle State, & Condition Rating Strategy             | Accepted | 2026-08-26 |
+| **[ADR-0091](./adr/0091-resources-persistence-architecture-postgresql-constraints-and-atomic-ledger-isolation.md)** | Resources Persistence Architecture, PostgreSQL Constraints & Atomic Ledger Isolation | Accepted | 2026-08-27 |
 
 ---
 
 ## 6. Status of the Architectural Baseline
 
-- **Current Milestone**: Phase 6.2 — Fixed Asset Domain Model.
-- **Status**: **SPECIFICATION APPROVED & ACTIVE**.
-- **Gate Result**: **APPROVED** (See [Milestone 6.1 Quality Gate](./milestone-6.1-quality-gate.md)).
-- **Next Milestone**: Phase 6.3 — Application Services, Use Cases & CQRS Handlers (REST Endpoints & Frontend UI in Phase 6.4+).
+- **Current Milestone**: Phase 6.4 — Resources Persistence Layer.
+- **Status**: **APPROVED & VALIDATED**.
+- **Gate Result**: **APPROVED** (See [Milestone 6.4 Quality Gate](./milestone-6.4-quality-gate.md)).
+- **Next Milestone**: Phase 6.5 — Application Services & CQRS Handlers.
 
 > [!NOTE]
 >
 > ### ARCHITECTURAL GOVERNANCE STATUS
 >
-> **Milestone 6.0 and Milestone 6.1 have been formally reviewed and APPROVED by the Architecture Review Board.**
+> **Milestones 6.0, 6.1, 6.2, 6.3, and 6.4 have been formally reviewed and APPROVED by the Architecture Review Board.**
 >
-> The team is authorized to proceed with Phase 6.2 implementation (Fixed Asset Domain kernel, aggregate invariants, child entities, and test suites) in accordance with baseline design documents and ADRs.
+> The team is authorized to proceed with Phase 6.5 implementation (Application Services, Commands, Queries, and CQRS Handlers).
