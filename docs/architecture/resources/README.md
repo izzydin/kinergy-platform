@@ -73,6 +73,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Persistence Testing Specification](./persistence-testing.md)**                 | Precision verification, relational integrity, historical ledger immutability, and atomic unit-of-work tests           | Approved & Active     |
 | **[Inventory Application Layer Baseline](./inventory-application-baseline.md)**   | CQRS commands, queries, handler contracts, authorization, pagination, and application workflow standard               | Approved & Active     |
 | **[Inventory Use Case Contracts](./inventory-use-cases.md)**                      | Detailed contracts, authorization rules, invariants, and failure modes for all inventory use cases                    | Approved & Active     |
+| **[Inventory Query & Filtering Contract](./inventory-query-contract.md)**         | Multi-criteria filtering, search semantics, non-overlapping stock statuses, sorting whitelist, and test matrix        | Approved & Active     |
 
 ---
 
