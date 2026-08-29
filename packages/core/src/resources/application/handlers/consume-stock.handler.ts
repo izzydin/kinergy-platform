@@ -31,7 +31,12 @@ export class ConsumeStockHandler implements CommandHandler<
         'A valid reason (minimum 3 characters) is required for stock consumption.',
       );
     }
-    if (typeof input.quantity !== 'number' || isNaN(input.quantity) || input.quantity <= 0) {
+    if (
+      typeof input.quantity !== 'number' ||
+      isNaN(input.quantity) ||
+      !isFinite(input.quantity) ||
+      input.quantity <= 0
+    ) {
       return ApplicationResult.fail(
         'Consumed quantity must be a positive number greater than zero.',
       );
@@ -40,6 +45,7 @@ export class ConsumeStockHandler implements CommandHandler<
     return this.orchestrator.executeMutation({
       itemId: input.itemId,
       actorId: input.actorId,
+      tenantId: input.tenantId,
       mutate: (item) =>
         item.consumeStock({
           quantity: input.quantity,

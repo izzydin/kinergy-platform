@@ -31,13 +31,19 @@ export class SellStockHandler implements CommandHandler<
         'A valid reason (minimum 3 characters) is required for retail sale.',
       );
     }
-    if (typeof input.quantity !== 'number' || isNaN(input.quantity) || input.quantity <= 0) {
+    if (
+      typeof input.quantity !== 'number' ||
+      isNaN(input.quantity) ||
+      !isFinite(input.quantity) ||
+      input.quantity <= 0
+    ) {
       return ApplicationResult.fail('Sale quantity must be a positive number greater than zero.');
     }
 
     return this.orchestrator.executeMutation({
       itemId: input.itemId,
       actorId: input.actorId,
+      tenantId: input.tenantId,
       mutate: (item) =>
         item.sellStock({
           quantity: input.quantity,

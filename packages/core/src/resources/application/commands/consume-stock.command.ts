@@ -4,6 +4,7 @@ export interface ConsumeStockInput {
   referenceId?: string; // Optional TreatmentSession.id or clinical correlation
   reason: string;
   actorId: string;
+  tenantId?: string;
 }
 
 export class ConsumeStockCommand {

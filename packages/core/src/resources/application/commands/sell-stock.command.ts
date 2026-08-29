@@ -5,6 +5,7 @@ export interface SellStockInput {
   referenceId?: string;
   reason: string;
   actorId: string;
+  tenantId?: string;
 }
 
 export class SellStockCommand {

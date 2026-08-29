@@ -227,7 +227,50 @@ If any error occurs during the operation:
 
 ---
 
-## 9. Handler & Orchestrator Implementation Matrix
+## 9. Operation Workflow Specifics & Pricing Semantics
+
+### 9.1 Record Purchase (`ReceiveStockHandler`)
+
+- **Intent**: Ingestion of physical supplies from distributors, vendors, or manufacturers.
+- **Stock Delta**: Positive ($+q$).
+- **Pricing & Valuation**: Captures procurement invoice `unitCost` on the resulting `StockMovement` record. Does **not** silently overwrite the catalog's baseline `purchaseCost` unless an explicit catalog update command is executed.
+- **Provenance**: Captures vendor PO numbers or delivery batch codes via `referenceId`.
+
+### 9.2 Record Sale (`SellStockHandler`)
+
+- **Intent**: Point-of-sale customer and patient retail purchases.
+- **Stock Delta**: Negative ($-q$).
+- **Pricing & Revenue**: Snapshots realized `sellingPrice` on the movement record.
+- **Invariant Enforcement**: Rejects any attempt to sell more than `quantityOnHand` with `InsufficientStockException`.
+- **Provenance**: Captures POS receipt or invoice numbers via `referenceId`.
+
+### 9.3 Record Consumption (`ConsumeStockHandler`)
+
+- **Intent**: Internal operational usage during kinesiology, physiotherapy, or gym facility services (e.g. kinesiology tape, sanitizing sprays, resistance bands used during clinical sessions).
+- **Distinction from Sale**: Does not involve commercial revenue, customer invoicing, or retail pricing.
+- **Context & Clinical Correlation**: Requires mandatory descriptive reason (minimum 3 characters) and supports linking directly to `TreatmentSession.id` via `referenceId`.
+- **Invariant Enforcement**: Rejects any attempt to consume more than `quantityOnHand`.
+
+---
+
+## 10. Idempotency Evaluation & Natural Reference Tokens
+
+### 10.1 Architectural Pattern Review
+
+In accordance with Kinergy's bounded context idempotency patterns (e.g. ADR 0066/0067 for Gym Check-in Anti-Passback and Scheduling Booking Tokens):
+
+- Stock mutations are transactional state transitions protected by Optimistic Concurrency Control (`version`).
+- Each command supports optional natural business correlation tokens (`referenceId`), such as Purchase Order numbers (`PO-2026-XXXX`), Sales Invoices (`POS-REC-XXXX`), or Clinical Treatment Sessions (`TX-SESSION-XXXX`).
+
+### 10.2 Milestone Decision & Risk Assessment
+
+- **Current Standard**: The application relies on natural `referenceId` tracking, OCC version checks, and actor audit logging.
+- **No Speculative Infrastructure**: We do not introduce a dedicated synthetic idempotency key cache/table solely for Phase 6.5, adhering strictly to Kinergy's design principles.
+- **Operational Risk & Mitigation**: Duplicate network submissions with distinct versions could potentially execute twice if the client resubmits after reloading state. The natural `referenceId` and immutable ledger allow full audit trace and programmatic reconciliation if client-side retries occur.
+
+---
+
+## 11. Handler & Orchestrator Implementation Matrix
 
 | Operation             | Command                 | Orchestrator Method Invoked      | Domain Aggregate Method    |
 | :-------------------- | :---------------------- | :------------------------------- | :------------------------- |

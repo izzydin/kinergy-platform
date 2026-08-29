@@ -31,7 +31,12 @@ export class ReceiveStockHandler implements CommandHandler<
         'A valid reason (minimum 3 characters) is required for receiving stock.',
       );
     }
-    if (typeof input.quantity !== 'number' || isNaN(input.quantity) || input.quantity <= 0) {
+    if (
+      typeof input.quantity !== 'number' ||
+      isNaN(input.quantity) ||
+      !isFinite(input.quantity) ||
+      input.quantity <= 0
+    ) {
       return ApplicationResult.fail(
         'Received quantity must be a positive number greater than zero.',
       );
@@ -40,6 +45,7 @@ export class ReceiveStockHandler implements CommandHandler<
     return this.orchestrator.executeMutation({
       itemId: input.itemId,
       actorId: input.actorId,
+      tenantId: input.tenantId,
       mutate: (item) =>
         item.receiveStock({
           quantity: input.quantity,

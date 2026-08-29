@@ -3,6 +3,7 @@ export interface AdjustStockInInput {
   quantity: number;
   reason: string;
   actorId: string;
+  tenantId?: string;
 }
 
 export class AdjustStockInCommand {

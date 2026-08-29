@@ -34,6 +34,7 @@ export class CorrectStockHandler implements CommandHandler<
     if (
       typeof input.targetCount !== 'number' ||
       isNaN(input.targetCount) ||
+      !isFinite(input.targetCount) ||
       input.targetCount < 0
     ) {
       return ApplicationResult.fail('Target stock count must be a non-negative number.');
@@ -42,6 +43,7 @@ export class CorrectStockHandler implements CommandHandler<
     return this.orchestrator.executeMutation({
       itemId: input.itemId,
       actorId: input.actorId,
+      tenantId: input.tenantId,
       mutate: (item) =>
         item.correctStock({
           targetCount: input.targetCount,
