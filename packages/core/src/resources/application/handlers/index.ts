@@ -10,3 +10,5 @@ export * from './sell-stock.handler';
 export * from './consume-stock.handler';
 export * from './adjust-stock-in.handler';
 export * from './adjust-stock-out.handler';
+export * from './correct-stock.handler';
+export * from './scrap-stock.handler';

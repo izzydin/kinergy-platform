@@ -1,17 +1,17 @@
 import { CommandHandler } from '../shared/command-handler.interface';
 import { ApplicationResult } from '../shared/application-result';
-import { AdjustStockInCommand } from '../commands/adjust-stock-in.command';
+import { CorrectStockCommand } from '../commands/correct-stock.command';
 import { StockMutationResultDTO } from '../dtos/stock-mutation-result.dto';
 import { InventoryItemRepository } from '../../domain/inventory/repositories/inventory-item.repository.interface';
 import { ResourcesEventPublisherPort } from '../ports/resources-event-publisher.port';
 import { StockOperationOrchestrator } from '../shared/stock-operation-orchestrator';
 
 /**
- * Use case handler orchestrating positive inventory adjustments (audit counts, found stock).
- * Operation: ADJUSTMENT_IN.
+ * Use case handler orchestrating direct stock count reconciliation (inventory audit counts).
+ * Operation: CORRECTION.
  */
-export class AdjustStockInHandler implements CommandHandler<
-  AdjustStockInCommand,
+export class CorrectStockHandler implements CommandHandler<
+  CorrectStockCommand,
   ApplicationResult<StockMutationResultDTO>
 > {
   private readonly orchestrator: StockOperationOrchestrator;
@@ -21,28 +21,30 @@ export class AdjustStockInHandler implements CommandHandler<
   }
 
   public async execute(
-    command: AdjustStockInCommand,
+    command: CorrectStockCommand,
   ): Promise<ApplicationResult<StockMutationResultDTO>> {
     const { input } = command;
 
     const reason = input.reason?.trim();
     if (!reason || reason.length < 3) {
       return ApplicationResult.fail(
-        'A valid reason (minimum 3 characters) is required for positive stock adjustment.',
+        'A valid reason (minimum 3 characters) is required for stock count correction.',
       );
     }
-    if (typeof input.quantity !== 'number' || isNaN(input.quantity) || input.quantity <= 0) {
-      return ApplicationResult.fail(
-        'Adjusted quantity must be a positive number greater than zero.',
-      );
+    if (
+      typeof input.targetCount !== 'number' ||
+      isNaN(input.targetCount) ||
+      input.targetCount < 0
+    ) {
+      return ApplicationResult.fail('Target stock count must be a non-negative number.');
     }
 
     return this.orchestrator.executeMutation({
       itemId: input.itemId,
       actorId: input.actorId,
       mutate: (item) =>
-        item.adjustStockIn({
-          quantity: input.quantity,
+        item.correctStock({
+          targetCount: input.targetCount,
           reason,
           actorId: input.actorId,
         }),
