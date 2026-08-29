@@ -2,6 +2,7 @@ import {
   PrismaClient,
   AssetCategory as PrismaAssetCategory,
   AssetStatus as PrismaAssetStatus,
+  AssetCondition as PrismaAssetCondition,
   Prisma,
 } from '@prisma/client';
 import {
@@ -178,6 +179,7 @@ export class PrismaFixedAssetRepository implements FixedAssetRepositoryInterface
 
   async findAll(filter?: FixedAssetFilterOptions): Promise<FixedAsset[]> {
     const where = this.buildWhereClause(filter);
+    const orderBy = this.buildOrderByClause(filter);
 
     const list = await this.prisma.fixedAsset.findMany({
       where,
@@ -189,7 +191,7 @@ export class PrismaFixedAssetRepository implements FixedAssetRepositoryInterface
           orderBy: { serviceDate: 'asc' },
         },
       },
-      orderBy: { name: 'asc' },
+      orderBy,
       take: filter?.limit,
       skip: filter?.offset,
     });
@@ -212,33 +214,115 @@ export class PrismaFixedAssetRepository implements FixedAssetRepositoryInterface
     const where: Prisma.FixedAssetWhereInput = {};
 
     if (!filter) {
+      // Default: operational assets only
+      where.status = {
+        in: [
+          PrismaAssetStatus.ACTIVE,
+          PrismaAssetStatus.UNDER_MAINTENANCE,
+          PrismaAssetStatus.DAMAGED,
+        ],
+      };
       return where;
     }
 
     if (filter.tenantId) {
       where.tenantId = filter.tenantId;
     }
+
     if (filter.category) {
-      where.category = filter.category as unknown as PrismaAssetCategory;
+      if (Array.isArray(filter.category)) {
+        where.category = { in: filter.category as unknown as PrismaAssetCategory[] };
+      } else {
+        where.category = filter.category as unknown as PrismaAssetCategory;
+      }
     }
+
     if (filter.status) {
-      where.status = filter.status as unknown as PrismaAssetStatus;
+      if (Array.isArray(filter.status)) {
+        where.status = { in: filter.status as unknown as PrismaAssetStatus[] };
+      } else {
+        where.status = filter.status as unknown as PrismaAssetStatus;
+      }
+    } else if (!filter.includeDecommissioned) {
+      // Default exclusion of RETIRED and SOLD
+      where.status = {
+        in: [
+          PrismaAssetStatus.ACTIVE,
+          PrismaAssetStatus.UNDER_MAINTENANCE,
+          PrismaAssetStatus.DAMAGED,
+        ],
+      };
     }
-    if (filter.facilityId) {
+
+    if (filter.condition) {
+      if (Array.isArray(filter.condition)) {
+        where.condition = { in: filter.condition as unknown as PrismaAssetCondition[] };
+      } else {
+        where.condition = filter.condition as unknown as PrismaAssetCondition;
+      }
+    }
+
+    if (filter.facilityId && filter.roomId) {
       where.location = {
         path: ['facilityId'],
         equals: filter.facilityId,
       };
-    }
-    if (filter.search) {
-      const query = filter.search.trim();
-      where.OR = [
-        { name: { contains: query, mode: 'insensitive' } },
-        { assetTag: { contains: query, mode: 'insensitive' } },
-        { description: { contains: query, mode: 'insensitive' } },
+      where.AND = [
+        {
+          location: {
+            path: ['roomId'],
+            equals: filter.roomId,
+          },
+        },
       ];
+    } else if (filter.facilityId) {
+      where.location = {
+        path: ['facilityId'],
+        equals: filter.facilityId,
+      };
+    } else if (filter.roomId) {
+      where.location = {
+        path: ['roomId'],
+        equals: filter.roomId,
+      };
+    }
+
+    if (filter.search) {
+      const query = filter.search.trim().slice(0, 100);
+      if (query.length > 0) {
+        where.OR = [
+          { name: { contains: query, mode: 'insensitive' } },
+          { assetTag: { contains: query, mode: 'insensitive' } },
+          { description: { contains: query, mode: 'insensitive' } },
+        ];
+      }
     }
 
     return where;
+  }
+
+  private buildOrderByClause(
+    filter?: FixedAssetFilterOptions,
+  ): Prisma.FixedAssetOrderByWithRelationInput[] {
+    const sortField = filter?.sortBy ?? 'name';
+    const sortOrder = filter?.sortOrder === 'desc' ? 'desc' : 'asc';
+
+    const sortMap: Record<string, keyof Prisma.FixedAssetOrderByWithRelationInput> = {
+      name: 'name',
+      assetTag: 'assetTag',
+      category: 'category',
+      status: 'status',
+      condition: 'condition',
+      purchaseDate: 'purchaseDate',
+      purchaseValueAmount: 'purchaseValueAmount',
+      currentEstimatedValueAmount: 'currentEstimatedValueAmount',
+      createdAt: 'createdAt',
+      updatedAt: 'updatedAt',
+    };
+
+    const prismaField = sortMap[sortField] ?? 'name';
+
+    // Primary sort key + stable tie-breaker id
+    return [{ [prismaField]: sortOrder }, { id: 'asc' }];
   }
 }

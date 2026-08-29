@@ -17,3 +17,8 @@ export * from './get-stock-level.handler';
 export * from './list-stock-movements.handler';
 export * from './get-low-stock-items.handler';
 export * from './get-inventory-valuation.handler';
+export * from './create-fixed-asset.handler';
+export * from './update-fixed-asset-details.handler';
+export * from './get-fixed-asset-by-id.handler';
+export * from './get-fixed-asset-by-tag.handler';
+export * from './list-fixed-assets.handler';

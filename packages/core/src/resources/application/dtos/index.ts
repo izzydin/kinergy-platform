@@ -4,3 +4,7 @@ export * from './stock-mutation-result.dto';
 export * from './paginated-result.dto';
 export * from './stock-level.dto';
 export * from './inventory-valuation.dto';
+export * from './asset-location.dto';
+export * from './asset-history-event.dto';
+export * from './asset-maintenance-record.dto';
+export * from './fixed-asset.dto';

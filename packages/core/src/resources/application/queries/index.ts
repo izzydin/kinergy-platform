@@ -4,3 +4,6 @@ export * from './get-stock-level.query';
 export * from './list-stock-movements.query';
 export * from './get-low-stock-items.query';
 export * from './get-inventory-valuation.query';
+export * from './get-fixed-asset-by-id.query';
+export * from './get-fixed-asset-by-tag.query';
+export * from './list-fixed-assets.query';

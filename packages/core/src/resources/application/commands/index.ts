@@ -11,3 +11,5 @@ export * from './adjust-stock-out.command';
 export * from './adjust-stock.command';
 export * from './correct-stock.command';
 export * from './scrap-stock.command';
+export * from './create-fixed-asset.command';
+export * from './update-fixed-asset-details.command';

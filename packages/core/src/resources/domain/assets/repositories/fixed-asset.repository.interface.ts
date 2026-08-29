@@ -2,14 +2,31 @@ import { FixedAsset } from '../fixed-asset.aggregate';
 import { AssetId } from '../value-objects/asset-id.vo';
 import { AssetCategory } from '../enums/asset-category.enum';
 import { AssetStatus } from '../enums/asset-status.enum';
+import { AssetCondition } from '../enums/asset-condition.enum';
+
+export type FixedAssetSortField =
+  | 'name'
+  | 'assetTag'
+  | 'category'
+  | 'status'
+  | 'condition'
+  | 'purchaseDate'
+  | 'purchaseValueAmount'
+  | 'currentEstimatedValueAmount'
+  | 'createdAt'
+  | 'updatedAt';
 
 export interface FixedAssetFilterOptions {
   tenantId?: string;
-  category?: AssetCategory;
-  status?: AssetStatus;
+  category?: AssetCategory | AssetCategory[];
+  status?: AssetStatus | AssetStatus[];
+  condition?: AssetCondition | AssetCondition[];
   facilityId?: string;
   roomId?: string;
+  includeDecommissioned?: boolean;
   search?: string;
+  sortBy?: FixedAssetSortField;
+  sortOrder?: 'asc' | 'desc';
   limit?: number;
   offset?: number;
 }
