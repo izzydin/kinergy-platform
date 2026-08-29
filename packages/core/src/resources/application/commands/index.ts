@@ -15,3 +15,5 @@ export * from './create-fixed-asset.command';
 export * from './update-fixed-asset-details.command';
 export * from './transfer-fixed-asset-location.command';
 export * from './change-fixed-asset-status.command';
+export * from './update-fixed-asset-condition.command';
+export * from './update-fixed-asset-valuation.command';

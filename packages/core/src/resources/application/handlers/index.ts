@@ -24,3 +24,5 @@ export * from './get-fixed-asset-by-tag.handler';
 export * from './list-fixed-assets.handler';
 export * from './transfer-fixed-asset-location.handler';
 export * from './change-fixed-asset-status.handler';
+export * from './update-fixed-asset-condition.handler';
+export * from './update-fixed-asset-valuation.handler';
