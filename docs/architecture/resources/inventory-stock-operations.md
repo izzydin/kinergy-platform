@@ -248,21 +248,48 @@ If any error occurs during the operation:
 
 - **Intent**: Internal operational usage during kinesiology, physiotherapy, or gym facility services (e.g. kinesiology tape, sanitizing sprays, resistance bands used during clinical sessions).
 - **Distinction from Sale**: Does not involve commercial revenue, customer invoicing, or retail pricing.
-- **Context & Clinical Correlation**: Requires mandatory descriptive reason (minimum 3 characters) and supports linking directly to `TreatmentSession.id` via `referenceId`.
-- **Invariant Enforcement**: Rejects any attempt to consume more than `quantityOnHand`.
+
+### 9.4 Record Adjustment (`AdjustStockHandler`, `AdjustStockInHandler`, `AdjustStockOutHandler`, `CorrectStockHandler`, `ScrapStockHandler`)
+
+- **Intent**: Explicit operational and financial corrections (audit count reconciliation, found inventory, shrinkage/loss, transit damage, spoilage disposal).
+- **Explicit Direction & Movement Types**:
+  - `ADJUSTMENT_IN`: Positive stock additions ($+\Delta q$) resulting from physical inventory audits or found stock.
+  - `ADJUSTMENT_OUT`: Negative stock deductions ($-\Delta q$) resulting from unexplained shrinkage, theft, or minor administrative loss.
+  - `CORRECTION`: Direct count reconciliation where target physical count $T$ is provided; automatically determines $\Delta q = T - \text{currentStock}$.
+  - `SCRAP`: Negative stock deductions ($-q$) specifically earmarked for damaged, contaminated, or expired clinical/gym supplies.
+- **Mandatory Reason Requirement**:
+  - A meaningful operational justification ($\ge 3$ non-whitespace characters) is **strictly mandatory** for all adjustment operations.
+  - Examples: `"Annual cycle count: discovered uncounted box in bin B-12"`, `"Water pipe leak damaged packaging"`, `"Expired lot disposal"`.
+  - Empty or trivial reasons are rejected prior to entering the transaction boundary.
+- **Overdraft Guard**: Negative adjustments (`ADJUSTMENT_OUT`, `SCRAP`, negative `CORRECTION`) strictly enforce `quantityOnHand >= q` and reject overdrafts with `InsufficientStockException`.
 
 ---
 
-## 10. Idempotency Evaluation & Natural Reference Tokens
+## 10. Audit Safety, No Silent Corrections & Historical Immutability
 
-### 10.1 Architectural Pattern Review
+### 10.1 Prohibition of Silent Quantity Updates
+
+Under no circumstances may inventory stock levels be altered via catalog metadata update operations. `UpdateInventoryItemHandler` exclusively mutates non-quantity catalog attributes (name, description, minimum stock threshold, cost/price defaults, storage location). Any modification to `quantityOnHand` **must** originate from an explicit transactional command that creates a corresponding `StockMovement` ledger entry.
+
+### 10.2 Strict Historical Immutability (Append-Only Ledger)
+
+- Historical movements are never modified or deleted under any circumstance.
+- If a historical error was recorded (e.g. an incorrect purchase or adjustment count), it is rectified by posting an explicit compensating movement (`CORRECTION` or `ADJUSTMENT_IN`/`ADJUSTMENT_OUT`), referencing the original context in the reason string.
+- This guarantees continuous, uninterrupted double-entry auditability and deterministic chronological reconstruction of the inventory timeline:
+  $$\text{Current Stock} = \text{Initial Stock} + \sum_{k=1}^N \Delta q_k$$
+
+---
+
+## 11. Idempotency Evaluation & Natural Reference Tokens
+
+### 11.1 Architectural Pattern Review
 
 In accordance with Kinergy's bounded context idempotency patterns (e.g. ADR 0066/0067 for Gym Check-in Anti-Passback and Scheduling Booking Tokens):
 
 - Stock mutations are transactional state transitions protected by Optimistic Concurrency Control (`version`).
 - Each command supports optional natural business correlation tokens (`referenceId`), such as Purchase Order numbers (`PO-2026-XXXX`), Sales Invoices (`POS-REC-XXXX`), or Clinical Treatment Sessions (`TX-SESSION-XXXX`).
 
-### 10.2 Milestone Decision & Risk Assessment
+### 11.2 Milestone Decision & Risk Assessment
 
 - **Current Standard**: The application relies on natural `referenceId` tracking, OCC version checks, and actor audit logging.
 - **No Speculative Infrastructure**: We do not introduce a dedicated synthetic idempotency key cache/table solely for Phase 6.5, adhering strictly to Kinergy's design principles.
@@ -270,13 +297,14 @@ In accordance with Kinergy's bounded context idempotency patterns (e.g. ADR 0066
 
 ---
 
-## 11. Handler & Orchestrator Implementation Matrix
+## 12. Handler & Orchestrator Implementation Matrix
 
 | Operation             | Command                 | Orchestrator Method Invoked      | Domain Aggregate Method    |
 | :-------------------- | :---------------------- | :------------------------------- | :------------------------- |
 | **RecordPurchase**    | `ReceiveStockCommand`   | `orchestrator.executeMutation()` | `item.receiveStock(...)`   |
 | **RecordSale**        | `SellStockCommand`      | `orchestrator.executeMutation()` | `item.sellStock(...)`      |
 | **RecordConsumption** | `ConsumeStockCommand`   | `orchestrator.executeMutation()` | `item.consumeStock(...)`   |
+| **AdjustStock**       | `AdjustStockCommand`    | `orchestrator.executeMutation()` | `item.adjustStock*(...)`   |
 | **AdjustStock (In)**  | `AdjustStockInCommand`  | `orchestrator.executeMutation()` | `item.adjustStockIn(...)`  |
 | **AdjustStock (Out)** | `AdjustStockOutCommand` | `orchestrator.executeMutation()` | `item.adjustStockOut(...)` |
 | **CorrectStock**      | `CorrectStockCommand`   | `orchestrator.executeMutation()` | `item.correctStock(...)`   |

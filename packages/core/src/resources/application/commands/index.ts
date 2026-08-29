@@ -8,5 +8,6 @@ export * from './sell-stock.command';
 export * from './consume-stock.command';
 export * from './adjust-stock-in.command';
 export * from './adjust-stock-out.command';
+export * from './adjust-stock.command';
 export * from './correct-stock.command';
 export * from './scrap-stock.command';
