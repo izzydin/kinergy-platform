@@ -13,3 +13,7 @@ export * from './adjust-stock-out.handler';
 export * from './adjust-stock.handler';
 export * from './correct-stock.handler';
 export * from './scrap-stock.handler';
+export * from './get-stock-level.handler';
+export * from './list-stock-movements.handler';
+export * from './get-low-stock-items.handler';
+export * from './get-inventory-valuation.handler';

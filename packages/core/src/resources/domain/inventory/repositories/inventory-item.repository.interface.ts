@@ -1,6 +1,8 @@
 import { InventoryItem } from '../inventory-item.aggregate';
+import { StockMovement } from '../entities/stock-movement.entity';
 import { InventoryCategory } from '../enums/inventory-category.enum';
 import { InventoryItemStatus } from '../enums/inventory-item-status.enum';
+import { StockMovementType } from '../enums/stock-movement-type.enum';
 
 export type InventorySortField =
   'name' | 'sku' | 'category' | 'quantityOnHand' | 'sellingPrice' | 'createdAt' | 'updatedAt';
@@ -19,8 +21,24 @@ export interface FindInventoryItemsFilter {
   sortOrder?: 'asc' | 'desc';
 }
 
+export type StockMovementSortField = 'recordedAt' | 'quantityDelta' | 'balanceAfter';
+
+export interface FindStockMovementsFilter {
+  itemId?: string;
+  tenantId?: string;
+  movementType?: StockMovementType | StockMovementType[];
+  recordedByUserId?: string;
+  referenceId?: string;
+  fromDate?: Date;
+  toDate?: Date;
+  limit?: number;
+  offset?: number;
+  sortBy?: StockMovementSortField;
+  sortOrder?: 'asc' | 'desc';
+}
+
 /**
- * Domain Repository contract for InventoryItem Aggregate Root.
+ * Domain Repository contract for InventoryItem Aggregate Root and Stock Movements.
  */
 export interface InventoryItemRepository {
   save(item: InventoryItem): Promise<void>;
@@ -28,5 +46,7 @@ export interface InventoryItemRepository {
   findBySku(sku: string, tenantId?: string): Promise<InventoryItem | null>;
   findMany(filter?: FindInventoryItemsFilter): Promise<InventoryItem[]>;
   count(filter?: FindInventoryItemsFilter): Promise<number>;
+  findMovements?(filter?: FindStockMovementsFilter): Promise<StockMovement[]>;
+  countMovements?(filter?: FindStockMovementsFilter): Promise<number>;
   delete(id: string): Promise<void>;
 }

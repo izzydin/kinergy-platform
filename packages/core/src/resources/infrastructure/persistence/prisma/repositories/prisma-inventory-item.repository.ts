@@ -2,12 +2,15 @@ import {
   PrismaClient,
   InventoryCategory as PrismaInventoryCategory,
   InventoryItemStatus as PrismaInventoryItemStatus,
+  StockMovementType as PrismaStockMovementType,
   Prisma,
 } from '@prisma/client';
 import {
   InventoryItemRepository,
   FindInventoryItemsFilter,
+  FindStockMovementsFilter,
 } from '../../../../domain/inventory/repositories/inventory-item.repository.interface';
+import { StockMovement } from '../../../../domain/inventory/entities/stock-movement.entity';
 import { InventoryItem } from '../../../../domain/inventory/inventory-item.aggregate';
 import { OptimisticLockException } from '../../../../domain/inventory/exceptions/optimistic-lock.exception';
 import { PrismaInventoryItemMapper } from '../mappers/prisma-inventory-item.mapper';
@@ -297,6 +300,91 @@ export class PrismaInventoryItemRepository implements InventoryItemRepository {
           { sku: { contains: query, mode: 'insensitive' } },
           { description: { contains: query, mode: 'insensitive' } },
         ];
+      }
+    }
+
+    return where;
+  }
+
+  async findMovements(filter?: FindStockMovementsFilter): Promise<StockMovement[]> {
+    const where = this.buildMovementsWhereClause(filter);
+    const orderBy = this.buildMovementsOrderByClause(filter);
+
+    const list = await this.prisma.stockMovement.findMany({
+      where,
+      orderBy,
+      take: filter?.limit,
+      skip: filter?.offset,
+    });
+
+    return list.map(PrismaStockMovementMapper.toDomain);
+  }
+
+  async countMovements(filter?: FindStockMovementsFilter): Promise<number> {
+    const where = this.buildMovementsWhereClause(filter);
+    return this.prisma.stockMovement.count({ where });
+  }
+
+  private buildMovementsOrderByClause(
+    filter?: FindStockMovementsFilter,
+  ): Prisma.StockMovementOrderByWithRelationInput[] {
+    const sortOrder: Prisma.SortOrder = filter?.sortOrder === 'asc' ? 'asc' : 'desc';
+    const sortBy = filter?.sortBy ?? 'recordedAt';
+
+    const orderMap: Record<string, Prisma.StockMovementOrderByWithRelationInput> = {
+      recordedAt: { recordedAt: sortOrder },
+      quantityDelta: { quantityDelta: sortOrder },
+      balanceAfter: { balanceAfter: sortOrder },
+    };
+
+    const primary = orderMap[sortBy] || { recordedAt: 'desc' };
+    return [primary, { id: 'desc' }];
+  }
+
+  private buildMovementsWhereClause(
+    filter?: FindStockMovementsFilter,
+  ): Prisma.StockMovementWhereInput {
+    const where: Prisma.StockMovementWhereInput = {};
+
+    if (!filter) {
+      return where;
+    }
+
+    if (filter.itemId) {
+      where.inventoryItemId = filter.itemId;
+    }
+
+    if (filter.tenantId) {
+      where.item = {
+        tenantId: filter.tenantId,
+      };
+    }
+
+    if (filter.movementType) {
+      if (Array.isArray(filter.movementType)) {
+        where.movementType = {
+          in: filter.movementType as unknown as PrismaStockMovementType[],
+        };
+      } else {
+        where.movementType = filter.movementType as unknown as PrismaStockMovementType;
+      }
+    }
+
+    if (filter.recordedByUserId) {
+      where.recordedByUserId = filter.recordedByUserId;
+    }
+
+    if (filter.referenceId) {
+      where.referenceId = filter.referenceId;
+    }
+
+    if (filter.fromDate || filter.toDate) {
+      where.recordedAt = {};
+      if (filter.fromDate) {
+        where.recordedAt.gte = filter.fromDate;
+      }
+      if (filter.toDate) {
+        where.recordedAt.lte = filter.toDate;
       }
     }
 
