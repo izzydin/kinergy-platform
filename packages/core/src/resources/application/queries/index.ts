@@ -7,3 +7,6 @@ export * from './get-inventory-valuation.query';
 export * from './get-fixed-asset-by-id.query';
 export * from './get-fixed-asset-by-tag.query';
 export * from './list-fixed-assets.query';
+export * from './get-asset-history.query';
+export * from './get-maintenance-history.query';
+export * from './get-asset-value.query';

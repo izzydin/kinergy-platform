@@ -27,3 +27,6 @@ export * from './change-fixed-asset-status.handler';
 export * from './update-fixed-asset-condition.handler';
 export * from './update-fixed-asset-valuation.handler';
 export * from './record-asset-maintenance.handler';
+export * from './get-asset-history.handler';
+export * from './get-maintenance-history.handler';
+export * from './get-asset-value.handler';
