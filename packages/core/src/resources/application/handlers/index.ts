@@ -22,3 +22,4 @@ export * from './update-fixed-asset-details.handler';
 export * from './get-fixed-asset-by-id.handler';
 export * from './get-fixed-asset-by-tag.handler';
 export * from './list-fixed-assets.handler';
+export * from './transfer-fixed-asset-location.handler';

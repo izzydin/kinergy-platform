@@ -13,3 +13,4 @@ export * from './correct-stock.command';
 export * from './scrap-stock.command';
 export * from './create-fixed-asset.command';
 export * from './update-fixed-asset-details.command';
+export * from './transfer-fixed-asset-location.command';
