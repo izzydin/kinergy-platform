@@ -74,6 +74,8 @@ The phase is partitioned into two distinct sub-domains:
 | **[Inventory Application Layer Baseline](./inventory-application-baseline.md)**                       | CQRS commands, queries, handler contracts, authorization, pagination, and application workflow standard               | Approved & Active     |
 | **[Resource Valuation Testing Specification](./resource-valuation-testing.md)**                       | Authoritative valuation test matrices, precision invariants, and regression evidence                                  | Approved & Active     |
 | **[Resource Valuation API Contracts & Security](./resource-valuation-api-contracts-and-security.md)** | Authoritative API contracts, RBAC authorization, and response-shaping specification                                   | Approved & Active     |
+| **[Backend API Architecture Baseline](./backend-api-baseline.md)**                                    | Architectural conventions, validation, error envelopes, and Phase 6 capability gap analysis                           | Approved & Active     |
+| **[Resources Public HTTP API Surface](./resource-api-surface.md)**                                    | Authoritative public HTTP API contract, request/response DTOs, and route inventory                                    | Approved & Active     |
 | **[Milestone 6.8 Quality Gate](./milestone-6.8-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.8                          | **Approved (100%)**   |
 
 ---
@@ -102,20 +104,20 @@ Architectural Decision Records governing Phase 6:
 | **[ADR-0096](./adr/0096-consumable-inventory-operational-valuation-basis.md)**                                      | Consumable Inventory Operational Valuation Basis                                     | Accepted | 2026-08-31 |
 | **[ADR-0097](./adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md)**                         | Fixed Asset Carrying Valuation & Lifecycle Inclusion Matrix                          | Accepted | 2026-08-31 |
 | **[ADR-0098](./adr/0098-cross-domain-derived-resource-valuation-architecture.md)**                                  | Cross-Domain Derived Resource Valuation Architecture                                 | Accepted | 2026-08-31 |
+| **[ADR-0099](./adr/0099-explicit-subresource-state-mutation-endpoints-vs-generic-patch.md)**                        | Explicit Sub-Resource State Mutation Endpoints vs. Generic PATCH                     | Accepted | 2026-08-31 |
 
 ---
 
 ## 6. Status of the Architectural Baseline
 
-- **Current Milestone**: Phase 6.8 — Resource Valuation.
-- **Status**: **APPROVED & VALIDATED**.
-- **Gate Result**: **APPROVED** (See [Milestone 6.8 Quality Gate](./milestone-6.8-quality-gate.md)).
-- **Next Milestone**: Phase 6.9 — Resources User Experience & Integration.
+- **Current Milestone**: Phase 6.9 — Backend API Layer.
+- **Status**: **ACTIVE — API SURFACE DEFINED**.
+- **Next Step**: Phase 6.9 Controller & DTO Implementation.
 
 > [!NOTE]
 >
 > ### ARCHITECTURAL GOVERNANCE STATUS
 >
-> **Milestones 6.0 through 6.8 have been formally reviewed and APPROVED by the Architecture Review Board.**
+> **The Public HTTP API Surface for Phase 6.9 has been defined and approved by the Architecture Review Board.**
 >
-> The team is authorized to proceed with Phase 6.9 implementation.
+> The team is authorized to proceed with Phase 6.9 controller implementation.
