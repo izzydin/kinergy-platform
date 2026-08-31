@@ -6,6 +6,7 @@ import { appConfig, databaseConfig, validateEnv } from './config';
 import { PlatformModule } from './platform';
 import { SchedulingModule } from './scheduling';
 import { GymModule } from './gym';
+import { ResourcesModule } from './resources';
 import { GlobalSanitizationValidationPipe } from './common/pipes';
 
 @Module({
@@ -18,6 +19,7 @@ import { GlobalSanitizationValidationPipe } from './common/pipes';
     PlatformModule,
     SchedulingModule,
     GymModule,
+    ResourcesModule,
   ],
   controllers: [AppController],
   providers: [
