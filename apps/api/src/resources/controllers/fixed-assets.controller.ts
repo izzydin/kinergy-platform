@@ -42,6 +42,8 @@ import {
   GetMaintenanceHistoryHandler,
   GetAssetValueQuery,
   GetAssetValueHandler,
+  GetFixedAssetValuationSummaryQuery,
+  GetFixedAssetValuationSummaryHandler,
   FixedAssetSortBy,
 } from '@kinergy-platform/core';
 import {
@@ -57,6 +59,7 @@ import {
   GetMaintenanceHistoryQueryDto,
   FixedAssetResponseDto,
   FixedAssetValuationResponseDto,
+  FixedAssetValuationSummaryResponseDto,
 } from '../dto';
 
 const getErrorMessage = (error: unknown): string => {
@@ -87,6 +90,7 @@ export class FixedAssetsController {
     private readonly getAssetHistoryHandler: GetAssetHistoryHandler,
     private readonly getMaintenanceHistoryHandler: GetMaintenanceHistoryHandler,
     private readonly getAssetValueHandler: GetAssetValueHandler,
+    private readonly getFixedAssetValuationSummaryHandler: GetFixedAssetValuationSummaryHandler,
   ) {}
 
   @Get()
@@ -228,6 +232,41 @@ export class FixedAssetsController {
         throw new NotFoundException(msg);
       }
       throw new BadRequestException(msg);
+    }
+    return result.value;
+  }
+
+  @Get('valuation/summary')
+  @HttpCode(HttpStatus.OK)
+  @Roles('ADMIN', 'SUPER_ADMIN', 'OWNER')
+  @Permissions('assets.read', 'billing.read')
+  @ApiOperation({
+    summary: 'Get total capital equipment carrying and CAPEX purchase valuation summary',
+    description:
+      'Aggregates balance sheet carrying value across active capital equipment according to the authoritative lifecycle inclusion matrix.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Fixed asset estate valuation computed successfully.',
+    type: FixedAssetValuationSummaryResponseDto,
+  })
+  @ApiResponse({
+    status: 403,
+    description: 'Forbidden: Requires assets.read AND billing.read permissions.',
+  })
+  public async getValuationSummary(
+    @CurrentUser() user: AuthenticatedUserContext,
+    @Query('category') category?: string,
+    @Query('includeDecommissioned') includeDecommissioned?: string,
+  ): Promise<FixedAssetValuationSummaryResponseDto> {
+    const query = new GetFixedAssetValuationSummaryQuery({
+      tenantId: user?.tenantId ?? undefined,
+      category,
+      includeDecommissioned: includeDecommissioned === 'true' || includeDecommissioned === '1',
+    });
+    const result = await this.getFixedAssetValuationSummaryHandler.execute(query);
+    if (!result.isSuccess) {
+      throw new BadRequestException(getErrorMessage(result.error));
     }
     return result.value;
   }

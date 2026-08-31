@@ -38,6 +38,7 @@ import {
   GetAssetHistoryHandler,
   GetMaintenanceHistoryHandler,
   GetAssetValueHandler,
+  GetFixedAssetValuationSummaryHandler,
   ResourcesApplicationResult,
 } from '@kinergy-platform/core';
 
@@ -74,6 +75,7 @@ describe('Phase 6 Resources Security Negative Testing & No-Side-Effect Verificat
   let mockGetAssetHistory: jest.Mocked<GetAssetHistoryHandler>;
   let mockGetMaintenanceHistory: jest.Mocked<GetMaintenanceHistoryHandler>;
   let mockGetAssetValue: jest.Mocked<GetAssetValueHandler>;
+  let mockGetFixedAssetValuationSummary: jest.Mocked<GetFixedAssetValuationSummaryHandler>;
 
   let inventoryController: InventoryController;
   let fixedAssetsController: FixedAssetsController;
@@ -149,6 +151,9 @@ describe('Phase 6 Resources Security Negative Testing & No-Side-Effect Verificat
       execute: jest.fn(),
     } as unknown as jest.Mocked<GetMaintenanceHistoryHandler>;
     mockGetAssetValue = { execute: jest.fn() } as unknown as jest.Mocked<GetAssetValueHandler>;
+    mockGetFixedAssetValuationSummary = {
+      execute: jest.fn(),
+    } as unknown as jest.Mocked<GetFixedAssetValuationSummaryHandler>;
 
     inventoryController = new InventoryController(
       mockCreateInventoryItem,
@@ -180,6 +185,7 @@ describe('Phase 6 Resources Security Negative Testing & No-Side-Effect Verificat
       mockGetAssetHistory,
       mockGetMaintenanceHistory,
       mockGetAssetValue,
+      mockGetFixedAssetValuationSummary,
     );
   });
 

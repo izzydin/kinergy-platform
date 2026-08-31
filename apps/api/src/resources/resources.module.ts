@@ -31,9 +31,12 @@ import {
   GetAssetHistoryHandler,
   GetMaintenanceHistoryHandler,
   GetAssetValueHandler,
+  GetFixedAssetValuationSummaryHandler,
+  GetCombinedResourceValuationHandler,
 } from '@kinergy-platform/core';
 import { InventoryController } from './controllers/inventory.controller';
 import { FixedAssetsController } from './controllers/fixed-assets.controller';
+import { ResourceValuationController } from './controllers/resource-valuation.controller';
 
 export const RESOURCES_EVENT_PUBLISHER_TOKEN = 'ResourcesEventPublisherPort';
 
@@ -42,7 +45,7 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
 }
 
 @Module({
-  controllers: [InventoryController, FixedAssetsController],
+  controllers: [InventoryController, FixedAssetsController, ResourceValuationController],
   providers: [
     {
       provide: PrismaInventoryItemRepository,
@@ -216,6 +219,20 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
       useFactory: (repo: PrismaFixedAssetRepository) => new GetAssetValueHandler(repo),
       inject: [PrismaFixedAssetRepository],
     },
+    {
+      provide: GetFixedAssetValuationSummaryHandler,
+      useFactory: (repo: PrismaFixedAssetRepository) =>
+        new GetFixedAssetValuationSummaryHandler(repo),
+      inject: [PrismaFixedAssetRepository],
+    },
+    {
+      provide: GetCombinedResourceValuationHandler,
+      useFactory: (
+        inventoryRepo: PrismaInventoryItemRepository,
+        assetRepo: PrismaFixedAssetRepository,
+      ) => new GetCombinedResourceValuationHandler(inventoryRepo, assetRepo),
+      inject: [PrismaInventoryItemRepository, PrismaFixedAssetRepository],
+    },
   ],
   exports: [
     PrismaInventoryItemRepository,
@@ -247,8 +264,11 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
     GetAssetHistoryHandler,
     GetMaintenanceHistoryHandler,
     GetAssetValueHandler,
+    GetFixedAssetValuationSummaryHandler,
+    GetCombinedResourceValuationHandler,
     InventoryController,
     FixedAssetsController,
+    ResourceValuationController,
   ],
 })
 export class ResourcesModule {}

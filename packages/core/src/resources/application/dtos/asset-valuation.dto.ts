@@ -16,3 +16,31 @@ export interface AssetValuationDTO {
   currentEstimatedValueCurrency: string;
   lastValuationDate: Date;
 }
+
+export interface FixedAssetCategoryValuationDTO {
+  totalCarryingValueAmount: number;
+  totalPurchaseValueAmount: number;
+  assetCount: number;
+}
+
+export interface FixedAssetStatusValuationDTO {
+  count: number;
+  totalCarryingValueAmount: number;
+}
+
+export interface FixedAssetConditionValuationDTO {
+  count: number;
+  totalCarryingValueAmount: number;
+}
+
+export interface FixedAssetValuationSummaryDTO {
+  totalCarryingValueAmount: number;
+  totalPurchaseValueAmount: number;
+  currency: string;
+  totalAssetCount: number;
+  activeAssetCount: number;
+  calculatedAt: string;
+  breakdownByCategory: Record<string, FixedAssetCategoryValuationDTO>;
+  breakdownByStatus: Record<string, FixedAssetStatusValuationDTO>;
+  breakdownByCondition: Record<string, FixedAssetConditionValuationDTO>;
+}

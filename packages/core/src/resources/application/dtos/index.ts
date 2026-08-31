@@ -9,3 +9,4 @@ export * from './asset-history-event.dto';
 export * from './asset-maintenance-record.dto';
 export * from './fixed-asset.dto';
 export * from './asset-valuation.dto';
+export * from './resource-valuation-summary.dto';
