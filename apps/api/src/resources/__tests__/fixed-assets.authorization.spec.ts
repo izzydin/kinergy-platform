@@ -361,6 +361,52 @@ describe('FixedAssetsController Authorization & RBAC Evaluation (Milestone 6.7)'
       await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     });
 
+    it('allows getCategories when user possesses assets.read permission', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_trainer_01',
+        email: 'trainer@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['TRAINER'],
+        permissions: ['assets.read'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('getCategories', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['assets.read'],
+        }),
+      );
+    });
+
+    it('allows getAssetByTag when user possesses assets.read permission', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_trainer_01',
+        email: 'trainer@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['TRAINER'],
+        permissions: ['assets.read'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('getAssetByTag', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['assets.read'],
+        }),
+      );
+    });
+
     it('allows getAsset when user possesses assets.read permission', async () => {
       const user = new AuthenticatedUserContext({
         userId: 'usr_reception_01',

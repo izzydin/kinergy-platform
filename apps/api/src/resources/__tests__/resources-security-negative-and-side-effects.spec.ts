@@ -36,6 +36,7 @@ import {
   RecordAssetMaintenanceHandler,
   UpdateFixedAssetValuationHandler,
   GetFixedAssetByIdHandler,
+  GetFixedAssetByTagHandler,
   ListFixedAssetsHandler,
   GetAssetHistoryHandler,
   GetMaintenanceHistoryHandler,
@@ -75,6 +76,7 @@ describe('Phase 6 Resources Security Negative Testing & No-Side-Effect Verificat
   let mockRecordAssetMaintenance: jest.Mocked<RecordAssetMaintenanceHandler>;
   let mockUpdateFixedAssetValuation: jest.Mocked<UpdateFixedAssetValuationHandler>;
   let mockGetFixedAssetById: jest.Mocked<GetFixedAssetByIdHandler>;
+  let mockGetFixedAssetByTag: jest.Mocked<GetFixedAssetByTagHandler>;
   let mockListFixedAssets: jest.Mocked<ListFixedAssetsHandler>;
   let mockGetAssetHistory: jest.Mocked<GetAssetHistoryHandler>;
   let mockGetMaintenanceHistory: jest.Mocked<GetMaintenanceHistoryHandler>;
@@ -153,6 +155,9 @@ describe('Phase 6 Resources Security Negative Testing & No-Side-Effect Verificat
     mockGetFixedAssetById = {
       execute: jest.fn(),
     } as unknown as jest.Mocked<GetFixedAssetByIdHandler>;
+    mockGetFixedAssetByTag = {
+      execute: jest.fn(),
+    } as unknown as jest.Mocked<GetFixedAssetByTagHandler>;
     mockListFixedAssets = { execute: jest.fn() } as unknown as jest.Mocked<ListFixedAssetsHandler>;
     mockGetAssetHistory = { execute: jest.fn() } as unknown as jest.Mocked<GetAssetHistoryHandler>;
     mockGetMaintenanceHistory = {
@@ -191,6 +196,7 @@ describe('Phase 6 Resources Security Negative Testing & No-Side-Effect Verificat
       mockRecordAssetMaintenance,
       mockUpdateFixedAssetValuation,
       mockGetFixedAssetById,
+      mockGetFixedAssetByTag,
       mockListFixedAssets,
       mockGetAssetHistory,
       mockGetMaintenanceHistory,

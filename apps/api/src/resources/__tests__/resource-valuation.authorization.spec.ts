@@ -106,6 +106,7 @@ describe('Resource Valuation Security & API Contract Quality Gate (Milestone 6.8
       createMock(),
       createMock(),
       createMock(),
+      createMock(),
       mockGetAssetValueHandler,
       mockFixedAssetValuationSummaryHandler,
     );

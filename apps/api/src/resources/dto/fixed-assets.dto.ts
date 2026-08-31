@@ -403,6 +403,46 @@ export class FixedAssetResponseDto {
   updatedAt!: string;
 }
 
+export class AssetCategoryMetadataDto {
+  @ApiProperty({ description: 'Asset category code identifier', example: 'GYM_EQUIPMENT' })
+  code!: string;
+
+  @ApiProperty({ description: 'Human-readable category label', example: 'Gym Equipment' })
+  displayName!: string;
+
+  @ApiProperty({ description: 'Category description and typical equipment items' })
+  description!: string;
+
+  @ApiProperty({ description: 'Whether equipment in this category requires recurring maintenance' })
+  requiresMaintenance!: boolean;
+
+  @ApiPropertyOptional({ description: 'Default inspection interval in days', example: 90 })
+  defaultInspectionIntervalDays?: number;
+}
+
+export class PaginatedFixedAssetResponseDto {
+  @ApiProperty({ type: [FixedAssetResponseDto] })
+  items!: FixedAssetResponseDto[];
+
+  @ApiProperty({ description: 'Total count of assets matching criteria', example: 42 })
+  total!: number;
+
+  @ApiProperty({ description: 'Current 1-indexed page number', example: 1 })
+  page!: number;
+
+  @ApiProperty({ description: 'Page size limit applied', example: 20 })
+  limit!: number;
+
+  @ApiProperty({ description: 'Total number of pages available', example: 3 })
+  totalPages!: number;
+
+  @ApiProperty({ description: 'Whether a subsequent page exists', example: true })
+  hasNextPage!: boolean;
+
+  @ApiProperty({ description: 'Whether a preceding page exists', example: false })
+  hasPreviousPage!: boolean;
+}
+
 export class FixedAssetValuationResponseDto {
   @ApiProperty({ description: 'Asset identifier' })
   assetId!: string;

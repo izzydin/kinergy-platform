@@ -34,6 +34,8 @@ import {
   UpdateFixedAssetValuationHandler,
   GetFixedAssetByIdQuery,
   GetFixedAssetByIdHandler,
+  GetFixedAssetByTagQuery,
+  GetFixedAssetByTagHandler,
   ListFixedAssetsQuery,
   ListFixedAssetsHandler,
   GetAssetHistoryQuery,
@@ -44,6 +46,7 @@ import {
   GetAssetValueHandler,
   GetFixedAssetValuationSummaryQuery,
   GetFixedAssetValuationSummaryHandler,
+  AssetCategory,
   FixedAssetSortBy,
 } from '@kinergy-platform/core';
 import {
@@ -57,10 +60,57 @@ import {
   ListFixedAssetsQueryDto,
   GetAssetHistoryQueryDto,
   GetMaintenanceHistoryQueryDto,
+  AssetCategoryMetadataDto,
+  PaginatedFixedAssetResponseDto,
   FixedAssetResponseDto,
   FixedAssetValuationResponseDto,
   FixedAssetValuationSummaryResponseDto,
 } from '../dto';
+
+const ASSET_CATEGORIES_METADATA: AssetCategoryMetadataDto[] = [
+  {
+    code: AssetCategory.GYM_EQUIPMENT,
+    displayName: 'Gym Equipment',
+    description:
+      'Heavy machinery, cardio machines, free weights, and functional training stations.',
+    requiresMaintenance: true,
+    defaultInspectionIntervalDays: 90,
+  },
+  {
+    code: AssetCategory.THERAPY_EQUIPMENT,
+    displayName: 'Therapy Equipment',
+    description: 'Clinical lasers, ultrasound machines, shockwave units, and treatment tables.',
+    requiresMaintenance: true,
+    defaultInspectionIntervalDays: 60,
+  },
+  {
+    code: AssetCategory.KITCHEN_EQUIPMENT,
+    displayName: 'Kitchen Equipment',
+    description: 'Commercial blenders, refrigeration, shake station appliances, and ice machines.',
+    requiresMaintenance: true,
+    defaultInspectionIntervalDays: 180,
+  },
+  {
+    code: AssetCategory.OFFICE_FURNITURE,
+    displayName: 'Office Furniture',
+    description: 'Desks, consultation chairs, reception counters, and filing cabinets.',
+    requiresMaintenance: false,
+  },
+  {
+    code: AssetCategory.ELECTRONICS,
+    displayName: 'Electronics',
+    description: 'POS terminals, sound systems, computers, tablets, and network infrastructure.',
+    requiresMaintenance: true,
+    defaultInspectionIntervalDays: 180,
+  },
+  {
+    code: AssetCategory.CLEANING_EQUIPMENT,
+    displayName: 'Cleaning Equipment',
+    description: 'Industrial floor scrubbers, sanitization foggers, and wet-dry vacuums.',
+    requiresMaintenance: true,
+    defaultInspectionIntervalDays: 90,
+  },
+];
 
 const getErrorMessage = (error: unknown): string => {
   if (!error) return 'Operation failed';
@@ -86,12 +136,62 @@ export class FixedAssetsController {
     private readonly recordAssetMaintenanceHandler: RecordAssetMaintenanceHandler,
     private readonly updateFixedAssetValuationHandler: UpdateFixedAssetValuationHandler,
     private readonly getFixedAssetByIdHandler: GetFixedAssetByIdHandler,
+    private readonly getFixedAssetByTagHandler: GetFixedAssetByTagHandler,
     private readonly listFixedAssetsHandler: ListFixedAssetsHandler,
     private readonly getAssetHistoryHandler: GetAssetHistoryHandler,
     private readonly getMaintenanceHistoryHandler: GetMaintenanceHistoryHandler,
     private readonly getAssetValueHandler: GetAssetValueHandler,
     private readonly getFixedAssetValuationSummaryHandler: GetFixedAssetValuationSummaryHandler,
   ) {}
+
+  @Get('categories')
+  @HttpCode(HttpStatus.OK)
+  @Roles('ADMIN', 'SUPER_ADMIN', 'OWNER', 'TRAINER', 'RECEPTIONIST')
+  @Permissions('assets.read')
+  @ApiOperation({
+    summary: 'List fixed asset category metadata',
+    description:
+      'Retrieves the static, code-defined asset taxonomy classification enum metadata for UI dropdowns and inspection schedules.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset category taxonomy metadata retrieved successfully.',
+    type: [AssetCategoryMetadataDto],
+  })
+  public getCategories(): AssetCategoryMetadataDto[] {
+    return ASSET_CATEGORIES_METADATA;
+  }
+
+  @Get('tag/:tag')
+  @HttpCode(HttpStatus.OK)
+  @Roles('ADMIN', 'SUPER_ADMIN', 'OWNER', 'TRAINER', 'RECEPTIONIST')
+  @Permissions('assets.read')
+  @ApiOperation({
+    summary: 'Lookup fixed asset by hardware barcode / RFID asset tag',
+    description:
+      'Hardware scanner integration endpoint resolving physical barcode or RFID tag to asset record.',
+  })
+  @ApiParam({ name: 'tag', description: 'Barcode or RFID Asset Tag', example: 'AST-GYM-001' })
+  @ApiResponse({
+    status: 200,
+    description: 'Asset details retrieved successfully.',
+    type: FixedAssetResponseDto,
+  })
+  @ApiResponse({ status: 404, description: 'Asset not found with the specified tag.' })
+  public async getAssetByTag(
+    @Param('tag') tag: string,
+    @CurrentUser() user: AuthenticatedUserContext,
+  ): Promise<FixedAssetResponseDto> {
+    const query = new GetFixedAssetByTagQuery({
+      assetTag: tag,
+      tenantId: user?.tenantId ?? undefined,
+    });
+    const result = await this.getFixedAssetByTagHandler.execute(query);
+    if (!result.isSuccess) {
+      throw new NotFoundException(result.error);
+    }
+    return result.value as unknown as FixedAssetResponseDto;
+  }
 
   @Get()
   @HttpCode(HttpStatus.OK)
@@ -102,13 +202,17 @@ export class FixedAssetsController {
     description:
       'Retrieves fixed asset inventory with category, status, condition, and location filtering.',
   })
-  @ApiResponse({ status: 200, description: 'Assets retrieved successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Assets retrieved successfully.',
+    type: PaginatedFixedAssetResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Authentication required.' })
   @ApiResponse({ status: 403, description: 'Insufficient privileges.' })
   public async listAssets(
     @Query() queryDto: ListFixedAssetsQueryDto,
     @CurrentUser() user: AuthenticatedUserContext,
-  ) {
+  ): Promise<PaginatedFixedAssetResponseDto> {
     const query = new ListFixedAssetsQuery({
       tenantId: user?.tenantId ?? 'default_tenant',
       filter: {
@@ -130,7 +234,7 @@ export class FixedAssetsController {
     if (!result.isSuccess) {
       throw new BadRequestException(result.error);
     }
-    return result.value;
+    return result.value as unknown as PaginatedFixedAssetResponseDto;
   }
 
   @Get(':id')
