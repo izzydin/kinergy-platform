@@ -59,6 +59,16 @@ import {
   FixedAssetValuationResponseDto,
 } from '../dto';
 
+const getErrorMessage = (error: unknown): string => {
+  if (!error) return 'Operation failed';
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
+};
+
 @ApiTags('Resources - Fixed Assets')
 @ApiBearerAuth()
 @UseGuards(AuthenticationGuard, AuthorizationGuard)
@@ -174,10 +184,11 @@ export class FixedAssetsController {
 
     const result = await this.getAssetHistoryHandler.execute(query);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value;
   }
@@ -212,10 +223,11 @@ export class FixedAssetsController {
 
     const result = await this.getMaintenanceHistoryHandler.execute(query);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value;
   }
@@ -242,10 +254,11 @@ export class FixedAssetsController {
     const query = new GetAssetValueQuery({ assetId: id, tenantId: user?.tenantId ?? undefined });
     const result = await this.getAssetValueHandler.execute(query);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return {
       assetId: result.value.assetId,
@@ -328,10 +341,11 @@ export class FixedAssetsController {
 
     const result = await this.updateFixedAssetDetailsHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value as unknown as FixedAssetResponseDto;
   }
@@ -361,10 +375,11 @@ export class FixedAssetsController {
 
     const result = await this.transferFixedAssetLocationHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value as unknown as FixedAssetResponseDto;
   }
@@ -394,10 +409,11 @@ export class FixedAssetsController {
 
     const result = await this.changeFixedAssetStatusHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value as unknown as FixedAssetResponseDto;
   }
@@ -426,10 +442,11 @@ export class FixedAssetsController {
 
     const result = await this.updateFixedAssetConditionHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value as unknown as FixedAssetResponseDto;
   }
@@ -466,10 +483,11 @@ export class FixedAssetsController {
 
     const result = await this.recordAssetMaintenanceHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value;
   }
@@ -503,10 +521,11 @@ export class FixedAssetsController {
 
     const result = await this.updateFixedAssetValuationHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value as unknown as FixedAssetResponseDto;
   }

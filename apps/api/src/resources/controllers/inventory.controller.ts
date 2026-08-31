@@ -61,6 +61,16 @@ import {
   InventoryValuationResponseDto,
 } from '../dto';
 
+const getErrorMessage = (error: unknown): string => {
+  if (!error) return 'Operation failed';
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return String(error);
+};
+
 @ApiTags('Resources - Consumable Inventory')
 @ApiBearerAuth()
 @UseGuards(AuthenticationGuard, AuthorizationGuard)
@@ -307,10 +317,11 @@ export class InventoryController {
 
     const result = await this.updateInventoryItemHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value as unknown as InventoryItemResponseDto;
   }
@@ -331,10 +342,11 @@ export class InventoryController {
     });
     const result = await this.archiveInventoryItemHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value as unknown as InventoryItemResponseDto;
   }
@@ -355,10 +367,11 @@ export class InventoryController {
     });
     const result = await this.activateInventoryItemHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value as unknown as InventoryItemResponseDto;
   }
@@ -384,10 +397,11 @@ export class InventoryController {
     });
     const result = await this.receiveStockHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value;
   }
@@ -414,10 +428,11 @@ export class InventoryController {
     });
     const result = await this.sellStockHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value;
   }
@@ -442,10 +457,11 @@ export class InventoryController {
     });
     const result = await this.consumeStockHandler.execute(command);
     if (!result.isSuccess) {
-      if (result.error.toLowerCase().includes('not found')) {
-        throw new NotFoundException(result.error);
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
       }
-      throw new BadRequestException(result.error);
+      throw new BadRequestException(msg);
     }
     return result.value;
   }
