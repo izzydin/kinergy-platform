@@ -41,40 +41,40 @@ The phase is partitioned into two distinct sub-domains:
 
 ## 4. Document Index
 
-| Document                                                                            | Description                                                                                                           | Status                |
-| :---------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :-------------------- |
-| **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)**           | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline   |
-| **[Domain Boundary Design](./domain-boundaries.md)**                                | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Baseline   |
-| **[Production Persistence Strategy](./persistence-strategy.md)**                    | Database schema topology, table models, indexing, OCC concurrency controls, and asset history reconstruction          | Complete / Baseline   |
-| **[Domain Model Specification](./domain-model.md)**                                 | Canonical entities, aggregates, value objects, lifecycle state machines, and invariants                               | Approved & Active     |
-| **[Fixed Asset Domain Model Specification](./asset-domain-model.md)**               | Non-fungible fixed asset aggregate, lifecycle state machine, history, and maintenance records                         | Approved & Active     |
-| **[Fixed Asset Lifecycle Specification](./asset-lifecycle.md)**                     | Deterministic state machine, complete transition matrix, terminal disposal rules, and atomic invariants               | Approved & Active     |
-| **[Fixed Asset Status State Machine](./asset-status-state-machine.md)**             | Authoritative 5x5 transition matrix, business confirmations, and terminal immutability invariants                     | Approved & Active     |
-| **[Fixed Asset History Specification](./asset-history.md)**                         | Meaningful audit trail, structured event payloads, actor provenance, immutability, and anti-noise rules               | Approved & Active     |
-| **[Fixed Asset Maintenance Specification](./asset-maintenance.md)**                 | Lightweight historical servicing logs, provider semantics, state interaction, and cost models                         | Approved & Active     |
-| **[Consumable Inventory Invariants](./inventory-invariants.md)**                    | Deterministic stock invariants, double-entry ledger reconstruction, and OCC race condition prevention                 | Approved & Active     |
-| **[Architectural Invariant Enforcement](./invariant-enforcement.md)**               | Domain boundaries, transaction boundaries, partial failure rollback, and bypass vector audit matrix                   | Approved & Active     |
-| **[Invariant Testing & Verification](./invariant-testing.md)**                      | 5x5 transition pair matrix, precision boundaries, OCC concurrency scenarios A-B-C, and atomicity tests                | Approved & Active     |
-| **[Executable Business Rules Specification](./business-rules.md)**                  | Deterministic business rules, invariant tier classification, stock mutation semantics, and error conditions           | Complete / Executable |
-| **[Milestone 6.0 Architecture Gate](./milestone-6.0-architecture-gate.md)**         | Formal Architecture Review Board (ARB) evaluation, evidence matrix, and implementation authorization                  | **Approved (100%)**   |
-| **[Milestone 6.1 Consistency Review](./phase-6.1-review.md)**                       | Architectural consistency verification, ADR audit, and domain-persistence parity review                               | Complete / Verified   |
-| **[Milestone 6.1 Quality Gate](./milestone-6.1-quality-gate.md)**                   | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.2                          | **Approved (100%)**   |
-| **[Milestone 6.2 Consistency Review](./phase-6.2-review.md)**                       | Fixed asset architectural consistency verification, ADR parity audit, and lifecycle invariant review                  | Complete / Verified   |
-| **[Milestone 6.2 Quality Gate](./milestone-6.2-quality-gate.md)**                   | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.3                          | **Approved (100%)**   |
-| **[Milestone 6.3 Consistency Review](./phase-6.3-review.md)**                       | State machines & invariants consistency review, concurrency analysis, and ARB authorization                           | Complete / Verified   |
-| **[Milestone 6.3 Quality Gate](./milestone-6.3-quality-gate.md)**                   | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.4                          | **Approved (100%)**   |
-| **[Milestone 6.4 Quality Gate](./milestone-6.4-quality-gate.md)**                   | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.5                          | **Approved (100%)**   |
-| **[Persistence Layer Baseline Analysis](./persistence-baseline.md)**                | Prisma schema conventions, PostgreSQL constraints, OCC transactions, and domain mapping baseline                      | Approved & Active     |
-| **[Resources Persistence Model Specification](./persistence-model.md)**             | Detailed domain-to-persistence mapping matrix, relational topology, immutability, and check constraints               | Approved & Active     |
-| **[Persistence Decisions & Precision](./persistence-decisions.md)**                 | Explicit precision (Scale 2 Decimal), enum strategy, timestamps, timezone, and decoupled actor audit metadata         | Approved & Active     |
-| **[Persistence Integrity & Relational Architecture](./persistence-integrity.md)**   | Foreign key actions, unique constraints, index justifications, and database invariants                                | Approved & Active     |
-| **[Persistence Boundaries & Isolation](./persistence-boundaries.md)**               | Repository contracts, Prisma isolation, mapping strategy, transaction participation, and bypass prevention            | Approved & Active     |
-| **[Persistence Migration & Validation](./persistence-migration-validation.md)**     | Clean database validation, schema synchronization, CHECK constraints, and deployment review                           | Approved & Active     |
-| **[Persistence Testing Specification](./persistence-testing.md)**                   | Precision verification, relational integrity, historical ledger immutability, and atomic unit-of-work tests           | Approved & Active     |
-| **[Inventory Application Layer Baseline](./inventory-application-baseline.md)**     | CQRS commands, queries, handler contracts, authorization, pagination, and application workflow standard               | Approved & Active     |
-| **[Inventory Use Case Contracts](./inventory-use-cases.md)**                        | Detailed contracts, authorization rules, invariants, and failure modes for all inventory use cases                    | Approved & Active     |
-| **[Inventory Query & Filtering Contract](./inventory-query-contract.md)**           | Multi-criteria filtering, search semantics, non-overlapping stock statuses, sorting whitelist, and test matrix        | Approved & Active     |
-| **[Inventory Security & Authorization Architecture](./inventory-authorization.md)** | RBAC/ABAC permissions matrix, actor provenance, defense-in-depth, and anti-spoofing guarantees                        | Approved & Active     |
+| Document                                                                                              | Description                                                                                                           | Status                |
+| :---------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :-------------------- |
+| **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)**                             | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline   |
+| **[Domain Boundary Design](./domain-boundaries.md)**                                                  | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Baseline   |
+| **[Production Persistence Strategy](./persistence-strategy.md)**                                      | Database schema topology, table models, indexing, OCC concurrency controls, and asset history reconstruction          | Complete / Baseline   |
+| **[Domain Model Specification](./domain-model.md)**                                                   | Canonical entities, aggregates, value objects, lifecycle state machines, and invariants                               | Approved & Active     |
+| **[Fixed Asset Domain Model Specification](./asset-domain-model.md)**                                 | Non-fungible fixed asset aggregate, lifecycle state machine, history, and maintenance records                         | Approved & Active     |
+| **[Fixed Asset Lifecycle Specification](./asset-lifecycle.md)**                                       | Deterministic state machine, complete transition matrix, terminal disposal rules, and atomic invariants               | Approved & Active     |
+| **[Fixed Asset Status State Machine](./asset-status-state-machine.md)**                               | Authoritative 5x5 transition matrix, business confirmations, and terminal immutability invariants                     | Approved & Active     |
+| **[Fixed Asset History Specification](./asset-history.md)**                                           | Meaningful audit trail, structured event payloads, actor provenance, immutability, and anti-noise rules               | Approved & Active     |
+| **[Fixed Asset Maintenance Specification](./asset-maintenance.md)**                                   | Lightweight historical servicing logs, provider semantics, state interaction, and cost models                         | Approved & Active     |
+| **[Consumable Inventory Invariants](./inventory-invariants.md)**                                      | Deterministic stock invariants, double-entry ledger reconstruction, and OCC race condition prevention                 | Approved & Active     |
+| **[Architectural Invariant Enforcement](./invariant-enforcement.md)**                                 | Domain boundaries, transaction boundaries, partial failure rollback, and bypass vector audit matrix                   | Approved & Active     |
+| **[Invariant Testing & Verification](./invariant-testing.md)**                                        | 5x5 transition pair matrix, precision boundaries, OCC concurrency scenarios A-B-C, and atomicity tests                | Approved & Active     |
+| **[Executable Business Rules Specification](./business-rules.md)**                                    | Deterministic business rules, invariant tier classification, stock mutation semantics, and error conditions           | Complete / Executable |
+| **[Milestone 6.0 Architecture Gate](./milestone-6.0-architecture-gate.md)**                           | Formal Architecture Review Board (ARB) evaluation, evidence matrix, and implementation authorization                  | **Approved (100%)**   |
+| **[Milestone 6.1 Consistency Review](./phase-6.1-review.md)**                                         | Architectural consistency verification, ADR audit, and domain-persistence parity review                               | Complete / Verified   |
+| **[Milestone 6.1 Quality Gate](./milestone-6.1-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.2                          | **Approved (100%)**   |
+| **[Milestone 6.2 Consistency Review](./phase-6.2-review.md)**                                         | Fixed asset architectural consistency verification, ADR parity audit, and lifecycle invariant review                  | Complete / Verified   |
+| **[Milestone 6.2 Quality Gate](./milestone-6.2-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.3                          | **Approved (100%)**   |
+| **[Milestone 6.3 Consistency Review](./phase-6.3-review.md)**                                         | State machines & invariants consistency review, concurrency analysis, and ARB authorization                           | Complete / Verified   |
+| **[Milestone 6.3 Quality Gate](./milestone-6.3-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.4                          | **Approved (100%)**   |
+| **[Milestone 6.4 Quality Gate](./milestone-6.4-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.5                          | **Approved (100%)**   |
+| **[Persistence Layer Baseline Analysis](./persistence-baseline.md)**                                  | Prisma schema conventions, PostgreSQL constraints, OCC transactions, and domain mapping baseline                      | Approved & Active     |
+| **[Resources Persistence Model Specification](./persistence-model.md)**                               | Detailed domain-to-persistence mapping matrix, relational topology, immutability, and check constraints               | Approved & Active     |
+| **[Persistence Decisions & Precision](./persistence-decisions.md)**                                   | Explicit precision (Scale 2 Decimal), enum strategy, timestamps, timezone, and decoupled actor audit metadata         | Approved & Active     |
+| **[Persistence Integrity & Relational Architecture](./persistence-integrity.md)**                     | Foreign key actions, unique constraints, index justifications, and database invariants                                | Approved & Active     |
+| **[Persistence Boundaries & Isolation](./persistence-boundaries.md)**                                 | Repository contracts, Prisma isolation, mapping strategy, transaction participation, and bypass prevention            | Approved & Active     |
+| **[Persistence Migration & Validation](./persistence-migration-validation.md)**                       | Clean database validation, schema synchronization, CHECK constraints, and deployment review                           | Approved & Active     |
+| **[Persistence Testing Specification](./persistence-testing.md)**                                     | Precision verification, relational integrity, historical ledger immutability, and atomic unit-of-work tests           | Approved & Active     |
+| **[Inventory Application Layer Baseline](./inventory-application-baseline.md)**                       | CQRS commands, queries, handler contracts, authorization, pagination, and application workflow standard               | Approved & Active     |
+| **[Resource Valuation Testing Specification](./resource-valuation-testing.md)**                       | Authoritative valuation test matrices, precision invariants, and regression evidence                                  | Approved & Active     |
+| **[Resource Valuation API Contracts & Security](./resource-valuation-api-contracts-and-security.md)** | Authoritative API contracts, RBAC authorization, and response-shaping specification                                   | Approved & Active     |
+| **[Milestone 6.8 Quality Gate](./milestone-6.8-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.8                          | **Approved (100%)**   |
 
 ---
 
@@ -95,20 +95,27 @@ Architectural Decision Records governing Phase 6:
 | **[ADR-0089](./adr/0089-inventory-monetary-quantity-and-unit-precision-semantics.md)**                              | Inventory Monetary, Quantity, and Unit Precision Semantics                           | Accepted | 2026-08-25 |
 | **[ADR-0090](./adr/0090-fixed-asset-classification-lifecycle-state-and-condition-rating-strategy.md)**              | Fixed Asset Classification, Lifecycle State, & Condition Rating Strategy             | Accepted | 2026-08-26 |
 | **[ADR-0091](./adr/0091-resources-persistence-architecture-postgresql-constraints-and-atomic-ledger-isolation.md)** | Resources Persistence Architecture, PostgreSQL Constraints & Atomic Ledger Isolation | Accepted | 2026-08-27 |
+| **[ADR-0092](./adr/0092-consumable-inventory-application-orchestration-and-atomic-stock-mutation-pattern.md)**      | Consumable Inventory Application Layer Orchestration & Atomic Stock Mutation Pattern | Accepted | 2026-08-28 |
+| **[ADR-0093](./adr/0093-fixed-asset-application-layer-orchestration-and-atomic-lifecycle-mutation-pattern.md)**     | Fixed Asset Application Layer Orchestration & Atomic Lifecycle Mutation Pattern      | Accepted | 2026-08-29 |
+| **[ADR-0094](./adr/0094-resources-authorization-and-permission-taxonomy-model.md)**                                 | Resources Authorization & Permission Taxonomy Model                                  | Accepted | 2026-08-30 |
+| **[ADR-0095](./adr/0095-resource-sensitive-valuation-data-access-and-response-shaping-policy.md)**                  | Resource Sensitive Valuation Data Access & Response-Shaping Policy                   | Accepted | 2026-08-31 |
+| **[ADR-0096](./adr/0096-consumable-inventory-operational-valuation-basis.md)**                                      | Consumable Inventory Operational Valuation Basis                                     | Accepted | 2026-08-31 |
+| **[ADR-0097](./adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md)**                         | Fixed Asset Carrying Valuation & Lifecycle Inclusion Matrix                          | Accepted | 2026-08-31 |
+| **[ADR-0098](./adr/0098-cross-domain-derived-resource-valuation-architecture.md)**                                  | Cross-Domain Derived Resource Valuation Architecture                                 | Accepted | 2026-08-31 |
 
 ---
 
 ## 6. Status of the Architectural Baseline
 
-- **Current Milestone**: Phase 6.4 — Resources Persistence Layer.
+- **Current Milestone**: Phase 6.8 — Resource Valuation.
 - **Status**: **APPROVED & VALIDATED**.
-- **Gate Result**: **APPROVED** (See [Milestone 6.4 Quality Gate](./milestone-6.4-quality-gate.md)).
-- **Next Milestone**: Phase 6.5 — Application Services & CQRS Handlers.
+- **Gate Result**: **APPROVED** (See [Milestone 6.8 Quality Gate](./milestone-6.8-quality-gate.md)).
+- **Next Milestone**: Phase 6.9 — Resources User Experience & Integration.
 
 > [!NOTE]
 >
 > ### ARCHITECTURAL GOVERNANCE STATUS
 >
-> **Milestones 6.0, 6.1, 6.2, 6.3, and 6.4 have been formally reviewed and APPROVED by the Architecture Review Board.**
+> **Milestones 6.0 through 6.8 have been formally reviewed and APPROVED by the Architecture Review Board.**
 >
-> The team is authorized to proceed with Phase 6.5 implementation (Application Services, Commands, Queries, and CQRS Handlers).
+> The team is authorized to proceed with Phase 6.9 implementation.
