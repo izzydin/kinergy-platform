@@ -282,9 +282,6 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
     GetAssetValueHandler,
     GetFixedAssetValuationSummaryHandler,
     GetCombinedResourceValuationHandler,
-    InventoryController,
-    FixedAssetsController,
-    ResourceValuationController,
   ],
 })
 export class ResourcesModule {}
