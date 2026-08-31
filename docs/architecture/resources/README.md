@@ -78,6 +78,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Resources Public HTTP API Surface](./resource-api-surface.md)**                                    | Authoritative public HTTP API contract, request/response DTOs, and route inventory                                    | Approved & Active     |
 | **[Consumable Inventory API Contracts](./inventory-api-contracts.md)**                                | Detailed Consumable Inventory HTTP API contracts, controller architecture, and DTO specifications                     | Approved & Active     |
 | **[Fixed Asset API Contracts](./fixed-asset-api-contracts.md)**                                       | Detailed Fixed Asset HTTP API contracts, lifecycle state actions, and DTO specifications                              | Approved & Active     |
+| **[Resource API Contracts & Validation](./resource-api-contracts.md)**                                | Comprehensive request/response DTO strategy, validation architecture, query normalization, and boundary rules         | Approved & Active     |
 | **[Milestone 6.8 Quality Gate](./milestone-6.8-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.8                          | **Approved (100%)**   |
 
 ---
