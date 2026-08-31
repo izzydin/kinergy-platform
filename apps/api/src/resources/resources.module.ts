@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaService } from '../platform/persistence/prisma/prisma.service';
 import {
   PrismaInventoryItemRepository,
+  PrismaFixedAssetRepository,
   ResourcesEventPublisherPort,
   CreateInventoryItemHandler,
   UpdateInventoryItemHandler,
@@ -17,8 +18,22 @@ import {
   ListStockMovementsHandler,
   GetLowStockItemsHandler,
   GetInventoryValuationHandler,
+  CreateFixedAssetHandler,
+  UpdateFixedAssetDetailsHandler,
+  TransferFixedAssetLocationHandler,
+  ChangeFixedAssetStatusHandler,
+  UpdateFixedAssetConditionHandler,
+  RecordAssetMaintenanceHandler,
+  UpdateFixedAssetValuationHandler,
+  GetFixedAssetByIdHandler,
+  GetFixedAssetByTagHandler,
+  ListFixedAssetsHandler,
+  GetAssetHistoryHandler,
+  GetMaintenanceHistoryHandler,
+  GetAssetValueHandler,
 } from '@kinergy-platform/core';
 import { InventoryController } from './controllers/inventory.controller';
+import { FixedAssetsController } from './controllers/fixed-assets.controller';
 
 export const RESOURCES_EVENT_PUBLISHER_TOKEN = 'ResourcesEventPublisherPort';
 
@@ -27,11 +42,16 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
 }
 
 @Module({
-  controllers: [InventoryController],
+  controllers: [InventoryController, FixedAssetsController],
   providers: [
     {
       provide: PrismaInventoryItemRepository,
       useFactory: (prisma: PrismaService) => new PrismaInventoryItemRepository(prisma),
+      inject: [PrismaService],
+    },
+    {
+      provide: PrismaFixedAssetRepository,
+      useFactory: (prisma: PrismaService) => new PrismaFixedAssetRepository(prisma),
       inject: [PrismaService],
     },
     {
@@ -120,9 +140,86 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
       useFactory: (repo: PrismaInventoryItemRepository) => new GetInventoryValuationHandler(repo),
       inject: [PrismaInventoryItemRepository],
     },
+
+    // Fixed Assets Command Handlers
+    {
+      provide: CreateFixedAssetHandler,
+      useFactory: (repo: PrismaFixedAssetRepository, publisher: ResourcesEventPublisherPort) =>
+        new CreateFixedAssetHandler(repo, publisher),
+      inject: [PrismaFixedAssetRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+    },
+    {
+      provide: UpdateFixedAssetDetailsHandler,
+      useFactory: (repo: PrismaFixedAssetRepository, publisher: ResourcesEventPublisherPort) =>
+        new UpdateFixedAssetDetailsHandler(repo, publisher),
+      inject: [PrismaFixedAssetRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+    },
+    {
+      provide: TransferFixedAssetLocationHandler,
+      useFactory: (repo: PrismaFixedAssetRepository, publisher: ResourcesEventPublisherPort) =>
+        new TransferFixedAssetLocationHandler(repo, publisher),
+      inject: [PrismaFixedAssetRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+    },
+    {
+      provide: ChangeFixedAssetStatusHandler,
+      useFactory: (repo: PrismaFixedAssetRepository, publisher: ResourcesEventPublisherPort) =>
+        new ChangeFixedAssetStatusHandler(repo, publisher),
+      inject: [PrismaFixedAssetRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+    },
+    {
+      provide: UpdateFixedAssetConditionHandler,
+      useFactory: (repo: PrismaFixedAssetRepository, publisher: ResourcesEventPublisherPort) =>
+        new UpdateFixedAssetConditionHandler(repo, publisher),
+      inject: [PrismaFixedAssetRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+    },
+    {
+      provide: RecordAssetMaintenanceHandler,
+      useFactory: (repo: PrismaFixedAssetRepository, publisher: ResourcesEventPublisherPort) =>
+        new RecordAssetMaintenanceHandler(repo, publisher),
+      inject: [PrismaFixedAssetRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+    },
+    {
+      provide: UpdateFixedAssetValuationHandler,
+      useFactory: (repo: PrismaFixedAssetRepository, publisher: ResourcesEventPublisherPort) =>
+        new UpdateFixedAssetValuationHandler(repo, publisher),
+      inject: [PrismaFixedAssetRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+    },
+
+    // Fixed Assets Query Handlers
+    {
+      provide: GetFixedAssetByIdHandler,
+      useFactory: (repo: PrismaFixedAssetRepository) => new GetFixedAssetByIdHandler(repo),
+      inject: [PrismaFixedAssetRepository],
+    },
+    {
+      provide: GetFixedAssetByTagHandler,
+      useFactory: (repo: PrismaFixedAssetRepository) => new GetFixedAssetByTagHandler(repo),
+      inject: [PrismaFixedAssetRepository],
+    },
+    {
+      provide: ListFixedAssetsHandler,
+      useFactory: (repo: PrismaFixedAssetRepository) => new ListFixedAssetsHandler(repo),
+      inject: [PrismaFixedAssetRepository],
+    },
+    {
+      provide: GetAssetHistoryHandler,
+      useFactory: (repo: PrismaFixedAssetRepository) => new GetAssetHistoryHandler(repo),
+      inject: [PrismaFixedAssetRepository],
+    },
+    {
+      provide: GetMaintenanceHistoryHandler,
+      useFactory: (repo: PrismaFixedAssetRepository) => new GetMaintenanceHistoryHandler(repo),
+      inject: [PrismaFixedAssetRepository],
+    },
+    {
+      provide: GetAssetValueHandler,
+      useFactory: (repo: PrismaFixedAssetRepository) => new GetAssetValueHandler(repo),
+      inject: [PrismaFixedAssetRepository],
+    },
   ],
   exports: [
     PrismaInventoryItemRepository,
+    PrismaFixedAssetRepository,
     CreateInventoryItemHandler,
     UpdateInventoryItemHandler,
     ArchiveInventoryItemHandler,
@@ -137,7 +234,21 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
     ListStockMovementsHandler,
     GetLowStockItemsHandler,
     GetInventoryValuationHandler,
+    CreateFixedAssetHandler,
+    UpdateFixedAssetDetailsHandler,
+    TransferFixedAssetLocationHandler,
+    ChangeFixedAssetStatusHandler,
+    UpdateFixedAssetConditionHandler,
+    RecordAssetMaintenanceHandler,
+    UpdateFixedAssetValuationHandler,
+    GetFixedAssetByIdHandler,
+    GetFixedAssetByTagHandler,
+    ListFixedAssetsHandler,
+    GetAssetHistoryHandler,
+    GetMaintenanceHistoryHandler,
+    GetAssetValueHandler,
     InventoryController,
+    FixedAssetsController,
   ],
 })
 export class ResourcesModule {}
