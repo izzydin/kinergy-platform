@@ -26,12 +26,16 @@ import {
   ArchiveInventoryItemHandler,
   ActivateInventoryItemCommand,
   ActivateInventoryItemHandler,
+  DeactivateInventoryItemCommand,
+  DeactivateInventoryItemHandler,
   ReceiveStockCommand,
   ReceiveStockHandler,
   SellStockCommand,
   SellStockHandler,
   ConsumeStockCommand,
   ConsumeStockHandler,
+  ScrapStockCommand,
+  ScrapStockHandler,
   AdjustStockCommand,
   AdjustStockHandler,
   GetInventoryItemByIdQuery,
@@ -47,6 +51,7 @@ import {
   GetLowStockItemsHandler,
   GetInventoryValuationQuery,
   GetInventoryValuationHandler,
+  InventoryCategory,
   UnitOfMeasure,
 } from '@kinergy-platform/core';
 import {
@@ -55,11 +60,57 @@ import {
   ReceiveStockRequestDto,
   SellStockRequestDto,
   ConsumeStockRequestDto,
+  ScrapStockRequestDto,
   AdjustStockRequestDto,
   ListInventoryItemsQueryDto,
+  CategoryMetadataDto,
+  PaginatedInventoryResponseDto,
   InventoryItemResponseDto,
   InventoryValuationResponseDto,
 } from '../dto';
+
+const INVENTORY_CATEGORIES_METADATA: CategoryMetadataDto[] = [
+  {
+    code: InventoryCategory.HEALTHY_MEALS,
+    displayName: 'Healthy Meals',
+    description: 'Prepared nutritious meals and fresh food consumables.',
+  },
+  {
+    code: InventoryCategory.HEALTHY_DRINKS,
+    displayName: 'Healthy Drinks',
+    description: 'Fresh juices, smoothies, and functional beverages.',
+  },
+  {
+    code: InventoryCategory.CLEANING_SUPPLIES,
+    displayName: 'Cleaning Supplies',
+    description: 'Facility sanitization, towels, and hygiene supplies.',
+  },
+  {
+    code: InventoryCategory.OFFICE_SUPPLIES,
+    displayName: 'Office Supplies',
+    description: 'Stationery, paper, and administrative consumables.',
+  },
+  {
+    code: InventoryCategory.SUPPLEMENTS,
+    displayName: 'Supplements & Nutrition',
+    description: 'Nutritional powders, vitamins, and wellness supplements.',
+  },
+  {
+    code: InventoryCategory.CLINICAL_SUPPLIES,
+    displayName: 'Clinical Supplies',
+    description: 'Medical, kinesiology, and physical therapy consumables.',
+  },
+  {
+    code: InventoryCategory.THERAPY_CONSUMABLES,
+    displayName: 'Therapy Consumables',
+    description: 'Massage oils, kinesiology tape, and treatment supplies.',
+  },
+  {
+    code: InventoryCategory.RETAIL_PRODUCTS,
+    displayName: 'Retail Products',
+    description: 'Branded merchandise, apparel, and consumer goods.',
+  },
+];
 
 const getErrorMessage = (error: unknown): string => {
   if (!error) return 'Operation failed';
@@ -81,9 +132,11 @@ export class InventoryController {
     private readonly updateInventoryItemHandler: UpdateInventoryItemHandler,
     private readonly archiveInventoryItemHandler: ArchiveInventoryItemHandler,
     private readonly activateInventoryItemHandler: ActivateInventoryItemHandler,
+    private readonly deactivateInventoryItemHandler: DeactivateInventoryItemHandler,
     private readonly receiveStockHandler: ReceiveStockHandler,
     private readonly sellStockHandler: SellStockHandler,
     private readonly consumeStockHandler: ConsumeStockHandler,
+    private readonly scrapStockHandler: ScrapStockHandler,
     private readonly adjustStockHandler: AdjustStockHandler,
     private readonly getInventoryItemByIdHandler: GetInventoryItemByIdHandler,
     private readonly listInventoryItemsHandler: ListInventoryItemsHandler,
@@ -93,27 +146,52 @@ export class InventoryController {
     private readonly getInventoryValuationHandler: GetInventoryValuationHandler,
   ) {}
 
+  @Get('categories')
+  @HttpCode(HttpStatus.OK)
+  @Roles('ADMIN', 'SUPER_ADMIN', 'OWNER', 'KITCHEN_STAFF', 'RECEPTIONIST', 'TRAINER')
+  @Permissions('inventory.read')
+  @ApiOperation({
+    summary: 'List consumable inventory category metadata',
+    description:
+      'Retrieves the static, code-defined inventory taxonomy classification enum metadata for UI dropdowns.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Category taxonomy metadata retrieved successfully.',
+    type: [CategoryMetadataDto],
+  })
+  public getCategories(): CategoryMetadataDto[] {
+    return INVENTORY_CATEGORIES_METADATA;
+  }
+
   @Get()
   @HttpCode(HttpStatus.OK)
   @Roles('ADMIN', 'SUPER_ADMIN', 'OWNER', 'KITCHEN_STAFF', 'RECEPTIONIST', 'TRAINER')
   @Permissions('inventory.read')
   @ApiOperation({
     summary: 'List consumable inventory products',
-    description: 'Retrieves catalog items with optional search, category, and status filtering.',
+    description:
+      'Retrieves catalog items with optional search, category, status, and stock availability filtering.',
   })
-  @ApiResponse({ status: 200, description: 'Catalog items retrieved successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Catalog items retrieved successfully.',
+    type: PaginatedInventoryResponseDto,
+  })
   @ApiResponse({ status: 401, description: 'Authentication required.' })
   @ApiResponse({ status: 403, description: 'Insufficient privileges.' })
   public async listItems(
     @Query() queryDto: ListInventoryItemsQueryDto,
     @CurrentUser() user: AuthenticatedUserContext,
-  ) {
+  ): Promise<PaginatedInventoryResponseDto> {
     const query = new ListInventoryItemsQuery({
       tenantId: user?.tenantId ?? undefined,
       filter: {
         search: queryDto.search,
         category: queryDto.category,
         status: queryDto.status,
+        stockStatus: queryDto.stockStatus,
+        includeArchived: queryDto.includeArchived,
         page: queryDto.page,
         limit: queryDto.limit,
         sortBy: queryDto.sortBy as ListInventoryItemsFilter['sortBy'],
@@ -125,7 +203,7 @@ export class InventoryController {
     if (!result.isSuccess) {
       throw new BadRequestException(result.error);
     }
-    return result.value;
+    return result.value as unknown as PaginatedInventoryResponseDto;
   }
 
   @Get('low-stock')
@@ -456,6 +534,69 @@ export class InventoryController {
       actorId: user.userId,
     });
     const result = await this.consumeStockHandler.execute(command);
+    if (!result.isSuccess) {
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
+      }
+      throw new BadRequestException(msg);
+    }
+    return result.value;
+  }
+
+  @Post(':id/deactivate')
+  @HttpCode(HttpStatus.OK)
+  @Roles('ADMIN', 'SUPER_ADMIN', 'OWNER')
+  @Permissions('inventory.write')
+  @ApiOperation({
+    summary: 'Deactivate a product (seasonal freeze / temporary suspension)',
+    description: 'Transitions active product to INACTIVE state without archiving history.',
+  })
+  @ApiParam({ name: 'id', description: 'Unique Inventory Item ID' })
+  public async deactivateItem(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUserContext,
+  ): Promise<InventoryItemResponseDto> {
+    const command = new DeactivateInventoryItemCommand({
+      id,
+      tenantId: user?.tenantId ?? undefined,
+      actorId: user.userId,
+      reason: 'Product suspended via operational deactivation',
+    });
+    const result = await this.deactivateInventoryItemHandler.execute(command);
+    if (!result.isSuccess) {
+      const msg = getErrorMessage(result.error);
+      if (msg.toLowerCase().includes('not found')) {
+        throw new NotFoundException(msg);
+      }
+      throw new BadRequestException(msg);
+    }
+    return result.value as unknown as InventoryItemResponseDto;
+  }
+
+  @Post(':id/scrap')
+  @HttpCode(HttpStatus.OK)
+  @Roles('ADMIN', 'SUPER_ADMIN', 'OWNER', 'KITCHEN_STAFF')
+  @Permissions('inventory.write')
+  @ApiOperation({
+    summary: 'Record disposal of damaged or expired consumable inventory',
+    description:
+      'Deducts stock on hand and writes an immutable double-entry movement ledger record with scrap reason.',
+  })
+  @ApiParam({ name: 'id', description: 'Unique Inventory Item ID' })
+  public async scrapStock(
+    @Param('id') id: string,
+    @Body() dto: ScrapStockRequestDto,
+    @CurrentUser() user: AuthenticatedUserContext,
+  ) {
+    const command = new ScrapStockCommand({
+      itemId: id,
+      tenantId: user?.tenantId ?? undefined,
+      quantity: dto.quantity,
+      reason: dto.reason,
+      actorId: user.userId,
+    });
+    const result = await this.scrapStockHandler.execute(command);
     if (!result.isSuccess) {
       const msg = getErrorMessage(result.error);
       if (msg.toLowerCase().includes('not found')) {

@@ -8,9 +8,11 @@ import {
   UpdateInventoryItemHandler,
   ArchiveInventoryItemHandler,
   ActivateInventoryItemHandler,
+  DeactivateInventoryItemHandler,
   ReceiveStockHandler,
   SellStockHandler,
   ConsumeStockHandler,
+  ScrapStockHandler,
   AdjustStockHandler,
   GetInventoryItemByIdHandler,
   ListInventoryItemsHandler,
@@ -88,6 +90,12 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
       inject: [PrismaInventoryItemRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
     },
     {
+      provide: DeactivateInventoryItemHandler,
+      useFactory: (repo: PrismaInventoryItemRepository, publisher: ResourcesEventPublisherPort) =>
+        new DeactivateInventoryItemHandler(repo, publisher),
+      inject: [PrismaInventoryItemRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+    },
+    {
       provide: ReceiveStockHandler,
       useFactory: (repo: PrismaInventoryItemRepository, publisher: ResourcesEventPublisherPort) =>
         new ReceiveStockHandler(repo, publisher),
@@ -103,6 +111,12 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
       provide: ConsumeStockHandler,
       useFactory: (repo: PrismaInventoryItemRepository, publisher: ResourcesEventPublisherPort) =>
         new ConsumeStockHandler(repo, publisher),
+      inject: [PrismaInventoryItemRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+    },
+    {
+      provide: ScrapStockHandler,
+      useFactory: (repo: PrismaInventoryItemRepository, publisher: ResourcesEventPublisherPort) =>
+        new ScrapStockHandler(repo, publisher),
       inject: [PrismaInventoryItemRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
     },
     {
@@ -241,9 +255,11 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
     UpdateInventoryItemHandler,
     ArchiveInventoryItemHandler,
     ActivateInventoryItemHandler,
+    DeactivateInventoryItemHandler,
     ReceiveStockHandler,
     SellStockHandler,
     ConsumeStockHandler,
+    ScrapStockHandler,
     AdjustStockHandler,
     GetInventoryItemByIdHandler,
     ListInventoryItemsHandler,

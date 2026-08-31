@@ -254,6 +254,50 @@ describe('InventoryController Authorization & RBAC Evaluation (Milestone 6.7)', 
       await expect(guard.canActivate(context)).rejects.toThrow(ForbiddenException);
     });
 
+    it('allows deactivateItem when user possesses inventory.write permission', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_owner_01',
+        email: 'owner@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['OWNER'],
+        permissions: ['inventory.write'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('deactivateItem', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+    });
+
+    it('allows scrapStock when user possesses inventory.write permission and denies when lacking', async () => {
+      const authorizedUser = new AuthenticatedUserContext({
+        userId: 'usr_kitchen_01',
+        email: 'kitchen@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['KITCHEN_STAFF'],
+        permissions: ['inventory.write'],
+      });
+      const unauthorizedUser = new AuthenticatedUserContext({
+        userId: 'usr_trainer_01',
+        email: 'trainer@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['TRAINER'],
+        permissions: ['inventory.read'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+      expect(await guard.canActivate(createMockContext('scrapStock', authorizedUser))).toBe(true);
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(
+        AuthorizationDecision.denied('Access denied: missing required permission inventory.write'),
+      );
+      await expect(
+        guard.canActivate(createMockContext('scrapStock', unauthorizedUser)),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
     it('allows adjustStock when user possesses inventory.write permission', async () => {
       const user = new AuthenticatedUserContext({
         userId: 'usr_owner_01',
@@ -296,6 +340,29 @@ describe('InventoryController Authorization & RBAC Evaluation (Milestone 6.7)', 
   });
 
   describe('2. Consumable Inventory Queries (Require inventory.read)', () => {
+    it('allows getCategories when user possesses inventory.read permission', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_trainer_01',
+        email: 'trainer@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['TRAINER'],
+        permissions: ['inventory.read'],
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+
+      const context = createMockContext('getCategories', user);
+      const result = await guard.canActivate(context);
+
+      expect(result).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        user,
+        expect.objectContaining({
+          requiredPermissions: ['inventory.read'],
+        }),
+      );
+    });
+
     it('allows listItems when user possesses inventory.read permission', async () => {
       const user = new AuthenticatedUserContext({
         userId: 'usr_trainer_01',

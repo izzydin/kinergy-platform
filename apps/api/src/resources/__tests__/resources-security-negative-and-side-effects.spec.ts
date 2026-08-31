@@ -16,9 +16,11 @@ import {
   UpdateInventoryItemHandler,
   ArchiveInventoryItemHandler,
   ActivateInventoryItemHandler,
+  DeactivateInventoryItemHandler,
   ReceiveStockHandler,
   SellStockHandler,
   ConsumeStockHandler,
+  ScrapStockHandler,
   AdjustStockHandler,
   GetInventoryItemByIdHandler,
   ListInventoryItemsHandler,
@@ -52,9 +54,11 @@ describe('Phase 6 Resources Security Negative Testing & No-Side-Effect Verificat
   let mockUpdateInventoryItem: jest.Mocked<UpdateInventoryItemHandler>;
   let mockArchiveInventoryItem: jest.Mocked<ArchiveInventoryItemHandler>;
   let mockActivateInventoryItem: jest.Mocked<ActivateInventoryItemHandler>;
+  let mockDeactivateInventoryItem: jest.Mocked<DeactivateInventoryItemHandler>;
   let mockReceiveStock: jest.Mocked<ReceiveStockHandler>;
   let mockSellStock: jest.Mocked<SellStockHandler>;
   let mockConsumeStock: jest.Mocked<ConsumeStockHandler>;
+  let mockScrapStock: jest.Mocked<ScrapStockHandler>;
   let mockAdjustStock: jest.Mocked<AdjustStockHandler>;
   let mockGetInventoryItemById: jest.Mocked<GetInventoryItemByIdHandler>;
   let mockListInventoryItems: jest.Mocked<ListInventoryItemsHandler>;
@@ -100,9 +104,13 @@ describe('Phase 6 Resources Security Negative Testing & No-Side-Effect Verificat
     mockActivateInventoryItem = {
       execute: jest.fn(),
     } as unknown as jest.Mocked<ActivateInventoryItemHandler>;
+    mockDeactivateInventoryItem = {
+      execute: jest.fn(),
+    } as unknown as jest.Mocked<DeactivateInventoryItemHandler>;
     mockReceiveStock = { execute: jest.fn() } as unknown as jest.Mocked<ReceiveStockHandler>;
     mockSellStock = { execute: jest.fn() } as unknown as jest.Mocked<SellStockHandler>;
     mockConsumeStock = { execute: jest.fn() } as unknown as jest.Mocked<ConsumeStockHandler>;
+    mockScrapStock = { execute: jest.fn() } as unknown as jest.Mocked<ScrapStockHandler>;
     mockAdjustStock = { execute: jest.fn() } as unknown as jest.Mocked<AdjustStockHandler>;
     mockGetInventoryItemById = {
       execute: jest.fn(),
@@ -160,9 +168,11 @@ describe('Phase 6 Resources Security Negative Testing & No-Side-Effect Verificat
       mockUpdateInventoryItem,
       mockArchiveInventoryItem,
       mockActivateInventoryItem,
+      mockDeactivateInventoryItem,
       mockReceiveStock,
       mockSellStock,
       mockConsumeStock,
+      mockScrapStock,
       mockAdjustStock,
       mockGetInventoryItemById,
       mockListInventoryItems,

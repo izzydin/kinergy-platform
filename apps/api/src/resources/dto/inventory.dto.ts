@@ -196,6 +196,37 @@ export class AdjustStockRequestDto {
   notes?: string;
 }
 
+export class ScrapStockRequestDto {
+  @ApiProperty({ description: 'Positive quantity of units to scrap / dispose', example: 3 })
+  @IsNumber()
+  @IsPositive()
+  quantity!: number;
+
+  @ApiProperty({
+    description: 'Mandatory justification reason for scrapping (damaged, expired, contaminated)',
+    example: 'Damaged packaging during storage',
+  })
+  @IsString()
+  @MinLength(3)
+  reason!: string;
+
+  @ApiPropertyOptional({ description: 'Optional operational notes' })
+  @IsOptional()
+  @IsString()
+  notes?: string;
+}
+
+export class CategoryMetadataDto {
+  @ApiProperty({ description: 'Category enum code identifier', example: 'SUPPLEMENTS' })
+  code!: string;
+
+  @ApiProperty({ description: 'Human-readable category label', example: 'Supplements & Nutrition' })
+  displayName!: string;
+
+  @ApiProperty({ description: 'Category description and purpose' })
+  description!: string;
+}
+
 export class ListInventoryItemsQueryDto {
   @ApiPropertyOptional({ description: 'Fuzzy search term across SKU, name, and description' })
   @IsOptional()
@@ -212,27 +243,50 @@ export class ListInventoryItemsQueryDto {
   @IsEnum(InventoryItemStatus)
   status?: InventoryItemStatus;
 
-  @ApiPropertyOptional({ description: 'Page index (1-indexed)', default: 1 })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  page?: number;
-
-  @ApiPropertyOptional({ description: 'Number of records per page (max 100)', default: 20 })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  limit?: number;
-
-  @ApiPropertyOptional({ description: 'Field to sort by', default: 'name' })
+  @ApiPropertyOptional({
+    description: 'Filter by stock availability status (IN_STOCK, LOW_STOCK, OUT_OF_STOCK)',
+    enum: ['IN_STOCK', 'LOW_STOCK', 'OUT_OF_STOCK'],
+  })
   @IsOptional()
   @IsString()
-  sortBy?: string;
+  stockStatus?: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK';
+
+  @ApiPropertyOptional({
+    description: 'Whether to include soft-archived items in results',
+    default: false,
+  })
+  @IsOptional()
+  includeArchived?: boolean;
+
+  @ApiPropertyOptional({ description: 'Page index (1-indexed)', default: 1, minimum: 1 })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({
+    description: 'Number of records per page (max 100)',
+    default: 20,
+    minimum: 1,
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  limit?: number = 20;
+
+  @ApiPropertyOptional({
+    description:
+      'Field to sort by (name, sku, category, quantityOnHand, sellingPrice, createdAt, updatedAt)',
+    default: 'name',
+  })
+  @IsOptional()
+  @IsString()
+  sortBy?: string = 'name';
 
   @ApiPropertyOptional({ description: 'Sort direction (asc | desc)', default: 'asc' })
   @IsOptional()
   @IsString()
-  sortOrder?: 'asc' | 'desc';
+  sortOrder?: 'asc' | 'desc' = 'asc';
 }
 
 export class InventoryItemResponseDto {
@@ -277,6 +331,29 @@ export class InventoryItemResponseDto {
 
   @ApiProperty({ description: 'Last update timestamp' })
   updatedAt!: string;
+}
+
+export class PaginatedInventoryResponseDto {
+  @ApiProperty({ type: [InventoryItemResponseDto] })
+  items!: InventoryItemResponseDto[];
+
+  @ApiProperty({ description: 'Total count of items matching the filter criteria', example: 42 })
+  total!: number;
+
+  @ApiProperty({ description: 'Current 1-indexed page number', example: 1 })
+  page!: number;
+
+  @ApiProperty({ description: 'Page size limit applied', example: 20 })
+  limit!: number;
+
+  @ApiProperty({ description: 'Total number of pages available', example: 3 })
+  totalPages!: number;
+
+  @ApiProperty({ description: 'Whether a subsequent page exists', example: true })
+  hasNextPage!: boolean;
+
+  @ApiProperty({ description: 'Whether a preceding page exists', example: false })
+  hasPreviousPage!: boolean;
 }
 
 export class StockMovementResponseDto {
