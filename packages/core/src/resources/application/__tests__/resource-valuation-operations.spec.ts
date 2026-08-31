@@ -359,6 +359,50 @@ describe('Resource Valuation Operations (Milestone 6.8)', () => {
       expect(includeResult.getValue().totalDistinctItems).toBe(2);
     });
 
+    it('evaluates zero cost items as contributing $0.00 while incrementing item counts', async () => {
+      const item = createInventoryItem({
+        sku: 'SKU-FREE-SAMPLE',
+        name: 'Promotional Protein Sample',
+        category: InventoryCategory.SUPPLEMENTS,
+        qty: 100,
+        purchaseCost: 0.0,
+      });
+      await inventoryRepo.save(item);
+
+      const query = new GetInventoryValuationQuery({ tenantId: tenantA });
+      const result = await inventoryValuationHandler.execute(query);
+
+      expect(result.isSuccess).toBe(true);
+      const data = result.getValue();
+      // 100 * 0.00 = 0.00
+      expect(data.totalValueAmount).toBe(0.0);
+      expect(data.totalDistinctItems).toBe(1);
+      expect(data.totalQuantityUnits).toBe(100);
+      expect(data.breakdownByCategory[InventoryCategory.SUPPLEMENTS]?.totalValueAmount).toBe(0.0);
+    });
+
+    it('evaluates inactive products with stock as contributing to inventory working capital', async () => {
+      const inactiveItem = createInventoryItem({
+        sku: 'SKU-INACTIVE-STOCK',
+        name: 'Seasonal Winter Tea',
+        category: InventoryCategory.HEALTHY_DRINKS,
+        qty: 20,
+        purchaseCost: 3.5,
+        status: InventoryItemStatus.INACTIVE,
+      });
+      await inventoryRepo.save(inactiveItem);
+
+      const query = new GetInventoryValuationQuery({ tenantId: tenantA });
+      const result = await inventoryValuationHandler.execute(query);
+
+      expect(result.isSuccess).toBe(true);
+      const data = result.getValue();
+      // Inactive catalog items remain part of active warehouse stock: 20 * $3.50 = $70.00
+      expect(data.totalValueAmount).toBe(70.0);
+      expect(data.totalDistinctItems).toBe(1);
+      expect(data.totalQuantityUnits).toBe(20);
+    });
+
     it('strictly isolates inventory valuation across tenants', async () => {
       const itemTenantA = createInventoryItem({
         sku: 'SKU-TA',
@@ -524,6 +568,28 @@ describe('Resource Valuation Operations (Milestone 6.8)', () => {
           ?.totalCarryingValueAmount,
       ).toBe(2200);
     });
+
+    it('evaluates fully depreciated zero estimated value assets as contributing $0.00 without error', async () => {
+      const zeroValueAsset = createFixedAsset({
+        tag: 'AST-ZERO-BOOK',
+        name: 'Fully Depreciated Cable Machine',
+        category: AssetCategory.GYM_EQUIPMENT,
+        purchaseValue: 4000,
+        currentValue: 0.0,
+        status: AssetStatus.ACTIVE,
+      });
+      await assetRepo.save(zeroValueAsset);
+
+      const query = new GetFixedAssetValuationSummaryQuery({ tenantId: tenantA });
+      const result = await assetValuationHandler.execute(query);
+
+      expect(result.isSuccess).toBe(true);
+      const data = result.getValue();
+      expect(data.totalCarryingValueAmount).toBe(0.0);
+      expect(data.totalPurchaseValueAmount).toBe(4000.0);
+      expect(data.totalAssetCount).toBe(1);
+      expect(data.activeAssetCount).toBe(1);
+    });
   });
 
   describe('3. Combined Resource Valuation (GetCombinedResourceValuationHandler)', () => {
@@ -653,6 +719,101 @@ describe('Resource Valuation Operations (Milestone 6.8)', () => {
       expect(afterAsset?.currentEstimatedValue.amount).toBe(
         beforeAsset?.currentEstimatedValue.amount,
       );
+    });
+
+    it('regression: strictly preserves mathematical invariant Combined = Inventory + FixedAssets with complex decimals and mixed lifecycle states', async () => {
+      // 3 Inventory items
+      await inventoryRepo.save(
+        createInventoryItem({
+          sku: 'SKU-C1',
+          name: 'Item 1',
+          category: InventoryCategory.SUPPLEMENTS,
+          qty: 12.34,
+          purchaseCost: 7.89, // 12.34 * 7.89 = 97.3626 -> 97.36
+        }),
+      );
+      await inventoryRepo.save(
+        createInventoryItem({
+          sku: 'SKU-C2',
+          name: 'Item 2',
+          category: InventoryCategory.HEALTHY_DRINKS,
+          qty: 5.67,
+          purchaseCost: 4.12, // 5.67 * 4.12 = 23.3604 -> 23.36
+        }),
+      );
+      await inventoryRepo.save(
+        createInventoryItem({
+          sku: 'SKU-C3',
+          name: 'Archived Zero Stock',
+          category: InventoryCategory.OFFICE_SUPPLIES,
+          qty: 0,
+          purchaseCost: 15.0,
+          status: InventoryItemStatus.ARCHIVED,
+        }),
+      );
+
+      // 4 Fixed Assets (Active, Maintenance, Damaged, and Sold)
+      await assetRepo.save(
+        createFixedAsset({
+          tag: 'AST-C1',
+          name: 'Active Bike',
+          category: AssetCategory.GYM_EQUIPMENT,
+          purchaseValue: 1200.5,
+          currentValue: 950.25,
+          status: AssetStatus.ACTIVE,
+        }),
+      );
+      await assetRepo.save(
+        createFixedAsset({
+          tag: 'AST-C2',
+          name: 'Maint Reformer',
+          category: AssetCategory.THERAPY_EQUIPMENT,
+          purchaseValue: 3500.0,
+          currentValue: 2800.5,
+          status: AssetStatus.UNDER_MAINTENANCE,
+        }),
+      );
+      await assetRepo.save(
+        createFixedAsset({
+          tag: 'AST-C3',
+          name: 'Damaged Mat',
+          category: AssetCategory.GYM_EQUIPMENT,
+          purchaseValue: 200.0,
+          currentValue: 50.75,
+          status: AssetStatus.DAMAGED,
+        }),
+      );
+      await assetRepo.save(
+        createFixedAsset({
+          tag: 'AST-C4-SOLD',
+          name: 'Sold Old Treadmill',
+          category: AssetCategory.GYM_EQUIPMENT,
+          purchaseValue: 5000.0,
+          currentValue: 1200.0, // Must NOT leak into carrying value
+          status: AssetStatus.SOLD,
+        }),
+      );
+
+      const invRes = await inventoryValuationHandler.execute(
+        new GetInventoryValuationQuery({ tenantId: tenantA }),
+      );
+      const assetRes = await assetValuationHandler.execute(
+        new GetFixedAssetValuationSummaryQuery({ tenantId: tenantA }),
+      );
+      const combinedRes = await combinedValuationHandler.execute(
+        new GetCombinedResourceValuationQuery({ tenantId: tenantA }),
+      );
+
+      const invValue = invRes.getValue().totalValueAmount; // 97.36 + 23.36 = 120.72
+      const assetValue = assetRes.getValue().totalCarryingValueAmount; // 950.25 + 2800.50 + 50.75 = 3801.50
+      const combinedValue = combinedRes.getValue().totalCombinedValueAmount;
+
+      expect(invValue).toBe(120.72);
+      expect(assetValue).toBe(3801.5);
+      // Mathematical Invariant Assertion:
+      expect(combinedValue).toBe(Math.round((invValue + assetValue) * 100) / 100);
+      expect(combinedValue).toBe(3922.22);
+      expect(combinedRes.getValue().fixedAssets.activeAssetCount).toBe(3);
     });
   });
 });
