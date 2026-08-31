@@ -79,6 +79,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Consumable Inventory API Contracts](./inventory-api-contracts.md)**                                | Detailed Consumable Inventory HTTP API contracts, controller architecture, and DTO specifications                     | Approved & Active     |
 | **[Fixed Asset API Contracts](./fixed-asset-api-contracts.md)**                                       | Detailed Fixed Asset HTTP API contracts, lifecycle state actions, and DTO specifications                              | Approved & Active     |
 | **[Resource API Contracts & Validation](./resource-api-contracts.md)**                                | Comprehensive request/response DTO strategy, validation architecture, query normalization, and boundary rules         | Approved & Active     |
+| **[Resource Controller Architecture](./resource-controller-architecture.md)**                         | HTTP adapter layer pipeline, controller thinness invariants, and architectural audit checklist                        | Approved & Active     |
 | **[Milestone 6.8 Quality Gate](./milestone-6.8-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.8                          | **Approved (100%)**   |
 
 ---
