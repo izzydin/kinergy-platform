@@ -84,6 +84,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Resource API Documentation & OpenAPI](./resource-api-documentation.md)**                           | Comprehensive OpenAPI 3.0 specification, security model, RBAC mapping, operations inventory, and verification matrix  | Approved & Active     |
 | **[Resource API Testing & Quality Specification](./resource-api-testing.md)**                         | Comprehensive external API test matrices, E2E lifecycle journeys, security tests, and contract serialization          | Approved & Active     |
 | **[Milestone 6.8 Quality Gate](./milestone-6.8-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.8                          | **Approved (100%)**   |
+| **[Milestone 6.9 Quality Gate](./milestone-6.9-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.9                          | **Approved (100%)**   |
 
 ---
 
