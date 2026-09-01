@@ -260,6 +260,7 @@ describe('Milestone 3.6: Room & Resource Scheduling QA Adversarial Hardening Sui
       seriesRepo,
       apptRepo,
       conflictService,
+      clock,
     );
   });
 
