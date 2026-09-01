@@ -84,6 +84,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Resource API Documentation & OpenAPI](./resource-api-documentation.md)**                           | Comprehensive OpenAPI 3.0 specification, security model, RBAC mapping, operations inventory, and verification matrix  | Approved & Active     |
 | **[Resource API Testing & Quality Specification](./resource-api-testing.md)**                         | Comprehensive external API test matrices, E2E lifecycle journeys, security tests, and contract serialization          | Approved & Active     |
 | **[Backend Testing Baseline & Gap Analysis](./backend-testing-baseline.md)**                          | Authoritative testing architecture discovery, test inventory (48 suites / 730 tests), and gap analysis                | Approved & Active     |
+| **[Phase 6 Backend Testing Strategy](./phase-6-backend-testing-strategy.md)**                         | Authoritative testing strategy, test pyramid, behavior ownership matrix, concurrency & security scopes                | Approved & Active     |
 | **[Milestone 6.8 Quality Gate](./milestone-6.8-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.8                          | **Approved (100%)**   |
 | **[Milestone 6.9 Quality Gate](./milestone-6.9-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.9                          | **Approved (100%)**   |
 
