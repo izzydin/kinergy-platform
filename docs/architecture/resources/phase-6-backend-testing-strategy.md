@@ -147,13 +147,60 @@ The testing pyramid partitions verification into distinct, non-overlapping level
 
 ## 8. Monetary Precision & Decimal Assertion Strategy
 
-- **Domain Core**: Monetary values are encapsulated in the `Money` value object (`amount: number`, `currency: string`) with exact arithmetic rounding rules.
-- **Database Mappers**: Bi-directional conversion ensures JavaScript numbers are mapped to Prisma `Decimal` instances and restored without floating-point drift.
-- **HTTP DTO Layer**: Monetary values are serialized as standard IEEE-754 numbers in response payloads, avoiding internal Decimal object leakage to frontend clients.
+- **Domain Core (`Money` VO)**:
+  - Monetary values are encapsulated in the `Money` value object (`amount: number`, `currency: string`) with 2-decimal-place rounding (`Math.round(amount * 100) / 100`).
+  - Rejects negative amounts (`amount < 0`) with `InvalidMoneyException`.
+  - Rejects mismatched currencies in addition and subtraction operations.
+- **Valuation Handlers & Arithmetic Precision**:
+  - Computations execute using **integer cents arithmetic** (`Math.round(qty * unitCost * 100)`) before dividing back to decimal units (`cents / 100`), guaranteeing zero floating-point accumulation drift across large aggregate queries.
+- **Database Mappers**:
+  - Bi-directional conversion ensures JavaScript numbers are mapped to Prisma `Decimal` instances (`@db.Decimal(12, 2)`) and restored without floating-point drift.
+- **HTTP DTO Layer**:
+  - Monetary values are serialized as standard IEEE-754 numbers in response payloads, avoiding internal Decimal object leakage to frontend clients.
 
 ---
 
-## 9. Flakiness Prevention Strategy
+## 9. Authoritative Valuation Coverage & Lifecycle Inclusion Evidence
+
+As proven in [`resource-valuation-deterministic-unit.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/application/__tests__/resource-valuation-deterministic-unit.spec.ts) and [`resource-valuation-operations.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/application/__tests__/resource-valuation-operations.spec.ts):
+
+### 9.1 Consumable Inventory Valuation Formula
+
+$$\text{Inventory Value} = \sum (\text{currentStock} \times \text{purchaseCost})$$
+
+- **Proven Behaviors**:
+  - Zero products -> Evaluates to $\$0.00$.
+  - Single product -> Exact product: $10 \times \$15.50 = \$155.00$.
+  - Multiple products & categories -> Category breakdown and exact integer cents sums.
+  - Zero stock items (`currentStock: 0`) -> $\$0.00$ contribution.
+  - Promotional / zero purchase cost items (`purchaseCost: $0.00`) -> $\$0.00$ contribution.
+  - Continuous & discrete UOM decimal quantities (e.g., $15.5\text{ units} \times \$4.25 = \$65.88$).
+
+### 9.2 Fixed Asset Carrying Value Formula & Lifecycle Rules (ADR-0097)
+
+$$\text{Fixed Asset Carrying Value} = \sum_{\text{status} \in \{\text{ACTIVE}, \text{UNDER\_MAINTENANCE}, \text{DAMAGED}\}} (\text{currentEstimatedValue})$$
+$$\text{Fixed Asset Historical CAPEX} = \sum (\text{purchaseValue})$$
+
+- **Lifecycle Inclusion/Exclusion Proofs**:
+  - `ACTIVE`: **INCLUDED** in carrying balance sheet value.
+  - `UNDER_MAINTENANCE`: **INCLUDED** in carrying balance sheet value.
+  - `DAMAGED`: **INCLUDED** in carrying balance sheet value (reflects book impairment).
+  - `RETIRED`: **EXCLUDED** from active carrying value ($\$0.00$ carrying value); included in historical CAPEX query if `includeDecommissioned: true`.
+  - `SOLD`: **EXCLUDED** from active carrying value ($\$0.00$ carrying value); liquidation proceeds recorded separately.
+
+### 9.3 Combined Resource Balance Sheet Formula (ADR-0098)
+
+$$\text{Total Resource Value} = \text{Consumable Inventory Value} + \text{Fixed Asset Carrying Value}$$
+
+- **Scenarios Tested**:
+  - Both domains empty -> Combined Value = $\$0.00$, Portfolio Shares = $0\%$.
+  - Inventory only -> Combined Value = Inventory Value, Inventory Share = $100\%$, Asset Share = $0\%$.
+  - Fixed Assets only -> Combined Value = Asset Carrying Value, Asset Share = $100\%$, Inventory Share = $0\%$.
+  - Both populated -> Exact mathematical sum and complementary portfolio percentage shares ($\text{Share}_{\text{Inv}} + \text{Share}_{\text{Asset}} = 100.0\%$).
+
+---
+
+## 10. Flakiness Prevention Strategy
 
 1. **Zero `sleep()` / `setTimeout()`**: All asynchronous testing relies on explicit Promise resolutions, event listeners, or atomic CQRS handler returns.
 2. **Deterministic List Ordering**: All collection queries enforce deterministic fallback sorting (`sortBy: 'name'`, `sortOrder: 'asc'`) to eliminate test flakiness caused by database row ordering.
@@ -161,7 +208,7 @@ The testing pyramid partitions verification into distinct, non-overlapping level
 
 ---
 
-## 10. Definition of Adequate Coverage for Milestone 6.10
+## 11. Definition of Adequate Coverage for Milestone 6.10
 
 Phase 6 testing is declared **adequate and complete** when:
 
@@ -169,4 +216,5 @@ Phase 6 testing is declared **adequate and complete** when:
 2. 100% of all 27 HTTP routes have automated contract and validation coverage.
 3. Concurrency safety under race conditions is explicitly proven with optimistic locking tests.
 4. Security boundaries (authentication, RBAC, anti-bypass) are verified with negative test suites.
-5. Monorepo quality gate (`pnpm validate`) passes 100% cleanly across all 10 projects.
+5. Valuation policies (inventory, asset lifecycle carrying value, combined portfolio) are mathematically proven with zero floating-point accumulation drift.
+6. Monorepo quality gate (`pnpm validate`) passes 100% cleanly across all 10 projects.
