@@ -40,8 +40,8 @@ export const LowStockAlertTable: React.FC<LowStockAlertTableProps> = ({ onReceiv
           </CardDescription>
         </div>
         <Button asChild variant="outline" size="sm">
-          <Link to="/resources/inventory?stockStatus=LOW_STOCK">
-            View All in Catalog <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+          <Link to="/resources/inventory/low-stock">
+            View Full Queue <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
           </Link>
         </Button>
       </CardHeader>

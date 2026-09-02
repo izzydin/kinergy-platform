@@ -1,5 +1,5 @@
 import { httpClient } from '../../../../shared/api/http-client';
-import { StockMovementType } from '../types';
+import { StockMovementType, InventoryCategory, InventoryItemStatus } from '../types';
 import type {
   CategoryMetadataVM,
   InventoryProductVM,
@@ -8,6 +8,7 @@ import type {
   PaginatedStockMovementsVM,
   StockMovementVM,
   InventoryValuationVM,
+  MoneyVM,
   ListInventoryFilterParams,
   ListStockMovementsFilterParams,
   CreateProductInputVM,
@@ -44,6 +45,29 @@ interface RawStockMovementResponse {
   occurredAt?: string;
 }
 
+interface RawLowStockItemResponse {
+  id: string;
+  sku: string;
+  name: string;
+  description?: string | null;
+  category: string;
+  unit?: string;
+  unitOfMeasure?: string;
+  minimumStock?: number;
+  reorderThreshold?: number;
+  quantityOnHand?: number;
+  currentStock?: number;
+  purchaseCostAmount?: number;
+  purchaseCostCurrency?: string;
+  sellingPriceAmount?: number;
+  sellingPriceCurrency?: string;
+  unitCost?: MoneyVM | null;
+  sellingPrice?: MoneyVM | null;
+  status: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export const inventoryApi = {
   /**
    * Retrieves static category taxonomy metadata
@@ -73,9 +97,54 @@ export const inventoryApi = {
 
   /**
    * Lists all products where stock on hand is below or at reorder threshold
+   * Enforces invariant: currentStock <= minimumStock (zero stock is low stock).
    */
   async getLowStock(): Promise<InventoryProductVM[]> {
-    return httpClient.get<InventoryProductVM[]>('/api/v1/resources/inventory/low-stock');
+    const response = await httpClient.get<
+      RawLowStockItemResponse[] | { items: RawLowStockItemResponse[] }
+    >('/api/v1/resources/inventory/low-stock');
+
+    const rawList = Array.isArray(response) ? response : response?.items || [];
+    return rawList.map((item): InventoryProductVM => {
+      const currentStock =
+        typeof item.quantityOnHand === 'number'
+          ? item.quantityOnHand
+          : typeof item.currentStock === 'number'
+            ? item.currentStock
+            : 0;
+      const reorderThreshold =
+        typeof item.minimumStock === 'number'
+          ? item.minimumStock
+          : typeof item.reorderThreshold === 'number'
+            ? item.reorderThreshold
+            : 0;
+      const isLowStock = currentStock <= reorderThreshold;
+      const isOutOfStock = currentStock === 0;
+
+      return {
+        id: item.id,
+        sku: item.sku,
+        name: item.name,
+        description: item.description ?? null,
+        category: item.category as InventoryCategory,
+        unitCost: item.unitCost || {
+          amount: item.purchaseCostAmount ?? 0,
+          currency: item.purchaseCostCurrency ?? 'USD',
+        },
+        sellingPrice: item.sellingPrice || {
+          amount: item.sellingPriceAmount ?? 0,
+          currency: item.sellingPriceCurrency ?? 'USD',
+        },
+        currentStock,
+        reorderThreshold,
+        unitOfMeasure: item.unitOfMeasure || item.unit || 'unit',
+        status: (item.status as InventoryItemStatus) || InventoryItemStatus.ACTIVE,
+        isLowStock,
+        isOutOfStock,
+        createdAt: item.createdAt || new Date().toISOString(),
+        updatedAt: item.updatedAt || new Date().toISOString(),
+      };
+    });
   },
 
   /**

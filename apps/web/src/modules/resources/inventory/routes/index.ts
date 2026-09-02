@@ -4,3 +4,4 @@ export * from './inventory-create-page';
 export * from './inventory-edit-page';
 export * from './inventory-detail-page';
 export * from './inventory-movements-page';
+export * from './low-stock-page';

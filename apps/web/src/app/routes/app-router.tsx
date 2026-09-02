@@ -178,6 +178,7 @@ import {
   InventoryDetailPage,
   InventoryEditPage,
   InventoryMovementsPage,
+  LowStockPage,
 } from '../../modules/resources/inventory';
 
 const ResourcesSubRouter: React.FC = () => (
@@ -185,6 +186,7 @@ const ResourcesSubRouter: React.FC = () => (
     <Route path="overview" element={<InventoryOverviewPage />} />
     <Route path="inventory" element={<InventoryListPage />} />
     <Route path="inventory/new" element={<InventoryCreatePage />} />
+    <Route path="inventory/low-stock" element={<LowStockPage />} />
     <Route path="inventory/:id" element={<InventoryDetailPage />} />
     <Route path="inventory/:id/edit" element={<InventoryEditPage />} />
     <Route path="inventory/:id/movements" element={<InventoryMovementsPage />} />

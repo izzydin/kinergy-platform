@@ -17,3 +17,4 @@ export * from './product-movements-preview';
 export * from './movement-history-table';
 export * from './movement-history-filter-bar';
 export * from './movement-history-summary';
+export * from './low-stock-attention-queue';
