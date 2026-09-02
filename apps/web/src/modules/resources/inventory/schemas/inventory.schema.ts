@@ -49,7 +49,37 @@ export const createProductSchema = z.object({
 export type CreateProductFormData = z.infer<typeof createProductSchema>;
 
 /**
- * Product Metadata Update Form Schema
+ * Product Metadata Update Form Schema (Form-level validation)
+ */
+export const editProductFormSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(3, 'Product name must be at least 3 characters')
+    .max(120, 'Product name cannot exceed 120 characters'),
+  description: z.string().trim().max(500, 'Description cannot exceed 500 characters').optional(),
+  category: z.nativeEnum(InventoryCategory, {
+    errorMap: () => ({ message: 'Please select a valid inventory category' }),
+  }),
+  unitCost: z
+    .number({ invalid_type_error: 'Unit cost is required' })
+    .min(0, 'Unit cost must be at least $0.00'),
+  sellingPrice: z
+    .number({ invalid_type_error: 'Selling price is required' })
+    .min(0, 'Selling price must be at least $0.00'),
+  reorderThreshold: z
+    .number({ invalid_type_error: 'Reorder threshold must be an integer' })
+    .int('Reorder threshold must be a whole number')
+    .min(0, 'Reorder threshold cannot be negative'),
+  unitOfMeasure: z.nativeEnum(UnitOfMeasure, {
+    errorMap: () => ({ message: 'Please select a valid unit of measure' }),
+  }),
+});
+
+export type EditProductFormData = z.infer<typeof editProductFormSchema>;
+
+/**
+ * Product Metadata Partial Update Payload Schema
  */
 export const updateProductSchema = z.object({
   name: z

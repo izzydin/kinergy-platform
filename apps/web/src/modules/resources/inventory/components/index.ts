@@ -6,3 +6,5 @@ export * from './low-stock-alert-table';
 export * from './inventory-filter-bar';
 export * from './inventory-list-table';
 export * from './product-create-form';
+export * from './product-edit-form';
+export * from './archive-product-dialog';
