@@ -8,3 +8,6 @@ export * from './inventory-list-table';
 export * from './product-create-form';
 export * from './product-edit-form';
 export * from './archive-product-dialog';
+export * from './receive-stock-dialog';
+export * from './adjust-stock-dialog';
+export * from './product-movements-preview';
