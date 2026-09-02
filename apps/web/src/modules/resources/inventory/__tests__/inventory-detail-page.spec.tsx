@@ -353,6 +353,30 @@ describe('InventoryDetailPage', () => {
     });
   });
 
+  it('opens SellStockDialog when Record Sale action is clicked', async () => {
+    renderComponent();
+
+    const sellBtn = screen.getByTestId('action-sell-stock');
+    fireEvent.click(sellBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('sell-stock-dialog')).toBeInTheDocument();
+      expect(screen.getByText('Record Retail Sale')).toBeInTheDocument();
+    });
+  });
+
+  it('opens ConsumeStockDialog when Consume action is clicked', async () => {
+    renderComponent();
+
+    const consumeBtn = screen.getByTestId('action-consume-stock');
+    fireEvent.click(consumeBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('consume-stock-dialog')).toBeInTheDocument();
+      expect(screen.getByText('Record Clinical Consumption')).toBeInTheDocument();
+    });
+  });
+
   it('opens AdjustStockDialog when Adjust Stock action is clicked', async () => {
     renderComponent();
 
@@ -365,6 +389,18 @@ describe('InventoryDetailPage', () => {
     });
   });
 
+  it('opens ScrapStockDialog when Scrap action is clicked', async () => {
+    renderComponent();
+
+    const scrapBtn = screen.getByTestId('action-scrap-stock');
+    fireEvent.click(scrapBtn);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('scrap-stock-dialog')).toBeInTheDocument();
+      expect(screen.getByText('Disposal / Scrap Stock')).toBeInTheDocument();
+    });
+  });
+
   it('opens ArchiveProductDialog when Archive action is clicked', async () => {
     renderComponent();
 
@@ -374,6 +410,14 @@ describe('InventoryDetailPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('archive-product-dialog')).toBeInTheDocument();
       expect(screen.getByText('Archive Consumable Product')).toBeInTheDocument();
+    });
+  });
+
+  it('automatically opens dialog when action parameter is provided in URL (deep-linking)', async () => {
+    renderComponent('/resources/inventory/prod-100?action=receive');
+
+    await waitFor(() => {
+      expect(screen.getByTestId('receive-stock-dialog')).toBeInTheDocument();
     });
   });
 });

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Button,
   Badge,
@@ -51,6 +51,8 @@ import { ArchiveProductDialog } from '../components/archive-product-dialog';
 
 export const InventoryDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const actionParam = searchParams.get('action');
   const navigate = useNavigate();
   const { hasPermission, hasRole } = useAuth();
 
@@ -83,6 +85,29 @@ export const InventoryDetailPage: React.FC = () => {
 
   // Queries
   const { data: product, isLoading, isFetching, isError, error, refetch } = useInventoryProduct(id);
+
+  // Synchronize URL action parameter with dialog opening
+  useEffect(() => {
+    if (!product) return;
+    if (actionParam === 'receive') setReceiveDialogOpen(true);
+    else if (actionParam === 'sell') setSellDialogOpen(true);
+    else if (actionParam === 'consume') setConsumeDialogOpen(true);
+    else if (actionParam === 'adjust') setAdjustDialogOpen(true);
+    else if (actionParam === 'scrap') setScrapDialogOpen(true);
+  }, [actionParam, product]);
+
+  const clearActionParam = () => {
+    if (searchParams.has('action')) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('action');
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  };
 
   // 1. Loading State
   if (isLoading) {
@@ -545,35 +570,50 @@ export const InventoryDetailPage: React.FC = () => {
       <ReceiveStockDialog
         product={product}
         open={receiveDialogOpen}
-        onOpenChange={setReceiveDialogOpen}
+        onOpenChange={(open) => {
+          setReceiveDialogOpen(open);
+          if (!open) clearActionParam();
+        }}
         onSuccess={() => refetch()}
       />
 
       <SellStockDialog
         product={product}
         open={sellDialogOpen}
-        onOpenChange={setSellDialogOpen}
+        onOpenChange={(open) => {
+          setSellDialogOpen(open);
+          if (!open) clearActionParam();
+        }}
         onSuccess={() => refetch()}
       />
 
       <ConsumeStockDialog
         product={product}
         open={consumeDialogOpen}
-        onOpenChange={setConsumeDialogOpen}
+        onOpenChange={(open) => {
+          setConsumeDialogOpen(open);
+          if (!open) clearActionParam();
+        }}
         onSuccess={() => refetch()}
       />
 
       <AdjustStockDialog
         product={product}
         open={adjustDialogOpen}
-        onOpenChange={setAdjustDialogOpen}
+        onOpenChange={(open) => {
+          setAdjustDialogOpen(open);
+          if (!open) clearActionParam();
+        }}
         onSuccess={() => refetch()}
       />
 
       <ScrapStockDialog
         product={product}
         open={scrapDialogOpen}
-        onOpenChange={setScrapDialogOpen}
+        onOpenChange={(open) => {
+          setScrapDialogOpen(open);
+          if (!open) clearActionParam();
+        }}
         onSuccess={() => refetch()}
       />
 

@@ -154,6 +154,20 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
       // Form remains open and inputs preserved
       expect(screen.getByDisplayValue('25')).toBeInTheDocument();
     });
+
+    it('disables submit button and shows pending feedback to prevent duplicate submissions', () => {
+      (inventoryMutations.useSellStock as jest.Mock).mockReturnValue({
+        mutate: mockSellMutate,
+        isPending: true,
+      });
+
+      renderWithQuery(
+        <SellStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      const submitBtn = screen.getByRole('button', { name: /processing.../i });
+      expect(submitBtn).toBeDisabled();
+    });
   });
 
   describe('2. ConsumeStockDialog (Clinical Treatment Consumption)', () => {
@@ -191,6 +205,26 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
         );
       });
     });
+
+    it('displays error alert banner when consumption exceeds stock on hand', async () => {
+      mockConsumeMutate.mockImplementation((_payload, options) => {
+        options?.onError?.(new Error('Insufficient stock on hand for treatment consumption'));
+      });
+
+      renderWithQuery(
+        <ConsumeStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/units consumed/i), { target: { value: '50' } });
+      fireEvent.click(screen.getByRole('button', { name: /record consumption/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('consume-stock-error-alert')).toBeInTheDocument();
+        expect(
+          screen.getByText('Insufficient stock on hand for treatment consumption'),
+        ).toBeInTheDocument();
+      });
+    });
   });
 
   describe('3. ScrapStockDialog (Damaged / Expired Disposal)', () => {
@@ -225,7 +259,7 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
     });
   });
 
-  describe('4. AdjustStockDialog (Audit Cycle Count)', () => {
+  describe('4. AdjustStockDialog (Audit Cycle Count with Explicit Direction)', () => {
     it('calculates live projected balance and disables invalid negative overdrafts', async () => {
       renderWithQuery(
         <AdjustStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
@@ -245,7 +279,41 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
       expect(screen.getByRole('button', { name: /record adjustment/i })).toBeDisabled();
     });
 
-    it('submits valid audit adjustment with mandatory justification', async () => {
+    it('supports explicit direction toggle for Adjustment Out (-)', async () => {
+      mockAdjustMutate.mockImplementation((_payload, options) => {
+        options?.onSuccess?.();
+      });
+
+      renderWithQuery(
+        <AdjustStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      // Select Adjustment Out direction
+      fireEvent.click(screen.getByTestId('direction-out-btn'));
+
+      // Enter magnitude 3
+      fireEvent.change(screen.getByLabelText(/delta units/i), { target: { value: '-3' } });
+      fireEvent.change(screen.getByLabelText(/audit reason/i), {
+        target: { value: 'Weekly cycle count shrinkage reconciliation' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /record adjustment/i }));
+
+      await waitFor(() => {
+        expect(mockAdjustMutate).toHaveBeenCalledWith(
+          {
+            id: 'prod-456',
+            payload: {
+              deltaQuantity: -3,
+              reason: 'Weekly cycle count shrinkage reconciliation',
+            },
+          },
+          expect.any(Object),
+        );
+      });
+    });
+
+    it('submits valid audit adjustment in (+) with mandatory justification', async () => {
       mockAdjustMutate.mockImplementation((_payload, options) => {
         options?.onSuccess?.();
       });
@@ -308,6 +376,31 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
           expect.any(Object),
         );
       });
+    });
+
+    it('displays error alert on server rejection and preserves user inputs', async () => {
+      mockReceiveMutate.mockImplementation((_payload, options) => {
+        options?.onError?.(new Error('Invoice reference number already processed'));
+      });
+
+      renderWithQuery(
+        <ReceiveStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/quantity received/i), { target: { value: '10' } });
+      fireEvent.change(screen.getByLabelText(/po \/ invoice reference/i), {
+        target: { value: 'PO-2026-DUPLICATE' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /record receipt/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('receive-stock-error-alert')).toBeInTheDocument();
+        expect(screen.getByText('Invoice reference number already processed')).toBeInTheDocument();
+      });
+
+      // Preserves inputs for correction
+      expect(screen.getByDisplayValue('PO-2026-DUPLICATE')).toBeInTheDocument();
     });
   });
 });

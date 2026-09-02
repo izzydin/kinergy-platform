@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -10,8 +10,11 @@ import {
   DialogTitle,
   Button,
   Input,
+  Alert,
+  AlertDescription,
+  AlertTitle,
 } from '@kinergy-platform/ui';
-import { PackagePlus } from 'lucide-react';
+import { PackagePlus, AlertCircle } from 'lucide-react';
 import {
   Form,
   FormControl,
@@ -39,6 +42,7 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
   onSuccess,
 }) => {
   const { mutate: receiveStock, isPending } = useReceiveStock();
+  const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
 
   const form = useForm<ReceiveStockFormData>({
     resolver: zodResolver(receiveStockSchema),
@@ -54,6 +58,7 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
 
   React.useEffect(() => {
     if (open && product) {
+      setServerErrorMessage(null);
       reset({
         quantity: 1,
         unitCost: product.unitCost.amount,
@@ -65,6 +70,7 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
 
   const onSubmit = (values: ReceiveStockFormData) => {
     if (!product) return;
+    setServerErrorMessage(null);
 
     receiveStock(
       {
@@ -81,9 +87,14 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
           onOpenChange(false);
           onSuccess?.();
         },
+        onError: (err) => {
+          setServerErrorMessage(err.message || 'Failed to record inbound supply receipt');
+        },
       },
     );
   };
+
+  const currentStock = product?.currentStock ?? 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -98,6 +109,23 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
             <span className="font-semibold text-foreground">{product?.name}</span> ({product?.sku}).
           </DialogDescription>
         </DialogHeader>
+
+        {/* Current Available Stock Notice */}
+        <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/60 border text-xs">
+          <span className="text-muted-foreground">Available on hand:</span>
+          <span className="font-mono font-bold text-foreground">
+            {currentStock} {product?.unitOfMeasure}
+          </span>
+        </div>
+
+        {/* In-Modal Server Rejection Alert */}
+        {serverErrorMessage && (
+          <Alert variant="destructive" className="py-2.5" data-testid="receive-stock-error-alert">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle className="text-xs font-semibold">Receipt Aborted</AlertTitle>
+            <AlertDescription className="text-xs mt-0.5">{serverErrorMessage}</AlertDescription>
+          </Alert>
+        )}
 
         <Form {...form}>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1" noValidate>
