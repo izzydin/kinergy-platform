@@ -5,3 +5,4 @@ export * from './inventory-overview-summary';
 export * from './low-stock-alert-table';
 export * from './inventory-filter-bar';
 export * from './inventory-list-table';
+export * from './product-create-form';
