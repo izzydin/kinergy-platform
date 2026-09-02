@@ -26,7 +26,10 @@ jest.mock('../hooks/use-inventory-queries', () => ({
 
 jest.mock('../hooks/use-inventory-mutations', () => ({
   useReceiveStock: jest.fn(),
+  useSellStock: jest.fn(),
+  useConsumeStock: jest.fn(),
   useAdjustStock: jest.fn(),
+  useScrapStock: jest.fn(),
   useArchiveProduct: jest.fn(),
 }));
 
@@ -147,7 +150,22 @@ describe('InventoryDetailPage', () => {
       isPending: false,
     });
 
+    (inventoryMutations.useSellStock as jest.Mock).mockReturnValue({
+      mutate: jest.fn(),
+      isPending: false,
+    });
+
+    (inventoryMutations.useConsumeStock as jest.Mock).mockReturnValue({
+      mutate: jest.fn(),
+      isPending: false,
+    });
+
     (inventoryMutations.useAdjustStock as jest.Mock).mockReturnValue({
+      mutate: jest.fn(),
+      isPending: false,
+    });
+
+    (inventoryMutations.useScrapStock as jest.Mock).mockReturnValue({
       mutate: jest.fn(),
       isPending: false,
     });

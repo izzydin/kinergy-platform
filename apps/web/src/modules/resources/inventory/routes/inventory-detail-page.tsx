@@ -29,6 +29,9 @@ import {
   Layers,
   Lock,
   CheckCircle2,
+  ShoppingCart,
+  Stethoscope,
+  Trash2,
 } from 'lucide-react';
 import {
   INVENTORY_CATEGORY_REGISTRY,
@@ -41,6 +44,9 @@ import { InventoryStatusBadge } from '../components/inventory-status-badge';
 import { ProductMovementsPreview } from '../components/product-movements-preview';
 import { ReceiveStockDialog } from '../components/receive-stock-dialog';
 import { AdjustStockDialog } from '../components/adjust-stock-dialog';
+import { SellStockDialog } from '../components/sell-stock-dialog';
+import { ConsumeStockDialog } from '../components/consume-stock-dialog';
+import { ScrapStockDialog } from '../components/scrap-stock-dialog';
 import { ArchiveProductDialog } from '../components/archive-product-dialog';
 
 export const InventoryDetailPage: React.FC = () => {
@@ -69,7 +75,10 @@ export const InventoryDetailPage: React.FC = () => {
 
   // Modal dialog state
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
+  const [sellDialogOpen, setSellDialogOpen] = useState(false);
+  const [consumeDialogOpen, setConsumeDialogOpen] = useState(false);
   const [adjustDialogOpen, setAdjustDialogOpen] = useState(false);
+  const [scrapDialogOpen, setScrapDialogOpen] = useState(false);
   const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
 
   // Queries
@@ -185,11 +194,47 @@ export const InventoryDetailPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 className="gap-1.5 text-xs"
+                onClick={() => setSellDialogOpen(true)}
+                data-testid="action-sell-stock"
+              >
+                <ShoppingCart className="h-3.5 w-3.5 text-primary" />
+                Record Sale
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => setConsumeDialogOpen(true)}
+                data-testid="action-consume-stock"
+              >
+                <Stethoscope className="h-3.5 w-3.5 text-primary" />
+                Consume
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
                 onClick={() => setAdjustDialogOpen(true)}
                 data-testid="action-adjust-stock"
               >
                 <Scale className="h-3.5 w-3.5 text-primary" />
-                Adjust Stock
+                Adjust Count
+              </Button>
+
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="gap-1.5 text-xs"
+                onClick={() => setScrapDialogOpen(true)}
+                data-testid="action-scrap-stock"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                Scrap
               </Button>
 
               <Button
@@ -504,10 +549,31 @@ export const InventoryDetailPage: React.FC = () => {
         onSuccess={() => refetch()}
       />
 
+      <SellStockDialog
+        product={product}
+        open={sellDialogOpen}
+        onOpenChange={setSellDialogOpen}
+        onSuccess={() => refetch()}
+      />
+
+      <ConsumeStockDialog
+        product={product}
+        open={consumeDialogOpen}
+        onOpenChange={setConsumeDialogOpen}
+        onSuccess={() => refetch()}
+      />
+
       <AdjustStockDialog
         product={product}
         open={adjustDialogOpen}
         onOpenChange={setAdjustDialogOpen}
+        onSuccess={() => refetch()}
+      />
+
+      <ScrapStockDialog
+        product={product}
+        open={scrapDialogOpen}
+        onOpenChange={setScrapDialogOpen}
         onSuccess={() => refetch()}
       />
 

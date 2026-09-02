@@ -10,4 +10,7 @@ export * from './product-edit-form';
 export * from './archive-product-dialog';
 export * from './receive-stock-dialog';
 export * from './adjust-stock-dialog';
+export * from './sell-stock-dialog';
+export * from './consume-stock-dialog';
+export * from './scrap-stock-dialog';
 export * from './product-movements-preview';
