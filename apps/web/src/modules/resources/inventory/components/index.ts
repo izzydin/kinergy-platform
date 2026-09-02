@@ -14,3 +14,6 @@ export * from './sell-stock-dialog';
 export * from './consume-stock-dialog';
 export * from './scrap-stock-dialog';
 export * from './product-movements-preview';
+export * from './movement-history-table';
+export * from './movement-history-filter-bar';
+export * from './movement-history-summary';

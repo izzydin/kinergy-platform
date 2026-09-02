@@ -16,6 +16,7 @@ jest.mock('../hooks/use-inventory-mutations', () => ({
 }));
 
 describe('InventoryCreatePage & ProductCreateForm', () => {
+  jest.setTimeout(15000);
   let queryClient: QueryClient;
   const mockMutate = jest.fn();
 

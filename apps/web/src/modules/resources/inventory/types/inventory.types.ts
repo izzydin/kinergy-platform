@@ -142,6 +142,7 @@ export interface ListInventoryFilterParams {
 export interface ListStockMovementsFilterParams {
   page?: number;
   limit?: number;
+  movementType?: StockMovementType;
 }
 
 /**

@@ -383,7 +383,7 @@ describe('InventoryController HTTP Contracts (Milestone 6.9)', () => {
         }),
       );
 
-      const res = await controller.getMovements('item_123', 1, 20, mockUser);
+      const res = await controller.getMovements('item_123', 1, 20, undefined, mockUser);
       expect(res.items).toHaveLength(1);
       expect(res.items[0]?.movementType).toBe(StockMovementType.PURCHASE);
     });

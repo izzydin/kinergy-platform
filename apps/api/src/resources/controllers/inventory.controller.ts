@@ -53,6 +53,7 @@ import {
   GetInventoryValuationHandler,
   InventoryCategory,
   UnitOfMeasure,
+  StockMovementType,
 } from '@kinergy-platform/core';
 import {
   CreateInventoryItemRequestDto,
@@ -313,11 +314,13 @@ export class InventoryController {
     @Param('id') id: string,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
+    @Query('movementType') movementType?: StockMovementType,
     @CurrentUser() user: AuthenticatedUserContext = {} as AuthenticatedUserContext,
   ) {
     const query = new ListStockMovementsQuery({
       itemId: id,
       tenantId: user?.tenantId ?? undefined,
+      movementType,
       page: page ? Number(page) : 1,
       pageSize: limit ? Number(limit) : 20,
     });

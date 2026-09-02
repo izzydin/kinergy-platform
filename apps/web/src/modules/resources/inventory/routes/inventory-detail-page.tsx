@@ -562,7 +562,7 @@ export const InventoryDetailPage: React.FC = () => {
         productId={product.id}
         unitOfMeasure={product.unitOfMeasure}
         onViewAll={() => {
-          // Future full movement view tab or navigation
+          navigate(`/resources/inventory/${product.id}/movements`);
         }}
       />
 

@@ -1,10 +1,12 @@
 import { httpClient } from '../../../../shared/api/http-client';
+import { StockMovementType } from '../types';
 import type {
   CategoryMetadataVM,
   InventoryProductVM,
   PaginatedInventoryVM,
   StockLevelMetricsVM,
   PaginatedStockMovementsVM,
+  StockMovementVM,
   InventoryValuationVM,
   ListInventoryFilterParams,
   ListStockMovementsFilterParams,
@@ -17,6 +19,30 @@ import type {
   AdjustStockInputVM,
   StockMutationResultVM,
 } from '../types';
+
+interface RawStockMovementResponse {
+  id: string;
+  inventoryItemId?: string;
+  itemId?: string;
+  movementType?: StockMovementType;
+  type?: StockMovementType;
+  quantityDelta?: number;
+  quantity?: number;
+  balanceAfter?: number;
+  newBalance?: number;
+  previousBalance?: number;
+  unitCostAmount?: number;
+  unitCostCurrency?: string;
+  unitCost?: { amount: number; currency: string } | null;
+  sellingPrice?: { amount: number; currency: string } | null;
+  referenceId?: string | null;
+  referenceNumber?: string | null;
+  reason?: string;
+  recordedByUserId?: string;
+  actorId?: string;
+  recordedAt?: string;
+  occurredAt?: string;
+}
 
 export const inventoryApi = {
   /**
@@ -84,15 +110,56 @@ export const inventoryApi = {
     id: string,
     params?: ListStockMovementsFilterParams,
   ): Promise<PaginatedStockMovementsVM> {
-    return httpClient.get<PaginatedStockMovementsVM>(
-      `/api/v1/resources/inventory/${encodeURIComponent(id)}/movements`,
-      {
-        params: {
-          page: params?.page,
-          limit: params?.limit,
-        },
+    const response = await httpClient.get<{
+      items: RawStockMovementResponse[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+    }>(`/api/v1/resources/inventory/${encodeURIComponent(id)}/movements`, {
+      params: {
+        page: params?.page,
+        limit: params?.limit,
+        movementType: params?.movementType,
       },
-    );
+    });
+
+    return {
+      items: (response.items || []).map((dto: RawStockMovementResponse): StockMovementVM => {
+        const type = (dto.movementType ||
+          dto.type ||
+          StockMovementType.PURCHASE) as StockMovementType;
+        const quantityDelta =
+          typeof dto.quantityDelta === 'number' ? dto.quantityDelta : dto.quantity || 0;
+        const newBalance =
+          typeof dto.balanceAfter === 'number' ? dto.balanceAfter : dto.newBalance || 0;
+        const previousBalance =
+          typeof dto.previousBalance === 'number'
+            ? dto.previousBalance
+            : newBalance - quantityDelta;
+
+        return {
+          id: dto.id,
+          itemId: dto.inventoryItemId || dto.itemId || id,
+          type,
+          quantity: Math.abs(quantityDelta),
+          previousBalance,
+          newBalance,
+          unitCost: dto.unitCostAmount
+            ? { amount: dto.unitCostAmount, currency: dto.unitCostCurrency || 'USD' }
+            : dto.unitCost || null,
+          sellingPrice: dto.sellingPrice || null,
+          referenceNumber: dto.referenceId || dto.referenceNumber || null,
+          reason: dto.reason || '',
+          actorId: dto.recordedByUserId || dto.actorId || 'system',
+          occurredAt: dto.recordedAt || dto.occurredAt || new Date().toISOString(),
+        };
+      }),
+      total: response.total ?? 0,
+      page: response.page ?? 1,
+      limit: response.limit ?? 20,
+      totalPages: response.totalPages ?? 1,
+    };
   },
 
   /**
