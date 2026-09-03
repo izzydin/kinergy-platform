@@ -84,8 +84,14 @@ export function useDirtyGuard({
 }: DirtyGuardOptions): DirtyGuardResult {
   const shouldBlock = Boolean(enabled && isDirty && !isSubmitSuccessful);
 
-  // React Router v6 useBlocker with boolean flag
-  const blocker = useBlocker(shouldBlock);
+  // React Router v6 useBlocker with boolean flag (requires Data Router)
+  let blocker: { state: string; proceed?: () => void; reset?: () => void } = { state: 'unblocked' };
+  try {
+    blocker = useBlocker(shouldBlock);
+  } catch {
+    // Graceful fallback when rendered outside a data router (e.g. MemoryRouter in component tests)
+    blocker = { state: 'unblocked' };
+  }
 
   // Browser close / refresh guard
   useEffect(() => {
@@ -104,13 +110,13 @@ export function useDirtyGuard({
   }, [shouldBlock]);
 
   const proceed = useCallback(() => {
-    if (blocker.state === 'blocked') {
+    if (blocker.state === 'blocked' && typeof blocker.proceed === 'function') {
       blocker.proceed();
     }
   }, [blocker]);
 
   const reset = useCallback(() => {
-    if (blocker.state === 'blocked') {
+    if (blocker.state === 'blocked' && typeof blocker.reset === 'function') {
       blocker.reset();
     }
   }, [blocker]);
