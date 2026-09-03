@@ -181,6 +181,7 @@ import {
   LowStockPage,
 } from '../../modules/resources/inventory';
 import {
+  AssetOverviewPage,
   AssetsListPage,
   AssetDetailPage,
   AssetCreatePage,
@@ -250,6 +251,14 @@ const ResourcesSubRouter: React.FC = () => (
     />
 
     {/* Fixed Capital Assets Routes */}
+    <Route
+      path="assets/overview"
+      element={
+        <RequirePermission permission="assets.read">
+          <AssetOverviewPage />
+        </RequirePermission>
+      }
+    />
     <Route
       path="assets"
       element={

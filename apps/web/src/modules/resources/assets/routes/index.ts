@@ -1,3 +1,4 @@
+export * from './asset-overview-page';
 export * from './assets-list-page';
 export * from './asset-detail-page';
 export * from './asset-create-page';

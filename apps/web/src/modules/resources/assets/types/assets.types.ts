@@ -54,26 +54,36 @@ export interface FixedAssetValuationVM {
   lastValuationDate: string;
 }
 
+export interface FixedAssetCategoryValuationVM {
+  totalCarryingValueAmount: number;
+  totalPurchaseValueAmount: number;
+  assetCount: number;
+}
+
+export interface FixedAssetStatusValuationVM {
+  count: number;
+  totalCarryingValueAmount: number;
+}
+
+export interface FixedAssetConditionValuationVM {
+  count: number;
+  totalCarryingValueAmount: number;
+}
+
 /**
  * Fixed Asset Estate Aggregate Valuation Summary View Model
+ * Matches NestJS FixedAssetValuationSummaryResponseDto (/api/v1/resources/assets/valuation/summary)
  */
 export interface FixedAssetValuationSummaryVM {
-  totalCarryingValue: {
-    amount: number;
-    currency: string;
-  };
-  totalPurchaseValue: {
-    amount: number;
-    currency: string;
-  };
-  assetCount: number;
-  activeCount: number;
-  decommissionedCount: number;
-  breakdownByCategory: Array<{
-    category: string;
-    count: number;
-    carryingValue: number;
-  }>;
+  totalCarryingValueAmount: number;
+  totalPurchaseValueAmount: number;
+  currency: string;
+  totalAssetCount: number;
+  activeAssetCount: number;
+  calculatedAt?: string;
+  breakdownByCategory?: Record<string, FixedAssetCategoryValuationVM>;
+  breakdownByStatus?: Record<string, FixedAssetStatusValuationVM>;
+  breakdownByCondition?: Record<string, FixedAssetConditionValuationVM>;
 }
 
 /**

@@ -13,11 +13,16 @@ export const AssetsListPage: React.FC = () => {
             Monitor, service, and audit physical equipment, machinery, and facility assets.
           </p>
         </div>
-        <HasPermission name="assets.write">
-          <Button asChild>
-            <Link to="/resources/assets/new">Commission New Asset</Link>
+        <div className="flex items-center gap-2">
+          <Button asChild variant="outline" size="sm">
+            <Link to="/resources/assets/overview">Operational Overview</Link>
           </Button>
-        </HasPermission>
+          <HasPermission name="assets.write">
+            <Button asChild size="sm">
+              <Link to="/resources/assets/new">Commission New Asset</Link>
+            </Button>
+          </HasPermission>
+        </div>
       </div>
 
       <Card className="p-6">
