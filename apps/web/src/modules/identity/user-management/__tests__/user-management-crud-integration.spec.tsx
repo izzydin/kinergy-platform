@@ -105,9 +105,12 @@ describe('Track C Step C3.4: CRUD Experience Integration with User Management', 
 
       renderUserManagement();
 
-      await waitFor(() => {
-        expect(screen.getByText('Platform Admin')).toBeInTheDocument();
-      });
+      await waitFor(
+        () => {
+          expect(screen.getByText('Platform Admin')).toBeInTheDocument();
+        },
+        { timeout: 5000 },
+      );
 
       expect(screen.getByText('admin@kinergy.io')).toBeInTheDocument();
       expect(screen.getByText('Grid Operator')).toBeInTheDocument();

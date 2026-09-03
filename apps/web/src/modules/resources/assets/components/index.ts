@@ -6,3 +6,4 @@ export * from './asset-attention-queue';
 export * from './asset-filter-bar';
 export * from './asset-list-table';
 export * from './asset-create-form';
+export * from './asset-edit-form';
