@@ -195,7 +195,7 @@ export const ProductEditForm: React.FC<ProductEditFormProps> = ({
                   <FormFieldGroup columns={2}>
                     {/* Immutable SKU Field (Read-only display) */}
                     <div className="space-y-1.5">
-                      <label className="block text-sm font-medium leading-none text-foreground select-none flex items-center gap-1.5">
+                      <label className="flex items-center gap-1.5 text-sm font-medium leading-none text-foreground select-none">
                         <Lock className="h-3.5 w-3.5 text-muted-foreground" />
                         Stock Keeping Unit (SKU)
                         <Badge variant="secondary" className="ml-1 text-[10px] py-0 px-1.5">

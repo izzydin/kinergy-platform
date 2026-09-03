@@ -259,4 +259,106 @@ describe('InventoryListPage & DataTable Integration', () => {
     expect(screen.getByText('No products in catalog')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /register first product/i })).toBeInTheDocument();
   });
+
+  it('parses canonical URL query parameters into filter parameters for useInventoryList', () => {
+    (authProvider.useAuth as jest.Mock).mockReturnValue({
+      currentUser: {
+        userId: 'admin-1',
+        email: 'admin@kinergy.com',
+        roles: ['ADMIN'],
+        permissions: ['inventory.read'],
+      },
+    });
+
+    const mockUseInventoryList = inventoryQueries.useInventoryList as jest.Mock;
+    mockUseInventoryList.mockReturnValue({
+      data: mockPaginatedData,
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+
+    renderComponent([
+      '/resources/inventory?search=whey&category=SUPPLEMENTS&stockStatus=LOW_STOCK&page=2&limit=20',
+    ]);
+
+    // Verifies useInventoryList was called with parsed query params from URL
+    expect(mockUseInventoryList).toHaveBeenCalledWith(
+      expect.objectContaining({
+        search: 'whey',
+        category: InventoryCategory.SUPPLEMENTS,
+        stockStatus: 'LOW_STOCK',
+        page: 2,
+        limit: 20,
+      }),
+    );
+  });
+
+  it('restricts row action menu to View Details when user lacks write permission', () => {
+    (authProvider.useAuth as jest.Mock).mockReturnValue({
+      currentUser: {
+        userId: 'trainer-1',
+        email: 'trainer@kinergy.com',
+        roles: ['TRAINER'],
+        permissions: ['inventory.read'], // Read only
+      },
+    });
+
+    (inventoryQueries.useInventoryList as jest.Mock).mockReturnValue({
+      data: mockPaginatedData,
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+
+    renderComponent();
+
+    // Open row action dropdown for first item
+    const actionButtons = screen.getAllByRole('button', { name: /open actions menu/i });
+    expect(actionButtons.length).toBeGreaterThan(0);
+    fireEvent.click(actionButtons[0]!);
+
+    // "View Details" should be visible
+    expect(screen.getByText('View Details')).toBeInTheDocument();
+
+    // Mutation actions must NOT be present
+    expect(screen.queryByText('Edit Metadata')).not.toBeInTheDocument();
+    expect(screen.queryByText('Receive Stock (+)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Record Sale (-)')).not.toBeInTheDocument();
+    expect(screen.queryByText('Scrap Damaged Stock')).not.toBeInTheDocument();
+  });
+
+  it('renders full suite of operational mutation actions when user possesses inventory.write', () => {
+    (authProvider.useAuth as jest.Mock).mockReturnValue({
+      currentUser: {
+        userId: 'manager-1',
+        email: 'manager@kinergy.com',
+        roles: ['ADMIN'],
+        permissions: ['inventory.read', 'inventory.write'],
+      },
+    });
+
+    (inventoryQueries.useInventoryList as jest.Mock).mockReturnValue({
+      data: mockPaginatedData,
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+
+    renderComponent();
+
+    // Open row action dropdown for first item
+    const actionButtons = screen.getAllByRole('button', { name: /open actions menu/i });
+    fireEvent.click(actionButtons[0]!);
+
+    // Mutation actions must be present
+    expect(screen.getByText('View Details')).toBeInTheDocument();
+    expect(screen.getByText('Edit Metadata')).toBeInTheDocument();
+    expect(screen.getByText('Receive Stock (+)')).toBeInTheDocument();
+    expect(screen.getByText('Record Sale (-)')).toBeInTheDocument();
+    expect(screen.getByText('Clinical Consumption (-)')).toBeInTheDocument();
+    expect(screen.getByText('Physical Adjustment (±)')).toBeInTheDocument();
+    expect(screen.getByText('Scrap Damaged Stock')).toBeInTheDocument();
+    expect(screen.getByText('Archive Product')).toBeInTheDocument();
+  });
 });
