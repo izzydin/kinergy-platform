@@ -1,15 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { OnChangeFn, SortingState } from '@tanstack/react-table';
 import { Badge } from '@kinergy-platform/ui';
 import { CrudListHeader, CrudListLayout } from '../../../../shared/crud';
-import {
-  useInventoryFilters,
-  useInventoryList,
-  useArchiveProduct,
-  useActivateProduct,
-} from '../hooks';
-import { InventoryFilterBar, InventoryListTable } from '../components';
+import { useInventoryFilters, useInventoryList, useActivateProduct } from '../hooks';
+import { InventoryFilterBar, InventoryListTable, ArchiveProductDialog } from '../components';
 import type { InventoryProductVM } from '../types';
 
 export const InventoryListPage: React.FC = () => {
@@ -36,7 +31,6 @@ export const InventoryListPage: React.FC = () => {
   } = useInventoryFilters();
 
   const { data, isLoading, isError, error, refetch } = useInventoryList(params);
-  const { mutate: archiveProduct } = useArchiveProduct();
   const { mutate: activateProduct } = useActivateProduct();
 
   const products = data?.items ?? [];
@@ -83,14 +77,16 @@ export const InventoryListPage: React.FC = () => {
     navigate(`/resources/inventory/${product.id}?action=scrap`);
   };
 
+  const [archiveDialogOpen, setArchiveDialogOpen] = useState(false);
+  const [productToArchive, setProductToArchive] = useState<InventoryProductVM | null>(null);
+
   const handleAdjustStock = (product: InventoryProductVM) => {
     navigate(`/resources/inventory/${product.id}?action=adjust`);
   };
 
   const handleArchive = (product: InventoryProductVM) => {
-    if (window.confirm(`Are you sure you want to archive product "${product.name}"?`)) {
-      archiveProduct(product.id);
-    }
+    setProductToArchive(product);
+    setArchiveDialogOpen(true);
   };
 
   const handleActivate = (product: InventoryProductVM) => {
@@ -158,6 +154,12 @@ export const InventoryListPage: React.FC = () => {
           onCreateClick={() => navigate('/resources/inventory/new')}
         />
       </div>
+
+      <ArchiveProductDialog
+        product={productToArchive}
+        open={archiveDialogOpen}
+        onOpenChange={setArchiveDialogOpen}
+      />
     </CrudListLayout>
   );
 };

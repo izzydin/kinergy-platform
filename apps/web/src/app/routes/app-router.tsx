@@ -185,10 +185,24 @@ const ResourcesSubRouter: React.FC = () => (
   <Routes>
     <Route path="overview" element={<InventoryOverviewPage />} />
     <Route path="inventory" element={<InventoryListPage />} />
-    <Route path="inventory/new" element={<InventoryCreatePage />} />
+    <Route
+      path="inventory/new"
+      element={
+        <RequirePermission permission="inventory.write">
+          <InventoryCreatePage />
+        </RequirePermission>
+      }
+    />
     <Route path="inventory/low-stock" element={<LowStockPage />} />
     <Route path="inventory/:id" element={<InventoryDetailPage />} />
-    <Route path="inventory/:id/edit" element={<InventoryEditPage />} />
+    <Route
+      path="inventory/:id/edit"
+      element={
+        <RequirePermission permission="inventory.write">
+          <InventoryEditPage />
+        </RequirePermission>
+      }
+    />
     <Route path="inventory/:id/movements" element={<InventoryMovementsPage />} />
     <Route path="*" element={<NotFoundView message="Resource view not found." />} />
   </Routes>

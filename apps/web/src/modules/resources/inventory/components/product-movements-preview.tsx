@@ -39,7 +39,7 @@ export const ProductMovementsPreview: React.FC<ProductMovementsPreviewProps> = (
           </div>
         </div>
 
-        {totalMovements > 5 && onViewAll && (
+        {totalMovements > 0 && onViewAll && (
           <Button variant="ghost" size="sm" onClick={onViewAll} className="text-xs gap-1 h-8">
             View Full Ledger ({totalMovements})
             <ArrowRight className="h-3.5 w-3.5" />
