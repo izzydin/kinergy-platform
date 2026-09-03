@@ -34,6 +34,10 @@ export interface FixedAssetVM {
   status: AssetStatus;
   condition: AssetCondition;
   purchaseDate: string;
+  purchaseValueAmount?: number;
+  purchaseValueCurrency?: string;
+  currentEstimatedValueAmount?: number;
+  currentEstimatedValueCurrency?: string;
   location: AssetLocationVM;
   version: number;
   createdAt: string;
@@ -140,6 +144,8 @@ export interface PaginatedAssetsVM {
   hasNextPage: boolean;
   hasPreviousPage: boolean;
 }
+
+export type PaginatedFixedAssetsVM = PaginatedAssetsVM;
 
 /**
  * Paginated Asset History Response Envelope

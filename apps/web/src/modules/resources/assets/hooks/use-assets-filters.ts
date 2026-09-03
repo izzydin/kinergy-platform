@@ -75,17 +75,28 @@ export function useAssetsFilters() {
     params: queryParams,
     search: state.q,
     filters: state.filters,
+    category: state.filters.category,
+    status: state.filters.status,
+    condition: state.filters.condition,
+    facilityId: state.filters.facilityId,
+    roomId: state.filters.roomId,
+    includeDecommissioned: state.filters.includeDecommissioned,
     page: state.page,
     limit: state.limit,
     sortState: state.sortState,
-    isFiltered:
-      Boolean(state.q) ||
-      Boolean(state.filters.category) ||
-      Boolean(state.filters.status) ||
-      Boolean(state.filters.condition) ||
-      Boolean(state.filters.facilityId) ||
-      Boolean(state.filters.roomId) ||
-      Boolean(state.filters.includeDecommissioned),
+    isFiltered: state.isFiltered,
+    setSearch: actions.setQ,
+    setCategory: (category?: AssetCategory) => actions.setFilter('category', category),
+    setStatus: (status?: AssetStatus) => actions.setFilter('status', status),
+    setCondition: (condition?: AssetCondition) => actions.setFilter('condition', condition),
+    setFacilityId: (facilityId?: string) => actions.setFilter('facilityId', facilityId),
+    setRoomId: (roomId?: string) => actions.setFilter('roomId', roomId),
+    setIncludeDecommissioned: (includeDecommissioned?: boolean) =>
+      actions.setFilter('includeDecommissioned', includeDecommissioned),
+    setPage: actions.setPage,
+    setLimit: actions.setLimit,
+    setSort: actions.setSort,
+    resetFilters: actions.resetFilters,
     actions,
   };
 }
