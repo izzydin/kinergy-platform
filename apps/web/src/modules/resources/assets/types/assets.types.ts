@@ -39,6 +39,7 @@ export interface FixedAssetVM {
   currentEstimatedValueAmount?: number;
   currentEstimatedValueCurrency?: string;
   location: AssetLocationVM;
+  notes?: string | null;
   version: number;
   createdAt: string;
   updatedAt: string;
