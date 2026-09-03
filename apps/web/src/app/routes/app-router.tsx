@@ -180,11 +180,34 @@ import {
   InventoryMovementsPage,
   LowStockPage,
 } from '../../modules/resources/inventory';
+import {
+  AssetsListPage,
+  AssetDetailPage,
+  AssetCreatePage,
+  AssetEditPage,
+  AssetHistoryPage,
+  AssetMaintenancePage,
+} from '../../modules/resources/assets';
 
 const ResourcesSubRouter: React.FC = () => (
   <Routes>
-    <Route path="overview" element={<InventoryOverviewPage />} />
-    <Route path="inventory" element={<InventoryListPage />} />
+    {/* Consumable Inventory Routes */}
+    <Route
+      path="overview"
+      element={
+        <RequirePermission permission="inventory.read">
+          <InventoryOverviewPage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="inventory"
+      element={
+        <RequirePermission permission="inventory.read">
+          <InventoryListPage />
+        </RequirePermission>
+      }
+    />
     <Route
       path="inventory/new"
       element={
@@ -193,8 +216,22 @@ const ResourcesSubRouter: React.FC = () => (
         </RequirePermission>
       }
     />
-    <Route path="inventory/low-stock" element={<LowStockPage />} />
-    <Route path="inventory/:id" element={<InventoryDetailPage />} />
+    <Route
+      path="inventory/low-stock"
+      element={
+        <RequirePermission permission="inventory.read">
+          <LowStockPage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="inventory/:id"
+      element={
+        <RequirePermission permission="inventory.read">
+          <InventoryDetailPage />
+        </RequirePermission>
+      }
+    />
     <Route
       path="inventory/:id/edit"
       element={
@@ -203,7 +240,65 @@ const ResourcesSubRouter: React.FC = () => (
         </RequirePermission>
       }
     />
-    <Route path="inventory/:id/movements" element={<InventoryMovementsPage />} />
+    <Route
+      path="inventory/:id/movements"
+      element={
+        <RequirePermission permission="inventory.read">
+          <InventoryMovementsPage />
+        </RequirePermission>
+      }
+    />
+
+    {/* Fixed Capital Assets Routes */}
+    <Route
+      path="assets"
+      element={
+        <RequirePermission permission="assets.read">
+          <AssetsListPage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="assets/new"
+      element={
+        <RequirePermission permission="assets.write">
+          <AssetCreatePage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="assets/:id"
+      element={
+        <RequirePermission permission="assets.read">
+          <AssetDetailPage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="assets/:id/edit"
+      element={
+        <RequirePermission permission="assets.write">
+          <AssetEditPage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="assets/:id/history"
+      element={
+        <RequirePermission permission="assets.read">
+          <AssetHistoryPage />
+        </RequirePermission>
+      }
+    />
+    <Route
+      path="assets/:id/maintenance"
+      element={
+        <RequirePermission permission="assets.read">
+          <AssetMaintenancePage />
+        </RequirePermission>
+      }
+    />
+
     <Route path="*" element={<NotFoundView message="Resource view not found." />} />
   </Routes>
 );
@@ -211,9 +306,8 @@ const ResourcesSubRouter: React.FC = () => (
 moduleRegistry.register({
   id: 'resources',
   prefix: '/resources',
-  title: 'Resources & Inventory',
+  title: 'Resources Management',
   isProtected: true,
-  requiredPermissions: ['inventory.read'],
   component: ResourcesSubRouter,
 });
 
