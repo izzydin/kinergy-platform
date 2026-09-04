@@ -14,3 +14,4 @@ export * from './asset-maintenance-dialog';
 export * from './asset-valuation-dialog';
 export * from './asset-history-preview';
 export * from './asset-maintenance-preview';
+export * from './asset-history-item';
