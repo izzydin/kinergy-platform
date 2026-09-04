@@ -12,3 +12,4 @@ export * from './get-maintenance-history.query';
 export * from './get-asset-value.query';
 export * from './get-fixed-asset-valuation-summary.query';
 export * from './get-combined-resource-valuation.query';
+export * from './get-resource-overview.query';

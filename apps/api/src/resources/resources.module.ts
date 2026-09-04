@@ -35,6 +35,7 @@ import {
   GetAssetValueHandler,
   GetFixedAssetValuationSummaryHandler,
   GetCombinedResourceValuationHandler,
+  GetResourceOverviewHandler,
 } from '@kinergy-platform/core';
 import { InventoryController } from './controllers/inventory.controller';
 import { FixedAssetsController } from './controllers/fixed-assets.controller';
@@ -247,6 +248,14 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
       ) => new GetCombinedResourceValuationHandler(inventoryRepo, assetRepo),
       inject: [PrismaInventoryItemRepository, PrismaFixedAssetRepository],
     },
+    {
+      provide: GetResourceOverviewHandler,
+      useFactory: (
+        inventoryRepo: PrismaInventoryItemRepository,
+        assetRepo: PrismaFixedAssetRepository,
+      ) => new GetResourceOverviewHandler(inventoryRepo, assetRepo),
+      inject: [PrismaInventoryItemRepository, PrismaFixedAssetRepository],
+    },
   ],
   exports: [
     PrismaInventoryItemRepository,
@@ -282,6 +291,7 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
     GetAssetValueHandler,
     GetFixedAssetValuationSummaryHandler,
     GetCombinedResourceValuationHandler,
+    GetResourceOverviewHandler,
   ],
 })
 export class ResourcesModule {}

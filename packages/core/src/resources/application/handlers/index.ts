@@ -32,3 +32,4 @@ export * from './get-maintenance-history.handler';
 export * from './get-asset-value.handler';
 export * from './get-fixed-asset-valuation-summary.handler';
 export * from './get-combined-resource-valuation.handler';
+export * from './get-resource-overview.handler';
