@@ -164,6 +164,7 @@ export function useUpdateAssetValuation() {
         `Asset "${updatedItem.name}" fair value updated to $${payload.estimatedValueAmount.toFixed(2)}`,
       );
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: assetsQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.valuation(id) });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.historyLists(id) });
       queryClient.invalidateQueries({ queryKey: ['resources', 'valuation'] });
