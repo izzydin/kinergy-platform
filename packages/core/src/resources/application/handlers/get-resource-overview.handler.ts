@@ -25,7 +25,7 @@ export class GetResourceOverviewHandler implements QueryHandler<
 
   constructor(
     private readonly inventoryRepository: InventoryItemRepository,
-    fixedAssetRepository: FixedAssetRepositoryInterface,
+    private readonly fixedAssetRepository: FixedAssetRepositoryInterface,
   ) {
     this.inventoryValuationHandler = new GetInventoryValuationHandler(inventoryRepository);
     this.fixedAssetValuationHandler = new GetFixedAssetValuationSummaryHandler(
@@ -39,7 +39,51 @@ export class GetResourceOverviewHandler implements QueryHandler<
     const { input } = query;
 
     try {
-      // Concurrently execute domain valuation queries and operational counts
+      // High-performance database aggregation path when repositories implement direct overview metrics
+      if (
+        typeof this.inventoryRepository.getOverviewMetrics === 'function' &&
+        typeof this.fixedAssetRepository.getOverviewMetrics === 'function'
+      ) {
+        const [inventoryMetrics, fixedAssetMetrics] = await Promise.all([
+          this.inventoryRepository.getOverviewMetrics({
+            tenantId: input.tenantId,
+            includeArchived: input.includeArchived,
+          }),
+          this.fixedAssetRepository.getOverviewMetrics({
+            tenantId: input.tenantId,
+            includeDecommissioned: true,
+          }),
+        ]);
+
+        const totalCombinedValueCents =
+          inventoryMetrics.totalValuationCents + fixedAssetMetrics.totalCarryingValueCents;
+
+        const dto: ResourceOverviewDTO = {
+          consumableInventory: {
+            totalValueAmount: inventoryMetrics.totalValuationCents / 100,
+            lowStockItemCount: inventoryMetrics.lowStockCount,
+            totalDistinctItems: inventoryMetrics.totalItems,
+            totalQuantityUnits: inventoryMetrics.totalQuantity,
+          },
+          fixedAssets: {
+            totalCarryingValueAmount: fixedAssetMetrics.totalCarryingValueCents / 100,
+            activeAssetCount: fixedAssetMetrics.activeCount,
+            underMaintenanceAssetCount: fixedAssetMetrics.maintenanceCount,
+            damagedAssetCount: fixedAssetMetrics.damagedCount,
+            retiredAssetCount: fixedAssetMetrics.retiredCount,
+            totalAssetCount: fixedAssetMetrics.totalCount,
+          },
+          combined: {
+            totalCombinedValueAmount: totalCombinedValueCents / 100,
+          },
+          currency: 'USD',
+          calculatedAt: new Date().toISOString(),
+        };
+
+        return ApplicationResult.ok(dto);
+      }
+
+      // Concurrently execute domain valuation queries and operational counts (fallback path)
       const [inventoryValuationResult, fixedAssetValuationResult, lowStockCount] =
         await Promise.all([
           this.inventoryValuationHandler.execute(

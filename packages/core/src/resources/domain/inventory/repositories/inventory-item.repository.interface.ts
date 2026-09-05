@@ -37,6 +37,20 @@ export interface FindStockMovementsFilter {
   sortOrder?: 'asc' | 'desc';
 }
 
+export interface InventoryOverviewMetrics {
+  totalItems: number;
+  totalQuantity: number;
+  totalValuationCents: number;
+  lowStockCount: number;
+  outOfStockCount: number;
+}
+
+export interface InventoryOverviewFilter {
+  tenantId?: string;
+  category?: InventoryCategory | InventoryCategory[];
+  includeArchived?: boolean;
+}
+
 /**
  * Domain Repository contract for InventoryItem Aggregate Root and Stock Movements.
  */
@@ -48,5 +62,6 @@ export interface InventoryItemRepository {
   count(filter?: FindInventoryItemsFilter): Promise<number>;
   findMovements?(filter?: FindStockMovementsFilter): Promise<StockMovement[]>;
   countMovements?(filter?: FindStockMovementsFilter): Promise<number>;
+  getOverviewMetrics?(filter?: InventoryOverviewFilter): Promise<InventoryOverviewMetrics>;
   delete(id: string): Promise<void>;
 }

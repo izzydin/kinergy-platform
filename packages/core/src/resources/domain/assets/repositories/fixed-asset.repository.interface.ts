@@ -31,11 +31,27 @@ export interface FixedAssetFilterOptions {
   offset?: number;
 }
 
+export interface FixedAssetOverviewMetrics {
+  totalCount: number;
+  activeCount: number;
+  maintenanceCount: number;
+  damagedCount: number;
+  retiredCount: number;
+  totalCarryingValueCents: number;
+}
+
+export interface FixedAssetOverviewFilter {
+  tenantId?: string;
+  facilityId?: string;
+  includeDecommissioned?: boolean;
+}
+
 export interface FixedAssetRepositoryInterface {
   findById(id: AssetId): Promise<FixedAsset | null>;
   findByAssetTag(assetTag: string, tenantId?: string): Promise<FixedAsset | null>;
   findAll(filter?: FixedAssetFilterOptions): Promise<FixedAsset[]>;
   count(filter?: FixedAssetFilterOptions): Promise<number>;
   save(asset: FixedAsset): Promise<void>;
+  getOverviewMetrics?(filter?: FixedAssetOverviewFilter): Promise<FixedAssetOverviewMetrics>;
   delete(id: AssetId): Promise<void>;
 }

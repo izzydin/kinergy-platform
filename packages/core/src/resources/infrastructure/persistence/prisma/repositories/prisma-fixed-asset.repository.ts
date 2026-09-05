@@ -8,6 +8,8 @@ import {
 import {
   FixedAssetRepositoryInterface,
   FixedAssetFilterOptions,
+  FixedAssetOverviewMetrics,
+  FixedAssetOverviewFilter,
 } from '../../../../domain/assets/repositories/fixed-asset.repository.interface';
 import { FixedAsset } from '../../../../domain/assets/fixed-asset.aggregate';
 import { AssetId } from '../../../../domain/assets/value-objects/asset-id.vo';
@@ -208,6 +210,134 @@ export class PrismaFixedAssetRepository implements FixedAssetRepositoryInterface
     await this.prisma.fixedAsset.delete({
       where: { id: id.value },
     });
+  }
+
+  async getOverviewMetrics(filter?: FixedAssetOverviewFilter): Promise<FixedAssetOverviewMetrics> {
+    const where: Prisma.FixedAssetWhereInput = {};
+    if (filter?.tenantId) {
+      where.tenantId = filter.tenantId;
+    }
+    if (filter?.facilityId) {
+      where.location = {
+        path: ['facilityId'],
+        equals: filter.facilityId,
+      };
+    }
+    if (!filter?.includeDecommissioned) {
+      where.status = {
+        in: [
+          PrismaAssetStatus.ACTIVE,
+          PrismaAssetStatus.UNDER_MAINTENANCE,
+          PrismaAssetStatus.DAMAGED,
+        ],
+      };
+    }
+
+    // High-performance database aggregation via groupBy when available
+    if (typeof this.prisma.fixedAsset?.groupBy === 'function') {
+      const groups = await this.prisma.fixedAsset.groupBy({
+        by: ['status'],
+        where,
+        _count: { id: true },
+        _sum: { currentEstimatedValueAmount: true },
+      });
+
+      let totalCount = 0;
+      let activeCount = 0;
+      let maintenanceCount = 0;
+      let damagedCount = 0;
+      let retiredCount = 0;
+      let totalCarryingValueCents = 0;
+
+      for (const group of groups) {
+        const count = group._count?.id ?? 0;
+        totalCount += count;
+        const sumDecimal = group._sum?.currentEstimatedValueAmount;
+        const sumAmount = sumDecimal ? Number(sumDecimal) : 0;
+        const sumCents = Math.round(sumAmount * 100);
+
+        switch (group.status) {
+          case PrismaAssetStatus.ACTIVE:
+            activeCount = count;
+            totalCarryingValueCents += sumCents;
+            break;
+          case PrismaAssetStatus.UNDER_MAINTENANCE:
+            maintenanceCount = count;
+            totalCarryingValueCents += sumCents;
+            break;
+          case PrismaAssetStatus.DAMAGED:
+            damagedCount = count;
+            totalCarryingValueCents += sumCents;
+            break;
+          case PrismaAssetStatus.RETIRED:
+            retiredCount = count;
+            // Per ADR-0097, RETIRED assets do not contribute to carrying value
+            break;
+          case PrismaAssetStatus.SOLD:
+            // SOLD assets do not contribute to carrying value
+            break;
+        }
+      }
+
+      return {
+        totalCount,
+        activeCount,
+        maintenanceCount,
+        damagedCount,
+        retiredCount,
+        totalCarryingValueCents,
+      };
+    }
+
+    // Fallback: minimal column select without loading relations or history events
+    const assets = await this.prisma.fixedAsset.findMany({
+      where,
+      select: {
+        status: true,
+        currentEstimatedValueAmount: true,
+      },
+    });
+
+    const totalCount = assets.length;
+    let activeCount = 0;
+    let maintenanceCount = 0;
+    let damagedCount = 0;
+    let retiredCount = 0;
+    let totalCarryingValueCents = 0;
+
+    for (const asset of assets) {
+      const amount = Number(asset.currentEstimatedValueAmount);
+      const cents = Math.round(amount * 100);
+
+      switch (asset.status) {
+        case PrismaAssetStatus.ACTIVE:
+          activeCount += 1;
+          totalCarryingValueCents += cents;
+          break;
+        case PrismaAssetStatus.UNDER_MAINTENANCE:
+          maintenanceCount += 1;
+          totalCarryingValueCents += cents;
+          break;
+        case PrismaAssetStatus.DAMAGED:
+          damagedCount += 1;
+          totalCarryingValueCents += cents;
+          break;
+        case PrismaAssetStatus.RETIRED:
+          retiredCount += 1;
+          break;
+        case PrismaAssetStatus.SOLD:
+          break;
+      }
+    }
+
+    return {
+      totalCount,
+      activeCount,
+      maintenanceCount,
+      damagedCount,
+      retiredCount,
+      totalCarryingValueCents,
+    };
   }
 
   private buildWhereClause(filter?: FixedAssetFilterOptions): Prisma.FixedAssetWhereInput {

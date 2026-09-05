@@ -9,6 +9,8 @@ import {
   InventoryItemRepository,
   FindInventoryItemsFilter,
   FindStockMovementsFilter,
+  InventoryOverviewMetrics,
+  InventoryOverviewFilter,
 } from '../../../../domain/inventory/repositories/inventory-item.repository.interface';
 import { StockMovement } from '../../../../domain/inventory/entities/stock-movement.entity';
 import { InventoryItem } from '../../../../domain/inventory/inventory-item.aggregate';
@@ -215,13 +217,155 @@ export class PrismaInventoryItemRepository implements InventoryItemRepository {
       filter?.stockStatus === 'IN_STOCK' ||
       filter?.lowStockOnly;
 
+    const where = this.buildWhereClause(filter);
+
     if (needsCrossColumnFilter) {
-      const items = await this.findMany({ ...filter, limit: undefined, offset: undefined });
-      return items.length;
+      // Direct minimal column projection without loading full aggregate models or movements
+      const items = await this.prisma.inventoryItem.findMany({
+        where,
+        select: {
+          quantityOnHand: true,
+          minimumStock: true,
+        },
+      });
+
+      return items.filter((item) => {
+        const qty = Number(item.quantityOnHand);
+        const min = Number(item.minimumStock);
+        if (filter?.lowStockOnly || filter?.stockStatus === 'LOW_STOCK') {
+          return qty <= min;
+        }
+        if (filter?.stockStatus === 'IN_STOCK') {
+          return qty > min;
+        }
+        return true;
+      }).length;
     }
 
-    const where = this.buildWhereClause(filter);
     return this.prisma.inventoryItem.count({ where });
+  }
+
+  async getOverviewMetrics(filter?: InventoryOverviewFilter): Promise<InventoryOverviewMetrics> {
+    const where: Prisma.InventoryItemWhereInput = {};
+
+    if (filter?.tenantId) {
+      where.tenantId = filter.tenantId;
+    }
+
+    if (filter?.category) {
+      if (Array.isArray(filter.category)) {
+        where.category = {
+          in: filter.category as unknown as PrismaInventoryCategory[],
+        };
+      } else {
+        where.category = filter.category as unknown as PrismaInventoryCategory;
+      }
+    }
+
+    if (!filter?.includeArchived) {
+      where.status = {
+        in: [PrismaInventoryItemStatus.ACTIVE, PrismaInventoryItemStatus.INACTIVE],
+      };
+    }
+
+    // High-performance raw SQL aggregation in PostgreSQL when available
+    if (typeof this.prisma.$queryRaw === 'function') {
+      try {
+        const conditions: Prisma.Sql[] = [];
+        if (filter?.tenantId) {
+          conditions.push(Prisma.sql`tenant_id = ${filter.tenantId}`);
+        }
+        if (filter?.category) {
+          if (Array.isArray(filter.category)) {
+            conditions.push(
+              Prisma.sql`category::text IN (${Prisma.join(
+                filter.category.map((c) => Prisma.sql`${c}`),
+              )})`,
+            );
+          } else {
+            conditions.push(Prisma.sql`category::text = ${filter.category}`);
+          }
+        }
+        if (!filter?.includeArchived) {
+          conditions.push(Prisma.sql`status::text IN ('ACTIVE', 'INACTIVE')`);
+        }
+
+        const whereSql =
+          conditions.length > 0
+            ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}`
+            : Prisma.empty;
+
+        const results = await this.prisma.$queryRaw<
+          Array<{
+            totalItems: number | bigint;
+            totalQuantity: number | string;
+            totalValuationCents: number | bigint | string;
+            lowStockCount: number | bigint;
+            outOfStockCount: number | bigint;
+          }>
+        >`
+          SELECT
+            COUNT(*)::int AS "totalItems",
+            COALESCE(SUM(quantity_on_hand), 0)::float AS "totalQuantity",
+            COALESCE(SUM(ROUND(quantity_on_hand * purchase_cost_amount * 100)), 0)::bigint AS "totalValuationCents",
+            COUNT(CASE WHEN quantity_on_hand <= minimum_stock THEN 1 END)::int AS "lowStockCount",
+            COUNT(CASE WHEN quantity_on_hand = 0 THEN 1 END)::int AS "outOfStockCount"
+          FROM inventory_items
+          ${whereSql}
+        `;
+
+        const row = results?.[0];
+        if (row) {
+          return {
+            totalItems: Number(row.totalItems),
+            totalQuantity: Number(row.totalQuantity),
+            totalValuationCents: Number(row.totalValuationCents),
+            lowStockCount: Number(row.lowStockCount),
+            outOfStockCount: Number(row.outOfStockCount),
+          };
+        }
+      } catch {
+        // Fall through to minimal select projection path if raw query is not supported in the active context
+      }
+    }
+
+    // Fallback: minimal scalar projection without relations or movements
+    const items = await this.prisma.inventoryItem.findMany({
+      where,
+      select: {
+        quantityOnHand: true,
+        purchaseCostAmount: true,
+        minimumStock: true,
+      },
+    });
+
+    let totalQuantity = 0;
+    let totalValuationCents = 0;
+    let lowStockCount = 0;
+    let outOfStockCount = 0;
+
+    for (const item of items) {
+      const qty = Number(item.quantityOnHand);
+      const cost = Number(item.purchaseCostAmount);
+      const min = Number(item.minimumStock);
+
+      totalQuantity += qty;
+      totalValuationCents += Math.round(qty * cost * 100);
+      if (qty <= min) {
+        lowStockCount += 1;
+      }
+      if (qty === 0) {
+        outOfStockCount += 1;
+      }
+    }
+
+    return {
+      totalItems: items.length,
+      totalQuantity,
+      totalValuationCents,
+      lowStockCount,
+      outOfStockCount,
+    };
   }
 
   async delete(id: string): Promise<void> {
