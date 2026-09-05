@@ -40,6 +40,7 @@ import {
 import { InventoryController } from './controllers/inventory.controller';
 import { FixedAssetsController } from './controllers/fixed-assets.controller';
 import { ResourceValuationController } from './controllers/resource-valuation.controller';
+import { ResourceOverviewController } from './controllers/resource-overview.controller';
 
 export const RESOURCES_EVENT_PUBLISHER_TOKEN = 'ResourcesEventPublisherPort';
 
@@ -48,7 +49,12 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
 }
 
 @Module({
-  controllers: [InventoryController, FixedAssetsController, ResourceValuationController],
+  controllers: [
+    InventoryController,
+    FixedAssetsController,
+    ResourceValuationController,
+    ResourceOverviewController,
+  ],
   providers: [
     {
       provide: PrismaInventoryItemRepository,

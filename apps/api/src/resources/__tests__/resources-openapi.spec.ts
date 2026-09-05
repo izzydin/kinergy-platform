@@ -63,6 +63,7 @@ describe('Phase 6 Resources OpenAPI / Swagger Contract Verification (Milestone 6
       expect(allTags.has('Resources - Consumable Inventory')).toBe(true);
       expect(allTags.has('Resources - Fixed Assets')).toBe(true);
       expect(allTags.has('Resources - Valuation')).toBe(true);
+      expect(allTags.has('Resources - Overview')).toBe(true);
     });
   });
 
@@ -125,7 +126,16 @@ describe('Phase 6 Resources OpenAPI / Swagger Contract Verification (Milestone 6
     });
   });
 
-  describe('5. Schema Registration & Security', () => {
+  describe('5. Resource Overview Endpoint Coverage', () => {
+    it('documents resource overview endpoint /api/v1/resources/overview', () => {
+      const pathItem = openApiDoc.paths['/api/v1/resources/overview'];
+      expect(pathItem).toBeDefined();
+      expect(pathItem?.get).toBeDefined();
+      expect(pathItem?.get?.summary).toBe('Get enterprise resource overview dashboard metrics');
+    });
+  });
+
+  describe('6. Schema Registration & Security', () => {
     it('registers essential Request & Response schemas in OpenAPI components', () => {
       const schemas = openApiDoc.components?.schemas;
       expect(schemas).toBeDefined();
@@ -144,6 +154,9 @@ describe('Phase 6 Resources OpenAPI / Swagger Contract Verification (Milestone 6
 
       // Valuation Summary Schema
       expect(schemas?.['ResourceValuationSummaryResponseDto']).toBeDefined();
+
+      // Overview Response Schema
+      expect(schemas?.['ResourceOverviewResponseDto']).toBeDefined();
     });
 
     it('documents BearerAuth security requirement on protected operations', () => {

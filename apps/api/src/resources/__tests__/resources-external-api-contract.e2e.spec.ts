@@ -28,10 +28,12 @@ import {
   UpdateFixedAssetValuationHandler,
   GetAssetHistoryHandler,
   GetCombinedResourceValuationHandler,
+  GetResourceOverviewHandler,
 } from '@kinergy-platform/core';
 import { InventoryController } from '../controllers/inventory.controller';
 import { FixedAssetsController } from '../controllers/fixed-assets.controller';
 import { ResourceValuationController } from '../controllers/resource-valuation.controller';
+import { ResourceOverviewController } from '../controllers/resource-overview.controller';
 import { AuthenticatedUserContext } from '../../platform/identity/context/authenticated-user-context';
 import { GlobalSanitizationValidationPipe } from '../../common/pipes/global-sanitization-validation.pipe';
 import {
@@ -68,11 +70,13 @@ describe('Phase 6.9 Resources External API Contract & End-to-End Lifecycle Verif
   let mockGetAssetHistoryHandler: jest.Mocked<GetAssetHistoryHandler>;
 
   let mockGetCombinedResourceValuationHandler: jest.Mocked<GetCombinedResourceValuationHandler>;
+  let mockGetResourceOverviewHandler: jest.Mocked<GetResourceOverviewHandler>;
 
   // Controllers
   let inventoryController: InventoryController;
   let fixedAssetsController: FixedAssetsController;
   let valuationController: ResourceValuationController;
+  let overviewController: ResourceOverviewController;
 
   const mockAdminUser = new AuthenticatedUserContext({
     userId: 'usr_admin_qa',
@@ -187,6 +191,10 @@ describe('Phase 6.9 Resources External API Contract & End-to-End Lifecycle Verif
       execute: jest.fn(),
     } as unknown as jest.Mocked<GetCombinedResourceValuationHandler>;
 
+    mockGetResourceOverviewHandler = {
+      execute: jest.fn(),
+    } as unknown as jest.Mocked<GetResourceOverviewHandler>;
+
     inventoryController = new InventoryController(
       mockCreateInventoryItemHandler,
       createMock(),
@@ -224,6 +232,7 @@ describe('Phase 6.9 Resources External API Contract & End-to-End Lifecycle Verif
     );
 
     valuationController = new ResourceValuationController(mockGetCombinedResourceValuationHandler);
+    overviewController = new ResourceOverviewController(mockGetResourceOverviewHandler);
   });
 
   describe('1. Consumable Inventory Complete Lifecycle Journey', () => {
@@ -577,6 +586,54 @@ describe('Phase 6.9 Resources External API Contract & End-to-End Lifecycle Verif
       expect(summary.totalCombinedValueAmount).toBe(76000.0);
       expect(summary.inventory.sharePercentage).toBe(36.84);
       expect(summary.fixedAssets.sharePercentage).toBe(63.16);
+    });
+  });
+
+  describe('4. Resource Overview Executive Dashboard Integrity', () => {
+    it('retrieves synthesized executive overview metrics across consumable inventory and fixed assets', async () => {
+      mockGetResourceOverviewHandler.execute.mockResolvedValueOnce(
+        ResourcesApplicationResult.ok({
+          consumableInventory: {
+            totalValueAmount: 34500.0,
+            lowStockItemCount: 2,
+            totalDistinctItems: 18,
+            totalQuantityUnits: 620,
+          },
+          fixedAssets: {
+            totalCarryingValueAmount: 120000.0,
+            activeAssetCount: 8,
+            underMaintenanceAssetCount: 2,
+            damagedAssetCount: 0,
+            retiredAssetCount: 1,
+            totalAssetCount: 11,
+          },
+          combined: {
+            totalCombinedValueAmount: 154500.0,
+          },
+          currency: 'USD',
+          calculatedAt: '2026-09-05T14:30:00.000Z',
+        }),
+      );
+
+      const overview = await overviewController.getOverview(mockAdminUser, {
+        includeArchived: false,
+      });
+
+      expect(overview.consumableInventory.totalValueAmount).toBe(34500.0);
+      expect(overview.consumableInventory.lowStockItemCount).toBe(2);
+      expect(overview.consumableInventory.totalDistinctItems).toBe(18);
+      expect(overview.consumableInventory.totalQuantityUnits).toBe(620);
+
+      expect(overview.fixedAssets.totalCarryingValueAmount).toBe(120000.0);
+      expect(overview.fixedAssets.activeAssetCount).toBe(8);
+      expect(overview.fixedAssets.underMaintenanceAssetCount).toBe(2);
+      expect(overview.fixedAssets.damagedAssetCount).toBe(0);
+      expect(overview.fixedAssets.retiredAssetCount).toBe(1);
+      expect(overview.fixedAssets.totalAssetCount).toBe(11);
+
+      expect(overview.combined.totalCombinedValueAmount).toBe(154500.0);
+      expect(overview.currency).toBe('USD');
+      expect(overview.calculatedAt).toBe('2026-09-05T14:30:00.000Z');
     });
   });
 });

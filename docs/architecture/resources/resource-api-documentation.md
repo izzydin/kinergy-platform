@@ -31,6 +31,7 @@ All resources routes are mounted under the base URI `/api/v1/resources`:
 | **`Resources - Consumable Inventory`** | `/api/v1/resources/inventory` | Product catalog, static categories, stock movements ledger, POS sales, PO receipts, clinical session consumption, count adjustments, scrap, low-stock alerts, and working capital valuation.                              |
 | **`Resources - Fixed Assets`**         | `/api/v1/resources/assets`    | Asset registry, hardware barcode/RFID scanner lookup, static categories, location transfers, lifecycle state machine mutations, condition scoring, servicing maintenance, audit event ledger, and carrying value summary. |
 | **`Resources - Valuation`**            | `/api/v1/resources/valuation` | Cross-domain enterprise balance sheet valuation combining inventory working capital and fixed asset carrying value (ADR-0098).                                                                                            |
+| **`Resources - Overview`**             | `/api/v1/resources/overview`  | Synthesized executive dashboard metrics combining consumable inventory working capital and operational counts with fixed asset carrying values and lifecycle telemetry (ADR-0094).                                        |
 
 ---
 
@@ -64,6 +65,7 @@ Every route enforces role-based and permission-based authorization via `@UseGuar
 | `POST /api/v1/resources/assets/:id/*`            | `assets.write`                                  | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `STAFF`                         |
 | `GET /api/v1/resources/assets/valuation/summary` | `assets.read`, `billing.read`                   | `ADMIN`, `SUPER_ADMIN`, `OWNER`                                  |
 | `GET /api/v1/resources/valuation/summary`        | `inventory.read`, `assets.read`, `billing.read` | `ADMIN`, `SUPER_ADMIN`, `OWNER`                                  |
+| `GET /api/v1/resources/overview`                 | `inventory.read`, `assets.read`, `billing.read` | `ADMIN`, `SUPER_ADMIN`, `OWNER`                                  |
 
 ---
 
@@ -170,6 +172,10 @@ All API errors produce the unified platform error envelope formatted by `GlobalE
 
 1. `GET /api/v1/resources/valuation/summary`: Composed balance sheet valuation summary combining consumable inventory working capital and fixed asset carrying value ([ADR-0098](./adr/0098-cross-domain-valuation-query-handler-composition.md)).
 
+### 7.4 Resource Overview Endpoint
+
+1. `GET /api/v1/resources/overview`: Enterprise resource dashboard metrics combining consumable inventory working capital and distinct item counts with fixed asset carrying values and lifecycle counts ([ADR-0094](./adr/0094-resource-domain-permission-matrix-and-rbac.md)).
+
 ---
 
 ## 8. Category Taxonomy Strategy
@@ -187,8 +193,8 @@ These endpoints return localized human-readable labels, descriptions, and icon i
 
 The OpenAPI contract is verified by automated test suite [`apps/api/src/resources/__tests__/resources-openapi.spec.ts`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/__tests__/resources-openapi.spec.ts):
 
-- **31/31 tests passing** validating:
-  - 100% path coverage for all 27 inventory, asset, and valuation endpoints.
-  - Complete schema registration in OpenAPI components (`CreateInventoryItemRequestDto`, `InventoryItemResponseDto`, `PaginatedInventoryResponseDto`, `CreateFixedAssetRequestDto`, `FixedAssetResponseDto`, `PaginatedFixedAssetResponseDto`, `ResourceValuationSummaryResponseDto`).
+- **All endpoints verified** validating:
+  - 100% path coverage for all 28 inventory, asset, valuation, and overview endpoints.
+  - Complete schema registration in OpenAPI components (`CreateInventoryItemRequestDto`, `InventoryItemResponseDto`, `PaginatedInventoryResponseDto`, `CreateFixedAssetRequestDto`, `FixedAssetResponseDto`, `PaginatedFixedAssetResponseDto`, `ResourceValuationSummaryResponseDto`, `ResourceOverviewResponseDto`).
   - BearerAuth security scheme binding.
-  - Tag group consistency (`Resources - Consumable Inventory`, `Resources - Fixed Assets`, `Resources - Valuation`).
+  - Tag group consistency (`Resources - Consumable Inventory`, `Resources - Fixed Assets`, `Resources - Valuation`, `Resources - Overview`).
