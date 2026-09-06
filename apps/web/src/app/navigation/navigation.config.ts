@@ -1,6 +1,7 @@
 import {
   Activity,
   BarChart3,
+  Boxes,
   LayoutDashboard,
   Settings,
   Shield,
@@ -58,6 +59,15 @@ export const defaultNavigationItems: NavigationItem[] = [
     section: 'core',
     requiredPermissions: ['energy:read'],
     requiredTenantFeatures: ['ENABLE_TELEMETRY'],
+  },
+  {
+    id: 'resources',
+    label: 'Resource Overview',
+    path: '/resources/overview',
+    icon: Boxes,
+    order: 35,
+    section: 'core',
+    requiredPermissions: ['inventory.read', 'assets.read'],
   },
   {
     id: 'analytics',

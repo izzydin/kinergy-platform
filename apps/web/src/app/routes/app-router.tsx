@@ -190,11 +190,31 @@ import {
   AssetMaintenancePage,
 } from '../../modules/resources/assets';
 
+import { ResourceOverviewPage } from '../../modules/resources/overview';
+
 const ResourcesSubRouter: React.FC = () => (
   <Routes>
-    {/* Consumable Inventory Routes */}
+    {/* Executive Resource Overview Dashboard (Milestone 6.14) */}
+    <Route
+      index
+      element={
+        <RequirePermission permissions={['inventory.read', 'assets.read']}>
+          <ResourceOverviewPage />
+        </RequirePermission>
+      }
+    />
     <Route
       path="overview"
+      element={
+        <RequirePermission permissions={['inventory.read', 'assets.read']}>
+          <ResourceOverviewPage />
+        </RequirePermission>
+      }
+    />
+
+    {/* Consumable Inventory Routes */}
+    <Route
+      path="inventory/overview"
       element={
         <RequirePermission permission="inventory.read">
           <InventoryOverviewPage />
