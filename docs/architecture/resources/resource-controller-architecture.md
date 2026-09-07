@@ -52,7 +52,7 @@ The Kinergy HTTP adapter layer strictly enforces the mandatory pipeline flow for
 
 ## 2. Controller Responsibility & Clean Boundary Invariants
 
-The three Resources controllers ([`InventoryController`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/controllers/inventory.controller.ts), [`FixedAssetsController`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/controllers/fixed-assets.controller.ts), [`ResourceValuationController`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/controllers/resource-valuation.controller.ts)) strictly adhere to the following boundary rules:
+The four Resources controllers ([`InventoryController`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/controllers/inventory.controller.ts), [`FixedAssetsController`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/controllers/fixed-assets.controller.ts), [`ResourceValuationController`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/controllers/resource-valuation.controller.ts), [`ResourceOverviewController`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/controllers/resource-overview.controller.ts)) strictly adhere to the following boundary rules:
 
 ### 2.1 Permitted Responsibilities:
 
@@ -112,6 +112,9 @@ api/v1/resources/
 │       ├── valuation           POST, GET
 │       └── history             GET (Immutable lifecycle audit log)
 │
+├── overview/                   (ResourceOverviewController)
+│   └──                         GET (Synthesized executive dashboard metrics)
+│
 └── valuation/                  (ResourceValuationController)
     └── summary                 GET (Combined cross-domain balance sheet)
 ```
@@ -120,26 +123,28 @@ api/v1/resources/
 
 ## 4. Architectural Review & Audit Checklist
 
-| Review Area                  | Verification Finding                                                                                                                  | Compliance Status  |
-| :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ | :----------------- |
-| **Business Logic Leakage**   | 0 instances of stock calculation, state transition logic, or movement construction found in controllers.                              | **100% Compliant** |
-| **Persistence Leakage**      | 0 PrismaClient or raw SQL calls in controllers. All access mediated by CQRS handlers.                                                 | **100% Compliant** |
-| **Duplicated Validation**    | Boundary validation handled by `GlobalSanitizationValidationPipe`; business invariants handled in domain aggregates.                  | **100% Compliant** |
-| **Duplicated Authorization** | All routes protected by declarative `@Permissions()` and `@Roles()` evaluated by `AuthorizationGuard`.                                | **100% Compliant** |
-| **Duplicated Error Mapping** | All errors handled consistently through standard NestJS exceptions and `GlobalExceptionFilter`.                                       | **100% Compliant** |
-| **Valuation Calculations**   | Calculations strictly performed by `GetInventoryValuationHandler`, `GetAssetValueHandler`, and `GetCombinedResourceValuationHandler`. | **100% Compliant** |
+| Review Area                  | Verification Finding                                                                                                                                                | Compliance Status  |
+| :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :----------------- |
+| **Business Logic Leakage**   | 0 instances of stock calculation, state transition logic, or movement construction found in controllers.                                                            | **100% Compliant** |
+| **Persistence Leakage**      | 0 PrismaClient or raw SQL calls in controllers. All access mediated by CQRS handlers.                                                                               | **100% Compliant** |
+| **Duplicated Validation**    | Boundary validation handled by `GlobalSanitizationValidationPipe`; business invariants handled in domain aggregates.                                                | **100% Compliant** |
+| **Duplicated Authorization** | All routes protected by declarative `@Permissions()` and `@Roles()` evaluated by `AuthorizationGuard`.                                                              | **100% Compliant** |
+| **Duplicated Error Mapping** | All errors handled consistently through standard NestJS exceptions and `GlobalExceptionFilter`.                                                                     | **100% Compliant** |
+| **Valuation Calculations**   | Calculations strictly performed by `GetInventoryValuationHandler`, `GetAssetValueHandler`, `GetCombinedResourceValuationHandler`, and `GetResourceOverviewHandler`. | **100% Compliant** |
 
 ---
 
 ## 5. Verification & Test Evidence
 
-The controller architecture and adapter layer are verified by 8 automated test suites (**155 passing tests**):
+The controller architecture and adapter layer are verified by 10 automated test suites (**173 passing tests**):
 
 1. `apps/api/src/resources/__tests__/inventory-api.contract.spec.ts` (18 tests)
 2. `apps/api/src/resources/__tests__/fixed-assets-api.contract.spec.ts` (17 tests)
 3. `apps/api/src/resources/__tests__/resource-valuation-api.contract.spec.ts` (3 tests)
-4. `apps/api/src/resources/__tests__/inventory.authorization.spec.ts` (22 tests)
-5. `apps/api/src/resources/__tests__/fixed-assets.authorization.spec.ts` (23 tests)
-6. `apps/api/src/resources/__tests__/resource-valuation.authorization.spec.ts` (10 tests)
-7. `apps/api/src/resources/__tests__/resources-security-negative-and-side-effects.spec.ts` (30 tests)
-8. `apps/api/src/resources/__tests__/resources-validation.spec.ts` (32 tests)
+4. `apps/api/src/resources/__tests__/resource-overview.controller.spec.ts` (9 tests)
+5. `apps/api/src/resources/__tests__/inventory.authorization.spec.ts` (22 tests)
+6. `apps/api/src/resources/__tests__/fixed-assets.authorization.spec.ts` (23 tests)
+7. `apps/api/src/resources/__tests__/resource-valuation.authorization.spec.ts` (10 tests)
+8. `apps/api/src/resources/__tests__/resource-overview.authorization.spec.ts` (9 tests)
+9. `apps/api/src/resources/__tests__/resources-security-negative-and-side-effects.spec.ts` (30 tests)
+10. `apps/api/src/resources/__tests__/resources-validation.spec.ts` (32 tests)

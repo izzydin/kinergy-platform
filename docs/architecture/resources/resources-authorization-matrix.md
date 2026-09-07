@@ -72,17 +72,26 @@ flowchart LR
 
 ---
 
-## 4. Test Matrix & Verification Coverage
+## 4. Cross-Domain & Executive Overview Authorization Matrix
+
+| #          | Operation / Use Case                | Concrete Command / Query & Handler                                         |  Type  | Required Permission(s) / Roles                                                                                          | Sensitive Data / Response Shaping                                                                                                                                                                                                                                    | Business Boundary & Tenant Checks                                  | Actor Provenance Requirement |                    Expected Unauthorized Behavior                    | Ledger / History Event Emitted |
+| :--------- | :---------------------------------- | :------------------------------------------------------------------------- | :----: | :---------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------- | :--------------------------- | :------------------------------------------------------------------: | :----------------------------: |
+| **VAL-01** | **Get Combined Valuation Summary**  | `GetResourceValuationSummaryQuery`<br>`GetResourceValuationSummaryHandler` | `READ` | `inventory.read`<br>_AND_<br>`assets.read`<br>_AND_<br>`billing.read`                                                   | **CONFIDENTIAL**: Working capital inventory value, asset carrying value, historical purchase CAPEX, portfolio shares.                                                                                                                                                | Multi-tenant boundary assertion (`query.tenantId`). Read snapshot. | Authenticated user           |                `401 Unauthorized`<br>`403 Forbidden`                 | Read-only; zero ledger impact. |
+| **OVR-01** | **Get Resource Overview Dashboard** | `GetResourceOverviewQuery`<br>`GetResourceOverviewHandler`                 | `READ` | `inventory.read`<br>_AND_<br>`assets.read`<br>_AND_<br>`billing.read`<br>_OR Roles:_<br>`ADMIN`, `SUPER_ADMIN`, `OWNER` | **CONFIDENTIAL**: Executive synthesized metrics combining inventory working capital, low stock counts, asset carrying value, lifecycle status counts, and Combined Resource Value ([ADR-0102](./adr/0102-resource-overview-synthesized-read-query-architecture.md)). | Tenant-scoped database aggregation. Zero write lock contention.    | Authenticated user           | `401 Unauthorized` (no token)<br>`403 Forbidden` (missing perm/role) | Read-only; zero ledger impact. |
+
+---
+
+## 5. Test Matrix & Verification Coverage
 
 Every protected use case must be verified against four security assertions:
 
 ```typescript
 describe('Authoritative Security & Permission Verification', () => {
   // 1. Authorized Actor
-  it('allows execution when caller holds exact required permissions');
+  it('allows execution when caller holds exact required permissions or roles');
 
   // 2. Authenticated Unauthorized Actor
-  it('rejects execution with 403 Forbidden when caller lacks required permissions');
+  it('rejects execution with 403 Forbidden when caller lacks required permissions/roles');
 
   // 3. Unauthenticated Caller
   it('rejects execution with 401 Unauthorized when Bearer token is missing or invalid');

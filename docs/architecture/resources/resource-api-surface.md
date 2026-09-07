@@ -65,6 +65,9 @@ All Phase 6 endpoints reside under the global versioned API namespace: `/api/v1/
 │       ├── /history                  --> (GET) Chronological audit & transfer history
 │       └── /valuation                --> (GET/POST) Fair appraisal valuation query / update
 │
+├── /overview                         --> Synthesized Executive Dashboard (ADR-0102)
+│   └── (GET)                         --> Synthesized executive resource overview & telemetry
+│
 └── /valuation
     └── /summary                      --> (GET) Derived cross-domain resource balance sheet
 ```
@@ -124,6 +127,14 @@ All Phase 6 endpoints reside under the global versioned API namespace: `/api/v1/
 | HTTP Method | Route Path                            | Operation Name                 | Required Permissions                            | Allowed Roles                   | Description                                           |
 | :---------- | :------------------------------------ | :----------------------------- | :---------------------------------------------- | :------------------------------ | :---------------------------------------------------- |
 | `GET`       | `/api/v1/resources/valuation/summary` | `GetCombinedResourceValuation` | `inventory.read`, `assets.read`, `billing.read` | `ADMIN`, `SUPER_ADMIN`, `OWNER` | Real-time derived cross-domain balance sheet summary. |
+
+---
+
+### 3.4 Synthesized Resource Overview Surface
+
+| HTTP Method | Route Path                   | Operation Name        | Required Permissions                            | Allowed Roles                   | Description                                                                                                                                                                                                                                                                                       |
+| :---------- | :--------------------------- | :-------------------- | :---------------------------------------------- | :------------------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `GET`       | `/api/v1/resources/overview` | `GetResourceOverview` | `inventory.read`, `assets.read`, `billing.read` | `ADMIN`, `SUPER_ADMIN`, `OWNER` | Synthesized executive dashboard telemetry combining consumable inventory working capital, low-stock counts, fixed asset carrying values, and operational lifecycle equipment counts in a single atomic payload ([ADR-0102](./adr/0102-resource-overview-synthesized-read-query-architecture.md)). |
 
 ---
 
@@ -430,6 +441,108 @@ export class RecordAssetMaintenanceRequestDto {
   @IsOptional()
   @IsString()
   workOrderNumber?: string;
+}
+```
+
+### 4.4 Synthesized Resource Overview Contracts
+
+#### `GetResourceOverviewQueryDto`
+
+```typescript
+export class GetResourceOverviewQueryDto {
+  @ApiPropertyOptional({
+    description: 'Whether to include soft-archived items in overview calculations',
+    default: false,
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  includeArchived?: boolean;
+}
+```
+
+#### `ResourceOverviewResponseDto`
+
+```typescript
+export class ConsumableInventoryOverviewDto {
+  @ApiProperty({
+    description: 'Total working capital acquisition value in dollars',
+    example: 38450.0,
+  })
+  totalValueAmount!: number;
+
+  @ApiProperty({
+    description: 'Count of inventory items at or below reorder threshold',
+    example: 3,
+  })
+  lowStockItemCount!: number;
+
+  @ApiProperty({ description: 'Total number of distinct inventory products / SKUs', example: 42 })
+  totalDistinctItems!: number;
+
+  @ApiProperty({
+    description: 'Total physical quantity units on hand across all items',
+    example: 1250,
+  })
+  totalQuantityUnits!: number;
+}
+
+export class FixedAssetsOverviewDto {
+  @ApiProperty({
+    description: 'Total carrying book value of fixed assets in dollars',
+    example: 185000.0,
+  })
+  totalCarryingValueAmount!: number;
+
+  @ApiProperty({ description: 'Total number of active fixed assets', example: 14 })
+  activeAssetCount!: number;
+
+  @ApiProperty({
+    description: 'Total number of assets currently undergoing maintenance',
+    example: 1,
+  })
+  underMaintenanceAssetCount!: number;
+
+  @ApiProperty({
+    description: 'Total number of damaged assets awaiting repair or disposal',
+    example: 0,
+  })
+  damagedAssetCount!: number;
+
+  @ApiProperty({ description: 'Total number of retired / decommissioned assets', example: 2 })
+  retiredAssetCount!: number;
+
+  @ApiProperty({
+    description: 'Total number of fixed assets across all lifecycle statuses',
+    example: 17,
+  })
+  totalAssetCount!: number;
+}
+
+export class CombinedResourceOverviewDto {
+  @ApiProperty({
+    description:
+      'Total combined resource balance sheet value (Inventory Value + Fixed Asset Value)',
+    example: 223450.0,
+  })
+  totalCombinedValueAmount!: number;
+}
+
+export class ResourceOverviewResponseDto {
+  @ApiProperty({ type: ConsumableInventoryOverviewDto })
+  consumableInventory!: ConsumableInventoryOverviewDto;
+
+  @ApiProperty({ type: FixedAssetsOverviewDto })
+  fixedAssets!: FixedAssetsOverviewDto;
+
+  @ApiProperty({ type: CombinedResourceOverviewDto })
+  combined!: CombinedResourceOverviewDto;
+
+  @ApiProperty({ description: 'ISO currency code', example: 'USD' })
+  currency!: string;
+
+  @ApiProperty({ description: 'Calculation timestamp', example: '2026-09-07T12:00:00.000Z' })
+  calculatedAt!: string;
 }
 ```
 

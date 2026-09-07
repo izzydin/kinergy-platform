@@ -87,6 +87,10 @@ The phase is partitioned into two distinct sub-domains:
 | **[Phase 6 Backend Testing Strategy](./phase-6-backend-testing-strategy.md)**                         | Authoritative testing strategy, test pyramid, behavior ownership matrix, concurrency & security scopes                | Approved & Active     |
 | **[Milestone 6.8 Quality Gate](./milestone-6.8-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.8                          | **Approved (100%)**   |
 | **[Milestone 6.9 Quality Gate](./milestone-6.9-quality-gate.md)**                                     | Formal Architecture Review Board evaluation and Quality Gate authorization for Milestone 6.9                          | **Approved (100%)**   |
+| **[Milestone 6.11 Quality Gate](./milestone-6.11-quality-gate.md)**                                   | Formal Architecture Review Board evaluation for Frontend Architecture Preparation                                     | **Approved (100%)**   |
+| **[Milestone 6.12 Quality Gate](./milestone-6.12-quality-gate.md)**                                   | Formal Architecture Review Board evaluation for Consumable Inventory Frontend                                         | **Approved (100%)**   |
+| **[Milestone 6.13 Quality Gate](./milestone-6.13-quality-gate.md)**                                   | Formal Architecture Review Board evaluation for Fixed Asset Frontend                                                  | **Approved (100%)**   |
+| **[Milestone 6.14 Quality Gate](./milestone-6.14-quality-gate.md)**                                   | Formal Architecture Review Board evaluation for Resource Overview Dashboard                                           | **Approved (100%)**   |
 
 ---
 
@@ -115,19 +119,22 @@ Architectural Decision Records governing Phase 6:
 | **[ADR-0097](./adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md)**                         | Fixed Asset Carrying Valuation & Lifecycle Inclusion Matrix                          | Accepted | 2026-08-31 |
 | **[ADR-0098](./adr/0098-cross-domain-derived-resource-valuation-architecture.md)**                                  | Cross-Domain Derived Resource Valuation Architecture                                 | Accepted | 2026-08-31 |
 | **[ADR-0099](./adr/0099-explicit-subresource-state-mutation-endpoints-vs-generic-patch.md)**                        | Explicit Sub-Resource State Mutation Endpoints vs. Generic PATCH                     | Accepted | 2026-08-31 |
+| **[ADR-0100](./adr/0100-frontend-resources-feature-module-boundaries.md)**                                          | Frontend Resources Feature-Module Boundaries & Encapsulation                         | Accepted | 2026-09-02 |
+| **[ADR-0101](./adr/0101-frontend-low-stock-operational-attention-architecture.md)**                                 | Frontend Low-Stock Operational Attention Architecture                                | Accepted | 2026-09-03 |
+| **[ADR-0102](./adr/0102-resource-overview-synthesized-read-query-architecture.md)**                                 | Resource Overview Synthesized Read-Query Architecture & Executive Cockpit            | Accepted | 2026-09-06 |
 
 ---
 
 ## 6. Status of the Architectural Baseline
 
-- **Current Milestone**: Phase 6.9 — Backend API Layer.
-- **Status**: **ACTIVE — API SURFACE DEFINED**.
-- **Next Step**: Phase 6.9 Controller & DTO Implementation.
+- **Current Milestone**: Phase 6.14 — Resource Overview Dashboard.
+- **Status**: **ACTIVE & APPROVED — RESOURCE OVERVIEW COMPLETE**.
+- **Next Step**: Phase 6 Complete Architectural Retrospective and Cross-Domain Integrations.
 
 > [!NOTE]
 >
 > ### ARCHITECTURAL GOVERNANCE STATUS
 >
-> **The Public HTTP API Surface for Phase 6.9 has been defined and approved by the Architecture Review Board.**
+> **The Resource Overview Dashboard (Milestone 6.14) has been verified and approved by the Architecture Review Board.**
 >
-> The team is authorized to proceed with Phase 6.9 controller implementation.
+> The full vertical stack across domain core, application orchestration, HTTP adapter, and executive frontend meets all quality gates and invariants.
