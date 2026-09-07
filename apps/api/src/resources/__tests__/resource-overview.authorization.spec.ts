@@ -147,6 +147,46 @@ describe('Resource Overview Authorization & Security Gate', () => {
       );
     });
 
+    it('allows access when user has OWNER executive role', async () => {
+      const ownerUser = new AuthenticatedUserContext({
+        userId: 'usr_owner_01',
+        email: 'owner@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['OWNER'],
+        permissions: [],
+        tenantId: 'tenant_01',
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+      const context = createOverviewContext(ownerUser);
+
+      const canActivate = await authzGuard.canActivate(context);
+      expect(canActivate).toBe(true);
+      expect(mockEvaluator.evaluate).toHaveBeenCalledWith(
+        ownerUser,
+        expect.objectContaining({
+          requiredRoles: expect.arrayContaining(['OWNER']),
+        }),
+      );
+    });
+
+    it('allows access when user has SUPER_ADMIN role', async () => {
+      const superAdminUser = new AuthenticatedUserContext({
+        userId: 'usr_super_01',
+        email: 'super@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['SUPER_ADMIN'],
+        permissions: [],
+        tenantId: 'tenant_01',
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(AuthorizationDecision.authorized());
+      const context = createOverviewContext(superAdminUser);
+
+      const canActivate = await authzGuard.canActivate(context);
+      expect(canActivate).toBe(true);
+    });
+
     it('denies access when user lacks assets.read permission', async () => {
       const missingAssetsUser = new AuthenticatedUserContext({
         userId: 'usr_inv_mgr',
