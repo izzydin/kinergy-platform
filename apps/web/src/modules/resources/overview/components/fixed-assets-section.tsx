@@ -54,12 +54,6 @@ export const FixedAssetsSection: React.FC<FixedAssetsSectionProps> = ({
             <h2 id="domain-b-heading" className="text-xl font-bold tracking-tight text-foreground">
               Fixed Assets
             </h2>
-            <Badge
-              variant="outline"
-              className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400"
-            >
-              Domain B
-            </Badge>
           </div>
           {/* Explicit Concept Hierarchy as required by architecture */}
           <p className="text-sm font-medium text-muted-foreground mt-0.5">
@@ -108,21 +102,31 @@ export const FixedAssetsSection: React.FC<FixedAssetsSectionProps> = ({
           iconContainerClassName="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
           dataTestId="metric-active-assets"
           badge={
-            <Badge
-              variant="outline"
-              className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[11px]"
-            >
-              <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
-              <span>In Service</span>
-            </Badge>
+            totalAssetCount === 0 ? (
+              <Badge variant="outline" className="text-muted-foreground text-[11px]">
+                No Assets
+              </Badge>
+            ) : (
+              <Badge
+                variant="outline"
+                className="border-emerald-500/30 text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[11px]"
+              >
+                <CheckCircle2 className="h-3 w-3" aria-hidden="true" />
+                <span>In Service</span>
+              </Badge>
+            )
           }
           footer={
-            <Link
-              to="/resources/assets?status=ACTIVE"
-              className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
-            >
-              View active assets <ArrowRight className="h-3 w-3" />
-            </Link>
+            totalAssetCount === 0 ? (
+              <span>No equipment registered</span>
+            ) : (
+              <Link
+                to="/resources/assets?status=ACTIVE"
+                className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
+              >
+                View active assets <ArrowRight className="h-3 w-3" />
+              </Link>
+            )
           }
         />
 
@@ -139,7 +143,11 @@ export const FixedAssetsSection: React.FC<FixedAssetsSectionProps> = ({
           }
           dataTestId="metric-maintenance-assets"
           badge={
-            hasMaintenance ? (
+            totalAssetCount === 0 ? (
+              <Badge variant="outline" className="text-muted-foreground text-[11px]">
+                No Assets
+              </Badge>
+            ) : hasMaintenance ? (
               <Badge
                 variant="outline"
                 className="border-amber-500/40 text-amber-700 dark:text-amber-300 flex items-center gap-1 text-[11px]"
@@ -154,7 +162,9 @@ export const FixedAssetsSection: React.FC<FixedAssetsSectionProps> = ({
             )
           }
           footer={
-            hasMaintenance ? (
+            totalAssetCount === 0 ? (
+              <span>No equipment registered</span>
+            ) : hasMaintenance ? (
               <Link
                 to="/resources/assets?status=UNDER_MAINTENANCE"
                 className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-700 dark:text-amber-400 font-medium"
@@ -180,7 +190,11 @@ export const FixedAssetsSection: React.FC<FixedAssetsSectionProps> = ({
           }
           dataTestId="metric-damaged-assets"
           badge={
-            hasDamaged ? (
+            totalAssetCount === 0 ? (
+              <Badge variant="outline" className="text-muted-foreground text-[11px]">
+                No Assets
+              </Badge>
+            ) : hasDamaged ? (
               <Badge variant="destructive" className="flex items-center gap-1 text-[11px]">
                 <AlertOctagon className="h-3 w-3" aria-hidden="true" />
                 <span>Needs Action</span>
@@ -192,7 +206,9 @@ export const FixedAssetsSection: React.FC<FixedAssetsSectionProps> = ({
             )
           }
           footer={
-            hasDamaged ? (
+            totalAssetCount === 0 ? (
+              <span>No equipment registered</span>
+            ) : hasDamaged ? (
               <Link
                 to="/resources/assets?status=DAMAGED"
                 className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 dark:text-rose-400 font-medium"

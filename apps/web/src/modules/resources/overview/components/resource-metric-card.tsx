@@ -77,8 +77,10 @@ export const ResourceMetricCard: React.FC<ResourceMetricCardProps> = ({
         )}
       </CardHeader>
       <CardContent className="space-y-2 pt-1">
-        <div className="flex items-baseline justify-between gap-2">
-          <span className="text-2xl font-bold tracking-tight text-foreground">{value}</span>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <span className="text-2xl font-bold tracking-tight text-foreground tabular-nums">
+            {value}
+          </span>
           {badge && <div className="shrink-0">{badge}</div>}
         </div>
         {footer && <div className="pt-1 text-xs text-muted-foreground">{footer}</div>}

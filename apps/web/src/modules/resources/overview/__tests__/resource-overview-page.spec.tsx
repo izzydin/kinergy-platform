@@ -311,6 +311,70 @@ describe('ResourceOverviewPage & Architecture (Milestone 6.14)', () => {
       expect(screen.getByRole('link', { name: /Register Product/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /Commission Fixed Asset/i })).toBeInTheDocument();
     });
+
+    it('displays intentional zero-state when only inventory is empty', () => {
+      (overviewHooks.useResourceOverview as jest.Mock).mockReturnValue({
+        data: {
+          ...mockPopulatedOverview,
+          consumableInventory: {
+            totalValueAmount: 0,
+            lowStockItemCount: 0,
+            totalDistinctItems: 0,
+            totalQuantityUnits: 0,
+          },
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      renderComponent();
+
+      expect(screen.getByText('No Products')).toBeInTheDocument();
+      expect(screen.getByText('Add products to track inventory levels')).toBeInTheDocument();
+    });
+
+    it('displays intentional zero-state when only fixed assets is empty', () => {
+      (overviewHooks.useResourceOverview as jest.Mock).mockReturnValue({
+        data: {
+          ...mockPopulatedOverview,
+          fixedAssets: {
+            totalCarryingValueAmount: 0,
+            activeAssetCount: 0,
+            underMaintenanceAssetCount: 0,
+            damagedAssetCount: 0,
+            retiredAssetCount: 0,
+            totalAssetCount: 0,
+          },
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      renderComponent();
+
+      expect(screen.getAllByText('No Assets').length).toBeGreaterThanOrEqual(1);
+      expect(screen.getAllByText('No equipment registered').length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('does not render internal developer badges like "Domain A" or "Domain B"', () => {
+      (overviewHooks.useResourceOverview as jest.Mock).mockReturnValue({
+        data: mockPopulatedOverview,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      renderComponent();
+
+      expect(screen.queryByText('Domain A')).not.toBeInTheDocument();
+      expect(screen.queryByText('Domain B')).not.toBeInTheDocument();
+      expect(screen.getByText('Resource Distribution')).toBeInTheDocument();
+    });
   });
 
   describe('4. Interactivity and Controls', () => {

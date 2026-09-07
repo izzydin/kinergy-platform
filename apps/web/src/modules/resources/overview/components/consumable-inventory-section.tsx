@@ -46,12 +46,6 @@ export const ConsumableInventorySection: React.FC<ConsumableInventorySectionProp
             <h2 id="domain-a-heading" className="text-xl font-bold tracking-tight text-foreground">
               Consumable Inventory
             </h2>
-            <Badge
-              variant="outline"
-              className="border-blue-500/30 text-blue-600 dark:text-blue-400"
-            >
-              Domain A
-            </Badge>
           </div>
           {/* Explicit Concept Hierarchy as required by architecture */}
           <p className="text-sm font-medium text-muted-foreground mt-0.5">
@@ -88,7 +82,7 @@ export const ConsumableInventorySection: React.FC<ConsumableInventorySectionProp
           dataTestId="metric-inventory-value"
           footer={
             <div className="flex items-center justify-between">
-              <span>Working capital</span>
+              <span>Working capital on hand</span>
               <span className="font-mono text-[11px] text-foreground">{currency}</span>
             </div>
           }
@@ -100,20 +94,28 @@ export const ConsumableInventorySection: React.FC<ConsumableInventorySectionProp
           value={lowStockItemCount}
           description="Products at or below reorder threshold"
           icon={
-            hasLowStock ? (
+            totalDistinctItems === 0 ? (
+              <Package className="h-5 w-5" />
+            ) : hasLowStock ? (
               <AlertTriangle className="h-5 w-5" />
             ) : (
               <CheckCircle2 className="h-5 w-5" />
             )
           }
           iconContainerClassName={
-            hasLowStock
-              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+            totalDistinctItems === 0
+              ? 'bg-muted text-muted-foreground'
+              : hasLowStock
+                ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
           }
           dataTestId="metric-low-stock"
           badge={
-            hasLowStock ? (
+            totalDistinctItems === 0 ? (
+              <Badge variant="outline" className="text-muted-foreground text-[11px]">
+                No Products
+              </Badge>
+            ) : hasLowStock ? (
               <Badge variant="destructive" className="flex items-center gap-1 text-[11px]">
                 <AlertTriangle className="h-3 w-3" aria-hidden="true" />
                 <span>Reorder Required</span>
@@ -129,7 +131,9 @@ export const ConsumableInventorySection: React.FC<ConsumableInventorySectionProp
             )
           }
           footer={
-            hasLowStock ? (
+            totalDistinctItems === 0 ? (
+              <span>Add products to track inventory levels</span>
+            ) : hasLowStock ? (
               <Link
                 to="/resources/inventory/low-stock"
                 className="inline-flex items-center gap-1 text-amber-600 hover:text-amber-700 dark:text-amber-400 font-medium"

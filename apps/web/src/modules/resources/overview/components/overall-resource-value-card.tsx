@@ -99,7 +99,7 @@ export const OverallResourceValueCard: React.FC<OverallResourceValueCardProps> =
                 </Badge>
               </div>
               <CardDescription className="text-xs">
-                Total synthesized resource balance (Working Capital + Capital Assets)
+                Total business resource value (Working Capital + Capital Assets)
               </CardDescription>
             </div>
             <div
@@ -121,14 +121,14 @@ export const OverallResourceValueCard: React.FC<OverallResourceValueCardProps> =
               {formatCurrency(totalCombined, currency)}
             </div>
             <p className="text-xs text-muted-foreground">
-              Consolidated enterprise resource allocation across active physical domains
+              Combined valuation of inventory stock on hand and owned capital equipment
             </p>
           </div>
 
           {/* Visual Ratio Distribution Bar */}
           <div className="space-y-1.5" aria-hidden="true">
             <div className="flex justify-between text-xs font-medium text-muted-foreground">
-              <span>Domain Distribution</span>
+              <span>Resource Distribution</span>
               <span>
                 {inventoryPercent.toFixed(1)}% Inventory / {fixedAssetPercent.toFixed(1)}% Assets
               </span>

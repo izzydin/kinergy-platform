@@ -68,11 +68,12 @@ export const ResourceOverviewPage: React.FC = () => {
               </h2>
               <p className="text-sm text-muted-foreground">
                 The Resource Overview synthesizes confidential balance sheet working capital and
-                capital asset carrying values. You must possess{' '}
+                fixed asset values. Access requires permission to view inventory, assets, and
+                financial valuations (
                 <code className="text-xs font-mono font-semibold">inventory.read</code>,{' '}
                 <code className="text-xs font-mono font-semibold">assets.read</code>, and{' '}
-                <code className="text-xs font-mono font-semibold">billing.read</code> permissions or
-                hold an executive role.
+                <code className="text-xs font-mono font-semibold">billing.read</code>), or an
+                executive role.
               </p>
             </div>
             <div className="flex items-center gap-3 pt-2">
@@ -168,7 +169,7 @@ export const ResourceOverviewPage: React.FC = () => {
               </h2>
               <p className="text-sm text-muted-foreground">
                 {error?.message ||
-                  'A network or server error occurred while retrieving enterprise overview metrics.'}
+                  'We were unable to retrieve your resource overview metrics. Please check your network connection and try again.'}
               </p>
             </div>
             <Button
@@ -216,7 +217,7 @@ export const ResourceOverviewPage: React.FC = () => {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Synthesized operational telemetry and balance sheet valuation across consumable
+            Live operational status and consolidated balance sheet valuation across consumable
             inventory and fixed assets.
           </p>
         </div>
@@ -275,9 +276,9 @@ export const ResourceOverviewPage: React.FC = () => {
                 No Resource Records Initialized
               </h2>
               <p className="text-sm text-muted-foreground">
-                Your enterprise resource ledger currently has no consumable inventory products or
-                fixed equipment commissioned. Register inventory stock or commission fixed capital
-                equipment to begin telemetry tracking.
+                Your business currently has no consumable inventory products or fixed equipment
+                registered. Register your first inventory product or commission a fixed asset to
+                begin tracking business value and operational health.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
