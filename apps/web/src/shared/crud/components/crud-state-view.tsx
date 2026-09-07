@@ -13,6 +13,7 @@ export const CrudStateView: React.FC<CrudStateViewProps> = ({
   errorProps,
   isEmpty = false,
   isFiltered = false,
+  isUnauthorized = false,
   emptyProps,
   children,
   className = '',
@@ -27,11 +28,15 @@ export const CrudStateView: React.FC<CrudStateViewProps> = ({
     return <CrudError className={className} {...errorProps} />;
   }
 
-  // 3. Empty State (System vs Filtered)
+  // 3. Unauthorized State
+  if (isUnauthorized) {
+    return <CrudEmpty type="unauthorized" className={className} {...emptyProps} />;
+  }
+
+  // 4. Empty State (System vs Filtered vs Healthy)
   if (isEmpty) {
-    return (
-      <CrudEmpty type={isFiltered ? 'filtered' : 'dataset'} className={className} {...emptyProps} />
-    );
+    const resolvedType = emptyProps?.type ?? (isFiltered ? 'filtered' : 'dataset');
+    return <CrudEmpty type={resolvedType} className={className} {...emptyProps} />;
   }
 
   // 4. Populated State (with non-blocking background refetch indicator)

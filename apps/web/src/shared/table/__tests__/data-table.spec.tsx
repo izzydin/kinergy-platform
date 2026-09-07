@@ -183,6 +183,30 @@ describe('DataTable Component (Track C Step C2.2)', () => {
     expect(handleResetFilters).toHaveBeenCalledTimes(1);
   });
 
+  it('renders unauthorized state when isUnauthorized is true', () => {
+    render(<DataTable columns={testColumns} data={[]} isUnauthorized={true} />);
+
+    expect(screen.getByText('Access restricted')).toBeInTheDocument();
+    expect(
+      screen.getByText('You do not have the required permissions to view records in this table.'),
+    ).toBeInTheDocument();
+  });
+
+  it('renders healthy operational state when isHealthy is true', () => {
+    render(
+      <DataTable
+        columns={testColumns}
+        data={[]}
+        isHealthy={true}
+        emptyTitle="All Equipment Operational"
+        emptyDescription="No equipment currently requires attention."
+      />,
+    );
+
+    expect(screen.getByText('All Equipment Operational')).toBeInTheDocument();
+    expect(screen.getByText('No equipment currently requires attention.')).toBeInTheDocument();
+  });
+
   it('handles pagination navigation and page size adjustments', () => {
     render(
       <DataTable

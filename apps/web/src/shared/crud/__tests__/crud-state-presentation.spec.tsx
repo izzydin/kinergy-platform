@@ -183,6 +183,39 @@ describe('Track C Step C3.1: CRUD State Presentation Framework', () => {
       expect(handleReset).toHaveBeenCalledTimes(1);
     });
 
+    it('renders unauthorized state when isUnauthorized is true', () => {
+      render(
+        <CrudStateView isUnauthorized={true}>
+          <div data-testid="populated-content">Populated Data</div>
+        </CrudStateView>,
+      );
+
+      expect(screen.getByText('Access restricted')).toBeInTheDocument();
+      expect(screen.getByText(/you do not have sufficient permissions/i)).toBeInTheDocument();
+      expect(screen.queryByTestId('populated-content')).not.toBeInTheDocument();
+    });
+
+    it('renders healthy operational state when emptyProps.type is healthy', () => {
+      render(
+        <CrudStateView
+          isEmpty={true}
+          emptyProps={{
+            type: 'healthy',
+            title: 'All Inventory Stocks Healthy',
+            description: 'All consumable items meet or exceed required thresholds.',
+          }}
+        >
+          <div data-testid="populated-content">Populated Data</div>
+        </CrudStateView>,
+      );
+
+      expect(screen.getByText('All Inventory Stocks Healthy')).toBeInTheDocument();
+      expect(
+        screen.getByText('All consumable items meet or exceed required thresholds.'),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId('populated-content')).not.toBeInTheDocument();
+    });
+
     it('renders populated children when loaded successfully and shows non-blocking refetch indicator', () => {
       const { rerender } = render(
         <CrudStateView isRefetching={false}>

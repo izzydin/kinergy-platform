@@ -61,6 +61,10 @@ export interface DataTableProps<TData, TValue = unknown> {
   readonly onRetry?: () => void;
   /** Whether filters/search are active (for empty state messaging) */
   readonly isFiltered?: boolean;
+  /** Whether the user lacks permissions to view this table */
+  readonly isUnauthorized?: boolean;
+  /** Whether this empty state represents a positive healthy operational state (e.g. 0 low stock, 0 damaged) */
+  readonly isHealthy?: boolean;
   /** Empty state title */
   readonly emptyTitle?: string;
   /** Empty state description */
@@ -106,6 +110,8 @@ export interface DataTablePaginationProps {
 
 export interface DataTableEmptyProps {
   readonly isFiltered?: boolean;
+  readonly isUnauthorized?: boolean;
+  readonly isHealthy?: boolean;
   readonly title?: string;
   readonly description?: string;
   readonly onResetFilters?: () => void;

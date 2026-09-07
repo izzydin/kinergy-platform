@@ -46,6 +46,8 @@ export function DataTable<TData, TValue = unknown>({
   errorMessage,
   onRetry,
   isFiltered = false,
+  isUnauthorized = false,
+  isHealthy = false,
   emptyTitle,
   emptyDescription,
   onResetFilters,
@@ -124,6 +126,8 @@ export function DataTable<TData, TValue = unknown>({
         {toolbar && <div className="flex items-center justify-between gap-4">{toolbar}</div>}
         <DataTableEmpty
           isFiltered={isFiltered}
+          isUnauthorized={isUnauthorized}
+          isHealthy={isHealthy}
           title={emptyTitle}
           description={emptyDescription}
           onResetFilters={onResetFilters}

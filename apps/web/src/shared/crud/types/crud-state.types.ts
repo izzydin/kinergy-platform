@@ -28,8 +28,8 @@ export interface CrudLoadingProps {
  * Props for CrudEmpty presentation
  */
 export interface CrudEmptyProps {
-  /** Empty state classification: system empty vs search/filter empty */
-  readonly type?: 'dataset' | 'filtered';
+  /** Empty state classification: system empty vs search/filter empty vs unauthorized vs healthy operational state */
+  readonly type?: 'dataset' | 'filtered' | 'unauthorized' | 'healthy';
   /** Primary headline title */
   readonly title?: string;
   /** Explanatory description */
@@ -80,6 +80,8 @@ export interface CrudStateViewProps {
   readonly isEmpty?: boolean;
   /** Whether the empty state is due to active search queries or filters */
   readonly isFiltered?: boolean;
+  /** Whether the user lacks permissions to view the dataset */
+  readonly isUnauthorized?: boolean;
   /** Empty state configuration */
   readonly emptyProps?: CrudEmptyProps;
   /** Populated content rendered when data is loaded successfully */
