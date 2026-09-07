@@ -1,4 +1,9 @@
-import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
@@ -9,6 +14,7 @@ import { IAccessTokenService } from '../../platform/identity/tokens/access-token
 import { IUserRepository, User, UserStatus } from '../../platform/identity/domain';
 import { ResourceOverviewController } from '../controllers/resource-overview.controller';
 import { GetResourceOverviewHandler, ResourcesApplicationResult } from '@kinergy-platform/core';
+import { GetResourceOverviewQueryDto } from '../dto';
 
 describe('Resource Overview Authorization & Security Gate', () => {
   let reflector: Reflector;
@@ -285,6 +291,208 @@ describe('Resource Overview Authorization & Security Gate', () => {
       expect(response.fixedAssets.activeAssetCount).toBe(10);
       expect(response.combined.totalCombinedValueAmount).toBe(97500.5);
       expect(response.currency).toBe('USD');
+    });
+  });
+
+  describe('4. Operational Role Denial & Least-Privilege Enforcement', () => {
+    it('denies access to TRAINER role lacking financial valuation permission', async () => {
+      const trainerUser = new AuthenticatedUserContext({
+        userId: 'usr_trainer_01',
+        email: 'trainer@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['TRAINER'],
+        permissions: ['inventory.read', 'assets.read'], // No billing.read
+        tenantId: 'tenant_01',
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(
+        AuthorizationDecision.denied('Missing required permission: billing.read'),
+      );
+      const context = createOverviewContext(trainerUser);
+
+      await expect(authzGuard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('denies access to RECEPTIONIST role lacking assets.read and billing.read', async () => {
+      const receptionistUser = new AuthenticatedUserContext({
+        userId: 'usr_reception_01',
+        email: 'reception@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['RECEPTIONIST'],
+        permissions: ['inventory.read'], // Missing assets.read and billing.read
+        tenantId: 'tenant_01',
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(
+        AuthorizationDecision.denied('Missing required permissions: assets.read, billing.read'),
+      );
+      const context = createOverviewContext(receptionistUser);
+
+      await expect(authzGuard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('denies access to KITCHEN_STAFF role lacking capital asset and billing permissions', async () => {
+      const kitchenUser = new AuthenticatedUserContext({
+        userId: 'usr_kitchen_01',
+        email: 'kitchen@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['KITCHEN_STAFF'],
+        permissions: ['inventory.read', 'inventory.write'],
+        tenantId: 'tenant_01',
+      });
+
+      mockEvaluator.evaluate.mockResolvedValueOnce(
+        AuthorizationDecision.denied('Missing required permissions: assets.read, billing.read'),
+      );
+      const context = createOverviewContext(kitchenUser);
+
+      await expect(authzGuard.canActivate(context)).rejects.toThrow(ForbiddenException);
+    });
+  });
+
+  describe('5. Multi-Tenant Boundary & Parameter Tampering Defense', () => {
+    it('strictly derives tenantId from authenticated user context, ignoring query tampering', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_exec_01',
+        email: 'exec@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['ADMIN'],
+        permissions: ['inventory.read', 'assets.read', 'billing.read'],
+        tenantId: 'tenant_authoritative_alpha',
+      });
+
+      mockOverviewHandler.execute.mockResolvedValueOnce(
+        ResourcesApplicationResult.ok({
+          consumableInventory: {
+            totalValueAmount: 1000,
+            lowStockItemCount: 0,
+            totalDistinctItems: 5,
+            totalQuantityUnits: 50,
+          },
+          fixedAssets: {
+            totalCarryingValueAmount: 5000,
+            activeAssetCount: 2,
+            underMaintenanceAssetCount: 0,
+            damagedAssetCount: 0,
+            retiredAssetCount: 0,
+            totalAssetCount: 2,
+          },
+          combined: {
+            totalCombinedValueAmount: 6000,
+          },
+          currency: 'USD',
+          calculatedAt: '2026-09-07T12:00:00.000Z',
+        }),
+      );
+
+      // Attempt spoofing with external tenantId in query DTO
+      const tamperedQueryDto = {
+        includeArchived: false,
+        tenantId: 'tenant_foreign_victim',
+      };
+
+      await controller.getOverview(
+        user,
+        tamperedQueryDto as unknown as GetResourceOverviewQueryDto,
+      );
+
+      // Verify that handler was dispatched with the authentic tenantId from user context
+      expect(mockOverviewHandler.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            tenantId: 'tenant_authoritative_alpha',
+          }),
+        }),
+      );
+    });
+
+    it('safely neutralizes malicious or non-boolean query parameters for includeArchived', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_exec_01',
+        email: 'exec@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['ADMIN'],
+        permissions: ['inventory.read', 'assets.read', 'billing.read'],
+        tenantId: 'tenant_01',
+      });
+
+      mockOverviewHandler.execute.mockResolvedValue(
+        ResourcesApplicationResult.ok({
+          consumableInventory: {
+            totalValueAmount: 0,
+            lowStockItemCount: 0,
+            totalDistinctItems: 0,
+            totalQuantityUnits: 0,
+          },
+          fixedAssets: {
+            totalCarryingValueAmount: 0,
+            activeAssetCount: 0,
+            underMaintenanceAssetCount: 0,
+            damagedAssetCount: 0,
+            retiredAssetCount: 0,
+            totalAssetCount: 0,
+          },
+          combined: {
+            totalCombinedValueAmount: 0,
+          },
+          currency: 'USD',
+          calculatedAt: '2026-09-07T12:00:00.000Z',
+        }),
+      );
+
+      // Attempt injection attacks / arbitrary strings
+      const injectionAttempts = [
+        "'; DROP TABLE inventory_items; --",
+        '{ "$ne": null }',
+        'true; SELECT * FROM users',
+        'undefined',
+        'null',
+        'random_string',
+      ];
+
+      for (const injection of injectionAttempts) {
+        await controller.getOverview(user, undefined, injection);
+
+        expect(mockOverviewHandler.execute).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            input: expect.objectContaining({
+              tenantId: 'tenant_01',
+              includeArchived: false, // Must strictly evaluate to false
+            }),
+          }),
+        );
+      }
+    });
+  });
+
+  describe('6. Error Handling & Information Disclosure Prevention', () => {
+    it('masks internal failure details behind standard BadRequestException', async () => {
+      const user = new AuthenticatedUserContext({
+        userId: 'usr_exec_01',
+        email: 'exec@kinergy.platform',
+        status: 'ACTIVE',
+        roles: ['ADMIN'],
+        permissions: ['inventory.read', 'assets.read', 'billing.read'],
+        tenantId: 'tenant_01',
+      });
+
+      mockOverviewHandler.execute.mockResolvedValueOnce(
+        ResourcesApplicationResult.fail('Database connection timed out at 10.0.1.45:5432'),
+      );
+
+      await expect(controller.getOverview(user)).rejects.toThrow(
+        new BadRequestException('Database connection timed out at 10.0.1.45:5432'),
+      );
+    });
+  });
+
+  describe('7. Architectural Boundary Purity', () => {
+    it('verifies controller only accepts application query handler and does not expose direct Prisma access', () => {
+      expect(controller).toBeDefined();
+      expect(controller['getResourceOverviewHandler']).toBe(mockOverviewHandler);
+      const controllerRecord = controller as unknown as Record<string, unknown>;
+      expect(controllerRecord['prisma']).toBeUndefined();
+      expect(controllerRecord['db']).toBeUndefined();
     });
   });
 });
