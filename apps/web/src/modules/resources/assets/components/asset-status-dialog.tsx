@@ -30,6 +30,7 @@ import { useChangeAssetStatus } from '../hooks';
 import { AssetStatusBadge } from './asset-status-badge';
 import { AssetConditionBadge } from './asset-condition-badge';
 import { AssetCategoryBadge } from './asset-category-badge';
+import { RetireAssetDialog } from './retire-asset-dialog';
 import type { FixedAssetVM } from '../types';
 
 export interface ChangeAssetStatusDialogProps {
@@ -78,6 +79,10 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
 }) => {
   const { mutate: changeStatus, isPending } = useChangeAssetStatus();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const [isRetireConfirmOpen, setIsRetireConfirmOpen] = useState(false);
+  const [pendingRetireData, setPendingRetireData] = useState<ChangeAssetStatusFormData | null>(
+    null,
+  );
 
   const form = useForm<ChangeAssetStatusFormData>({
     resolver: zodResolver(changeAssetStatusSchema),
@@ -120,6 +125,8 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
         reason: '',
       });
       setServerErrorMessage(null);
+      setIsRetireConfirmOpen(false);
+      setPendingRetireData(null);
     }
   }, [open, asset, reset, allowedTransitions]);
 
@@ -129,8 +136,8 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
 
   const isRetiring = selectedTargetStatus === AssetStatus.RETIRED;
 
-  const handleFormSubmit = (data: ChangeAssetStatusFormData) => {
-    if (!asset || isTerminalCurrent || isConditionRestoringBlocked) return;
+  const executeStatusChange = (data: ChangeAssetStatusFormData) => {
+    if (!asset) return;
     setServerErrorMessage(null);
 
     changeStatus(
@@ -143,14 +150,32 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
       },
       {
         onSuccess: () => {
+          setIsRetireConfirmOpen(false);
+          setPendingRetireData(null);
           onOpenChange(false);
           onSuccess?.();
         },
         onError: (err: Error) => {
+          setIsRetireConfirmOpen(false);
           setServerErrorMessage(err.message || 'Failed to change asset status');
         },
       },
     );
+  };
+
+  const handleFormSubmit = (data: ChangeAssetStatusFormData) => {
+    if (!asset || isTerminalCurrent || isConditionRestoringBlocked) return;
+
+    // Destructive / Irreversible Confirmation Gate:
+    // If target status is RETIRED, require confirmation BEFORE mutation begins per [AST-INV-1]
+    if (data.status === AssetStatus.RETIRED) {
+      setPendingRetireData(data);
+      setIsRetireConfirmOpen(true);
+      return;
+    }
+
+    // Routine operational transitions execute directly (avoids confirmation fatigue)
+    executeStatusChange(data);
   };
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -376,6 +401,20 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
           </form>
         </Form>
       </DialogContent>
+
+      {/* Explicit Destructive Confirmation Gate for Decommissioning [AST-INV-1] */}
+      <RetireAssetDialog
+        asset={asset}
+        open={isRetireConfirmOpen}
+        reason={pendingRetireData?.reason ?? ''}
+        isPending={isPending}
+        onOpenChange={setIsRetireConfirmOpen}
+        onConfirm={() => {
+          if (pendingRetireData) {
+            executeStatusChange(pendingRetireData);
+          }
+        }}
+      />
     </Dialog>
   );
 };

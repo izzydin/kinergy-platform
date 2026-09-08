@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Alert,
   AlertDescription,
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@kinergy-platform/ui';
-import { AlertTriangle, AlertCircle, Archive } from 'lucide-react';
+import { AlertCircle, Archive, CheckCircle2, Info } from 'lucide-react';
 import { useArchiveProduct } from '../hooks';
 import type { InventoryProductVM } from '../types';
 
@@ -30,6 +30,7 @@ export const ArchiveProductDialog: React.FC<ArchiveProductDialogProps> = ({
 }) => {
   const { mutate: archiveProduct, isPending } = useArchiveProduct();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (open) {
@@ -62,6 +63,11 @@ export const ArchiveProductDialog: React.FC<ArchiveProductDialogProps> = ({
       <DialogContent
         className="max-w-md"
         data-testid="archive-product-dialog"
+        onOpenAutoFocus={(e) => {
+          // Safe by default: place initial focus on Cancel button to avoid accidental Enter submission
+          e.preventDefault();
+          cancelButtonRef.current?.focus();
+        }}
         onPointerDownOutside={(e) => {
           if (isPending) e.preventDefault();
         }}
@@ -75,8 +81,8 @@ export const ArchiveProductDialog: React.FC<ArchiveProductDialogProps> = ({
             <DialogTitle>Archive Consumable Product</DialogTitle>
           </div>
           <DialogDescription>
-            Are you sure you want to archive{' '}
-            <span className="font-semibold text-foreground">{product?.name}</span> ({product?.sku})?
+            Delist this consumable product from active operations. Review the lifecycle impact and
+            confirm catalog deactivation below.
           </DialogDescription>
         </DialogHeader>
 
@@ -93,30 +99,61 @@ export const ArchiveProductDialog: React.FC<ArchiveProductDialogProps> = ({
             </Alert>
           )}
 
+          {/* 1. Affected Resource Summary */}
+          {product && (
+            <div
+              className="rounded-md border border-border bg-muted/50 p-3 text-xs space-y-1"
+              data-testid="archive-resource-summary"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-foreground text-sm">{product.name}</span>
+                <span className="font-mono text-muted-foreground text-[11px]">{product.sku}</span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground pt-1 border-t border-border/40">
+                <span>Category: {product.category}</span>
+                <span>
+                  Balance: {product.currentStock} {product.unitOfMeasure}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* 2. What Will Happen (Catalog Impact) */}
           <Alert className="bg-amber-50/70 border-amber-200 text-amber-900 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300">
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <Info className="h-4 w-4 text-amber-600 dark:text-amber-400" />
             <AlertTitle>Catalog Lifecycle Impact</AlertTitle>
             <AlertDescription className="text-xs mt-1">
-              Archiving removes this item from active Point-of-Sale catalogs and restock attention
-              queues. Historical movement ledgers and audit records remain intact.
+              Archiving immediately removes this item from Point-of-Sale (POS) catalogs and
+              automated restock alerts. Existing stock balances and historical movement ledgers are
+              preserved.
             </AlertDescription>
           </Alert>
 
-          {product && product.currentStock > 0 && (
-            <p className="text-xs text-muted-foreground bg-muted p-2.5 rounded-md">
-              <span className="font-medium text-foreground">Current balance:</span>{' '}
-              {product.currentStock} {product.unitOfMeasure} on hand. Archiving does not delete
-              physical stock balances.
-            </p>
-          )}
+          {/* 3. Reversibility Disclosure */}
+          <Alert className="bg-emerald-50/70 border-emerald-200 text-emerald-900 dark:bg-emerald-950/30 dark:border-emerald-800 dark:text-emerald-300">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <AlertTitle>Reversible Action</AlertTitle>
+            <AlertDescription className="text-xs mt-1">
+              This product can be reactivated back to active catalog status at any time from the
+              archived items filter view.
+            </AlertDescription>
+          </Alert>
+
+          {/* 4. Confirmation Instructions */}
+          <p className="text-xs text-muted-foreground">
+            To proceed with delisting this item from active sales, click{' '}
+            <span className="font-medium text-foreground">Archive Product</span> below.
+          </p>
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0 mt-4">
           <Button
+            ref={cancelButtonRef}
             type="button"
             variant="outline"
             onClick={() => onOpenChange(false)}
             disabled={isPending}
+            data-testid="archive-cancel-btn"
           >
             Cancel
           </Button>
@@ -126,6 +163,7 @@ export const ArchiveProductDialog: React.FC<ArchiveProductDialogProps> = ({
             onClick={handleConfirmArchive}
             disabled={isPending}
             className="gap-1.5"
+            data-testid="archive-confirm-btn"
           >
             <Archive className="h-4 w-4" />
             {isPending ? 'Archiving...' : 'Archive Product'}

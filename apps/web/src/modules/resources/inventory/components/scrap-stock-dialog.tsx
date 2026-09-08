@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
@@ -15,7 +15,7 @@ import {
   AlertDescription,
   AlertTitle,
 } from '@kinergy-platform/ui';
-import { Trash2, AlertCircle } from 'lucide-react';
+import { Trash2, AlertCircle, AlertTriangle } from 'lucide-react';
 import {
   Form,
   FormControl,
@@ -46,6 +46,7 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
   const queryClient = useQueryClient();
   const { mutate: scrapStock, isPending } = useScrapStock();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
 
   const form = useForm<ScrapStockFormData>({
     resolver: zodResolver(scrapStockSchema),
@@ -111,6 +112,11 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
       <DialogContent
         className="max-w-md"
         data-testid="scrap-stock-dialog"
+        onOpenAutoFocus={(e) => {
+          // Safe by default: place initial focus on Cancel button
+          e.preventDefault();
+          cancelButtonRef.current?.focus();
+        }}
         onPointerDownOutside={(e) => {
           if (isPending) e.preventDefault();
         }}
@@ -124,7 +130,7 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
             <DialogTitle>Disposal / Scrap Stock</DialogTitle>
           </div>
           <DialogDescription>
-            Record disposal of damaged or expired consumable inventory for{' '}
+            Record physical disposal of damaged or expired consumable inventory for{' '}
             <span className="font-semibold text-foreground">{product?.name}</span> ({product?.sku}).
           </DialogDescription>
         </DialogHeader>
@@ -136,6 +142,18 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
             {currentStock} {product?.unitOfMeasure}
           </span>
         </div>
+
+        {/* Irreversible Write-Off Ledger Alert */}
+        <Alert className="bg-amber-50/70 border-amber-200 text-amber-900 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300 py-2.5">
+          <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+          <AlertTitle className="text-xs font-semibold">
+            Irreversible Inventory Write-Off
+          </AlertTitle>
+          <AlertDescription className="text-xs mt-1">
+            Disposed units are permanently written off from stock and committed to the immutable
+            audit ledger. This action cannot be undone.
+          </AlertDescription>
+        </Alert>
 
         {/* In-Modal Server Rejection Alert */}
         {serverErrorMessage && (
@@ -192,14 +210,22 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
 
             <DialogFooter className="pt-3 gap-2 sm:gap-0">
               <Button
+                ref={cancelButtonRef}
                 type="button"
                 variant="outline"
                 onClick={() => onOpenChange(false)}
                 disabled={isPending}
+                data-testid="scrap-cancel-btn"
               >
                 Cancel
               </Button>
-              <Button type="submit" variant="destructive" disabled={isPending} className="gap-1.5">
+              <Button
+                type="submit"
+                variant="destructive"
+                disabled={isPending}
+                className="gap-1.5"
+                data-testid="scrap-confirm-btn"
+              >
                 <Trash2 className="h-4 w-4" />
                 {isPending ? 'Scrapping...' : 'Record Disposal'}
               </Button>
