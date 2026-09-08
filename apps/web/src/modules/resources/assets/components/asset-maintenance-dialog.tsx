@@ -113,11 +113,25 @@ export const RecordAssetMaintenanceDialog: React.FC<RecordAssetMaintenanceDialog
     );
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isPending) return;
+    onOpenChange(nextOpen);
+  };
+
   if (!asset) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[560px]" data-testid="record-maintenance-dialog">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="sm:max-w-[560px]"
+        data-testid="record-maintenance-dialog"
+        onPointerDownOutside={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary">
             <Wrench className="h-5 w-5" />

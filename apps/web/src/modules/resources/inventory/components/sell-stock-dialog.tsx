@@ -108,9 +108,23 @@ export const SellStockDialog: React.FC<SellStockDialogProps> = ({
 
   const currentStock = product?.currentStock ?? 0;
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isPending) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" data-testid="sell-stock-dialog">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="max-w-md"
+        data-testid="sell-stock-dialog"
+        onPointerDownOutside={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary">
             <ShoppingCart className="h-5 w-5" />

@@ -110,11 +110,25 @@ export const TransferAssetLocationDialog: React.FC<TransferAssetLocationDialogPr
     );
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isPending) return;
+    onOpenChange(nextOpen);
+  };
+
   if (!asset) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px]" data-testid="transfer-asset-dialog">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="sm:max-w-[540px]"
+        data-testid="transfer-asset-dialog"
+        onPointerDownOutside={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary">
             <MapPin className="h-5 w-5" />

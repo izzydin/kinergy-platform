@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNotification } from '../../../../app/providers/notification-provider';
 import { inventoryApi, inventoryQueryKeys } from '../api';
+import { resourceOverviewQueryKeys } from '../../overview/api';
 import type {
   CreateProductInputVM,
   UpdateProductInputVM,
@@ -25,6 +26,7 @@ export function useCreateProduct() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to register product');
@@ -48,6 +50,7 @@ export function useUpdateProduct() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to update product details');
@@ -70,6 +73,7 @@ export function useArchiveProduct() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to archive product');
@@ -92,6 +96,7 @@ export function useActivateProduct() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to activate product');
@@ -114,6 +119,7 @@ export function useDeactivateProduct() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to deactivate product');
@@ -139,6 +145,7 @@ export function useReceiveStock() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to record stock purchase');
@@ -164,6 +171,7 @@ export function useSellStock() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to record sale');
@@ -189,6 +197,7 @@ export function useConsumeStock() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to record consumption');
@@ -214,6 +223,7 @@ export function useScrapStock() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to scrap stock');
@@ -241,6 +251,7 @@ export function useAdjustStock() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to adjust stock count');

@@ -106,11 +106,25 @@ export const UpdateAssetValuationDialog: React.FC<UpdateAssetValuationDialogProp
     );
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isPending) return;
+    onOpenChange(nextOpen);
+  };
+
   if (!asset) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]" data-testid="update-valuation-dialog">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="sm:max-w-[500px]"
+        data-testid="update-valuation-dialog"
+        onPointerDownOutside={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary">
             <DollarSign className="h-5 w-5" />

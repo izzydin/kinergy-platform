@@ -153,11 +153,25 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
     );
   };
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isPending) return;
+    onOpenChange(nextOpen);
+  };
+
   if (!asset) return null;
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[540px]" data-testid="change-status-dialog">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="sm:max-w-[540px]"
+        data-testid="change-status-dialog"
+        onPointerDownOutside={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary">
             <ShieldAlert className="h-5 w-5" />

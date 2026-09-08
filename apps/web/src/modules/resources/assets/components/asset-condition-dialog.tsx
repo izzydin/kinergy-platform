@@ -102,9 +102,23 @@ export const UpdateAssetConditionDialog: React.FC<UpdateAssetConditionDialogProp
     selectedCondition === AssetCondition.NEEDS_REPAIR ||
     selectedCondition === AssetCondition.OUT_OF_SERVICE;
 
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (isPending) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]" data-testid="update-condition-dialog">
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogContent
+        className="sm:max-w-[520px]"
+        data-testid="update-condition-dialog"
+        onPointerDownOutside={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+        onEscapeKeyDown={(e) => {
+          if (isPending) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <div className="flex items-center gap-2 text-primary">
             <Stethoscope className="h-5 w-5" />

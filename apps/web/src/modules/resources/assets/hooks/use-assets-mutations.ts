@@ -1,6 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useNotification } from '../../../../app/providers/notification-provider';
 import { assetsApi, assetsQueryKeys } from '../api';
+import { resourceOverviewQueryKeys } from '../../overview/api';
 import type {
   CreateFixedAssetInputVM,
   UpdateFixedAssetDetailsInputVM,
@@ -26,6 +27,7 @@ export function useCreateAsset() {
       );
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: ['resources', 'valuation'] });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to commission fixed asset');
@@ -95,6 +97,7 @@ export function useChangeAssetStatus() {
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.historyLists(id) });
       queryClient.invalidateQueries({ queryKey: ['resources', 'valuation'] });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to change asset status');
@@ -142,6 +145,8 @@ export function useRecordAssetMaintenance() {
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.maintenanceLists(id) });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.historyLists(id) });
+      queryClient.invalidateQueries({ queryKey: ['resources', 'valuation'] });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to record asset maintenance');
@@ -168,6 +173,7 @@ export function useUpdateAssetValuation() {
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.valuation(id) });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.historyLists(id) });
       queryClient.invalidateQueries({ queryKey: ['resources', 'valuation'] });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to update asset valuation');
