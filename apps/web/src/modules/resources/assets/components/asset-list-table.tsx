@@ -25,6 +25,7 @@ export interface AssetListTableProps {
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
   isLoading?: boolean;
+  isFetching?: boolean;
   isError?: boolean;
   errorMessage?: React.ReactNode;
   onRetry?: () => void;
@@ -49,6 +50,7 @@ export const AssetListTable: React.FC<AssetListTableProps> = ({
   sorting,
   onSortingChange,
   isLoading = false,
+  isFetching = false,
   isError = false,
   errorMessage,
   onRetry,
@@ -282,6 +284,7 @@ export const AssetListTable: React.FC<AssetListTableProps> = ({
         sorting={sorting}
         onSortingChange={onSortingChange}
         isLoading={isLoading}
+        isFetching={isFetching}
         isError={isError}
         errorMessage={errorMessage}
         onRetry={onRetry}

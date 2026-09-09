@@ -301,7 +301,9 @@ export const ResourceOverviewPage: React.FC = () => {
         </Card>
       ) : overview ? (
         /* 3. Populated State (The 3 Conceptual Areas) */
-        <div className="space-y-8">
+        <div
+          className={`space-y-8 transition-opacity duration-150 ${isFetching ? 'opacity-70' : ''}`}
+        >
           {/* Conceptual Area 1: Overall Resource Value */}
           <OverallResourceValueCard overview={overview} />
 

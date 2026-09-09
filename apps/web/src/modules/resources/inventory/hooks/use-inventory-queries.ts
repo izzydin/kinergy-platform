@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { inventoryApi, inventoryQueryKeys } from '../api';
 import type { ListInventoryFilterParams, ListStockMovementsFilterParams } from '../types';
 
@@ -21,6 +21,7 @@ export function useInventoryList(params?: ListInventoryFilterParams) {
     queryKey: inventoryQueryKeys.list(params),
     queryFn: () => inventoryApi.listItems(params),
     staleTime: 30 * 1000, // 30 seconds
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -79,5 +80,6 @@ export function useStockMovements(id: string | undefined, params?: ListStockMove
     queryFn: () => inventoryApi.getMovements(id!, params),
     enabled: Boolean(id),
     staleTime: 15 * 1000,
+    placeholderData: keepPreviousData,
   });
 }

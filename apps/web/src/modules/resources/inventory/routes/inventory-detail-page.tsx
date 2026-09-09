@@ -190,6 +190,20 @@ export const InventoryDetailPage: React.FC = () => {
 
         {/* Action Controls Bar */}
         <div className="flex flex-wrap items-center gap-2" data-testid="detail-actions-bar">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-8 px-2.5 text-xs gap-1.5"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            data-testid="refresh-inventory-detail-btn"
+            title="Refresh product detail"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+
           {isFetching && !isLoading && (
             <Badge
               variant="outline"

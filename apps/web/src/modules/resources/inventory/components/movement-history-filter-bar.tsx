@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@kinergy-platform/ui';
-import { RotateCcw } from 'lucide-react';
+import { RefreshCw, RotateCcw } from 'lucide-react';
 import { StockMovementType } from '../types';
 
 export interface MovementHistoryFilterBarProps {
@@ -8,6 +8,8 @@ export interface MovementHistoryFilterBarProps {
   readonly isFiltered: boolean;
   readonly onMovementTypeChange: (type?: StockMovementType) => void;
   readonly onResetFilters: () => void;
+  readonly onRefresh?: () => void;
+  readonly isRefreshing?: boolean;
 }
 
 const FILTER_CHIPS: Array<{
@@ -28,6 +30,8 @@ export const MovementHistoryFilterBar: React.FC<MovementHistoryFilterBarProps> =
   isFiltered,
   onMovementTypeChange,
   onResetFilters,
+  onRefresh,
+  isRefreshing,
 }) => {
   return (
     <div
@@ -56,20 +60,38 @@ export const MovementHistoryFilterBar: React.FC<MovementHistoryFilterBarProps> =
         })}
       </div>
 
-      {/* Reset Filter Action */}
-      {isFiltered && (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={onResetFilters}
-          className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
-          data-testid="reset-movement-filters-btn"
-        >
-          <RotateCcw className="h-3 w-3" />
-          Reset Filter
-        </Button>
-      )}
+      {/* Action Controls (Reset and Manual Refresh) */}
+      <div className="flex items-center gap-2">
+        {isFiltered && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onResetFilters}
+            className="h-7 px-2 text-xs gap-1 text-muted-foreground hover:text-foreground"
+            data-testid="reset-movement-filters-btn"
+          >
+            <RotateCcw className="h-3 w-3" />
+            Reset Filter
+          </Button>
+        )}
+
+        {onRefresh && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="h-7 px-2.5 text-xs gap-1"
+            data-testid="refresh-movements-btn"
+            title="Refresh movements ledger"
+          >
+            <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+        )}
+      </div>
     </div>
   );
 };

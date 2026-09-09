@@ -69,6 +69,7 @@ export const AssetHistoryPage: React.FC = () => {
   const {
     data: historyData,
     isLoading: isHistoryLoading,
+    isFetching: isHistoryFetching,
     error: historyError,
     refetch: refetchHistory,
   } = useAssetHistory(id, historyParams);
@@ -235,12 +236,12 @@ export const AssetHistoryPage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => refetchHistory()}
-                disabled={isHistoryLoading}
+                disabled={isHistoryFetching}
                 className="h-9 text-xs"
                 data-testid="refresh-history-btn"
               >
                 <RefreshCw
-                  className={`mr-1.5 h-3.5 w-3.5 ${isHistoryLoading ? 'animate-spin' : ''}`}
+                  className={`mr-1.5 h-3.5 w-3.5 ${isHistoryFetching ? 'animate-spin' : ''}`}
                 />
                 Refresh Ledger
               </Button>
@@ -314,7 +315,11 @@ export const AssetHistoryPage: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="space-y-6">
+                <div
+                  className={`space-y-6 transition-opacity duration-150 ${
+                    isHistoryFetching ? 'opacity-70' : ''
+                  }`}
+                >
                   {/* Informative notice for brand-new equipment */}
                   {isInitialCommissioningOnly && (
                     <Alert

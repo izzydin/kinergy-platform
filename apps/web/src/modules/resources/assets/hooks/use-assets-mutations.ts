@@ -120,6 +120,8 @@ export function useUpdateAssetCondition() {
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.historyLists(id) });
+      queryClient.invalidateQueries({ queryKey: ['resources', 'valuation'] });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to update asset condition');

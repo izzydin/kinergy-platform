@@ -73,7 +73,7 @@ export const AssetDetailPage: React.FC = () => {
   const [valuationDialogOpen, setValuationDialogOpen] = useState(false);
 
   // Queries
-  const { data: asset, isLoading, isError, error: fetchError, refetch } = useAsset(id);
+  const { data: asset, isLoading, isFetching, isError, error: fetchError, refetch } = useAsset(id);
   const { data: valuationData } = useAssetValuation(id, {
     enabled: Boolean(id) && canViewValuation,
   });
@@ -115,6 +115,30 @@ export const AssetDetailPage: React.FC = () => {
 
         {/* Action Controls Bar */}
         <div className="flex flex-wrap items-center gap-2">
+          {/* Manual Refresh Button */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            className="h-8 px-2.5 text-xs gap-1.5"
+            data-testid="refresh-asset-detail-btn"
+            title="Refresh asset details"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+
+          {isFetching && !isLoading && (
+            <Badge
+              variant="outline"
+              className="gap-1 text-[11px] text-muted-foreground animate-pulse"
+            >
+              <RefreshCw className="h-3 w-3 animate-spin" />
+              Syncing...
+            </Badge>
+          )}
+
           {/* Edit Details (Requires assets.write) */}
           {canWrite && (
             <Button variant="outline" size="sm" asChild disabled={isDecommissioned}>

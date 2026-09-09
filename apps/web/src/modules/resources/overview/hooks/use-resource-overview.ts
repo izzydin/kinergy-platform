@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { resourceOverviewApi, resourceOverviewQueryKeys } from '../api';
 import type { GetResourceOverviewParams, ResourceOverviewVM } from '../types';
 
@@ -23,5 +23,6 @@ export function useResourceOverview(
     queryFn: () => resourceOverviewApi.getOverview(params),
     enabled: options?.enabled ?? true,
     staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
   });
 }

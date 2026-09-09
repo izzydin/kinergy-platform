@@ -18,6 +18,7 @@ export interface MovementHistoryTableProps {
   readonly movements: StockMovementVM[];
   readonly unitOfMeasure: string;
   readonly isLoading: boolean;
+  readonly isFetching?: boolean;
   readonly isError: boolean;
   readonly errorMessage?: string;
   readonly page: number;
@@ -33,6 +34,7 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
   movements,
   unitOfMeasure,
   isLoading,
+  isFetching = false,
   isError,
   errorMessage,
   page,
@@ -136,7 +138,11 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
   // 5. Authoritative Movement Ledger Table
   return (
     <div className="space-y-4" data-testid="movements-table-container">
-      <div className="rounded-lg border bg-card overflow-x-auto shadow-sm">
+      <div
+        className={`rounded-lg border bg-card overflow-x-auto shadow-sm transition-opacity duration-150 ${
+          isFetching ? 'opacity-70' : ''
+        }`}
+      >
         <table className="w-full text-xs text-left">
           <thead className="bg-muted/50 border-b text-muted-foreground uppercase text-[10px] tracking-wider">
             <tr>

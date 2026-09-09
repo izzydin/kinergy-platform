@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, keepPreviousData } from '@tanstack/react-query';
 import { assetsApi, assetsQueryKeys } from '../api';
 import type {
   ListFixedAssetsFilterParams,
@@ -25,6 +25,7 @@ export function useAssetsList(params?: ListFixedAssetsFilterParams) {
     queryKey: assetsQueryKeys.list(params),
     queryFn: () => assetsApi.listAssets(params),
     staleTime: 30 * 1000, // 30 seconds
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -61,6 +62,7 @@ export function useAssetHistory(id: string | undefined, params?: GetAssetHistory
     queryFn: () => assetsApi.getAssetHistory(id!, params),
     enabled: Boolean(id),
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -76,6 +78,7 @@ export function useAssetMaintenanceHistory(
     queryFn: () => assetsApi.getMaintenanceHistory(id!, params),
     enabled: Boolean(id),
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
   });
 }
 

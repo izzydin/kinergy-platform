@@ -30,7 +30,7 @@ export const InventoryListPage: React.FC = () => {
     resetFilters,
   } = useInventoryFilters();
 
-  const { data, isLoading, isError, error, refetch } = useInventoryList(params);
+  const { data, isLoading, isFetching, isError, error, refetch } = useInventoryList(params);
   const { mutate: activateProduct } = useActivateProduct();
 
   const products = data?.items ?? [];
@@ -123,6 +123,8 @@ export const InventoryListPage: React.FC = () => {
           onIncludeArchivedChange={setIncludeArchived}
           onResetFilters={resetFilters}
           onRegisterClick={() => navigate('/resources/inventory/new')}
+          onRefresh={() => void refetch()}
+          isRefreshing={isFetching}
         />
       }
     >
@@ -137,6 +139,7 @@ export const InventoryListPage: React.FC = () => {
           sorting={sorting}
           onSortingChange={handleSortingChange}
           isLoading={isLoading}
+          isFetching={isFetching}
           isError={isError}
           errorMessage={error?.message}
           onRetry={() => refetch()}

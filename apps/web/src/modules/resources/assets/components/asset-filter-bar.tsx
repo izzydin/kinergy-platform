@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@kinergy-platform/ui';
-import { PlusCircle, RotateCcw, LayoutDashboard, Archive } from 'lucide-react';
+import { PlusCircle, RotateCcw, LayoutDashboard, Archive, RefreshCw } from 'lucide-react';
 import { HasPermission } from '../../../../app/routes/permission-guard';
 import {
   DataTableSearch,
@@ -26,6 +26,8 @@ export interface AssetFilterBarProps {
   onIncludeDecommissionedChange: (includeDecommissioned?: boolean) => void;
   onResetFilters: () => void;
   onCommissionClick?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 const CATEGORY_OPTIONS: DataTableFilterOption[] = Object.values(AssetCategory).map((cat) => ({
@@ -63,6 +65,8 @@ export const AssetFilterBar: React.FC<AssetFilterBarProps> = ({
   onIncludeDecommissionedChange,
   onResetFilters,
   onCommissionClick,
+  onRefresh,
+  isRefreshing,
 }) => {
   return (
     <div
@@ -126,6 +130,22 @@ export const AssetFilterBar: React.FC<AssetFilterBarProps> = ({
             data-testid="reset-filters"
           >
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset
+          </Button>
+        )}
+
+        {/* 7. Manual Refresh */}
+        {onRefresh && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="h-8 px-2.5 text-xs"
+            data-testid="refresh-assets-btn"
+            title="Refresh assets catalog"
+          >
+            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
         )}
       </div>

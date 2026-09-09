@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@kinergy-platform/ui';
-import { PackagePlus, RotateCcw } from 'lucide-react';
+import { PackagePlus, RefreshCw, RotateCcw } from 'lucide-react';
 import { HasPermission } from '../../../../app/routes/permission-guard';
 import {
   DataTableSearch,
@@ -23,6 +23,8 @@ export interface InventoryFilterBarProps {
   onIncludeArchivedChange?: (includeArchived?: boolean) => void;
   onResetFilters: () => void;
   onRegisterClick?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 const CATEGORY_OPTIONS: DataTableFilterOption[] = Object.values(InventoryCategory).map((cat) => ({
@@ -56,6 +58,8 @@ export const InventoryFilterBar: React.FC<InventoryFilterBarProps> = ({
   onIncludeArchivedChange: _onIncludeArchivedChange,
   onResetFilters,
   onRegisterClick,
+  onRefresh,
+  isRefreshing,
 }) => {
   return (
     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -100,6 +104,22 @@ export const InventoryFilterBar: React.FC<InventoryFilterBarProps> = ({
         {isFiltered && (
           <Button variant="ghost" size="sm" onClick={onResetFilters} className="h-8 px-2.5">
             <RotateCcw className="mr-1.5 h-3.5 w-3.5" /> Reset
+          </Button>
+        )}
+
+        {/* Manual Refresh Button */}
+        {onRefresh && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            className="h-8 px-2.5 text-xs"
+            data-testid="refresh-inventory-btn"
+            title="Refresh inventory catalog"
+          >
+            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
           </Button>
         )}
       </div>

@@ -27,6 +27,7 @@ export const InventoryMovementsPage: React.FC = () => {
   const {
     data: movementsData,
     isLoading: isMovementsLoading,
+    isFetching: isMovementsFetching,
     isError: isMovementsError,
     error: movementsError,
     refetch: refetchMovements,
@@ -141,6 +142,8 @@ export const InventoryMovementsPage: React.FC = () => {
         isFiltered={isFiltered}
         onMovementTypeChange={setMovementType}
         onResetFilters={resetFilters}
+        onRefresh={() => void refetchMovements()}
+        isRefreshing={isMovementsFetching}
       />
 
       {/* 4. Movements Ledger Table */}
@@ -148,6 +151,7 @@ export const InventoryMovementsPage: React.FC = () => {
         movements={movements}
         unitOfMeasure={product.unitOfMeasure}
         isLoading={isMovementsLoading}
+        isFetching={isMovementsFetching}
         isError={isMovementsError}
         errorMessage={movementsError?.message}
         page={page}

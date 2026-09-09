@@ -32,7 +32,7 @@ export const AssetsListPage: React.FC = () => {
     resetFilters,
   } = useAssetsFilters();
 
-  const { data, isLoading, isError, error, refetch } = useAssetsList(params);
+  const { data, isLoading, isFetching, isError, error, refetch } = useAssetsList(params);
 
   const assets = data?.items ?? [];
   const totalCount = data?.total ?? 0;
@@ -108,6 +108,8 @@ export const AssetsListPage: React.FC = () => {
           onIncludeDecommissionedChange={setIncludeDecommissioned}
           onResetFilters={resetFilters}
           onCommissionClick={handleCommissionClick}
+          onRefresh={() => void refetch()}
+          isRefreshing={isFetching}
         />
       }
     >
@@ -122,6 +124,7 @@ export const AssetsListPage: React.FC = () => {
           sorting={sorting}
           onSortingChange={handleSortingChange}
           isLoading={isLoading}
+          isFetching={isFetching}
           isError={isError}
           errorMessage={error?.message}
           onRetry={() => refetch()}

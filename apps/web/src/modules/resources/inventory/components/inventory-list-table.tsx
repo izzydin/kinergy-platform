@@ -35,6 +35,7 @@ export interface InventoryListTableProps {
   sorting?: SortingState;
   onSortingChange?: OnChangeFn<SortingState>;
   isLoading?: boolean;
+  isFetching?: boolean;
   isError?: boolean;
   errorMessage?: React.ReactNode;
   onRetry?: () => void;
@@ -63,6 +64,7 @@ export const InventoryListTable: React.FC<InventoryListTableProps> = ({
   sorting,
   onSortingChange,
   isLoading = false,
+  isFetching = false,
   isError = false,
   errorMessage,
   onRetry,
@@ -286,6 +288,7 @@ export const InventoryListTable: React.FC<InventoryListTableProps> = ({
       sorting={sorting}
       onSortingChange={onSortingChange}
       isLoading={isLoading}
+      isFetching={isFetching}
       isError={isError}
       errorMessage={errorMessage}
       onRetry={onRetry}

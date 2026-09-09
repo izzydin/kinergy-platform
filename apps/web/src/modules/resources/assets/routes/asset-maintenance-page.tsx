@@ -67,6 +67,7 @@ export const AssetMaintenancePage: React.FC = () => {
   const {
     data: maintenanceData,
     isLoading: isMaintenanceLoading,
+    isFetching: isMaintenanceFetching,
     error: maintenanceError,
     refetch: refetchMaintenance,
   } = useAssetMaintenanceHistory(id ?? '', maintenanceParams);
@@ -194,10 +195,11 @@ export const AssetMaintenancePage: React.FC = () => {
                 variant="outline"
                 size="sm"
                 onClick={() => refetchMaintenance()}
-                disabled={isMaintenanceLoading}
+                disabled={isMaintenanceFetching}
+                data-testid="refresh-maintenance-btn"
               >
                 <RefreshCw
-                  className={`mr-1.5 h-3.5 w-3.5 ${isMaintenanceLoading ? 'animate-spin' : ''}`}
+                  className={`mr-1.5 h-3.5 w-3.5 ${isMaintenanceFetching ? 'animate-spin' : ''}`}
                 />
                 Refresh Ledger
               </Button>
@@ -269,7 +271,12 @@ export const AssetMaintenancePage: React.FC = () => {
                   ) : null}
                 </div>
               ) : (
-                <div className="divide-y divide-border" data-testid="maintenance-records-list">
+                <div
+                  className={`divide-y divide-border transition-opacity duration-150 ${
+                    isMaintenanceFetching ? 'opacity-70' : ''
+                  }`}
+                  data-testid="maintenance-records-list"
+                >
                   {records.map((rec) => {
                     const serviceDateFormatted = new Date(rec.serviceDate).toLocaleDateString(
                       'en-US',
