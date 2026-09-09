@@ -91,6 +91,18 @@ export const AssetEditForm: React.FC<AssetEditFormProps> = ({
     formState: { isDirty, isSubmitSuccessful, errors },
   } = form;
 
+  // Hydrate form whenever authoritative server entity updates (only when clean to protect operator edits)
+  React.useEffect(() => {
+    if (!isDirty) {
+      reset({
+        name: asset.name,
+        description: asset.description ?? '',
+        notes: '',
+        reason: '',
+      });
+    }
+  }, [asset, isDirty, reset]);
+
   const [isNavigatingPostSubmit, setIsNavigatingPostSubmit] = React.useState(false);
 
   // Dirty guard intercepts internal navigation when edits are unsaved

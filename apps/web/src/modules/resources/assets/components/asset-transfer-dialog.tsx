@@ -24,6 +24,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormValidationSummary,
+  ConfirmDiscardDialog,
+  useDirtyDialogGuard,
 } from '../../../../shared/forms';
 import { transferAssetLocationSchema, type TransferAssetLocationFormData } from '../schemas';
 import { useTransferAssetLocation } from '../hooks';
@@ -61,7 +64,21 @@ export const TransferAssetLocationDialog: React.FC<TransferAssetLocationDialogPr
     },
   });
 
-  const { handleSubmit, control, reset } = form;
+  const {
+    handleSubmit,
+    control,
+    reset,
+    setFocus,
+    formState: { isDirty, isSubmitSuccessful, errors, isSubmitted },
+  } = form;
+
+  const { guardedOnOpenChange, isConfirmOpen, confirmDiscard, cancelDiscard } = useDirtyDialogGuard(
+    {
+      isDirty,
+      isSubmitSuccessful,
+      onClose: () => onOpenChange(false),
+    },
+  );
 
   const isDecommissioned =
     asset?.status === AssetStatus.SOLD || asset?.status === AssetStatus.RETIRED;
@@ -100,6 +117,7 @@ export const TransferAssetLocationDialog: React.FC<TransferAssetLocationDialogPr
       },
       {
         onSuccess: () => {
+          reset();
           onOpenChange(false);
           onSuccess?.();
         },
@@ -112,225 +130,238 @@ export const TransferAssetLocationDialog: React.FC<TransferAssetLocationDialogPr
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isPending) return;
-    onOpenChange(nextOpen);
+    guardedOnOpenChange(nextOpen);
   };
 
   if (!asset) return null;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="sm:max-w-[540px]"
-        data-testid="transfer-asset-dialog"
-        onPointerDownOutside={(e) => {
-          if (isPending) e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          if (isPending) e.preventDefault();
-        }}
-      >
-        <DialogHeader>
-          <div className="flex items-center gap-2 text-primary">
-            <MapPin className="h-5 w-5" />
-            <DialogTitle>Transfer Physical Location</DialogTitle>
-          </div>
-          <DialogDescription>
-            Relocate <strong>{asset.name}</strong> ({asset.assetTag}) to a new facility, room, or
-            zone. Produces an immutable domain audit history event.
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Operational Context Summary (Identity, Current Placement, Status, Condition) */}
-        <div
-          className="rounded-md border border-border bg-muted/40 p-3 text-xs space-y-2"
-          data-testid="transfer-current-placement"
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className="sm:max-w-[540px]"
+          data-testid="transfer-asset-dialog"
+          onPointerDownOutside={(e) => {
+            if (isPending) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isPending) e.preventDefault();
+          }}
         >
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
-              Current Placement
-            </span>
-            <div className="flex items-center gap-1.5">
-              <AssetCategoryBadge category={asset.category} />
-              <AssetStatusBadge status={asset.status} />
-              <AssetConditionBadge condition={asset.condition} />
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-primary">
+              <MapPin className="h-5 w-5" />
+              <DialogTitle>Transfer Physical Location</DialogTitle>
             </div>
-          </div>
-          <p className="text-foreground">
-            Facility: <span className="font-medium font-mono">{asset.location.facilityId}</span>
-            {asset.location.roomId && ` • Room: ${asset.location.roomId}`}
-            {asset.location.zone && ` • Zone: ${asset.location.zone}`}
-          </p>
-          {asset.location.description && (
-            <p className="text-muted-foreground text-[11px] italic">
-              Landmark: {asset.location.description}
-            </p>
-          )}
-        </div>
+            <DialogDescription>
+              Relocate <strong>{asset.name}</strong> ({asset.assetTag}) to a new facility, room, or
+              zone. Produces an immutable domain audit history event.
+            </DialogDescription>
+          </DialogHeader>
 
-        {/* Terminal State Restriction Alert */}
-        {isDecommissioned && (
-          <Alert
-            variant="destructive"
-            className="border-destructive/50 bg-destructive/10 text-destructive"
-            data-testid="transfer-terminal-alert"
+          {/* Operational Context Summary (Identity, Current Placement, Status, Condition) */}
+          <div
+            className="rounded-md border border-border bg-muted/40 p-3 text-xs space-y-2"
+            data-testid="transfer-current-placement"
           >
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Terminal Lifecycle State ({asset.status})</AlertTitle>
-            <AlertDescription className="text-xs mt-1">
-              Per domain invariants <code>[AST-INV-1]</code> and <code>[AST-INV-2]</code>,
-              decommissioned equipment cannot be relocated. Physical transfer is prohibited.
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {serverErrorMessage && (
-          <Alert variant="destructive" data-testid="transfer-server-error">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Relocation Error</AlertTitle>
-            <AlertDescription>{serverErrorMessage}</AlertDescription>
-          </Alert>
-        )}
-
-        <Form {...form}>
-          <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
-            <fieldset disabled={isDecommissioned || isPending} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                {/* Destination Facility */}
-                <FormField
-                  control={control}
-                  name="location.facilityId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel required>Destination Facility</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="e.g. fac-west or Campus 2"
-                          {...field}
-                          data-testid="transfer-facility-input"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Destination Room */}
-                <FormField
-                  control={control}
-                  name="location.roomId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Room / Studio</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="e.g. Recovery Suite B"
-                          {...field}
-                          value={field.value ?? ''}
-                          data-testid="transfer-room-input"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+                Current Placement
+              </span>
+              <div className="flex items-center gap-1.5">
+                <AssetCategoryBadge category={asset.category} />
+                <AssetStatusBadge status={asset.status} />
+                <AssetConditionBadge condition={asset.condition} />
               </div>
+            </div>
+            <p className="text-foreground">
+              Facility: <span className="font-medium font-mono">{asset.location.facilityId}</span>
+              {asset.location.roomId && ` • Room: ${asset.location.roomId}`}
+              {asset.location.zone && ` • Zone: ${asset.location.zone}`}
+            </p>
+            {asset.location.description && (
+              <p className="text-muted-foreground text-[11px] italic">
+                Landmark: {asset.location.description}
+              </p>
+            )}
+          </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                {/* Destination Zone */}
-                <FormField
-                  control={control}
-                  name="location.zone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Floor / Micro Zone</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="e.g. Zone 3, 2nd Floor"
-                          {...field}
-                          value={field.value ?? ''}
-                          data-testid="transfer-zone-input"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+          {/* Terminal State Restriction Alert */}
+          {isDecommissioned && (
+            <Alert
+              variant="destructive"
+              className="border-destructive/50 bg-destructive/10 text-destructive"
+              data-testid="transfer-terminal-alert"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Terminal Lifecycle State ({asset.status})</AlertTitle>
+              <AlertDescription className="text-xs mt-1">
+                Per domain invariants <code>[AST-INV-1]</code> and <code>[AST-INV-2]</code>,
+                decommissioned equipment cannot be relocated. Physical transfer is prohibited.
+              </AlertDescription>
+            </Alert>
+          )}
 
-                {/* Placement Description */}
-                <FormField
-                  control={control}
-                  name="location.description"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Placement Landmarks</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="e.g. Near west windows"
-                          {...field}
-                          value={field.value ?? ''}
-                          data-testid="transfer-landmark-input"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+          {serverErrorMessage && (
+            <Alert variant="destructive" data-testid="transfer-server-error">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Relocation Error</AlertTitle>
+              <AlertDescription>{serverErrorMessage}</AlertDescription>
+            </Alert>
+          )}
 
-              {/* Transfer Reason */}
-              <FormField
-                control={control}
-                name="reason"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Transfer Justification</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g. Studio renovation or operational rebalancing"
-                        {...field}
-                        value={field.value ?? ''}
-                        data-testid="transfer-reason-input"
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Preserved in historical location audit ledger.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          <Form {...form}>
+            <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4" noValidate>
+              <FormValidationSummary
+                errors={errors}
+                isSubmitted={isSubmitted}
+                setFocus={setFocus}
               />
-            </fieldset>
+              <fieldset disabled={isDecommissioned || isPending} className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Destination Facility */}
+                  <FormField
+                    control={control}
+                    name="location.facilityId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel required>Destination Facility</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. fac-west or Campus 2"
+                            {...field}
+                            data-testid="transfer-facility-input"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={isDecommissioned || isPending}
-                data-testid="transfer-submit-btn"
-              >
-                {isPending ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                    Relocating...
-                  </>
-                ) : (
-                  <>
-                    <ArrowRight className="mr-1.5 h-4 w-4" />
-                    Execute Transfer
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+                  {/* Destination Room */}
+                  <FormField
+                    control={control}
+                    name="location.roomId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Room / Studio</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. Recovery Suite B"
+                            {...field}
+                            value={field.value ?? ''}
+                            data-testid="transfer-room-input"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Destination Zone */}
+                  <FormField
+                    control={control}
+                    name="location.zone"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Floor / Micro Zone</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. Zone 3, 2nd Floor"
+                            {...field}
+                            value={field.value ?? ''}
+                            data-testid="transfer-zone-input"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Placement Description */}
+                  <FormField
+                    control={control}
+                    name="location.description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Placement Landmarks</FormLabel>
+                        <FormControl>
+                          <Input
+                            placeholder="e.g. Near west windows"
+                            {...field}
+                            value={field.value ?? ''}
+                            data-testid="transfer-landmark-input"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                {/* Transfer Reason */}
+                <FormField
+                  control={control}
+                  name="reason"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Transfer Justification</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g. Studio renovation or operational rebalancing"
+                          {...field}
+                          value={field.value ?? ''}
+                          data-testid="transfer-reason-input"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Preserved in historical location audit ledger.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </fieldset>
+
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => guardedOnOpenChange(false)}
+                  disabled={isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={isDecommissioned || isPending}
+                  data-testid="transfer-submit-btn"
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      Relocating...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight className="mr-1.5 h-4 w-4" />
+                      Execute Transfer
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDiscardDialog
+        open={isConfirmOpen}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
+    </>
   );
 };

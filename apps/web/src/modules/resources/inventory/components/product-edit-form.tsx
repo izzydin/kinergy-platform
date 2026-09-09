@@ -105,18 +105,20 @@ export const ProductEditForm: React.FC<ProductEditFormProps> = ({
     formState: { isDirty, isSubmitSuccessful, errors },
   } = form;
 
-  // Hydrate form whenever authoritative server entity updates
+  // Hydrate form whenever authoritative server entity updates (only when clean to protect operator edits)
   React.useEffect(() => {
-    reset({
-      name: product.name,
-      description: product.description ?? '',
-      category: product.category,
-      unitOfMeasure: (product.unitOfMeasure as UnitOfMeasure) ?? UnitOfMeasure.UNITS,
-      unitCost: product.unitCost.amount,
-      sellingPrice: product.sellingPrice.amount,
-      reorderThreshold: product.reorderThreshold,
-    });
-  }, [product, reset]);
+    if (!isDirty) {
+      reset({
+        name: product.name,
+        description: product.description ?? '',
+        category: product.category,
+        unitOfMeasure: (product.unitOfMeasure as UnitOfMeasure) ?? UnitOfMeasure.UNITS,
+        unitCost: product.unitCost.amount,
+        sellingPrice: product.sellingPrice.amount,
+        reorderThreshold: product.reorderThreshold,
+      });
+    }
+  }, [product, isDirty, reset]);
 
   const [isNavigatingPostSubmit, setIsNavigatingPostSubmit] = React.useState(false);
 

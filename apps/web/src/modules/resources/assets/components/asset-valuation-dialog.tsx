@@ -24,6 +24,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormValidationSummary,
+  ConfirmDiscardDialog,
+  useDirtyDialogGuard,
 } from '../../../../shared/forms';
 import { updateAssetValuationSchema, type UpdateAssetValuationFormData } from '../schemas';
 import { useUpdateAssetValuation } from '../hooks';
@@ -68,7 +71,21 @@ export const UpdateAssetValuationDialog: React.FC<UpdateAssetValuationDialogProp
     },
   });
 
-  const { handleSubmit, control, reset } = form;
+  const {
+    handleSubmit,
+    control,
+    reset,
+    setFocus,
+    formState: { isDirty, isSubmitSuccessful, errors, isSubmitted },
+  } = form;
+
+  const { guardedOnOpenChange, isConfirmOpen, confirmDiscard, cancelDiscard } = useDirtyDialogGuard(
+    {
+      isDirty,
+      isSubmitSuccessful,
+      onClose: () => onOpenChange(false),
+    },
+  );
 
   React.useEffect(() => {
     if (open && asset) {
@@ -96,6 +113,7 @@ export const UpdateAssetValuationDialog: React.FC<UpdateAssetValuationDialogProp
       },
       {
         onSuccess: () => {
+          reset();
           onOpenChange(false);
           onSuccess?.();
         },
@@ -108,200 +126,213 @@ export const UpdateAssetValuationDialog: React.FC<UpdateAssetValuationDialogProp
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isPending) return;
-    onOpenChange(nextOpen);
+    guardedOnOpenChange(nextOpen);
   };
 
   if (!asset) return null;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="sm:max-w-[500px]"
-        data-testid="update-valuation-dialog"
-        onPointerDownOutside={(e) => {
-          if (isPending) e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          if (isPending) e.preventDefault();
-        }}
-      >
-        <DialogHeader>
-          <div className="flex items-center gap-2 text-primary">
-            <DollarSign className="h-5 w-5" />
-            <DialogTitle>Update Carrying Valuation</DialogTitle>
-          </div>
-          <DialogDescription>
-            Record updated fair market appraisal or impairment adjustment for{' '}
-            <strong>{asset.name}</strong> ({asset.assetTag}). Produces an immutable valuation audit
-            record.
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Valuation Context Summary */}
-        <div
-          className="rounded-md border border-border bg-muted/40 p-3 text-xs space-y-2"
-          data-testid="valuation-current-context"
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className="sm:max-w-[500px]"
+          data-testid="update-valuation-dialog"
+          onPointerDownOutside={(e) => {
+            if (isPending) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isPending) e.preventDefault();
+          }}
         >
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
-              Carrying Valuation Context
-            </span>
-            <div className="flex items-center gap-1.5">
-              <AssetCategoryBadge category={asset.category} />
-              <AssetStatusBadge status={asset.status} />
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-primary">
+              <DollarSign className="h-5 w-5" />
+              <DialogTitle>Update Carrying Valuation</DialogTitle>
+            </div>
+            <DialogDescription>
+              Record updated fair market appraisal or impairment adjustment for{' '}
+              <strong>{asset.name}</strong> ({asset.assetTag}). Produces an immutable valuation
+              audit record.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Valuation Context Summary */}
+          <div
+            className="rounded-md border border-border bg-muted/40 p-3 text-xs space-y-2"
+            data-testid="valuation-current-context"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+                Carrying Valuation Context
+              </span>
+              <div className="flex items-center gap-1.5">
+                <AssetCategoryBadge category={asset.category} />
+                <AssetStatusBadge status={asset.status} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/50">
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase">Original Cost</p>
+                <p className="font-mono font-medium text-foreground">
+                  $
+                  {(asset.purchaseValueAmount ?? 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
+              <div>
+                <p className="text-[10px] text-muted-foreground uppercase">Current Book Value</p>
+                <p className="font-mono font-semibold text-foreground">
+                  $
+                  {(asset.currentEstimatedValueAmount ?? 0).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                  })}
+                </p>
+              </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/50">
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Original Cost</p>
-              <p className="font-mono font-medium text-foreground">
-                $
-                {(asset.purchaseValueAmount ?? 0).toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                })}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground uppercase">Current Book Value</p>
-              <p className="font-mono font-semibold text-foreground">
-                $
-                {(asset.currentEstimatedValueAmount ?? 0).toLocaleString('en-US', {
-                  minimumFractionDigits: 2,
-                })}
-              </p>
-            </div>
-          </div>
-        </div>
 
-        {/* Permission Barrier Alert */}
-        {!isAuthorized && (
-          <Alert
-            variant="destructive"
-            className="border-destructive/50 bg-destructive/10 text-destructive"
-            data-testid="valuation-permission-alert"
-          >
-            <Lock className="h-4 w-4" />
-            <AlertTitle>Dual-Permission Authorization Required</AlertTitle>
-            <AlertDescription className="text-xs mt-1">
-              Modifying capital carrying valuations requires both <code>assets.write</code> and{' '}
-              <code>billing.read</code> permissions. Your current session does not hold required
-              financial credentials.
-            </AlertDescription>
-          </Alert>
-        )}
+          {/* Permission Barrier Alert */}
+          {!isAuthorized && (
+            <Alert
+              variant="destructive"
+              className="border-destructive/50 bg-destructive/10 text-destructive"
+              data-testid="valuation-permission-alert"
+            >
+              <Lock className="h-4 w-4" />
+              <AlertTitle>Dual-Permission Authorization Required</AlertTitle>
+              <AlertDescription className="text-xs mt-1">
+                Modifying capital carrying valuations requires both <code>assets.write</code> and{' '}
+                <code>billing.read</code> permissions. Your current session does not hold required
+                financial credentials.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {/* Terminal Sold Alert */}
-        {isSold && (
-          <Alert
-            variant="destructive"
-            className="border-destructive/50 bg-destructive/10 text-destructive"
-            data-testid="valuation-terminal-alert"
-          >
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Terminal Realized Valuation (SOLD)</AlertTitle>
-            <AlertDescription className="text-xs mt-1">
-              Per domain invariant <code>[AST-INV-1]</code>, liquidated property in SOLD status has
-              its realization value locked permanently. Re-appraisal is prohibited.
-            </AlertDescription>
-          </Alert>
-        )}
+          {/* Terminal Sold Alert */}
+          {isSold && (
+            <Alert
+              variant="destructive"
+              className="border-destructive/50 bg-destructive/10 text-destructive"
+              data-testid="valuation-terminal-alert"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Terminal Realized Valuation (SOLD)</AlertTitle>
+              <AlertDescription className="text-xs mt-1">
+                Per domain invariant <code>[AST-INV-1]</code>, liquidated property in SOLD status
+                has its realization value locked permanently. Re-appraisal is prohibited.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {serverErrorMessage && (
-          <Alert variant="destructive" data-testid="valuation-server-error">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Valuation Error</AlertTitle>
-            <AlertDescription>{serverErrorMessage}</AlertDescription>
-          </Alert>
-        )}
+          {serverErrorMessage && (
+            <Alert variant="destructive" data-testid="valuation-server-error">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Valuation Error</AlertTitle>
+              <AlertDescription>{serverErrorMessage}</AlertDescription>
+            </Alert>
+          )}
 
-        <Form {...form}>
-          <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
-            <fieldset disabled={!isAuthorized || isSold || isPending} className="space-y-4">
-              {/* New Estimated Fair Value */}
-              <FormField
-                control={control}
-                name="estimatedValueAmount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Current Estimated Fair Value ($ USD)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="0.00"
-                        {...field}
-                        value={field.value ?? ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          field.onChange(val === '' ? undefined : Number(val));
-                        }}
-                        data-testid="valuation-amount-input"
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Must be non-negative ($0.00 or greater). Authoritative balance sheet
-                      appraisal.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          <Form {...form}>
+            <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4" noValidate>
+              <FormValidationSummary
+                errors={errors}
+                isSubmitted={isSubmitted}
+                setFocus={setFocus}
               />
+              <fieldset disabled={!isAuthorized || isSold || isPending} className="space-y-4">
+                {/* New Estimated Fair Value */}
+                <FormField
+                  control={control}
+                  name="estimatedValueAmount"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Current Estimated Fair Value ($ USD)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0.00"
+                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            field.onChange(val === '' ? undefined : Number(val));
+                          }}
+                          data-testid="valuation-amount-input"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Must be non-negative ($0.00 or greater). Authoritative balance sheet
+                        appraisal.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              {/* Valuation Reason */}
-              <FormField
-                control={control}
-                name="reason"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Valuation Justification / Appraisal Notes</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g. Annual asset impairment review or certified re-appraisal"
-                        {...field}
-                        value={field.value ?? ''}
-                        data-testid="valuation-reason-input"
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Preserved in historical corporate valuation audit log.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </fieldset>
+                {/* Valuation Reason */}
+                <FormField
+                  control={control}
+                  name="reason"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Valuation Justification / Appraisal Notes</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g. Annual asset impairment review or certified re-appraisal"
+                          {...field}
+                          value={field.value ?? ''}
+                          data-testid="valuation-reason-input"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Preserved in historical corporate valuation audit log.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </fieldset>
 
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={!isAuthorized || isSold || isPending}
-                data-testid="valuation-submit-btn"
-              >
-                {isPending ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                    Appraising...
-                  </>
-                ) : (
-                  <>
-                    <ArrowRight className="mr-1.5 h-4 w-4" />
-                    Update Valuation
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => guardedOnOpenChange(false)}
+                  disabled={isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={!isAuthorized || isSold || isPending}
+                  data-testid="valuation-submit-btn"
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      Appraising...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight className="mr-1.5 h-4 w-4" />
+                      Update Valuation
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDiscardDialog
+        open={isConfirmOpen}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
+    </>
   );
 };

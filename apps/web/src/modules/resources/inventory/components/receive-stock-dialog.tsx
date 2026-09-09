@@ -23,6 +23,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormValidationSummary,
+  ConfirmDiscardDialog,
+  useDirtyDialogGuard,
 } from '../../../../shared/forms';
 import { receiveStockSchema, type ReceiveStockFormData } from '../schemas';
 import { useReceiveStock } from '../hooks';
@@ -54,7 +57,21 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
     },
   });
 
-  const { handleSubmit, control, reset } = form;
+  const {
+    handleSubmit,
+    control,
+    reset,
+    setFocus,
+    formState: { isDirty, isSubmitSuccessful, errors, isSubmitted },
+  } = form;
+
+  const { guardedOnOpenChange, isConfirmOpen, confirmDiscard, cancelDiscard } = useDirtyDialogGuard(
+    {
+      isDirty,
+      isSubmitSuccessful,
+      onClose: () => onOpenChange(false),
+    },
+  );
 
   React.useEffect(() => {
     if (open && product) {
@@ -84,6 +101,7 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
       },
       {
         onSuccess: () => {
+          reset();
           onOpenChange(false);
           onSuccess?.();
         },
@@ -98,150 +116,164 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isPending) return;
-    onOpenChange(nextOpen);
+    guardedOnOpenChange(nextOpen);
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="max-w-md"
-        data-testid="receive-stock-dialog"
-        onPointerDownOutside={(e) => {
-          if (isPending) e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          if (isPending) e.preventDefault();
-        }}
-      >
-        <DialogHeader>
-          <div className="flex items-center gap-2 text-primary">
-            <PackagePlus className="h-5 w-5" />
-            <DialogTitle>Receive Inventory Batch</DialogTitle>
-          </div>
-          <DialogDescription>
-            Record inbound supply receipt for{' '}
-            <span className="font-semibold text-foreground">{product?.name}</span> ({product?.sku}).
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Current Available Stock Notice */}
-        <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/60 border text-xs">
-          <span className="text-muted-foreground">Available on hand:</span>
-          <span className="font-mono font-bold text-foreground">
-            {currentStock} {product?.unitOfMeasure}
-          </span>
-        </div>
-
-        {/* In-Modal Server Rejection Alert */}
-        {serverErrorMessage && (
-          <Alert variant="destructive" className="py-2.5" data-testid="receive-stock-error-alert">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle className="text-xs font-semibold">Receipt Aborted</AlertTitle>
-            <AlertDescription className="text-xs mt-0.5">{serverErrorMessage}</AlertDescription>
-          </Alert>
-        )}
-
-        <Form {...form}>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1" noValidate>
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={control}
-                name="quantity"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Quantity Received</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="1"
-                        step="1"
-                        placeholder="10"
-                        {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value, 10) || '')}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={control}
-                name="unitCost"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Batch Unit Cost ($)</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        placeholder="0.00"
-                        {...field}
-                        value={field.value ?? ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          field.onChange(val === '' ? undefined : Number(val));
-                        }}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className="max-w-md"
+          data-testid="receive-stock-dialog"
+          onPointerDownOutside={(e) => {
+            if (isPending) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isPending) e.preventDefault();
+          }}
+        >
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-primary">
+              <PackagePlus className="h-5 w-5" />
+              <DialogTitle>Receive Inventory Batch</DialogTitle>
             </div>
+            <DialogDescription>
+              Record inbound supply receipt for{' '}
+              <span className="font-semibold text-foreground">{product?.name}</span> ({product?.sku}
+              ).
+            </DialogDescription>
+          </DialogHeader>
 
-            <FormField
-              control={control}
-              name="referenceNumber"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>PO / Invoice Reference</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g. PO-2026-0891" {...field} />
-                  </FormControl>
-                  <FormDescription className="text-xs">
-                    Supplier delivery reference or purchase order tracking code.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          {/* Current Available Stock Notice */}
+          <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/60 border text-xs">
+            <span className="text-muted-foreground">Available on hand:</span>
+            <span className="font-mono font-bold text-foreground">
+              {currentStock} {product?.unitOfMeasure}
+            </span>
+          </div>
 
-            <FormField
-              control={control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Delivery Notes</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Optional delivery condition, carrier, or bay info"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+          {/* In-Modal Server Rejection Alert */}
+          {serverErrorMessage && (
+            <Alert variant="destructive" className="py-2.5" data-testid="receive-stock-error-alert">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle className="text-xs font-semibold">Receipt Aborted</AlertTitle>
+              <AlertDescription className="text-xs mt-0.5">{serverErrorMessage}</AlertDescription>
+            </Alert>
+          )}
 
-            <DialogFooter className="pt-3 gap-2 sm:gap-0">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isPending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isPending} className="gap-1.5">
-                <PackagePlus className="h-4 w-4" />
-                {isPending ? 'Recording...' : 'Record Receipt'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+          <Form {...form}>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1" noValidate>
+              <FormValidationSummary
+                errors={errors}
+                isSubmitted={isSubmitted}
+                setFocus={setFocus}
+              />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField
+                  control={control}
+                  name="quantity"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Quantity Received</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="1"
+                          step="1"
+                          placeholder="10"
+                          {...field}
+                          onChange={(e) => field.onChange(parseInt(e.target.value, 10) || '')}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={control}
+                  name="unitCost"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Batch Unit Cost ($)</FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          placeholder="0.00"
+                          {...field}
+                          value={field.value ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            field.onChange(val === '' ? undefined : Number(val));
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <FormField
+                control={control}
+                name="referenceNumber"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>PO / Invoice Reference</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. PO-2026-0891" {...field} />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Supplier delivery reference or purchase order tracking code.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Delivery Notes</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Optional delivery condition, carrier, or bay info"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <DialogFooter className="pt-3 gap-2 sm:gap-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => guardedOnOpenChange(false)}
+                  disabled={isPending}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isPending} className="gap-1.5">
+                  <PackagePlus className="h-4 w-4" />
+                  {isPending ? 'Recording...' : 'Record Receipt'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+
+      <ConfirmDiscardDialog
+        open={isConfirmOpen}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
+    </>
   );
 };

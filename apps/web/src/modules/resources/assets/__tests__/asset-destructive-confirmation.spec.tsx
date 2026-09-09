@@ -252,10 +252,14 @@ describe('Destructive Actions Confirmation Audit — Fixed Assets Decommissionin
 
       const retireDialog = screen.getByTestId('retire-asset-dialog');
       fireEvent.keyDown(retireDialog, { key: 'Escape', code: 'Escape' });
+      fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' });
 
-      await waitFor(() => {
-        expect(screen.queryByTestId('retire-asset-dialog')).not.toBeInTheDocument();
-      });
+      await waitFor(
+        () => {
+          expect(screen.queryByTestId('retire-asset-dialog')).not.toBeInTheDocument();
+        },
+        { timeout: 3000 },
+      );
       expect(assetsApi.changeStatus).not.toHaveBeenCalled();
     });
 

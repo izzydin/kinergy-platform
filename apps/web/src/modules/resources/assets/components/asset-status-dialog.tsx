@@ -24,6 +24,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormValidationSummary,
+  ConfirmDiscardDialog,
+  useDirtyDialogGuard,
 } from '../../../../shared/forms';
 import { changeAssetStatusSchema, type ChangeAssetStatusFormData } from '../schemas';
 import { useChangeAssetStatus } from '../hooks';
@@ -92,7 +95,24 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
     },
   });
 
-  const { handleSubmit, control, watch, reset, setValue } = form;
+  const {
+    handleSubmit,
+    control,
+    watch,
+    reset,
+    setValue,
+    setFocus,
+    formState: { isDirty, isSubmitSuccessful, errors, isSubmitted },
+  } = form;
+
+  const { guardedOnOpenChange, isConfirmOpen, confirmDiscard, cancelDiscard } = useDirtyDialogGuard(
+    {
+      isDirty,
+      isSubmitSuccessful,
+      onClose: () => onOpenChange(false),
+    },
+  );
+
   const selectedTargetStatus = watch('status');
 
   // Authoritative State Machine Evaluation
@@ -152,6 +172,7 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
         onSuccess: () => {
           setIsRetireConfirmOpen(false);
           setPendingRetireData(null);
+          reset();
           onOpenChange(false);
           onSuccess?.();
         },
@@ -180,241 +201,256 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isPending) return;
-    onOpenChange(nextOpen);
+    guardedOnOpenChange(nextOpen);
   };
 
   if (!asset) return null;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="sm:max-w-[540px]"
-        data-testid="change-status-dialog"
-        onPointerDownOutside={(e) => {
-          if (isPending) e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          if (isPending) e.preventDefault();
-        }}
-      >
-        <DialogHeader>
-          <div className="flex items-center gap-2 text-primary">
-            <ShieldAlert className="h-5 w-5" />
-            <DialogTitle>Transition Lifecycle Status</DialogTitle>
-          </div>
-          <DialogDescription>
-            Transition operational lifecycle state for <strong>{asset.name}</strong> (
-            {asset.assetTag}).
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Operational Context Summary (Current Status, Placement, Condition) */}
-        <div
-          className="rounded-md border border-border bg-muted/40 p-3 text-xs space-y-2"
-          data-testid="status-current-context"
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className="sm:max-w-[540px]"
+          data-testid="change-status-dialog"
+          onPointerDownOutside={(e) => {
+            if (isPending) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isPending) e.preventDefault();
+          }}
         >
-          <div className="flex items-center justify-between">
-            <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
-              Current Lifecycle State
-            </span>
-            <div className="flex items-center gap-1.5">
-              <AssetCategoryBadge category={asset.category} />
-              <AssetStatusBadge status={asset.status} />
-              <AssetConditionBadge condition={asset.condition} />
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-primary">
+              <ShieldAlert className="h-5 w-5" />
+              <DialogTitle>Transition Lifecycle Status</DialogTitle>
             </div>
+            <DialogDescription>
+              Transition operational lifecycle state for <strong>{asset.name}</strong> (
+              {asset.assetTag}).
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Operational Context Summary (Current Status, Placement, Condition) */}
+          <div
+            className="rounded-md border border-border bg-muted/40 p-3 text-xs space-y-2"
+            data-testid="status-current-context"
+          >
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-muted-foreground uppercase tracking-wider text-[10px]">
+                Current Lifecycle State
+              </span>
+              <div className="flex items-center gap-1.5">
+                <AssetCategoryBadge category={asset.category} />
+                <AssetStatusBadge status={asset.status} />
+                <AssetConditionBadge condition={asset.condition} />
+              </div>
+            </div>
+            <p className="text-foreground">
+              Current Status:{' '}
+              <span className="font-medium font-mono">
+                {STATUS_METADATA[asset.status]?.label ?? asset.status}
+              </span>
+            </p>
           </div>
-          <p className="text-foreground">
-            Current Status:{' '}
-            <span className="font-medium font-mono">
-              {STATUS_METADATA[asset.status]?.label ?? asset.status}
-            </span>
-          </p>
-        </div>
 
-        {/* Terminal State Alert */}
-        {isTerminalCurrent && (
-          <Alert
-            variant="destructive"
-            className="border-destructive/50 bg-destructive/10 text-destructive"
-            data-testid="status-terminal-alert"
-          >
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Terminal Lifecycle State ({currentStatus})</AlertTitle>
-            <AlertDescription className="text-xs mt-1">
-              Per domain invariants <code>[AST-INV-1]</code> and <code>[AST-INV-2]</code>,
-              decommissioned equipment ({currentStatus}) cannot return to active service. Status
-              transitions are permanently locked.
-            </AlertDescription>
-          </Alert>
-        )}
+          {/* Terminal State Alert */}
+          {isTerminalCurrent && (
+            <Alert
+              variant="destructive"
+              className="border-destructive/50 bg-destructive/10 text-destructive"
+              data-testid="status-terminal-alert"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Terminal Lifecycle State ({currentStatus})</AlertTitle>
+              <AlertDescription className="text-xs mt-1">
+                Per domain invariants <code>[AST-INV-1]</code> and <code>[AST-INV-2]</code>,
+                decommissioned equipment ({currentStatus}) cannot return to active service. Status
+                transitions are permanently locked.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {/* Condition Out of Service Blocked Notice */}
-        {isConditionRestoringBlocked && (
-          <Alert
-            variant="destructive"
-            className="border-destructive/50 bg-destructive/10 text-destructive"
-            data-testid="status-condition-block-alert"
-          >
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>Cannot Restore to Active (Condition Blocked)</AlertTitle>
-            <AlertDescription className="text-xs mt-1">
-              Per domain rules, an asset with physical condition <code>OUT_OF_SERVICE</code> cannot
-              return to <code>ACTIVE</code> status. Perform repairs and upgrade condition first.
-            </AlertDescription>
-          </Alert>
-        )}
+          {/* Condition Out of Service Blocked Notice */}
+          {isConditionRestoringBlocked && (
+            <Alert
+              variant="destructive"
+              className="border-destructive/50 bg-destructive/10 text-destructive"
+              data-testid="status-condition-block-alert"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Cannot Restore to Active (Condition Blocked)</AlertTitle>
+              <AlertDescription className="text-xs mt-1">
+                Per domain rules, an asset with physical condition <code>OUT_OF_SERVICE</code>{' '}
+                cannot return to <code>ACTIVE</code> status. Perform repairs and upgrade condition
+                first.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {/* Retiring Warning */}
-        {isRetiring && !isTerminalCurrent && (
-          <Alert
-            variant="destructive"
-            className="border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200"
-            data-testid="status-retire-warning"
-          >
-            <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-            <AlertTitle>Terminal Invariant Notice ([AST-INV-1])</AlertTitle>
-            <AlertDescription className="text-xs mt-1">
-              Retiring an asset permanently decommissions it from fleet service. Once retired, the
-              equipment cannot be restored to ACTIVE or serviced.
-            </AlertDescription>
-          </Alert>
-        )}
+          {/* Retiring Warning */}
+          {isRetiring && !isTerminalCurrent && (
+            <Alert
+              variant="destructive"
+              className="border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+              data-testid="status-retire-warning"
+            >
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <AlertTitle>Terminal Invariant Notice ([AST-INV-1])</AlertTitle>
+              <AlertDescription className="text-xs mt-1">
+                Retiring an asset permanently decommissions it from fleet service. Once retired, the
+                equipment cannot be restored to ACTIVE or serviced.
+              </AlertDescription>
+            </Alert>
+          )}
 
-        {serverErrorMessage && (
-          <Alert variant="destructive" data-testid="status-server-error">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle>Transition Error</AlertTitle>
-            <AlertDescription>{serverErrorMessage}</AlertDescription>
-          </Alert>
-        )}
+          {serverErrorMessage && (
+            <Alert variant="destructive" data-testid="status-server-error">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Transition Error</AlertTitle>
+              <AlertDescription>{serverErrorMessage}</AlertDescription>
+            </Alert>
+          )}
 
-        <Form {...form}>
-          <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4">
-            <fieldset disabled={isTerminalCurrent || isPending} className="space-y-4">
-              {/* Valid Target Status Radio / Select Options */}
-              <FormField
-                control={control}
-                name="status"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Valid Target Operational Status</FormLabel>
-                    <FormControl>
-                      {allowedTransitions.length > 0 ? (
-                        <div className="space-y-2" data-testid="allowed-status-options">
-                          {allowedTransitions.map((opt) => (
-                            <label
-                              key={opt.value}
-                              className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
-                                field.value === opt.value
-                                  ? 'border-primary bg-primary/5 text-foreground'
-                                  : 'border-border hover:bg-muted/40 text-muted-foreground'
-                              }`}
-                            >
-                              <input
-                                type="radio"
-                                className="mt-1 h-4 w-4 text-primary focus:ring-primary"
-                                name="status-transition"
-                                value={opt.value}
-                                checked={field.value === opt.value}
-                                onChange={() => setValue('status', opt.value)}
-                                data-testid={`status-option-${opt.value}`}
-                              />
-                              <div className="space-y-0.5">
-                                <p className="text-sm font-medium text-foreground">{opt.label}</p>
-                                <p className="text-xs text-muted-foreground">{opt.description}</p>
-                              </div>
-                            </label>
-                          ))}
-                        </div>
-                      ) : (
-                        <p
-                          className="text-xs text-muted-foreground italic py-2"
-                          data-testid="no-transitions-message"
-                        >
-                          No valid operational transitions available from current state.
-                        </p>
-                      )}
-                    </FormControl>
-                    <FormDescription>
-                      Transitions are restricted to verified domain state machine paths.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
+          <Form {...form}>
+            <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-4" noValidate>
+              <FormValidationSummary
+                errors={errors}
+                isSubmitted={isSubmitted}
+                setFocus={setFocus}
               />
+              <fieldset disabled={isTerminalCurrent || isPending} className="space-y-4">
+                {/* Valid Target Status Radio / Select Options */}
+                <FormField
+                  control={control}
+                  name="status"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Valid Target Operational Status</FormLabel>
+                      <FormControl>
+                        {allowedTransitions.length > 0 ? (
+                          <div className="space-y-2" data-testid="allowed-status-options">
+                            {allowedTransitions.map((opt) => (
+                              <label
+                                key={opt.value}
+                                className={`flex items-start gap-3 rounded-md border p-3 cursor-pointer transition-colors ${
+                                  field.value === opt.value
+                                    ? 'border-primary bg-primary/5 text-foreground'
+                                    : 'border-border hover:bg-muted/40 text-muted-foreground'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  className="mt-1 h-4 w-4 text-primary focus:ring-primary"
+                                  name="status-transition"
+                                  value={opt.value}
+                                  checked={field.value === opt.value}
+                                  onChange={() => setValue('status', opt.value)}
+                                  data-testid={`status-option-${opt.value}`}
+                                />
+                                <div className="space-y-0.5">
+                                  <p className="text-sm font-medium text-foreground">{opt.label}</p>
+                                  <p className="text-xs text-muted-foreground">{opt.description}</p>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        ) : (
+                          <p
+                            className="text-xs text-muted-foreground italic py-2"
+                            data-testid="no-transitions-message"
+                          >
+                            No valid operational transitions available from current state.
+                          </p>
+                        )}
+                      </FormControl>
+                      <FormDescription>
+                        Transitions are restricted to verified domain state machine paths.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
-              {/* Transition Justification Reason */}
-              <FormField
-                control={control}
-                name="reason"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel required>Operational Justification Reason</FormLabel>
-                    <FormControl>
-                      <Input
-                        placeholder="e.g. Belt slipped during workout; removed from floor for inspection"
-                        {...field}
-                        data-testid="status-reason-input"
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Must be at least 3 characters. Recorded in the immutable lifecycle audit log.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </fieldset>
+                {/* Transition Justification Reason */}
+                <FormField
+                  control={control}
+                  name="reason"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel required>Operational Justification Reason</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="e.g. Belt slipped during workout; removed from floor for inspection"
+                          {...field}
+                          data-testid="status-reason-input"
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        Must be at least 3 characters. Recorded in the immutable lifecycle audit
+                        log.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </fieldset>
 
-            <DialogFooter className="pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isPending}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={
-                  isTerminalCurrent ||
-                  isPending ||
-                  allowedTransitions.length === 0 ||
-                  isConditionRestoringBlocked
-                }
-                data-testid="status-submit-btn"
-              >
-                {isPending ? (
-                  <>
-                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-                    Transitioning...
-                  </>
-                ) : (
-                  <>
-                    <ArrowRight className="mr-1.5 h-4 w-4" />
-                    Apply Status Transition
-                  </>
-                )}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
+              <DialogFooter className="pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => guardedOnOpenChange(false)}
+                  disabled={isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={
+                    isTerminalCurrent ||
+                    isPending ||
+                    allowedTransitions.length === 0 ||
+                    isConditionRestoringBlocked
+                  }
+                  data-testid="status-submit-btn"
+                >
+                  {isPending ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                      Transitioning...
+                    </>
+                  ) : (
+                    <>
+                      <ArrowRight className="mr-1.5 h-4 w-4" />
+                      Apply Status Transition
+                    </>
+                  )}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
 
-      {/* Explicit Destructive Confirmation Gate for Decommissioning [AST-INV-1] */}
-      <RetireAssetDialog
-        asset={asset}
-        open={isRetireConfirmOpen}
-        reason={pendingRetireData?.reason ?? ''}
-        isPending={isPending}
-        onOpenChange={setIsRetireConfirmOpen}
-        onConfirm={() => {
-          if (pendingRetireData) {
-            executeStatusChange(pendingRetireData);
-          }
-        }}
+        {/* Explicit Destructive Confirmation Gate for Decommissioning [AST-INV-1] */}
+        <RetireAssetDialog
+          asset={asset}
+          open={isRetireConfirmOpen}
+          reason={pendingRetireData?.reason ?? ''}
+          isPending={isPending}
+          onOpenChange={setIsRetireConfirmOpen}
+          onConfirm={() => {
+            if (pendingRetireData) {
+              executeStatusChange(pendingRetireData);
+            }
+          }}
+        />
+      </Dialog>
+
+      <ConfirmDiscardDialog
+        open={isConfirmOpen}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
       />
-    </Dialog>
+    </>
   );
 };

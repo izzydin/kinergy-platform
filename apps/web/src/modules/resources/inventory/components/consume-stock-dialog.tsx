@@ -24,6 +24,9 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormValidationSummary,
+  ConfirmDiscardDialog,
+  useDirtyDialogGuard,
 } from '../../../../shared/forms';
 import { consumeStockSchema, type ConsumeStockFormData } from '../schemas';
 import { useConsumeStock } from '../hooks';
@@ -56,7 +59,21 @@ export const ConsumeStockDialog: React.FC<ConsumeStockDialogProps> = ({
     },
   });
 
-  const { handleSubmit, control, reset } = form;
+  const {
+    handleSubmit,
+    control,
+    reset,
+    setFocus,
+    formState: { isDirty, isSubmitSuccessful, errors, isSubmitted },
+  } = form;
+
+  const { guardedOnOpenChange, isConfirmOpen, confirmDiscard, cancelDiscard } = useDirtyDialogGuard(
+    {
+      isDirty,
+      isSubmitSuccessful,
+      onClose: () => onOpenChange(false),
+    },
+  );
 
   React.useEffect(() => {
     if (open && product) {
@@ -84,6 +101,7 @@ export const ConsumeStockDialog: React.FC<ConsumeStockDialogProps> = ({
       },
       {
         onSuccess: () => {
+          reset();
           onOpenChange(false);
           onSuccess?.();
         },
@@ -104,122 +122,139 @@ export const ConsumeStockDialog: React.FC<ConsumeStockDialogProps> = ({
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isPending) return;
-    onOpenChange(nextOpen);
+    guardedOnOpenChange(nextOpen);
   };
 
   const currentStock = product?.currentStock ?? 0;
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent
-        className="max-w-md"
-        data-testid="consume-stock-dialog"
-        onPointerDownOutside={(e) => {
-          if (isPending) e.preventDefault();
-        }}
-        onEscapeKeyDown={(e) => {
-          if (isPending) e.preventDefault();
-        }}
-      >
-        <DialogHeader>
-          <div className="flex items-center gap-2 text-primary">
-            <Stethoscope className="h-5 w-5" />
-            <DialogTitle>Record Clinical Consumption</DialogTitle>
+    <>
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className="max-w-md"
+          data-testid="consume-stock-dialog"
+          onPointerDownOutside={(e) => {
+            if (isPending) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (isPending) e.preventDefault();
+          }}
+        >
+          <DialogHeader>
+            <div className="flex items-center gap-2 text-primary">
+              <Stethoscope className="h-5 w-5" />
+              <DialogTitle>Record Clinical Consumption</DialogTitle>
+            </div>
+            <DialogDescription>
+              Record treatment or therapy consumption for{' '}
+              <span className="font-semibold text-foreground">{product?.name}</span> ({product?.sku}
+              ).
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Current Available Stock Notice */}
+          <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/60 border text-xs">
+            <span className="text-muted-foreground">Available on hand:</span>
+            <span className="font-mono font-bold text-foreground">
+              {currentStock} {product?.unitOfMeasure}
+            </span>
           </div>
-          <DialogDescription>
-            Record treatment or therapy consumption for{' '}
-            <span className="font-semibold text-foreground">{product?.name}</span> ({product?.sku}).
-          </DialogDescription>
-        </DialogHeader>
 
-        {/* Current Available Stock Notice */}
-        <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/60 border text-xs">
-          <span className="text-muted-foreground">Available on hand:</span>
-          <span className="font-mono font-bold text-foreground">
-            {currentStock} {product?.unitOfMeasure}
-          </span>
-        </div>
+          {/* In-Modal Server Rejection Alert */}
+          {serverErrorMessage && (
+            <Alert variant="destructive" className="py-2.5" data-testid="consume-stock-error-alert">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle className="text-xs font-semibold">Transaction Aborted</AlertTitle>
+              <AlertDescription className="text-xs mt-0.5">{serverErrorMessage}</AlertDescription>
+            </Alert>
+          )}
 
-        {/* In-Modal Server Rejection Alert */}
-        {serverErrorMessage && (
-          <Alert variant="destructive" className="py-2.5" data-testid="consume-stock-error-alert">
-            <AlertCircle className="h-4 w-4" />
-            <AlertTitle className="text-xs font-semibold">Transaction Aborted</AlertTitle>
-            <AlertDescription className="text-xs mt-0.5">{serverErrorMessage}</AlertDescription>
-          </Alert>
-        )}
+          <Form {...form}>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1" noValidate>
+              <FormValidationSummary
+                errors={errors}
+                isSubmitted={isSubmitted}
+                setFocus={setFocus}
+              />
+              <FormField
+                control={control}
+                name="quantity"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel required>Units Consumed</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        min="1"
+                        step="1"
+                        placeholder="1"
+                        {...field}
+                        onChange={(e) => field.onChange(parseInt(e.target.value, 10) || '')}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-        <Form {...form}>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-1" noValidate>
-            <FormField
-              control={control}
-              name="quantity"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel required>Units Consumed</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min="1"
-                      step="1"
-                      placeholder="1"
-                      {...field}
-                      onChange={(e) => field.onChange(parseInt(e.target.value, 10) || '')}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={control}
+                name="treatmentSessionId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Treatment / Appointment ID</FormLabel>
+                    <FormControl>
+                      <Input placeholder="e.g. APT-2026-0819 or SOAP note ID" {...field} />
+                    </FormControl>
+                    <FormDescription className="text-xs">
+                      Clinical appointment or patient session cross-reference.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={control}
-              name="treatmentSessionId"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Treatment / Appointment ID</FormLabel>
-                  <FormControl>
-                    <Input placeholder="e.g. APT-2026-0819 or SOAP note ID" {...field} />
-                  </FormControl>
-                  <FormDescription className="text-xs">
-                    Clinical appointment or patient session cross-reference.
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <FormField
+                control={control}
+                name="notes"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Clinical Notes</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Optional patient protocol or application area"
+                        {...field}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-            <FormField
-              control={control}
-              name="notes"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Clinical Notes</FormLabel>
-                  <FormControl>
-                    <Input placeholder="Optional patient protocol or application area" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+              <DialogFooter className="pt-3 gap-2 sm:gap-0">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => guardedOnOpenChange(false)}
+                  disabled={isPending}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isPending} className="gap-1.5">
+                  <Stethoscope className="h-4 w-4" />
+                  {isPending ? 'Recording...' : 'Record Consumption'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
 
-            <DialogFooter className="pt-3 gap-2 sm:gap-0">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isPending}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isPending} className="gap-1.5">
-                <Stethoscope className="h-4 w-4" />
-                {isPending ? 'Recording...' : 'Record Consumption'}
-              </Button>
-            </DialogFooter>
-          </form>
-        </Form>
-      </DialogContent>
-    </Dialog>
+      <ConfirmDiscardDialog
+        open={isConfirmOpen}
+        onConfirm={confirmDiscard}
+        onCancel={cancelDiscard}
+      />
+    </>
   );
 };
