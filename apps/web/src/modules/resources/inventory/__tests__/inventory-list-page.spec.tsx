@@ -256,7 +256,7 @@ describe('InventoryListPage & DataTable Integration', () => {
 
     renderComponent();
 
-    expect(screen.getByText('No products in catalog')).toBeInTheDocument();
+    expect(screen.getByText('No products exist')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /register first product/i })).toBeInTheDocument();
   });
 

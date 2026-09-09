@@ -288,7 +288,7 @@ export const AssetListTable: React.FC<AssetListTableProps> = ({
         isFiltered={isFiltered}
         onResetFilters={onResetFilters}
         toolbar={toolbar}
-        emptyTitle={isFiltered ? 'No matching assets' : 'No fixed assets registered'}
+        emptyTitle={isFiltered ? 'No assets match your search/filter.' : 'No assets exist'}
         emptyDescription={
           isFiltered
             ? 'No physical capital equipment matches the current filter criteria. Try resetting or adjusting filters.'

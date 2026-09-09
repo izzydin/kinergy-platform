@@ -362,7 +362,7 @@ describe('AssetsListPage & DataTable URL Integration', () => {
 
       renderComponent();
 
-      expect(screen.getByText('No fixed assets registered')).toBeInTheDocument();
+      expect(screen.getByText('No assets exist')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /commission first asset/i })).toBeInTheDocument();
     });
   });

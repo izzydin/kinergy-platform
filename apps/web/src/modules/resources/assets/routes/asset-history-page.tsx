@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Card,
@@ -25,7 +25,7 @@ import {
 } from 'lucide-react';
 import { AssetHistoryEventType } from '@kinergy-platform/core';
 import { useAuth } from '../../../../app/providers/auth-provider';
-import { useAsset, useAssetHistory } from '../hooks';
+import { useAsset, useAssetHistory, useAssetHistoryFilters } from '../hooks';
 import {
   AssetStatusBadge,
   AssetConditionBadge,
@@ -45,13 +45,18 @@ export const AssetHistoryPage: React.FC = () => {
     hasRole('SUPER_ADMIN') ||
     hasRole('OWNER');
 
-  // Filter & Pagination state
-  const [selectedEventType, setSelectedEventType] = useState<AssetHistoryEventType | undefined>(
-    undefined,
-  );
-  const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
-  const [page, setPage] = useState<number>(1);
-  const limit = 15;
+  // Filter, Sort & Pagination state driven by URL
+  const {
+    params: historyParams,
+    eventType: selectedEventType,
+    sortOrder,
+    page,
+    isFiltered,
+    setEventType: setSelectedEventType,
+    setSortOrder,
+    setPage,
+    resetFilters,
+  } = useAssetHistoryFilters();
 
   // Queries
   const {
@@ -66,12 +71,7 @@ export const AssetHistoryPage: React.FC = () => {
     isLoading: isHistoryLoading,
     error: historyError,
     refetch: refetchHistory,
-  } = useAssetHistory(id, {
-    page,
-    limit,
-    eventType: selectedEventType,
-    sortOrder,
-  });
+  } = useAssetHistory(id, historyParams);
 
   const records = historyData?.items ?? [];
   const totalRecords = historyData?.total ?? 0;
@@ -179,25 +179,22 @@ export const AssetHistoryPage: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <Filter className="h-4 w-4 text-muted-foreground" />
                   <select
-                    value={selectedEventType || 'ALL'}
-                    onChange={(e) => {
-                      const val = e.target.value;
+                    value={selectedEventType ?? ''}
+                    onChange={(e) =>
                       setSelectedEventType(
-                        val === 'ALL' ? undefined : (val as AssetHistoryEventType),
-                      );
-                      setPage(1);
-                    }}
-                    className="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring text-foreground"
+                        e.target.value ? (e.target.value as AssetHistoryEventType) : undefined,
+                      )
+                    }
+                    className="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                     data-testid="event-type-filter-select"
-                    aria-label="Filter by Event Type"
                   >
-                    <option value="ALL">All Event Types</option>
-                    <option value={AssetHistoryEventType.CREATED}>Commissioned</option>
-                    <option value={AssetHistoryEventType.TRANSFERRED}>Relocations</option>
+                    <option value="">All Lifecycle Event Types</option>
+                    <option value={AssetHistoryEventType.CREATED}>Initial Commissioning</option>
                     <option value={AssetHistoryEventType.STATUS_CHANGED}>Status Transitions</option>
                     <option value={AssetHistoryEventType.CONDITION_CHANGED}>
-                      Condition Ratings
+                      Condition Inspection
                     </option>
+                    <option value={AssetHistoryEventType.TRANSFERRED}>Location Relocation</option>
                     <option value={AssetHistoryEventType.MAINTENANCE_RECORDED}>
                       Maintenance Servicing
                     </option>
@@ -213,10 +210,7 @@ export const AssetHistoryPage: React.FC = () => {
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => {
-                    setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
-                    setPage(1);
-                  }}
+                  onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
                   className="h-9 text-xs"
                   data-testid="toggle-sort-order-btn"
                 >
@@ -224,14 +218,11 @@ export const AssetHistoryPage: React.FC = () => {
                   {sortOrder === 'desc' ? 'Newest First' : 'Oldest First'}
                 </Button>
 
-                {selectedEventType && (
+                {isFiltered && (
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      setSelectedEventType(undefined);
-                      setPage(1);
-                    }}
+                    onClick={() => resetFilters()}
                     className="h-9 text-xs text-muted-foreground hover:text-foreground"
                     data-testid="reset-filter-btn"
                   >
@@ -301,19 +292,22 @@ export const AssetHistoryPage: React.FC = () => {
                 <div className="p-12 text-center space-y-2" data-testid="history-empty">
                   <History className="mx-auto h-10 w-10 text-muted-foreground/40" />
                   <p className="text-sm font-semibold text-foreground">
-                    No lifecycle events recorded
+                    {isFiltered
+                      ? 'No lifecycle events match your filter criteria.'
+                      : 'No lifecycle events recorded'}
                   </p>
                   <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                    {selectedEventType
+                    {isFiltered
                       ? `No audit entries found matching the filter '${selectedEventType}'.`
                       : 'This equipment does not currently have recorded lifecycle audit entries.'}
                   </p>
-                  {selectedEventType && (
+                  {isFiltered && (
                     <Button
-                      onClick={() => setSelectedEventType(undefined)}
+                      onClick={() => resetFilters()}
                       variant="outline"
                       size="sm"
                       className="mt-2"
+                      data-testid="clear-event-filter-btn"
                     >
                       Clear Event Filter
                     </Button>
@@ -372,7 +366,7 @@ export const AssetHistoryPage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page <= 1}
                     data-testid="history-prev-page-btn"
                   >
@@ -381,7 +375,7 @@ export const AssetHistoryPage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => setPage(Math.min(totalPages, page + 1))}
                     disabled={page >= totalPages}
                     data-testid="history-next-page-btn"
                   >

@@ -292,10 +292,14 @@ export const InventoryListTable: React.FC<InventoryListTableProps> = ({
       isFiltered={isFiltered}
       onResetFilters={onResetFilters}
       toolbar={toolbar}
-      emptyTitle="No products in catalog"
-      emptyDescription="No consumable inventory products match the active criteria or none have been registered."
+      emptyTitle={isFiltered ? 'No products match your search/filter.' : 'No products exist'}
+      emptyDescription={
+        isFiltered
+          ? 'Try adjusting your search terms or clearing active filters to view available products.'
+          : 'No consumable products have been registered in the catalog yet.'
+      }
       emptyAction={
-        canWrite && onCreateClick ? (
+        !isFiltered && canWrite && onCreateClick ? (
           <Button variant="default" size="sm" onClick={onCreateClick}>
             <PackagePlus className="mr-1.5 h-4 w-4" /> Register First Product
           </Button>

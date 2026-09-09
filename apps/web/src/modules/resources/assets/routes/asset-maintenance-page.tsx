@@ -27,7 +27,7 @@ import {
   FileText,
   Lock,
 } from 'lucide-react';
-import { useAsset, useAssetMaintenanceHistory } from '../hooks';
+import { useAsset, useAssetMaintenanceHistory, useAssetMaintenanceFilters } from '../hooks';
 import { useAuth } from '../../../../app/providers/auth-provider';
 import { AssetStatusBadge } from '../components/asset-status-badge';
 import { AssetConditionBadge } from '../components/asset-condition-badge';
@@ -39,9 +39,15 @@ export const AssetMaintenancePage: React.FC = () => {
   const { hasPermission, hasRole } = useAuth();
 
   const [isRecordDialogOpen, setIsRecordDialogOpen] = useState(false);
-  const [performedByFilter, setPerformedByFilter] = useState('');
-  const [page, setPage] = useState(1);
-  const limit = 10;
+  const {
+    params: maintenanceParams,
+    performedBy: performedByFilter,
+    page,
+    isFiltered,
+    setPerformedBy: setPerformedByFilter,
+    setPage,
+    resetFilters,
+  } = useAssetMaintenanceFilters();
 
   // Permissions
   const isSuperAdmin = Boolean(hasRole('ADMIN') || hasRole('SUPER_ADMIN') || hasRole('OWNER'));
@@ -63,11 +69,7 @@ export const AssetMaintenancePage: React.FC = () => {
     isLoading: isMaintenanceLoading,
     error: maintenanceError,
     refetch: refetchMaintenance,
-  } = useAssetMaintenanceHistory(id ?? '', {
-    page,
-    limit,
-    performedBy: performedByFilter.trim() || undefined,
-  });
+  } = useAssetMaintenanceHistory(id ?? '', maintenanceParams);
 
   const records = maintenanceData?.items ?? [];
   const totalRecords = maintenanceData?.total ?? 0;
@@ -182,10 +184,7 @@ export const AssetMaintenancePage: React.FC = () => {
                 <Input
                   placeholder="Filter by technician or vendor..."
                   value={performedByFilter}
-                  onChange={(e) => {
-                    setPerformedByFilter(e.target.value);
-                    setPage(1);
-                  }}
+                  onChange={(e) => setPerformedByFilter(e.target.value)}
                   className="h-9 text-xs"
                   data-testid="filter-technician-input"
                 />
@@ -239,14 +238,26 @@ export const AssetMaintenancePage: React.FC = () => {
                 <div className="p-12 text-center space-y-2" data-testid="ledger-empty">
                   <Wrench className="mx-auto h-10 w-10 text-muted-foreground/40" />
                   <p className="text-sm font-semibold text-foreground">
-                    No servicing work orders logged
+                    {isFiltered
+                      ? 'No servicing work orders match your search/filter.'
+                      : 'No servicing work orders logged'}
                   </p>
                   <p className="text-xs text-muted-foreground max-w-md mx-auto">
-                    {performedByFilter.trim()
+                    {isFiltered
                       ? `No maintenance records found matching technician '${performedByFilter}'.`
                       : 'This equipment has not received logged corrective repairs or preventative maintenance.'}
                   </p>
-                  {canWriteAssets && !performedByFilter.trim() && (
+                  {isFiltered ? (
+                    <Button
+                      onClick={() => resetFilters()}
+                      variant="outline"
+                      size="sm"
+                      className="mt-2"
+                      data-testid="reset-maintenance-filter-btn"
+                    >
+                      Clear Filters
+                    </Button>
+                  ) : canWriteAssets ? (
                     <Button
                       onClick={() => setIsRecordDialogOpen(true)}
                       variant="outline"
@@ -255,7 +266,7 @@ export const AssetMaintenancePage: React.FC = () => {
                     >
                       <Plus className="mr-1.5 h-3.5 w-3.5" /> Log First Maintenance Order
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               ) : (
                 <div className="divide-y divide-border" data-testid="maintenance-records-list">
@@ -351,7 +362,7 @@ export const AssetMaintenancePage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page <= 1}
                     data-testid="maintenance-prev-page-btn"
                   >
@@ -360,7 +371,7 @@ export const AssetMaintenancePage: React.FC = () => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    onClick={() => setPage(Math.min(totalPages, page + 1))}
                     disabled={page >= totalPages}
                     data-testid="maintenance-next-page-btn"
                   >
