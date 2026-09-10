@@ -86,7 +86,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0078](file:///c:/Projects/kinergy-platform/docs/adr/0078-trainer-dashboard-performance-pagination-and-resilience-strategy.md)                                       | Trainer Dashboard Performance, Pagination & Resilience Strategy                                | Accepted   | 2026-08-21              |
 | [0079](file:///c:/Projects/kinergy-platform/docs/adr/0079-gym-management-application-use-case-inventory-and-architecture.md)                                         | Gym Management Application Use Case Inventory & Architecture                                   | Accepted   | 2026-08-21              |
 | [0080](file:///c:/Projects/kinergy-platform/docs/adr/0080-gym-management-production-persistence-and-relational-mapping.md)                                           | Gym Management Production Persistence, Relational Mapping & Constraint Model                   | Accepted   | 2026-08-24              |
-| [0081–0104](file:///c:/Projects/kinergy-platform/docs/architecture/resources/README.md#5-architectural-decision-records-adr-index)                                   | Phase 6 Resources Management ADRs (Topology, Persistence, Invariants, Frontend, & Integration) | Accepted   | 2026-08-25 – 2026-09-10 |
+| [0081–0105](file:///c:/Projects/kinergy-platform/docs/architecture/resources/README.md#5-architectural-decision-records-adr-index)                                   | Phase 6 Resources Management ADRs (Topology, Persistence, Invariants, Frontend, & Integration) | Accepted   | 2026-08-25 – 2026-09-10 |
 
 ## Format
 

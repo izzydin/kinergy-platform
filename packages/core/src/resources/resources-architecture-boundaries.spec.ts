@@ -100,4 +100,36 @@ describe('Phase 6: Resources Management Bounded Context Architecture & Boundary 
       expect(fixedAssetMatch[0]).not.toMatch(/\bclient\b\s+Client/i);
     }
   });
+
+  it('Scheduling Decoupling & Room Independence: Room aggregate does not import or own FixedAsset', () => {
+    const schedulingDomainPath = path.resolve(__dirname, '../scheduling/domain');
+    const schedulingFiles = getProductionTsFiles(schedulingDomainPath);
+    for (const filePath of schedulingFiles) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      expect(content).not.toMatch(/import\s+.*\bFixedAsset\b.*from/);
+      expect(content).not.toMatch(/import\s+.*\bAssetLocation\b.*from/);
+    }
+  });
+
+  it('Schema Purity: rooms and fixed_assets have zero foreign keys or direct relation fields connecting them', () => {
+    const schemaPath = path.resolve(__dirname, '../../../../prisma/schema.prisma');
+    if (!fs.existsSync(schemaPath)) return;
+    const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
+
+    // Extract Room model
+    const roomMatch = schemaContent.match(/model\s+Room\s*\{[\s\S]*?\}/);
+    expect(roomMatch).not.toBeNull();
+    if (roomMatch) {
+      expect(roomMatch[0]).not.toMatch(/\bfixedAssets\b/i);
+      expect(roomMatch[0]).not.toMatch(/\bFixedAsset\b/i);
+    }
+
+    // Extract FixedAsset model
+    const fixedAssetMatch = schemaContent.match(/model\s+FixedAsset\s*\{[\s\S]*?\}/);
+    expect(fixedAssetMatch).not.toBeNull();
+    if (fixedAssetMatch) {
+      expect(fixedAssetMatch[0]).not.toMatch(/\broomId\b\s+String/i);
+      expect(fixedAssetMatch[0]).not.toMatch(/\broom\b\s+Room/i);
+    }
+  });
 });

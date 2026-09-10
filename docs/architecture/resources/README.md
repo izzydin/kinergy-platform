@@ -125,6 +125,7 @@ Architectural Decision Records governing Phase 6:
 | **[ADR-0102](./adr/0102-resource-overview-synthesized-read-query-architecture.md)**                                 | Resource Overview Synthesized Read-Query Architecture & Executive Cockpit            | Accepted | 2026-09-06 |
 | **[ADR-0103](./adr/0103-frontend-modal-interaction-and-safe-focus-policy.md)**                                      | Frontend Modal Interaction Hardening, Safe-by-Default Focus Policy & Invariants      | Accepted | 2026-09-10 |
 | **[ADR-0104](./adr/0104-resources-cross-domain-decoupling-and-client-boundary-invariant.md)**                       | Resources Cross-Domain Decoupling & Client Boundary Invariant                        | Accepted | 2026-09-10 |
+| **[ADR-0105](./adr/0105-scheduling-and-fixed-asset-decoupling-invariant.md)**                                       | Scheduling & Fixed Asset Decoupling Invariant and Location Semantics                 | Accepted | 2026-09-10 |
 
 ---
 
