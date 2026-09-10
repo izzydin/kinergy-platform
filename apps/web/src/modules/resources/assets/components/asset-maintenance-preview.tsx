@@ -9,22 +9,57 @@ export interface AssetMaintenancePreviewProps {
 }
 
 export const AssetMaintenancePreview: React.FC<AssetMaintenancePreviewProps> = ({ assetId }) => {
-  const { data, isLoading } = useAssetMaintenanceHistory(assetId, { limit: 5 });
+  const { data, isLoading, isError, error, refetch } = useAssetMaintenanceHistory(assetId, {
+    limit: 5,
+  });
 
   const records = data?.items ?? [];
 
   if (isLoading) {
     return (
-      <div className="space-y-3 p-2" data-testid="maintenance-preview-loading">
+      <div
+        className="space-y-3 p-2"
+        data-testid="maintenance-preview-loading"
+        role="status"
+        aria-busy="true"
+      >
+        <span className="sr-only">Loading maintenance preview...</span>
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
       </div>
     );
   }
 
+  if (isError) {
+    return (
+      <div
+        className="p-4 text-center rounded-md bg-destructive/5 text-xs text-destructive space-y-2 border border-destructive/20"
+        data-testid="maintenance-preview-error"
+        role="alert"
+      >
+        <p className="font-semibold">Failed to load servicing history.</p>
+        <p className="text-[11px] text-muted-foreground">
+          {error?.message || 'Server query error'}
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void refetch()}
+          className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
   if (records.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground space-y-2">
+      <div
+        className="text-center py-8 text-muted-foreground space-y-2"
+        data-testid="maintenance-preview-empty"
+        role="status"
+      >
         <Wrench className="mx-auto h-8 w-8 text-muted-foreground/50" />
         <p className="text-sm font-medium">No maintenance records logged</p>
         <p className="text-xs">

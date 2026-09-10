@@ -19,13 +19,19 @@ export const AssetHistoryPreview: React.FC<AssetHistoryPreviewProps> = ({ assetI
     hasRole('SUPER_ADMIN') ||
     hasRole('OWNER');
 
-  const { data, isLoading } = useAssetHistory(assetId, { limit: 5 });
+  const { data, isLoading, isError, error, refetch } = useAssetHistory(assetId, { limit: 5 });
 
   const events = data?.items ?? [];
 
   if (isLoading) {
     return (
-      <div className="space-y-3 p-2" data-testid="history-preview-loading">
+      <div
+        className="space-y-3 p-2"
+        data-testid="history-preview-loading"
+        role="status"
+        aria-busy="true"
+      >
+        <span className="sr-only">Loading lifecycle history preview...</span>
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-16 w-full" />
@@ -33,9 +39,36 @@ export const AssetHistoryPreview: React.FC<AssetHistoryPreviewProps> = ({ assetI
     );
   }
 
+  if (isError) {
+    return (
+      <div
+        className="p-4 text-center rounded-md bg-destructive/5 text-xs text-destructive space-y-2 border border-destructive/20"
+        data-testid="history-preview-error"
+        role="alert"
+      >
+        <p className="font-semibold">Failed to load lifecycle audit history.</p>
+        <p className="text-[11px] text-muted-foreground">
+          {error?.message || 'Server query error'}
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void refetch()}
+          className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
   if (events.length === 0) {
     return (
-      <div className="text-center py-8 text-muted-foreground space-y-2">
+      <div
+        className="text-center py-8 text-muted-foreground space-y-2"
+        data-testid="history-preview-empty"
+        role="status"
+      >
         <History className="mx-auto h-8 w-8 text-muted-foreground/50" />
         <p className="text-sm font-medium">No lifecycle events recorded</p>
         <p className="text-xs">

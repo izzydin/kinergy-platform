@@ -1,14 +1,18 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Badge } from '@kinergy-platform/ui';
-import { Layers, PlusCircle } from 'lucide-react';
+import { Layers, PlusCircle, RefreshCw } from 'lucide-react';
 import { HasPermission } from '../../../../app/routes/permission-guard';
+import { assetsQueryKeys } from '../api';
 import { AssetOverviewSummary } from '../components/asset-overview-summary';
 import { AssetAttentionQueue } from '../components/asset-attention-queue';
 import type { FixedAssetVM } from '../types';
 
 export const AssetOverviewPage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleCommissionAsset = () => {
     navigate('/resources/assets/new');
@@ -16,6 +20,18 @@ export const AssetOverviewPage: React.FC = () => {
 
   const handleServiceAsset = (asset: FixedAssetVM) => {
     navigate(`/resources/assets/${asset.id}/maintenance`);
+  };
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: assetsQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: ['resources', 'valuation'] }),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return (
@@ -42,6 +58,18 @@ export const AssetOverviewPage: React.FC = () => {
 
         {/* Header Action Buttons */}
         <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            data-testid="refresh-assets-overview-btn"
+            title="Refresh assets overview metrics"
+            className="h-8 text-xs gap-1.5"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link to="/resources/assets">
               <Layers className="mr-1.5 h-4 w-4" /> Full Catalog

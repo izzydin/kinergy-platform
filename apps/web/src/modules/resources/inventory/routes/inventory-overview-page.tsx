@@ -1,21 +1,37 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Button, Badge } from '@kinergy-platform/ui';
-import { Boxes, PackagePlus } from 'lucide-react';
+import { Boxes, PackagePlus, RefreshCw } from 'lucide-react';
 import { HasPermission } from '../../../../app/routes/permission-guard';
+import { inventoryQueryKeys } from '../api';
 import { InventoryOverviewSummary } from '../components/inventory-overview-summary';
 import { LowStockAlertTable } from '../components/low-stock-alert-table';
 import type { InventoryProductVM } from '../types';
 
 export const InventoryOverviewPage: React.FC = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const handleReceiveStock = (product: InventoryProductVM) => {
     navigate(`/resources/inventory/${product.id}?action=receive`);
   };
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.all }),
+        queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() }),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="inventory-overview-page">
       {/* 1. Page Header Block */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -35,6 +51,18 @@ export const InventoryOverviewPage: React.FC = () => {
 
         {/* Header Action Buttons */}
         <div className="flex items-center gap-2.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            data-testid="refresh-inventory-overview-btn"
+            title="Refresh inventory overview metrics"
+            className="h-8 text-xs gap-1.5"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link to="/resources/inventory">
               <Boxes className="mr-1.5 h-4 w-4" /> Full Catalog

@@ -1,14 +1,14 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Badge } from '@kinergy-platform/ui';
-import { ArrowLeft, AlertTriangle, Boxes } from 'lucide-react';
+import { ArrowLeft, AlertTriangle, Boxes, RefreshCw } from 'lucide-react';
 import { useLowStockItems } from '../hooks';
 import { LowStockAttentionQueue } from '../components/low-stock-attention-queue';
 import { ReceiveStockDialog } from '../components/receive-stock-dialog';
 import type { InventoryProductVM } from '../types';
 
 export const LowStockPage: React.FC = () => {
-  const { data: items, isLoading, isError, error, refetch } = useLowStockItems();
+  const { data: items, isLoading, isFetching, isError, error, refetch } = useLowStockItems();
   const [selectedProduct, setSelectedProduct] = useState<InventoryProductVM | null>(null);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
 
@@ -27,6 +27,18 @@ export const LowStockPage: React.FC = () => {
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void refetch()}
+            disabled={isFetching}
+            data-testid="refresh-low-stock-btn"
+            title="Refresh attention queue"
+            className="h-8 text-xs gap-1.5"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
           <Button asChild variant="outline" size="sm">
             <Link to="/resources/inventory/overview">
               <Boxes className="mr-1.5 h-4 w-4" /> Inventory Overview
