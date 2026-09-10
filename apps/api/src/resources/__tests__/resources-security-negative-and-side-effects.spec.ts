@@ -490,12 +490,40 @@ describe('Phase 6 Resources Security Negative Testing & No-Side-Effect Verificat
     });
   });
 
-  describe('5. Unauthenticated Caller Invariant', () => {
-    it('throws UnauthorizedException for unauthenticated requests before handler invocation', async () => {
+  describe('5. Unauthenticated Caller Invariant & Direct Bypass Prevention', () => {
+    it('throws UnauthorizedException for unauthenticated requests on createItem before handler invocation', async () => {
       const context = createInventoryContext('createItem', undefined);
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
 
       expect(mockCreateInventoryItem.execute).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException for unauthenticated requests on createAsset before handler invocation', async () => {
+      const context = createAssetContext('createAsset', undefined);
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+
+      expect(mockCreateFixedAsset.execute).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException for unauthenticated requests on stock movements ledger before handler invocation', async () => {
+      const context = createInventoryContext('getMovements', undefined);
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+
+      expect(mockListStockMovements.execute).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException for unauthenticated requests on asset maintenance recording', async () => {
+      const context = createAssetContext('recordMaintenance', undefined);
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+
+      expect(mockRecordAssetMaintenance.execute).not.toHaveBeenCalled();
+    });
+
+    it('throws UnauthorizedException for unauthenticated requests on product deactivation', async () => {
+      const context = createInventoryContext('deactivateItem', undefined);
+      await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
+
+      expect(mockDeactivateInventoryItem.execute).not.toHaveBeenCalled();
     });
   });
 });

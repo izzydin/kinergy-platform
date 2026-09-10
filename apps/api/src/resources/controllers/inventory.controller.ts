@@ -312,10 +312,10 @@ export class InventoryController {
   @ApiResponse({ status: 200, description: 'Movements retrieved successfully.' })
   public async getMovements(
     @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUserContext,
     @Query('page') page?: number,
     @Query('limit') limit?: number,
     @Query('movementType') movementType?: StockMovementType,
-    @CurrentUser() user: AuthenticatedUserContext = {} as AuthenticatedUserContext,
   ) {
     const query = new ListStockMovementsQuery({
       itemId: id,
