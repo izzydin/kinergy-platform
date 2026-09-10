@@ -38,11 +38,13 @@ export function useLowStockItems() {
 
 /**
  * Retrieves working capital valuation metrics for consumable stock
+ * (Gated by valuation.read or billing.read)
  */
-export function useInventoryValuation() {
+export function useInventoryValuation(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: inventoryQueryKeys.valuation(),
     queryFn: () => inventoryApi.getValuation(),
+    enabled: options?.enabled ?? true,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 }

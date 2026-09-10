@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   Button,
   Badge,
@@ -78,8 +78,39 @@ export const AssetDetailPage: React.FC = () => {
     enabled: Boolean(id) && canViewValuation,
   });
 
+  const [searchParams, setSearchParams] = useSearchParams();
+  const actionParam = searchParams.get('action');
+
   const isDecommissioned =
     asset?.status === AssetStatus.SOLD || asset?.status === AssetStatus.RETIRED;
+
+  const clearActionParam = () => {
+    if (searchParams.has('action')) {
+      setSearchParams(
+        (prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete('action');
+          return next;
+        },
+        { replace: true },
+      );
+    }
+  };
+
+  // Synchronize URL action parameter with dialog opening (strictly permission & state guarded)
+  useEffect(() => {
+    if (!asset) return;
+    if (!canWrite || isDecommissioned) {
+      if (actionParam) clearActionParam();
+      return;
+    }
+    if (actionParam === 'transfer') setTransferDialogOpen(true);
+    else if (actionParam === 'status') setStatusDialogOpen(true);
+    else if (actionParam === 'condition' || actionParam === 'inspect') setConditionDialogOpen(true);
+    else if (actionParam === 'maintenance' || actionParam === 'service')
+      setMaintenanceDialogOpen(true);
+    else if (actionParam === 'valuation' && canViewValuation) setValuationDialogOpen(true);
+  }, [actionParam, asset, canWrite, canViewValuation, isDecommissioned]);
 
   // Formatted valuation amounts
   const purchaseCost = valuationData?.purchaseValueAmount ?? asset?.purchaseValueAmount;
@@ -589,31 +620,53 @@ export const AssetDetailPage: React.FC = () => {
       )}
 
       {/* 5. Interactive Mutation Dialogs */}
-      <TransferAssetLocationDialog
-        asset={asset ?? null}
-        open={transferDialogOpen}
-        onOpenChange={setTransferDialogOpen}
-      />
-      <ChangeAssetStatusDialog
-        asset={asset ?? null}
-        open={statusDialogOpen}
-        onOpenChange={setStatusDialogOpen}
-      />
-      <UpdateAssetConditionDialog
-        asset={asset ?? null}
-        open={conditionDialogOpen}
-        onOpenChange={setConditionDialogOpen}
-      />
-      <RecordAssetMaintenanceDialog
-        asset={asset ?? null}
-        open={maintenanceDialogOpen}
-        onOpenChange={setMaintenanceDialogOpen}
-      />
-      <UpdateAssetValuationDialog
-        asset={asset ?? null}
-        open={valuationDialogOpen}
-        onOpenChange={setValuationDialogOpen}
-      />
+      {canWrite && !isDecommissioned && (
+        <>
+          <TransferAssetLocationDialog
+            asset={asset ?? null}
+            open={transferDialogOpen}
+            onOpenChange={(open) => {
+              setTransferDialogOpen(open);
+              if (!open) clearActionParam();
+            }}
+          />
+          <ChangeAssetStatusDialog
+            asset={asset ?? null}
+            open={statusDialogOpen}
+            onOpenChange={(open) => {
+              setStatusDialogOpen(open);
+              if (!open) clearActionParam();
+            }}
+          />
+          <UpdateAssetConditionDialog
+            asset={asset ?? null}
+            open={conditionDialogOpen}
+            onOpenChange={(open) => {
+              setConditionDialogOpen(open);
+              if (!open) clearActionParam();
+            }}
+          />
+          <RecordAssetMaintenanceDialog
+            asset={asset ?? null}
+            open={maintenanceDialogOpen}
+            onOpenChange={(open) => {
+              setMaintenanceDialogOpen(open);
+              if (!open) clearActionParam();
+            }}
+          />
+        </>
+      )}
+
+      {canWrite && canViewValuation && !isDecommissioned && (
+        <UpdateAssetValuationDialog
+          asset={asset ?? null}
+          open={valuationDialogOpen}
+          onOpenChange={(open) => {
+            setValuationDialogOpen(open);
+            if (!open) clearActionParam();
+          }}
+        />
+      )}
     </div>
   );
 };

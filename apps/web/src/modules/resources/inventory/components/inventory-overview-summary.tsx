@@ -49,7 +49,7 @@ export const InventoryOverviewSummary: React.FC<InventoryOverviewSummaryProps> =
     isLoading: isValuationLoading,
     isError: isValuationError,
     refetch: refetchValuation,
-  } = useInventoryValuation();
+  } = useInventoryValuation({ enabled: hasValuationPermission });
 
   const outOfStockCount = lowStockItems?.filter((item) => item.isOutOfStock).length ?? 0;
   const lowStockCount = lowStockItems?.length ?? 0;

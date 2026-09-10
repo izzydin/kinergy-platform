@@ -86,15 +86,7 @@ export const InventoryDetailPage: React.FC = () => {
   // Queries
   const { data: product, isLoading, isFetching, isError, error, refetch } = useInventoryProduct(id);
 
-  // Synchronize URL action parameter with dialog opening
-  useEffect(() => {
-    if (!product) return;
-    if (actionParam === 'receive') setReceiveDialogOpen(true);
-    else if (actionParam === 'sell') setSellDialogOpen(true);
-    else if (actionParam === 'consume') setConsumeDialogOpen(true);
-    else if (actionParam === 'adjust') setAdjustDialogOpen(true);
-    else if (actionParam === 'scrap') setScrapDialogOpen(true);
-  }, [actionParam, product]);
+  const isArchived = product?.status === InventoryItemStatus.ARCHIVED;
 
   const clearActionParam = () => {
     if (searchParams.has('action')) {
@@ -108,6 +100,20 @@ export const InventoryDetailPage: React.FC = () => {
       );
     }
   };
+
+  // Synchronize URL action parameter with dialog opening (strictly permission & state guarded)
+  useEffect(() => {
+    if (!product) return;
+    if (!canWriteInventory || isArchived) {
+      if (actionParam) clearActionParam();
+      return;
+    }
+    if (actionParam === 'receive') setReceiveDialogOpen(true);
+    else if (actionParam === 'sell') setSellDialogOpen(true);
+    else if (actionParam === 'consume') setConsumeDialogOpen(true);
+    else if (actionParam === 'adjust') setAdjustDialogOpen(true);
+    else if (actionParam === 'scrap') setScrapDialogOpen(true);
+  }, [actionParam, product, canWriteInventory, isArchived]);
 
   // 1. Loading State
   if (isLoading) {
@@ -166,7 +172,6 @@ export const InventoryDetailPage: React.FC = () => {
     );
   }
 
-  const isArchived = product.status === InventoryItemStatus.ARCHIVED;
   const isOutOfStock = product.isOutOfStock || product.currentStock === 0;
   const isLowStock = product.isLowStock && !isOutOfStock;
 
@@ -581,64 +586,70 @@ export const InventoryDetailPage: React.FC = () => {
       />
 
       {/* Authorized Modal Dialog Workflows */}
-      <ReceiveStockDialog
-        product={product}
-        open={receiveDialogOpen}
-        onOpenChange={(open) => {
-          setReceiveDialogOpen(open);
-          if (!open) clearActionParam();
-        }}
-        onSuccess={() => refetch()}
-      />
+      {canWriteInventory && !isArchived && (
+        <>
+          <ReceiveStockDialog
+            product={product}
+            open={receiveDialogOpen}
+            onOpenChange={(open) => {
+              setReceiveDialogOpen(open);
+              if (!open) clearActionParam();
+            }}
+            onSuccess={() => refetch()}
+          />
 
-      <SellStockDialog
-        product={product}
-        open={sellDialogOpen}
-        onOpenChange={(open) => {
-          setSellDialogOpen(open);
-          if (!open) clearActionParam();
-        }}
-        onSuccess={() => refetch()}
-      />
+          <SellStockDialog
+            product={product}
+            open={sellDialogOpen}
+            onOpenChange={(open) => {
+              setSellDialogOpen(open);
+              if (!open) clearActionParam();
+            }}
+            onSuccess={() => refetch()}
+          />
 
-      <ConsumeStockDialog
-        product={product}
-        open={consumeDialogOpen}
-        onOpenChange={(open) => {
-          setConsumeDialogOpen(open);
-          if (!open) clearActionParam();
-        }}
-        onSuccess={() => refetch()}
-      />
+          <ConsumeStockDialog
+            product={product}
+            open={consumeDialogOpen}
+            onOpenChange={(open) => {
+              setConsumeDialogOpen(open);
+              if (!open) clearActionParam();
+            }}
+            onSuccess={() => refetch()}
+          />
 
-      <AdjustStockDialog
-        product={product}
-        open={adjustDialogOpen}
-        onOpenChange={(open) => {
-          setAdjustDialogOpen(open);
-          if (!open) clearActionParam();
-        }}
-        onSuccess={() => refetch()}
-      />
+          <AdjustStockDialog
+            product={product}
+            open={adjustDialogOpen}
+            onOpenChange={(open) => {
+              setAdjustDialogOpen(open);
+              if (!open) clearActionParam();
+            }}
+            onSuccess={() => refetch()}
+          />
 
-      <ScrapStockDialog
-        product={product}
-        open={scrapDialogOpen}
-        onOpenChange={(open) => {
-          setScrapDialogOpen(open);
-          if (!open) clearActionParam();
-        }}
-        onSuccess={() => refetch()}
-      />
+          <ScrapStockDialog
+            product={product}
+            open={scrapDialogOpen}
+            onOpenChange={(open) => {
+              setScrapDialogOpen(open);
+              if (!open) clearActionParam();
+            }}
+            onSuccess={() => refetch()}
+          />
+        </>
+      )}
 
-      <ArchiveProductDialog
-        product={product}
-        open={archiveDialogOpen}
-        onOpenChange={setArchiveDialogOpen}
-        onArchived={() => {
-          navigate('/resources/inventory');
-        }}
-      />
+      {canArchive && !isArchived && (
+        <ArchiveProductDialog
+          product={product}
+          open={archiveDialogOpen}
+          onOpenChange={setArchiveDialogOpen}
+          onArchived={() => {
+            navigate('/resources/inventory');
+          }}
+        />
+      )}
     </div>
   );
 };

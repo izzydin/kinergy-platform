@@ -11,6 +11,7 @@ import {
   Skeleton,
 } from '@kinergy-platform/ui';
 import { AlertCircle, CheckCircle2, PackageCheck, ArrowRight } from 'lucide-react';
+import { HasPermission } from '../../../../app/routes/permission-guard';
 import { useLowStockItems } from '../hooks';
 import { StockLevelGauge } from './stock-level-gauge';
 import { InventoryStatusBadge } from './inventory-status-badge';
@@ -122,13 +123,15 @@ export const LowStockAlertTable: React.FC<LowStockAlertTableProps> = ({ onReceiv
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         {onReceiveStockClick && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onReceiveStockClick(item)}
-                          >
-                            <PackageCheck className="mr-1.5 h-3.5 w-3.5" /> Receive Stock
-                          </Button>
+                          <HasPermission name="inventory.write">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onReceiveStockClick(item)}
+                            >
+                              <PackageCheck className="mr-1.5 h-3.5 w-3.5" /> Receive Stock
+                            </Button>
+                          </HasPermission>
                         )}
                         <Button asChild variant="ghost" size="sm">
                           <Link to={`/resources/inventory/${item.id}`}>Details</Link>

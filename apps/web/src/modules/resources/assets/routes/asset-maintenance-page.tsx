@@ -390,15 +390,17 @@ export const AssetMaintenancePage: React.FC = () => {
           </Card>
 
           {/* Record Maintenance Modal Dialog */}
-          <RecordAssetMaintenanceDialog
-            asset={asset}
-            open={isRecordDialogOpen}
-            onOpenChange={setIsRecordDialogOpen}
-            onSuccess={() => {
-              refetchMaintenance();
-              refetchAsset();
-            }}
-          />
+          {canWriteAssets && (
+            <RecordAssetMaintenanceDialog
+              asset={asset}
+              open={isRecordDialogOpen}
+              onOpenChange={setIsRecordDialogOpen}
+              onSuccess={() => {
+                refetchMaintenance();
+                refetchAsset();
+              }}
+            />
+          )}
         </>
       )}
     </div>
