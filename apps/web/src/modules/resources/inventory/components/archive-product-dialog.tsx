@@ -74,6 +74,15 @@ export const ArchiveProductDialog: React.FC<ArchiveProductDialogProps> = ({
         onEscapeKeyDown={(e) => {
           if (isPending) e.preventDefault();
         }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            if (isPending) {
+              e.preventDefault();
+              return;
+            }
+            handleOpenChange(false);
+          }
+        }}
       >
         <DialogHeader>
           <div className="flex items-center gap-2 text-destructive">

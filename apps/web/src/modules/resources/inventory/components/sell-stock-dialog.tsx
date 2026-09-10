@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
@@ -49,6 +49,7 @@ export const SellStockDialog: React.FC<SellStockDialogProps> = ({
   const queryClient = useQueryClient();
   const { mutate: sellStock, isPending } = useSellStock();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const initialInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<SellStockFormData>({
     resolver: zodResolver(sellStockSchema),
@@ -137,11 +138,24 @@ export const SellStockDialog: React.FC<SellStockDialogProps> = ({
         <DialogContent
           className="max-w-md"
           data-testid="sell-stock-dialog"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            initialInputRef.current?.focus();
+          }}
           onPointerDownOutside={(e) => {
             if (isPending) e.preventDefault();
           }}
           onEscapeKeyDown={(e) => {
             if (isPending) e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              if (isPending) {
+                e.preventDefault();
+                return;
+              }
+              handleOpenChange(false);
+            }
           }}
         >
           <DialogHeader>
@@ -193,7 +207,14 @@ export const SellStockDialog: React.FC<SellStockDialogProps> = ({
                           min="1"
                           step="1"
                           placeholder="1"
+                          data-testid="sell-stock-quantity-input"
                           {...field}
+                          ref={(el) => {
+                            field.ref(el);
+                            (
+                              initialInputRef as React.MutableRefObject<HTMLInputElement | null>
+                            ).current = el;
+                          }}
                           onChange={(e) => field.onChange(parseInt(e.target.value, 10) || '')}
                         />
                       </FormControl>
@@ -271,7 +292,12 @@ export const SellStockDialog: React.FC<SellStockDialogProps> = ({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isPending} className="gap-1.5">
+                <Button
+                  type="submit"
+                  disabled={isPending}
+                  className="gap-1.5"
+                  data-testid="sell-stock-submit-btn"
+                >
                   <ShoppingCart className="h-4 w-4" />
                   {isPending ? 'Processing...' : 'Record Sale'}
                 </Button>

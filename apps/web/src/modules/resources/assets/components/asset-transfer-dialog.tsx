@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AssetStatus } from '@kinergy-platform/core';
@@ -50,6 +50,7 @@ export const TransferAssetLocationDialog: React.FC<TransferAssetLocationDialogPr
 }) => {
   const { mutate: transferLocation, isPending } = useTransferAssetLocation();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const initialInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<TransferAssetLocationFormData>({
     resolver: zodResolver(transferAssetLocationSchema),
@@ -141,11 +142,24 @@ export const TransferAssetLocationDialog: React.FC<TransferAssetLocationDialogPr
         <DialogContent
           className="sm:max-w-[540px]"
           data-testid="transfer-asset-dialog"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            initialInputRef.current?.focus();
+          }}
           onPointerDownOutside={(e) => {
             if (isPending) e.preventDefault();
           }}
           onEscapeKeyDown={(e) => {
             if (isPending) e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              if (isPending) {
+                e.preventDefault();
+                return;
+              }
+              handleOpenChange(false);
+            }
           }}
         >
           <DialogHeader>
@@ -230,6 +244,12 @@ export const TransferAssetLocationDialog: React.FC<TransferAssetLocationDialogPr
                           <Input
                             placeholder="e.g. fac-west or Campus 2"
                             {...field}
+                            ref={(el) => {
+                              field.ref(el);
+                              (
+                                initialInputRef as React.MutableRefObject<HTMLInputElement | null>
+                              ).current = el;
+                            }}
                             data-testid="transfer-facility-input"
                           />
                         </FormControl>

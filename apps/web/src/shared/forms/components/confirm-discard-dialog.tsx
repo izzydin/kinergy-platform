@@ -79,6 +79,8 @@ export const ConfirmDiscardDialog: React.FC<ConfirmDiscardDialogProps> = ({
   confirmLabel = 'Discard changes',
   cancelLabel = 'Keep editing',
 }) => {
+  const cancelBtnRef = React.useRef<HTMLButtonElement>(null);
+
   return (
     <Dialog
       open={open}
@@ -87,16 +89,40 @@ export const ConfirmDiscardDialog: React.FC<ConfirmDiscardDialogProps> = ({
         if (!nextOpen) onCancel();
       }}
     >
-      <DialogContent className="sm:max-w-md" hideCloseButton>
+      <DialogContent
+        className="sm:max-w-md"
+        hideCloseButton
+        data-testid="confirm-discard-dialog"
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          cancelBtnRef.current?.focus();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            onCancel();
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={onCancel}>
+          <Button
+            ref={cancelBtnRef}
+            type="button"
+            variant="outline"
+            onClick={onCancel}
+            data-testid="confirm-discard-cancel-btn"
+          >
             {cancelLabel}
           </Button>
-          <Button type="button" variant="destructive" onClick={onConfirm}>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={onConfirm}
+            data-testid="confirm-discard-confirm-btn"
+          >
             {confirmLabel}
           </Button>
         </DialogFooter>

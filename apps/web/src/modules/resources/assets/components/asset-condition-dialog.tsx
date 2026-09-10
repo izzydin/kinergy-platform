@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AssetStatus, AssetCondition, ASSET_CONDITION_REGISTRY } from '@kinergy-platform/core';
@@ -50,6 +50,7 @@ export const UpdateAssetConditionDialog: React.FC<UpdateAssetConditionDialogProp
 }) => {
   const { mutate: updateCondition, isPending } = useUpdateAssetCondition();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const initialInputRef = useRef<HTMLSelectElement>(null);
 
   const form = useForm<UpdateAssetConditionFormData>({
     resolver: zodResolver(updateAssetConditionSchema),
@@ -133,11 +134,24 @@ export const UpdateAssetConditionDialog: React.FC<UpdateAssetConditionDialogProp
         <DialogContent
           className="sm:max-w-[520px]"
           data-testid="update-condition-dialog"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            initialInputRef.current?.focus();
+          }}
           onPointerDownOutside={(e) => {
             if (isPending) e.preventDefault();
           }}
           onEscapeKeyDown={(e) => {
             if (isPending) e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              if (isPending) {
+                e.preventDefault();
+                return;
+              }
+              handleOpenChange(false);
+            }
           }}
         >
           <DialogHeader>
@@ -239,6 +253,12 @@ export const UpdateAssetConditionDialog: React.FC<UpdateAssetConditionDialogProp
                         <select
                           className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                           {...field}
+                          ref={(el) => {
+                            field.ref(el);
+                            (
+                              initialInputRef as React.MutableRefObject<HTMLSelectElement | null>
+                            ).current = el;
+                          }}
                           data-testid="condition-select"
                         >
                           {Object.values(AssetCondition).map((cond) => (

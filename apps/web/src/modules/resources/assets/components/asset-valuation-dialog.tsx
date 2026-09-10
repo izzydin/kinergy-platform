@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AssetStatus } from '@kinergy-platform/core';
@@ -51,6 +51,7 @@ export const UpdateAssetValuationDialog: React.FC<UpdateAssetValuationDialogProp
   const { hasPermission, hasRole } = useAuth();
   const { mutate: updateValuation, isPending } = useUpdateAssetValuation();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const initialInputRef = useRef<HTMLInputElement>(null);
 
   // Dual-permission check (assets.write + billing.read/valuation.read)
   const isSuperAdmin = Boolean(hasRole('ADMIN') || hasRole('SUPER_ADMIN') || hasRole('OWNER'));
@@ -137,11 +138,24 @@ export const UpdateAssetValuationDialog: React.FC<UpdateAssetValuationDialogProp
         <DialogContent
           className="sm:max-w-[500px]"
           data-testid="update-valuation-dialog"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            initialInputRef.current?.focus();
+          }}
           onPointerDownOutside={(e) => {
             if (isPending) e.preventDefault();
           }}
           onEscapeKeyDown={(e) => {
             if (isPending) e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              if (isPending) {
+                e.preventDefault();
+                return;
+              }
+              handleOpenChange(false);
+            }
           }}
         >
           <DialogHeader>
@@ -255,6 +269,12 @@ export const UpdateAssetValuationDialog: React.FC<UpdateAssetValuationDialogProp
                           min="0"
                           placeholder="0.00"
                           {...field}
+                          ref={(el) => {
+                            field.ref(el);
+                            (
+                              initialInputRef as React.MutableRefObject<HTMLInputElement | null>
+                            ).current = el;
+                          }}
                           value={field.value ?? ''}
                           onChange={(e) => {
                             const val = e.target.value;

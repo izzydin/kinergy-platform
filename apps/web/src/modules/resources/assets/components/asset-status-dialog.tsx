@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AssetStatus, AssetCondition, AssetLifecycleStateMachine } from '@kinergy-platform/core';
@@ -86,6 +86,7 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
   const [pendingRetireData, setPendingRetireData] = useState<ChangeAssetStatusFormData | null>(
     null,
   );
+  const initialInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ChangeAssetStatusFormData>({
     resolver: zodResolver(changeAssetStatusSchema),
@@ -212,11 +213,24 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
         <DialogContent
           className="sm:max-w-[540px]"
           data-testid="change-status-dialog"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            initialInputRef.current?.focus();
+          }}
           onPointerDownOutside={(e) => {
             if (isPending) e.preventDefault();
           }}
           onEscapeKeyDown={(e) => {
             if (isPending) e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              if (isPending) {
+                e.preventDefault();
+                return;
+              }
+              handleOpenChange(false);
+            }
           }}
         >
           <DialogHeader>
@@ -387,6 +401,12 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
                         <Input
                           placeholder="e.g. Belt slipped during workout; removed from floor for inspection"
                           {...field}
+                          ref={(el) => {
+                            field.ref(el);
+                            (
+                              initialInputRef as React.MutableRefObject<HTMLInputElement | null>
+                            ).current = el;
+                          }}
                           data-testid="status-reason-input"
                         />
                       </FormControl>

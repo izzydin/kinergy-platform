@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AssetStatus, AssetCondition, ASSET_CONDITION_REGISTRY } from '@kinergy-platform/core';
@@ -50,6 +50,7 @@ export const RecordAssetMaintenanceDialog: React.FC<RecordAssetMaintenanceDialog
 }) => {
   const { mutate: recordMaintenance, isPending } = useRecordAssetMaintenance();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const initialInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<RecordAssetMaintenanceFormData>({
     resolver: zodResolver(recordAssetMaintenanceSchema),
@@ -144,11 +145,24 @@ export const RecordAssetMaintenanceDialog: React.FC<RecordAssetMaintenanceDialog
         <DialogContent
           className="sm:max-w-[560px]"
           data-testid="record-maintenance-dialog"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            initialInputRef.current?.focus();
+          }}
           onPointerDownOutside={(e) => {
             if (isPending) e.preventDefault();
           }}
           onEscapeKeyDown={(e) => {
             if (isPending) e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              if (isPending) {
+                e.preventDefault();
+                return;
+              }
+              handleOpenChange(false);
+            }
           }}
         >
           <DialogHeader>
@@ -280,6 +294,12 @@ export const RecordAssetMaintenanceDialog: React.FC<RecordAssetMaintenanceDialog
                         <Input
                           placeholder="e.g. Replaced drive belt and recalibrated electronic speed sensors"
                           {...field}
+                          ref={(el) => {
+                            field.ref(el);
+                            (
+                              initialInputRef as React.MutableRefObject<HTMLInputElement | null>
+                            ).current = el;
+                          }}
                           data-testid="maintenance-desc-input"
                         />
                       </FormControl>

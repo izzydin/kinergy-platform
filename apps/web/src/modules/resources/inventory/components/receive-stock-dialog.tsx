@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
@@ -36,6 +36,7 @@ export interface ReceiveStockDialogProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
   readonly onSuccess?: () => void;
+  readonly triggerRef?: React.RefObject<HTMLElement | null>;
 }
 
 export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
@@ -43,9 +44,11 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
   open,
   onOpenChange,
   onSuccess,
+  triggerRef,
 }) => {
   const { mutate: receiveStock, isPending } = useReceiveStock();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const initialInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ReceiveStockFormData>({
     resolver: zodResolver(receiveStockSchema),
@@ -125,11 +128,30 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
         <DialogContent
           className="max-w-md"
           data-testid="receive-stock-dialog"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            initialInputRef.current?.focus();
+          }}
+          onCloseAutoFocus={(e) => {
+            if (triggerRef?.current) {
+              e.preventDefault();
+              triggerRef.current.focus();
+            }
+          }}
           onPointerDownOutside={(e) => {
             if (isPending) e.preventDefault();
           }}
           onEscapeKeyDown={(e) => {
             if (isPending) e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              if (isPending) {
+                e.preventDefault();
+                return;
+              }
+              handleOpenChange(false);
+            }
           }}
         >
           <DialogHeader>
@@ -181,7 +203,14 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
                           min="1"
                           step="1"
                           placeholder="10"
+                          data-testid="receive-stock-quantity-input"
                           {...field}
+                          ref={(el) => {
+                            field.ref(el);
+                            (
+                              initialInputRef as React.MutableRefObject<HTMLInputElement | null>
+                            ).current = el;
+                          }}
                           onChange={(e) => field.onChange(parseInt(e.target.value, 10) || '')}
                         />
                       </FormControl>
@@ -259,7 +288,12 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isPending} className="gap-1.5">
+                <Button
+                  type="submit"
+                  disabled={isPending}
+                  className="gap-1.5"
+                  data-testid="receive-stock-submit-btn"
+                >
                   <PackagePlus className="h-4 w-4" />
                   {isPending ? 'Recording...' : 'Record Receipt'}
                 </Button>

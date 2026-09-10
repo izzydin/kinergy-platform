@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
@@ -49,6 +49,7 @@ export const ConsumeStockDialog: React.FC<ConsumeStockDialogProps> = ({
   const queryClient = useQueryClient();
   const { mutate: consumeStock, isPending } = useConsumeStock();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const initialInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<ConsumeStockFormData>({
     resolver: zodResolver(consumeStockSchema),
@@ -133,11 +134,24 @@ export const ConsumeStockDialog: React.FC<ConsumeStockDialogProps> = ({
         <DialogContent
           className="max-w-md"
           data-testid="consume-stock-dialog"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            initialInputRef.current?.focus();
+          }}
           onPointerDownOutside={(e) => {
             if (isPending) e.preventDefault();
           }}
           onEscapeKeyDown={(e) => {
             if (isPending) e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              if (isPending) {
+                e.preventDefault();
+                return;
+              }
+              handleOpenChange(false);
+            }
           }}
         >
           <DialogHeader>
@@ -188,7 +202,14 @@ export const ConsumeStockDialog: React.FC<ConsumeStockDialogProps> = ({
                         min="1"
                         step="1"
                         placeholder="1"
+                        data-testid="consume-stock-quantity-input"
                         {...field}
+                        ref={(el) => {
+                          field.ref(el);
+                          (
+                            initialInputRef as React.MutableRefObject<HTMLInputElement | null>
+                          ).current = el;
+                        }}
                         onChange={(e) => field.onChange(parseInt(e.target.value, 10) || '')}
                       />
                     </FormControl>
@@ -240,7 +261,12 @@ export const ConsumeStockDialog: React.FC<ConsumeStockDialogProps> = ({
                 >
                   Cancel
                 </Button>
-                <Button type="submit" disabled={isPending} className="gap-1.5">
+                <Button
+                  type="submit"
+                  disabled={isPending}
+                  className="gap-1.5"
+                  data-testid="consume-stock-submit-btn"
+                >
                   <Stethoscope className="h-4 w-4" />
                   {isPending ? 'Recording...' : 'Record Consumption'}
                 </Button>

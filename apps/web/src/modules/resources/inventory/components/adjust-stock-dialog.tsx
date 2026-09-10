@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQueryClient } from '@tanstack/react-query';
@@ -50,6 +50,7 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
   const { mutate: adjustStock, isPending } = useAdjustStock();
   const [direction, setDirection] = useState<'IN' | 'OUT'>('IN');
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
+  const initialInputRef = useRef<HTMLInputElement>(null);
 
   const form = useForm<AdjustStockFormData>({
     resolver: zodResolver(adjustStockSchema),
@@ -146,11 +147,24 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
         <DialogContent
           className="max-w-md"
           data-testid="adjust-stock-dialog"
+          onOpenAutoFocus={(e) => {
+            e.preventDefault();
+            initialInputRef.current?.focus();
+          }}
           onPointerDownOutside={(e) => {
             if (isPending) e.preventDefault();
           }}
           onEscapeKeyDown={(e) => {
             if (isPending) e.preventDefault();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              if (isPending) {
+                e.preventDefault();
+                return;
+              }
+              handleOpenChange(false);
+            }
           }}
         >
           <DialogHeader>
@@ -270,7 +284,14 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
                         type="number"
                         step="1"
                         placeholder="e.g. -2 or +5"
+                        data-testid="adjust-stock-delta-input"
                         {...field}
+                        ref={(el) => {
+                          field.ref(el);
+                          (
+                            initialInputRef as React.MutableRefObject<HTMLInputElement | null>
+                          ).current = el;
+                        }}
                         onChange={(e) => {
                           const raw = parseInt(e.target.value, 10);
                           if (Number.isNaN(raw)) {
@@ -328,6 +349,7 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
                   type="submit"
                   disabled={isPending || projectedStock < 0}
                   className="gap-1.5"
+                  data-testid="adjust-stock-submit-btn"
                 >
                   <Scale className="h-4 w-4" />
                   {isPending ? 'Adjusting...' : 'Record Adjustment'}
