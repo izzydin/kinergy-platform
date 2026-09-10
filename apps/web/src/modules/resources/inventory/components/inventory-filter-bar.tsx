@@ -1,6 +1,7 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@kinergy-platform/ui';
-import { PackagePlus, RefreshCw, RotateCcw } from 'lucide-react';
+import { PackagePlus, RefreshCw, RotateCcw, LayoutDashboard } from 'lucide-react';
 import { HasPermission } from '../../../../app/routes/permission-guard';
 import {
   DataTableSearch,
@@ -124,14 +125,22 @@ export const InventoryFilterBar: React.FC<InventoryFilterBarProps> = ({
         )}
       </div>
 
-      {/* Primary Action Button */}
-      {onRegisterClick && (
-        <HasPermission name="inventory.write">
-          <Button variant="default" size="sm" onClick={onRegisterClick}>
-            <PackagePlus className="mr-1.5 h-4 w-4" /> Register Product
-          </Button>
-        </HasPermission>
-      )}
+      {/* Primary and Secondary Action Links */}
+      <div className="flex items-center gap-2">
+        <Button asChild variant="outline" size="sm" className="h-8 text-xs">
+          <Link to="/resources/inventory/overview">
+            <LayoutDashboard className="mr-1.5 h-3.5 w-3.5" /> Overview Hub
+          </Link>
+        </Button>
+
+        {onRegisterClick && (
+          <HasPermission name="inventory.write">
+            <Button variant="default" size="sm" className="h-8 text-xs" onClick={onRegisterClick}>
+              <PackagePlus className="mr-1.5 h-3.5 w-3.5" /> Register Product
+            </Button>
+          </HasPermission>
+        )}
+      </div>
     </div>
   );
 };

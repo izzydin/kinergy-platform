@@ -117,7 +117,7 @@ export const InventoryEditPage: React.FC = () => {
           <Badge variant="outline" className="font-mono text-xs">
             {product.sku}
           </Badge>
-          <Badge variant="secondary">Milestone 6.12 Edit</Badge>
+          <Badge variant="secondary">Product Metadata</Badge>
         </div>
       </div>
 

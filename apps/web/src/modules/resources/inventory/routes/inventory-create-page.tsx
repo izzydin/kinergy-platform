@@ -35,7 +35,7 @@ export const InventoryCreatePage: React.FC = () => {
             <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to Catalog
           </Link>
         </Button>
-        <Badge variant="outline">Milestone 6.12 Form</Badge>
+        <Badge variant="outline">Product Registration</Badge>
       </div>
 
       {/* 2. Page Title Block */}
