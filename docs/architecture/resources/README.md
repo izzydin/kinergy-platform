@@ -91,6 +91,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Milestone 6.12 Quality Gate](./milestone-6.12-quality-gate.md)**                                   | Formal Architecture Review Board evaluation for Consumable Inventory Frontend                                         | **Approved (100%)**   |
 | **[Milestone 6.13 Quality Gate](./milestone-6.13-quality-gate.md)**                                   | Formal Architecture Review Board evaluation for Fixed Asset Frontend                                                  | **Approved (100%)**   |
 | **[Milestone 6.14 Quality Gate](./milestone-6.14-quality-gate.md)**                                   | Formal Architecture Review Board evaluation for Resource Overview Dashboard                                           | **Approved (100%)**   |
+| **[Milestone 6.15 Quality Gate](./milestone-6.15-quality-gate.md)**                                   | Formal Architecture Review Board evaluation for Phase 6 Frontend Hardening, Accessibility & Interaction Standards     | **Approved (100%)**   |
 
 ---
 
@@ -122,19 +123,20 @@ Architectural Decision Records governing Phase 6:
 | **[ADR-0100](./adr/0100-frontend-resources-feature-module-boundaries.md)**                                          | Frontend Resources Feature-Module Boundaries & Encapsulation                         | Accepted | 2026-09-02 |
 | **[ADR-0101](./adr/0101-frontend-low-stock-operational-attention-architecture.md)**                                 | Frontend Low-Stock Operational Attention Architecture                                | Accepted | 2026-09-03 |
 | **[ADR-0102](./adr/0102-resource-overview-synthesized-read-query-architecture.md)**                                 | Resource Overview Synthesized Read-Query Architecture & Executive Cockpit            | Accepted | 2026-09-06 |
+| **[ADR-0103](./adr/0103-frontend-modal-interaction-and-safe-focus-policy.md)**                                      | Frontend Modal Interaction Hardening, Safe-by-Default Focus Policy & Invariants      | Accepted | 2026-09-10 |
 
 ---
 
 ## 6. Status of the Architectural Baseline
 
-- **Current Milestone**: Phase 6.14 — Resource Overview Dashboard.
-- **Status**: **ACTIVE & APPROVED — RESOURCE OVERVIEW COMPLETE**.
-- **Next Step**: Phase 6 Complete Architectural Retrospective and Cross-Domain Integrations.
+- **Current Milestone**: Phase 6.15 — Frontend Hardening, Accessibility & UX Quality Gate.
+- **Status**: **ACTIVE & APPROVED — PHASE 6 COMPLETE**.
+- **Next Step**: Phase 7 Integration and Cross-Domain Architecture.
 
 > [!NOTE]
 >
 > ### ARCHITECTURAL GOVERNANCE STATUS
 >
-> **The Resource Overview Dashboard (Milestone 6.14) has been verified and approved by the Architecture Review Board.**
+> **The Resources Management Subsystem (Phase 6) has achieved full architectural sign-off and is approved by the Architecture Review Board.**
 >
-> The full vertical stack across domain core, application orchestration, HTTP adapter, and executive frontend meets all quality gates and invariants.
+> The complete vertical stack across Domain-Driven Design core, PostgreSQL persistence, NestJS controllers, and hardened, accessible React/Vite frontend meets all quality gates and invariants.
