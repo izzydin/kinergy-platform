@@ -184,6 +184,7 @@ export const AssetMaintenancePage: React.FC = () => {
                 <Filter className="h-4 w-4 text-muted-foreground" />
                 <Input
                   placeholder="Filter by technician or vendor..."
+                  aria-label="Filter maintenance records by technician or vendor"
                   value={performedByFilter}
                   onChange={(e) => setPerformedByFilter(e.target.value)}
                   className="h-9 text-xs"
@@ -220,13 +221,19 @@ export const AssetMaintenancePage: React.FC = () => {
 
             <CardContent className="p-0">
               {isMaintenanceLoading ? (
-                <div className="p-6 space-y-4" data-testid="ledger-loading">
+                <div
+                  className="p-6 space-y-4"
+                  data-testid="ledger-loading"
+                  role="status"
+                  aria-busy="true"
+                >
+                  <span className="sr-only">Loading servicing ledger records...</span>
                   <Skeleton className="h-16 w-full" />
                   <Skeleton className="h-16 w-full" />
                   <Skeleton className="h-16 w-full" />
                 </div>
               ) : maintenanceError ? (
-                <div className="p-6 text-center space-y-3" data-testid="ledger-error">
+                <div className="p-6 text-center space-y-3" data-testid="ledger-error" role="alert">
                   <AlertCircle className="mx-auto h-8 w-8 text-destructive" />
                   <p className="text-sm font-semibold text-foreground">
                     Failed to load servicing ledger
@@ -357,9 +364,10 @@ export const AssetMaintenancePage: React.FC = () => {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div
+              <nav
                 className="p-3 border-t border-border bg-muted/20 flex items-center justify-between text-xs text-muted-foreground"
                 data-testid="maintenance-pagination"
+                aria-label="Maintenance ledger pagination"
               >
                 <span>
                   Page <strong>{page}</strong> of <strong>{totalPages}</strong> ({totalRecords}{' '}
@@ -372,6 +380,7 @@ export const AssetMaintenancePage: React.FC = () => {
                     onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page <= 1}
                     data-testid="maintenance-prev-page-btn"
+                    aria-label="Go to previous page"
                   >
                     Previous
                   </Button>
@@ -381,11 +390,12 @@ export const AssetMaintenancePage: React.FC = () => {
                     onClick={() => setPage(Math.min(totalPages, page + 1))}
                     disabled={page >= totalPages}
                     data-testid="maintenance-next-page-btn"
+                    aria-label="Go to next page"
                   >
                     Next
                   </Button>
                 </div>
-              </div>
+              </nav>
             )}
           </Card>
 

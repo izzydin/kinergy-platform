@@ -114,7 +114,13 @@ export const AssetHistoryPage: React.FC = () => {
 
       {/* Asset Loading / Error Handlers */}
       {isAssetLoading && (
-        <div className="space-y-6" data-testid="history-page-asset-loading">
+        <div
+          className="space-y-6"
+          data-testid="history-page-asset-loading"
+          role="status"
+          aria-busy="true"
+        >
+          <span className="sr-only">Loading asset lifecycle details...</span>
           <Skeleton className="h-24 w-full" />
           <Skeleton className="h-64 w-full" />
         </div>
@@ -122,15 +128,15 @@ export const AssetHistoryPage: React.FC = () => {
 
       {(assetError || (!asset && !isAssetLoading)) && (
         <div className="space-y-4">
-          <Alert variant="destructive" data-testid="history-page-error">
-            <AlertCircle className="h-4 w-4" />
+          <Alert variant="destructive" data-testid="history-page-error" role="alert">
+            <AlertCircle className="h-4 w-4" aria-hidden="true" />
             <AlertTitle>Asset Not Found</AlertTitle>
             <AlertDescription>
               Could not retrieve equipment data for ID &apos;{id}&apos;.
             </AlertDescription>
           </Alert>
           <Button onClick={() => refetchAsset()} variant="outline" size="sm">
-            <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Retry
+            <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Retry
           </Button>
         </div>
       )}
@@ -178,7 +184,7 @@ export const AssetHistoryPage: React.FC = () => {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <Filter className="h-4 w-4 text-muted-foreground" />
+                  <Filter className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   <select
                     value={selectedEventType ?? ''}
                     onChange={(e) =>
@@ -188,6 +194,7 @@ export const AssetHistoryPage: React.FC = () => {
                     }
                     className="h-9 rounded-md border border-input bg-background px-3 py-1 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
                     data-testid="event-type-filter-select"
+                    aria-label="Filter lifecycle events by event type"
                   >
                     <option value="">All Lifecycle Event Types</option>
                     <option value={AssetHistoryEventType.CREATED}>Initial Commissioning</option>
@@ -214,8 +221,9 @@ export const AssetHistoryPage: React.FC = () => {
                   onClick={() => setSortOrder(sortOrder === 'desc' ? 'asc' : 'desc')}
                   className="h-9 text-xs"
                   data-testid="toggle-sort-order-btn"
+                  aria-label={`Sort lifecycle events, currently ${sortOrder === 'desc' ? 'newest first' : 'oldest first'}`}
                 >
-                  <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" />
+                  <ArrowUpDown className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" />
                   {sortOrder === 'desc' ? 'Newest First' : 'Oldest First'}
                 </Button>
 
@@ -359,9 +367,10 @@ export const AssetHistoryPage: React.FC = () => {
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
-              <div
+              <nav
                 className="p-3 border-t border-border bg-muted/20 flex items-center justify-between text-xs text-muted-foreground"
                 data-testid="history-pagination"
+                aria-label="Lifecycle history pagination"
               >
                 <span>
                   Page <strong>{page}</strong> of <strong>{totalPages}</strong> ({totalRecords}{' '}
@@ -374,6 +383,7 @@ export const AssetHistoryPage: React.FC = () => {
                     onClick={() => setPage(Math.max(1, page - 1))}
                     disabled={page <= 1}
                     data-testid="history-prev-page-btn"
+                    aria-label="Go to previous page"
                   >
                     Previous
                   </Button>
@@ -383,11 +393,12 @@ export const AssetHistoryPage: React.FC = () => {
                     onClick={() => setPage(Math.min(totalPages, page + 1))}
                     disabled={page >= totalPages}
                     data-testid="history-next-page-btn"
+                    aria-label="Go to next page"
                   >
                     Next
                   </Button>
                 </div>
-              </div>
+              </nav>
             )}
           </Card>
         </>

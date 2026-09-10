@@ -167,10 +167,18 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
 
           {/* Direction Selector: Explicit In vs Out */}
           <div className="space-y-1.5 pt-1">
-            <span className="text-xs font-semibold text-foreground block">
+            <span
+              id="adjustment-direction-label"
+              className="text-xs font-semibold text-foreground block"
+            >
               Adjustment Direction
             </span>
-            <div className="grid grid-cols-2 gap-2" data-testid="adjustment-direction-selector">
+            <div
+              className="grid grid-cols-2 gap-2"
+              data-testid="adjustment-direction-selector"
+              role="group"
+              aria-labelledby="adjustment-direction-label"
+            >
               <Button
                 type="button"
                 variant={direction === 'IN' ? 'default' : 'outline'}
@@ -178,8 +186,9 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
                 className="gap-1.5 text-xs h-9 justify-center"
                 onClick={() => handleDirectionChange('IN')}
                 data-testid="direction-in-btn"
+                aria-pressed={direction === 'IN'}
               >
-                <ArrowUpRight className="h-3.5 w-3.5" />
+                <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
                 Adjustment In (+)
               </Button>
               <Button
@@ -189,8 +198,9 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
                 className="gap-1.5 text-xs h-9 justify-center"
                 onClick={() => handleDirectionChange('OUT')}
                 data-testid="direction-out-btn"
+                aria-pressed={direction === 'OUT'}
               >
-                <ArrowDownRight className="h-3.5 w-3.5" />
+                <ArrowDownRight className="h-3.5 w-3.5" aria-hidden="true" />
                 Adjustment Out (-)
               </Button>
             </div>

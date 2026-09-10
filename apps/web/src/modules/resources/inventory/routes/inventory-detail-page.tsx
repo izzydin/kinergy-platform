@@ -118,7 +118,13 @@ export const InventoryDetailPage: React.FC = () => {
   // 1. Loading State
   if (isLoading) {
     return (
-      <div className="space-y-6 max-w-5xl mx-auto" data-testid="inventory-detail-loading">
+      <div
+        className="space-y-6 max-w-5xl mx-auto"
+        data-testid="inventory-detail-loading"
+        role="status"
+        aria-busy="true"
+      >
+        <span className="sr-only">Loading product details...</span>
         <div className="flex items-center justify-between">
           <Skeleton className="h-8 w-32" />
           <Skeleton className="h-8 w-48" />
@@ -138,14 +144,14 @@ export const InventoryDetailPage: React.FC = () => {
       <div className="space-y-6 max-w-5xl mx-auto" data-testid="inventory-detail-error">
         <Button asChild variant="ghost" size="sm">
           <Link to="/resources/inventory">
-            <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to Catalog
+            <ArrowLeft className="mr-1.5 h-4 w-4" aria-hidden="true" /> Back to Catalog
           </Link>
         </Button>
 
-        <Card className="border-destructive/30 bg-destructive/5 text-center p-8">
+        <Card className="border-destructive/30 bg-destructive/5 text-center p-8" role="alert">
           <CardContent className="space-y-4">
             <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
-              <AlertCircle className="h-6 w-6" />
+              <AlertCircle className="h-6 w-6" aria-hidden="true" />
             </div>
             <div className="space-y-1">
               <h2 className="text-xl font-bold tracking-tight text-foreground">
@@ -341,7 +347,9 @@ export const InventoryDetailPage: React.FC = () => {
           data-testid="status-out-of-stock-alert"
         >
           <AlertCircle className="h-5 w-5 text-destructive" />
-          <AlertTitle className="font-semibold text-sm">Zero Physical Stock Available</AlertTitle>
+          <AlertTitle as="h2" className="font-semibold text-sm">
+            Zero Physical Stock Available
+          </AlertTitle>
           <AlertDescription className="text-xs mt-1 leading-relaxed">
             This consumable product is completely depleted on hand. Point-of-sale sales and
             treatment usages are blocked until replenishment receipt is recorded.
@@ -355,7 +363,9 @@ export const InventoryDetailPage: React.FC = () => {
           data-testid="status-low-stock-alert"
         >
           <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-          <AlertTitle className="font-semibold text-sm">Low Stock Alert</AlertTitle>
+          <AlertTitle as="h2" className="font-semibold text-sm">
+            Low Stock Alert
+          </AlertTitle>
           <AlertDescription className="text-xs mt-1 leading-relaxed">
             Current balance of {product.currentStock} {product.unitOfMeasure} is at or below the
             minimum reorder threshold of {product.reorderThreshold} {product.unitOfMeasure}.

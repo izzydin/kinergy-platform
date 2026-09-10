@@ -253,13 +253,13 @@ describe('AssetDetailPage (Equipment Cockpit Experience)', () => {
     expect(screen.getByText('Directly under air conditioning vent')).toBeInTheDocument();
 
     // Switch to Maintenance tab
-    fireEvent.click(screen.getByRole('button', { name: /Maintenance & Servicing/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Maintenance & Servicing/i }));
     expect(await screen.findByTestId('tab-maintenance')).toBeInTheDocument();
     expect(await screen.findByText('Periodic drive belt tension adjustment')).toBeInTheDocument();
     expect(screen.getByText(/Kinergy Maintenance Services/i)).toBeInTheDocument();
 
     // Switch to History tab
-    fireEvent.click(screen.getByRole('button', { name: /Lifecycle Audit Ledger/i }));
+    fireEvent.click(screen.getByRole('tab', { name: /Lifecycle Audit Ledger/i }));
     expect(await screen.findByTestId('tab-history')).toBeInTheDocument();
     expect(await screen.findByText('Asset commissioned into active inventory')).toBeInTheDocument();
     expect(screen.getByText('Relocated from Warehouse to Cardio Studio A')).toBeInTheDocument();

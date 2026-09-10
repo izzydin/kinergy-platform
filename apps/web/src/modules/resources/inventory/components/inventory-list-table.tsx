@@ -304,10 +304,11 @@ export const InventoryListTable: React.FC<InventoryListTableProps> = ({
       emptyAction={
         !isFiltered && canWrite && onCreateClick ? (
           <Button variant="default" size="sm" onClick={onCreateClick}>
-            <PackagePlus className="mr-1.5 h-4 w-4" /> Register First Product
+            <PackagePlus className="mr-1.5 h-4 w-4" aria-hidden="true" /> Register First Product
           </Button>
         ) : undefined
       }
+      ariaLabel="Consumable inventory products"
     />
   );
 };

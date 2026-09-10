@@ -328,7 +328,12 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
                       <FormLabel required>Valid Target Operational Status</FormLabel>
                       <FormControl>
                         {allowedTransitions.length > 0 ? (
-                          <div className="space-y-2" data-testid="allowed-status-options">
+                          <div
+                            className="space-y-2"
+                            data-testid="allowed-status-options"
+                            role="radiogroup"
+                            aria-label="Valid target operational status"
+                          >
                             {allowedTransitions.map((opt) => (
                               <label
                                 key={opt.value}

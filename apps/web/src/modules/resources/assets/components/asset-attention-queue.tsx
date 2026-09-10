@@ -73,7 +73,13 @@ export const AssetAttentionQueue: React.FC<AssetAttentionQueueProps> = ({
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="space-y-3" data-testid="attention-queue-loading">
+          <div
+            className="space-y-3"
+            data-testid="attention-queue-loading"
+            role="status"
+            aria-busy="true"
+          >
+            <span className="sr-only">Loading equipment attention queue...</span>
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
@@ -82,8 +88,9 @@ export const AssetAttentionQueue: React.FC<AssetAttentionQueueProps> = ({
           <div
             className="flex flex-col items-center justify-center p-6 text-center space-y-3"
             data-testid="attention-queue-error"
+            role="alert"
           >
-            <AlertCircle className="h-8 w-8 text-destructive" />
+            <AlertCircle className="h-8 w-8 text-destructive" aria-hidden="true" />
             <div className="space-y-1">
               <p className="font-semibold text-foreground">Failed to load attention queue</p>
               <p className="text-sm text-muted-foreground">
@@ -105,8 +112,12 @@ export const AssetAttentionQueue: React.FC<AssetAttentionQueueProps> = ({
           <div
             className="flex flex-col items-center justify-center p-8 text-center space-y-3 bg-muted/20 rounded-lg border border-dashed border-border"
             data-testid="attention-queue-empty"
+            role="status"
           >
-            <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+            <CheckCircle2
+              className="h-10 w-10 text-emerald-600 dark:text-emerald-400"
+              aria-hidden="true"
+            />
             <div className="space-y-1">
               <p className="font-semibold text-foreground">All Equipment Operational</p>
               <p className="text-sm text-muted-foreground">
@@ -119,15 +130,31 @@ export const AssetAttentionQueue: React.FC<AssetAttentionQueueProps> = ({
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm" data-testid="attention-queue-table">
+            <table
+              className="w-full text-left text-sm"
+              data-testid="attention-queue-table"
+              aria-label="Assets requiring maintenance or repair attention"
+            >
               <thead className="border-b border-border bg-muted/40 text-xs font-semibold text-muted-foreground uppercase">
                 <tr>
-                  <th className="py-3 px-4">Asset Tag / Name</th>
-                  <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4">Location</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4">Condition</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th scope="col" className="py-3 px-4">
+                    Asset Tag / Name
+                  </th>
+                  <th scope="col" className="py-3 px-4">
+                    Category
+                  </th>
+                  <th scope="col" className="py-3 px-4">
+                    Location
+                  </th>
+                  <th scope="col" className="py-3 px-4">
+                    Status
+                  </th>
+                  <th scope="col" className="py-3 px-4">
+                    Condition
+                  </th>
+                  <th scope="col" className="py-3 px-4 text-right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

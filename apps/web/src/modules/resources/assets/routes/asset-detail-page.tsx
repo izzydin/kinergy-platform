@@ -255,7 +255,13 @@ export const AssetDetailPage: React.FC = () => {
 
       {/* 2. Loading State */}
       {isLoading && (
-        <div className="space-y-6" data-testid="asset-detail-loading">
+        <div
+          className="space-y-6"
+          data-testid="asset-detail-loading"
+          role="status"
+          aria-busy="true"
+        >
+          <span className="sr-only">Loading asset details...</span>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Skeleton className="h-28 w-full" />
             <Skeleton className="h-28 w-full" />
@@ -271,6 +277,7 @@ export const AssetDetailPage: React.FC = () => {
         <Card
           className="border-destructive/30 bg-destructive/5 text-center p-8"
           data-testid="asset-detail-error"
+          role="alert"
         >
           <CardContent className="space-y-4">
             <div className="mx-auto w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive">
@@ -307,7 +314,7 @@ export const AssetDetailPage: React.FC = () => {
               data-testid="terminal-asset-alert"
             >
               <AlertTriangle className="h-5 w-5" />
-              <AlertTitle className="font-semibold tracking-tight">
+              <AlertTitle as="h2" className="font-semibold tracking-tight">
                 Terminal Lifecycle State ({asset.status})
               </AlertTitle>
               <AlertDescription className="text-sm mt-1">
@@ -422,33 +429,56 @@ export const AssetDetailPage: React.FC = () => {
           </div>
 
           {/* Tab Navigation Controls */}
-          <div className="flex items-center gap-2 border-b border-border pb-2">
+          <div
+            className="flex items-center gap-2 border-b border-border pb-2"
+            role="tablist"
+            aria-label="Asset detail sections"
+          >
             <Button
+              id="asset-tab-overview"
+              role="tab"
+              aria-selected={activeTab === 'overview'}
+              aria-controls="asset-panel-overview"
               variant={activeTab === 'overview' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setActiveTab('overview')}
             >
-              <FileText className="mr-1.5 h-4 w-4" /> Specifications & Placement
+              <FileText className="mr-1.5 h-4 w-4" aria-hidden="true" /> Specifications & Placement
             </Button>
             <Button
+              id="asset-tab-maintenance"
+              role="tab"
+              aria-selected={activeTab === 'maintenance'}
+              aria-controls="asset-panel-maintenance"
               variant={activeTab === 'maintenance' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setActiveTab('maintenance')}
             >
-              <Wrench className="mr-1.5 h-4 w-4" /> Maintenance & Servicing
+              <Wrench className="mr-1.5 h-4 w-4" aria-hidden="true" /> Maintenance & Servicing
             </Button>
             <Button
+              id="asset-tab-history"
+              role="tab"
+              aria-selected={activeTab === 'history'}
+              aria-controls="asset-panel-history"
               variant={activeTab === 'history' ? 'default' : 'ghost'}
               size="sm"
               onClick={() => setActiveTab('history')}
             >
-              <History className="mr-1.5 h-4 w-4" /> Lifecycle Audit Ledger
+              <History className="mr-1.5 h-4 w-4" aria-hidden="true" /> Lifecycle Audit Ledger
             </Button>
           </div>
 
           {/* Tab 1: Specifications & Placement */}
           {activeTab === 'overview' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6" data-testid="tab-overview">
+            <div
+              id="asset-panel-overview"
+              role="tabpanel"
+              aria-labelledby="asset-tab-overview"
+              tabIndex={0}
+              className="grid grid-cols-1 md:grid-cols-2 gap-6 focus-visible:outline-none"
+              data-testid="tab-overview"
+            >
               {/* Hardware Specifications Card */}
               <Card className="border-border bg-card">
                 <CardHeader className="p-5 pb-3">
@@ -575,12 +605,20 @@ export const AssetDetailPage: React.FC = () => {
 
           {/* Tab 2: Servicing & Maintenance Work Orders */}
           {activeTab === 'maintenance' && (
-            <Card className="border-border bg-card" data-testid="tab-maintenance">
+            <Card
+              id="asset-panel-maintenance"
+              role="tabpanel"
+              aria-labelledby="asset-tab-maintenance"
+              tabIndex={0}
+              className="border-border bg-card focus-visible:outline-none"
+              data-testid="tab-maintenance"
+            >
               <CardHeader className="p-5 pb-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-base font-semibold flex items-center gap-2">
-                      <Wrench className="h-4 w-4 text-primary" /> Recent Maintenance & Work Orders
+                      <Wrench className="h-4 w-4 text-primary" aria-hidden="true" /> Recent
+                      Maintenance & Work Orders
                     </CardTitle>
                     <CardDescription className="text-xs mt-0.5">
                       Servicing records, component repairs, and technician work orders.
@@ -588,7 +626,7 @@ export const AssetDetailPage: React.FC = () => {
                   </div>
                   {canWrite && !isDecommissioned && (
                     <Button size="sm" onClick={() => setMaintenanceDialogOpen(true)}>
-                      <Wrench className="mr-1.5 h-3.5 w-3.5" /> Log Service
+                      <Wrench className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Log Service
                     </Button>
                   )}
                 </div>
@@ -601,10 +639,18 @@ export const AssetDetailPage: React.FC = () => {
 
           {/* Tab 3: Lifecycle Audit History */}
           {activeTab === 'history' && (
-            <Card className="border-border bg-card" data-testid="tab-history">
+            <Card
+              id="asset-panel-history"
+              role="tabpanel"
+              aria-labelledby="asset-tab-history"
+              tabIndex={0}
+              className="border-border bg-card focus-visible:outline-none"
+              data-testid="tab-history"
+            >
               <CardHeader className="p-5 pb-3">
                 <CardTitle className="text-base font-semibold flex items-center gap-2">
-                  <History className="h-4 w-4 text-primary" /> Chronological Lifecycle Ledger
+                  <History className="h-4 w-4 text-primary" aria-hidden="true" /> Chronological
+                  Lifecycle Ledger
                 </CardTitle>
                 <CardDescription className="text-xs mt-0.5">
                   Immutable audit trail tracking state transitions, location changes, and

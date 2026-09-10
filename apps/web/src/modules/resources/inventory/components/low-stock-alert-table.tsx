@@ -48,14 +48,18 @@ export const LowStockAlertTable: React.FC<LowStockAlertTableProps> = ({ onReceiv
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="space-y-3">
+          <div className="space-y-3" role="status" aria-busy="true">
+            <span className="sr-only">Loading low-stock attention queue...</span>
             <Skeleton className="h-10 w-full" />
             <Skeleton className="h-12 w-full" />
             <Skeleton className="h-12 w-full" />
           </div>
         ) : isError ? (
-          <div className="flex flex-col items-center justify-center p-6 text-center space-y-3">
-            <AlertCircle className="h-8 w-8 text-destructive" />
+          <div
+            className="flex flex-col items-center justify-center p-6 text-center space-y-3"
+            role="alert"
+          >
+            <AlertCircle className="h-8 w-8 text-destructive" aria-hidden="true" />
             <div className="space-y-1">
               <p className="font-semibold text-foreground">Failed to load low-stock items</p>
               <p className="text-sm text-muted-foreground">
@@ -67,8 +71,14 @@ export const LowStockAlertTable: React.FC<LowStockAlertTableProps> = ({ onReceiv
             </Button>
           </div>
         ) : !items || items.length === 0 ? (
-          <div className="flex flex-col items-center justify-center p-8 text-center space-y-3 bg-muted/20 rounded-lg border border-dashed border-border">
-            <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+          <div
+            role="status"
+            className="flex flex-col items-center justify-center p-8 text-center space-y-3 bg-muted/20 rounded-lg border border-dashed border-border"
+          >
+            <CheckCircle2
+              className="h-10 w-10 text-emerald-600 dark:text-emerald-400"
+              aria-hidden="true"
+            />
             <div className="space-y-1">
               <p className="font-semibold text-foreground">All Inventory Stocks Healthy</p>
               <p className="text-sm text-muted-foreground">
@@ -81,14 +91,27 @@ export const LowStockAlertTable: React.FC<LowStockAlertTableProps> = ({ onReceiv
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
+            <table
+              className="w-full text-left text-sm"
+              aria-label="Low-stock attention queue items"
+            >
               <thead className="border-b border-border bg-muted/40 text-xs font-semibold text-muted-foreground uppercase">
                 <tr>
-                  <th className="py-3 px-4">SKU / Product</th>
-                  <th className="py-3 px-4">Category</th>
-                  <th className="py-3 px-4">Stock on Hand</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Actions</th>
+                  <th scope="col" className="py-3 px-4">
+                    SKU / Product
+                  </th>
+                  <th scope="col" className="py-3 px-4">
+                    Category
+                  </th>
+                  <th scope="col" className="py-3 px-4">
+                    Stock on Hand
+                  </th>
+                  <th scope="col" className="py-3 px-4">
+                    Status
+                  </th>
+                  <th scope="col" className="py-3 px-4 text-right">
+                    Actions
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

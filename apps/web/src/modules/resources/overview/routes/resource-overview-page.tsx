@@ -100,9 +100,11 @@ export const ResourceOverviewPage: React.FC = () => {
       <div
         className="space-y-8"
         data-testid="resource-overview-loading"
+        role="status"
         aria-busy="true"
         aria-label="Loading resource overview"
       >
+        <span className="sr-only">Loading resource overview metrics...</span>
         {/* Header Skeleton */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-2">
@@ -158,7 +160,7 @@ export const ResourceOverviewPage: React.FC = () => {
           </p>
         </div>
 
-        <Card className="border-destructive/30 bg-destructive/5">
+        <Card className="border-destructive/30 bg-destructive/5" role="alert">
           <CardContent className="flex flex-col items-center justify-center p-8 text-center space-y-4">
             <div className="rounded-full bg-destructive/10 p-3 text-destructive" aria-hidden="true">
               <AlertCircle className="h-8 w-8" />

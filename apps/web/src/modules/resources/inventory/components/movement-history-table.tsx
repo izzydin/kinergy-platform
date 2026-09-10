@@ -48,7 +48,13 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
   // 1. Loading Skeleton State
   if (isLoading) {
     return (
-      <div className="space-y-3 py-4" data-testid="movements-loading">
+      <div
+        className="space-y-3 py-4"
+        data-testid="movements-loading"
+        role="status"
+        aria-busy="true"
+      >
+        <span className="sr-only">Loading movement ledger records...</span>
         <div className="rounded-lg border bg-card p-4 space-y-3">
           <Skeleton className="h-10 w-full" />
           <Skeleton className="h-12 w-full" />
@@ -64,9 +70,9 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
   if (isError) {
     return (
       <div className="py-6" data-testid="movements-error">
-        <Alert variant="destructive" className="flex flex-col items-start gap-2 p-4">
+        <Alert variant="destructive" role="alert" className="flex flex-col items-start gap-2 p-4">
           <div className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5" />
+            <AlertCircle className="h-5 w-5" aria-hidden="true" />
             <AlertTitle className="text-sm font-semibold">
               Failed to load movement ledger
             </AlertTitle>
@@ -82,7 +88,7 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
               onClick={onRetry}
               className="mt-2 text-xs gap-1.5 h-8 border-destructive/40 hover:bg-destructive/10"
             >
-              <RotateCcw className="h-3.5 w-3.5" />
+              <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
               Retry Query
             </Button>
           )}
@@ -97,8 +103,12 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
       <div
         className="rounded-lg border border-dashed p-10 text-center bg-card/50 my-4"
         data-testid="movements-filtered-empty"
+        role="status"
       >
-        <FilterX className="mx-auto h-10 w-10 text-muted-foreground opacity-60 mb-3" />
+        <FilterX
+          className="mx-auto h-10 w-10 text-muted-foreground opacity-60 mb-3"
+          aria-hidden="true"
+        />
         <h3 className="text-base font-semibold text-foreground">No matching movements found</h3>
         <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
           No transactions match the selected movement type filter. Clear your filter to view all
@@ -124,8 +134,12 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
       <div
         className="rounded-lg border border-dashed p-10 text-center bg-card/50 my-4"
         data-testid="movements-empty"
+        role="status"
       >
-        <ClipboardList className="mx-auto h-10 w-10 text-muted-foreground opacity-50 mb-3" />
+        <ClipboardList
+          className="mx-auto h-10 w-10 text-muted-foreground opacity-50 mb-3"
+          aria-hidden="true"
+        />
         <h3 className="text-base font-semibold text-foreground">No Movement Ledger Records</h3>
         <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
           No inventory operations have been recorded for this product yet. Inbound purchases, retail
@@ -143,15 +157,27 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
           isFetching ? 'opacity-70' : ''
         }`}
       >
-        <table className="w-full text-xs text-left">
+        <table className="w-full text-xs text-left" aria-label="Stock movement history ledger">
           <thead className="bg-muted/50 border-b text-muted-foreground uppercase text-[10px] tracking-wider">
             <tr>
-              <th className="py-3 px-4 font-semibold">Timestamp</th>
-              <th className="py-3 px-4 font-semibold">Operation & Type</th>
-              <th className="py-3 px-4 font-semibold text-right">Quantity Delta</th>
-              <th className="py-3 px-4 font-semibold text-center">Balance Progression</th>
-              <th className="py-3 px-4 font-semibold">Reference & Reason</th>
-              <th className="py-3 px-4 font-semibold">Recorded By</th>
+              <th scope="col" className="py-3 px-4 font-semibold">
+                Timestamp
+              </th>
+              <th scope="col" className="py-3 px-4 font-semibold">
+                Operation & Type
+              </th>
+              <th scope="col" className="py-3 px-4 font-semibold text-right">
+                Quantity Delta
+              </th>
+              <th scope="col" className="py-3 px-4 font-semibold text-center">
+                Balance Progression
+              </th>
+              <th scope="col" className="py-3 px-4 font-semibold">
+                Reference & Reason
+              </th>
+              <th scope="col" className="py-3 px-4 font-semibold">
+                Recorded By
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/60">
@@ -263,7 +289,11 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
         </div>
 
         {totalPages > 1 && (
-          <div className="flex items-center gap-2" data-testid="movements-pagination">
+          <nav
+            className="flex items-center gap-2"
+            data-testid="movements-pagination"
+            aria-label="Movement history pagination"
+          >
             <Button
               variant="outline"
               size="sm"
@@ -271,8 +301,9 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
               disabled={page <= 1}
               className="h-8 px-2.5 text-xs gap-1"
               data-testid="pagination-prev-btn"
+              aria-label="Go to previous page"
             >
-              <ChevronLeft className="h-3.5 w-3.5" />
+              <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
               Previous
             </Button>
             <span className="text-xs px-2 font-medium text-foreground">
@@ -285,11 +316,12 @@ export const MovementHistoryTable: React.FC<MovementHistoryTableProps> = ({
               disabled={page >= totalPages}
               className="h-8 px-2.5 text-xs gap-1"
               data-testid="pagination-next-btn"
+              aria-label="Go to next page"
             >
               Next
-              <ChevronRight className="h-3.5 w-3.5" />
+              <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" />
             </Button>
-          </div>
+          </nav>
         )}
       </div>
     </div>

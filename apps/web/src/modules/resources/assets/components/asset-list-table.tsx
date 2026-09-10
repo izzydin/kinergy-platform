@@ -300,10 +300,11 @@ export const AssetListTable: React.FC<AssetListTableProps> = ({
         emptyAction={
           !isFiltered && canWrite && onCommissionClick ? (
             <Button variant="default" size="sm" onClick={onCommissionClick}>
-              <PlusCircle className="mr-1.5 h-4 w-4" /> Commission First Asset
+              <PlusCircle className="mr-1.5 h-4 w-4" aria-hidden="true" /> Commission First Asset
             </Button>
           ) : undefined
         }
+        ariaLabel="Fixed assets catalog"
       />
     </div>
   );

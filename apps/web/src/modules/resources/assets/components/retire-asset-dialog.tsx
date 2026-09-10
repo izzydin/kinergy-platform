@@ -69,6 +69,11 @@ export const RetireAssetDialog: React.FC<RetireAssetDialogProps> = ({
         onEscapeKeyDown={(e) => {
           if (isPending) e.preventDefault();
         }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape' && !isPending) {
+            handleOpenChange(false);
+          }
+        }}
       >
         <DialogHeader>
           <div className="flex items-center gap-2 text-destructive">

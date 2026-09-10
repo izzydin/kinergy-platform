@@ -176,7 +176,13 @@ export const LowStockAttentionQueue: React.FC<LowStockAttentionQueueProps> = ({
 
         <CardContent className="pt-6">
           {isLoading ? (
-            <div className="space-y-4" data-testid="low-stock-loading">
+            <div
+              className="space-y-4"
+              data-testid="low-stock-loading"
+              role="status"
+              aria-busy="true"
+            >
+              <span className="sr-only">Loading low-stock attention queue...</span>
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-16 w-full" />
               <Skeleton className="h-16 w-full" />
@@ -186,8 +192,9 @@ export const LowStockAttentionQueue: React.FC<LowStockAttentionQueueProps> = ({
             <div
               className="flex flex-col items-center justify-center p-8 text-center space-y-3 bg-destructive/10 rounded-lg border border-destructive/20"
               data-testid="low-stock-error"
+              role="alert"
             >
-              <AlertCircle className="h-10 w-10 text-destructive" />
+              <AlertCircle className="h-10 w-10 text-destructive" aria-hidden="true" />
               <div className="space-y-1">
                 <p className="font-semibold text-foreground">
                   Failed to load low-stock attention queue
@@ -197,16 +204,17 @@ export const LowStockAttentionQueue: React.FC<LowStockAttentionQueueProps> = ({
                 </p>
               </div>
               <Button variant="outline" size="sm" onClick={onRetry}>
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Retry Query
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" aria-hidden="true" /> Retry Query
               </Button>
             </div>
           ) : items.length === 0 ? (
             <div
               className="flex flex-col items-center justify-center p-12 text-center space-y-4 bg-muted/20 rounded-xl border border-dashed border-border"
               data-testid="low-stock-empty-healthy"
+              role="status"
             >
               <div className="p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 rounded-full">
-                <CheckCircle2 className="h-12 w-12" />
+                <CheckCircle2 className="h-12 w-12" aria-hidden="true" />
               </div>
               <div className="space-y-1.5 max-w-md">
                 <h3 className="text-lg font-semibold text-foreground">
@@ -223,14 +231,28 @@ export const LowStockAttentionQueue: React.FC<LowStockAttentionQueueProps> = ({
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm" data-testid="low-stock-table">
+              <table
+                className="w-full text-left text-sm"
+                data-testid="low-stock-table"
+                aria-label="Low-stock product deficit queue"
+              >
                 <thead className="border-b border-border bg-muted/40 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   <tr>
-                    <th className="py-3 px-4">Product / SKU</th>
-                    <th className="py-3 px-4">Category</th>
-                    <th className="py-3 px-4">Stock Level vs Minimum</th>
-                    <th className="py-3 px-4">Urgency & Deficit</th>
-                    <th className="py-3 px-4 text-right">Actions</th>
+                    <th scope="col" className="py-3 px-4">
+                      Product / SKU
+                    </th>
+                    <th scope="col" className="py-3 px-4">
+                      Category
+                    </th>
+                    <th scope="col" className="py-3 px-4">
+                      Stock Level vs Minimum
+                    </th>
+                    <th scope="col" className="py-3 px-4">
+                      Urgency & Deficit
+                    </th>
+                    <th scope="col" className="py-3 px-4 text-right">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">

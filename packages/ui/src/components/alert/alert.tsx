@@ -42,14 +42,16 @@ export const Alert = React.forwardRef<HTMLDivElement, AlertProps>(
 Alert.displayName = 'Alert';
 
 export interface AlertTitleProps
-  extends React.HTMLAttributes<HTMLHeadingElement>, BaseComponentProps {}
+  extends React.HTMLAttributes<HTMLHeadingElement>, BaseComponentProps {
+  as?: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6';
+}
 
 /**
  * Alert Title Primitive
  */
 export const AlertTitle = React.forwardRef<HTMLHeadingElement, AlertTitleProps>(
-  ({ className, ...props }, ref) => (
-    <h5
+  ({ className, as: Component = 'h5', ...props }, ref) => (
+    <Component
       ref={ref}
       className={cn('mb-1 font-semibold leading-none tracking-tight text-current', className)}
       {...props}
