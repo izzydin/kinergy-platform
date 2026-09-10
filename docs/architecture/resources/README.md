@@ -124,6 +124,7 @@ Architectural Decision Records governing Phase 6:
 | **[ADR-0101](./adr/0101-frontend-low-stock-operational-attention-architecture.md)**                                 | Frontend Low-Stock Operational Attention Architecture                                | Accepted | 2026-09-03 |
 | **[ADR-0102](./adr/0102-resource-overview-synthesized-read-query-architecture.md)**                                 | Resource Overview Synthesized Read-Query Architecture & Executive Cockpit            | Accepted | 2026-09-06 |
 | **[ADR-0103](./adr/0103-frontend-modal-interaction-and-safe-focus-policy.md)**                                      | Frontend Modal Interaction Hardening, Safe-by-Default Focus Policy & Invariants      | Accepted | 2026-09-10 |
+| **[ADR-0104](./adr/0104-resources-cross-domain-decoupling-and-client-boundary-invariant.md)**                       | Resources Cross-Domain Decoupling & Client Boundary Invariant                        | Accepted | 2026-09-10 |
 
 ---
 

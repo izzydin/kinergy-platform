@@ -68,4 +68,36 @@ describe('Phase 6: Resources Management Bounded Context Architecture & Boundary 
       expect(content).not.toMatch(/import\s+.*\bRoom\b.*from/);
     }
   });
+
+  it('Client Decoupling & No Identity Duplication: Resources domain defines zero Customer, Patient, or Member models', () => {
+    const domainFiles = getProductionTsFiles(resourcesDomainPath);
+    for (const filePath of domainFiles) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      expect(content).not.toMatch(/class\s+(Client|Customer|Patient|Member)\b/);
+      expect(content).not.toMatch(/interface\s+(Client|Customer|Patient|Member)\b/);
+      expect(content).not.toMatch(/type\s+(Client|Customer|Patient|Member)\s*=/);
+    }
+  });
+
+  it('Schema Purity: inventory_items and fixed_assets have zero foreign keys or direct relation fields to clients', () => {
+    const schemaPath = path.resolve(__dirname, '../../../../prisma/schema.prisma');
+    if (!fs.existsSync(schemaPath)) return;
+    const schemaContent = fs.readFileSync(schemaPath, 'utf-8');
+
+    // Extract InventoryItem model
+    const invItemMatch = schemaContent.match(/model\s+InventoryItem\s*\{[\s\S]*?\}/);
+    expect(invItemMatch).not.toBeNull();
+    if (invItemMatch) {
+      expect(invItemMatch[0]).not.toMatch(/\bclientId\b/i);
+      expect(invItemMatch[0]).not.toMatch(/\bclient\b\s+Client/i);
+    }
+
+    // Extract FixedAsset model
+    const fixedAssetMatch = schemaContent.match(/model\s+FixedAsset\s*\{[\s\S]*?\}/);
+    expect(fixedAssetMatch).not.toBeNull();
+    if (fixedAssetMatch) {
+      expect(fixedAssetMatch[0]).not.toMatch(/\bclientId\b/i);
+      expect(fixedAssetMatch[0]).not.toMatch(/\bclient\b\s+Client/i);
+    }
+  });
 });
