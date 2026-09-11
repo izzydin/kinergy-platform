@@ -166,3 +166,45 @@ Kinergy adheres to consistent RESTful HTTP verb semantics across all bounded con
 The validation architecture and DTO boundary behavior are verified by automated tests in [`apps/api/src/resources/__tests__/resources-validation.spec.ts`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/__tests__/resources-validation.spec.ts):
 
 - **32/32 tests passing** covering required fields, enum validation, numeric transformations, pagination boundaries, forbidden field rejections, XSS sanitization, and date formatting.
+
+---
+
+## 10. Cross-Domain API Contracts & Integration Boundaries (Milestone 6.16)
+
+Following the Milestone 6.16 cross-domain architecture decisions, the following contract boundaries are formally established across Resource, Client, Scheduling, and Commercial APIs:
+
+### 10.1 Client References: Minimal Scalar Identifiers
+
+- When a resource operation or log references a client (e.g., equipment assignment or sale/order attribution), the API transport contracts accept and emit **strictly scalar domain identifiers** (`clientId: string`).
+- **No Embedded Client Aggregates**: APIs never embed full Client profiles (such as medical histories, demographics, or billing addresses) inside Resource responses. Clients are retrieved independently via `/api/v1/clients/{id}` by the presentation layer or API gateway.
+
+### 10.2 Scheduling References: Minimal Location Footprints
+
+- When a Fixed Asset references a physical room or facility, `AssetLocationDto` exposes only the contextual coordinates required for operational tracking:
+  ```typescript
+  export class AssetLocationDto {
+    facilityId!: string;
+    roomId?: string;
+    zone?: string;
+    description?: string;
+  }
+  ```
+- **No Embedded Scheduling Aggregates**: Fixed Asset responses never embed full Scheduling `Room` aggregates, appointment rosters, therapist calendars, or booking rules.
+
+### 10.3 Inventory ↔ Sales Boundary: In-Process Application Port vs. HTTP Overhead
+
+- Sales and Inventory reside within the same modular backend deployment.
+- **No Self-Looping HTTP Calls**: In accordance with Kinergy modular monolith principles, a future Sales module or third-party order consumer must **NOT** make localhost HTTP requests (`POST /api/v1/resources/inventory/:id/sell`) to mutate stock.
+- Instead, internal backend modules invoke the in-process capability port:
+  `InventoryStockDecrementPort.sellStock(params: DecrementStockParams)`.
+- The HTTP endpoint `POST /api/v1/resources/inventory/:id/sell` is strictly reserved for authenticated frontend staff manually recording point-of-sale transactions at a reception or front desk.
+
+### 10.4 IAM Authorization Consistency
+
+- All Resource endpoints enforce server-side authentication (`AuthenticationGuard`) and role/permission authorization (`AuthorizationGuard`).
+- Resource endpoints use unified Phase 1 IAM permissions:
+  - Inventory read: `inventory.read`
+  - Inventory write: `inventory.write`
+  - Fixed Asset read: `assets.read`
+  - Fixed Asset write: `assets.write`
+  - Valuation read: Dual composition requiring `inventory.read` / `assets.read` AND `billing.read`.
