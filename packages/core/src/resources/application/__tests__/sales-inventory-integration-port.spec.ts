@@ -172,4 +172,77 @@ describe('Sales ↔ Inventory Integration Capability Port Contract', () => {
       expect(result.error).toMatch(/not found/i);
     });
   });
+
+  describe('4. Concurrency & Failure Resilience Scenarios', () => {
+    it('prevents negative stock under concurrent sales targeting remaining quantity', async () => {
+      // Seed item with exactly 5 units left
+      const lowStockItem = InventoryItem.create({
+        sku: 'ENERGY-BAR-CRUNCH',
+        name: 'Organic Energy Bar',
+        category: InventoryCategory.RETAIL_PRODUCTS,
+        unit: UnitOfMeasure.UNITS,
+        initialStock: 5,
+        minimumStock: 2,
+        purchaseCost: { amount: 1.0, currency: 'USD' },
+        sellingPrice: { amount: 2.5, currency: 'USD' },
+        recordedByUserId: 'usr_inventory_manager',
+        tenantId: 'tenant_wellness_01',
+      });
+      repository.seed(lowStockItem);
+
+      // Simulate 2 parallel sales requests each trying to purchase 4 units (total 8 > 5)
+      const sale1Promise = port.sellStock({
+        itemId: lowStockItem.id.getValue(),
+        quantity: 4,
+        reason: 'Concurrent POS terminal 1',
+        actorId: 'usr_cashier_1',
+        tenantId: 'tenant_wellness_01',
+      });
+
+      const sale2Promise = port.sellStock({
+        itemId: lowStockItem.id.getValue(),
+        quantity: 4,
+        reason: 'Concurrent POS terminal 2',
+        actorId: 'usr_cashier_2',
+        tenantId: 'tenant_wellness_01',
+      });
+
+      const [res1, res2] = await Promise.all([sale1Promise, sale2Promise]);
+
+      // Exactly one sale succeeds and the other is safely rejected with Insufficient Stock
+      const successes = [res1, res2].filter((r) => r.isSuccess);
+      const failures = [res1, res2].filter((r) => !r.isSuccess);
+
+      expect(successes.length).toBe(1);
+      expect(failures.length).toBe(1);
+      expect(failures[0]?.error).toMatch(/insufficient stock/i);
+
+      // Verify physical stock invariant: balance is 1 (5 - 4), never negative
+      const finalItem = await repository.findById(lowStockItem.id.getValue());
+      expect(finalItem?.quantityOnHand.value).toBe(1);
+    });
+
+    it('returns meaningful failure when repository throws an unhandled persistence error without corrupting memory', async () => {
+      const faultyRepository: InventoryItemRepository = {
+        findById: jest.fn().mockRejectedValue(new Error('PostgreSQL connection timeout')),
+        findBySku: jest.fn().mockResolvedValue(null),
+        save: jest.fn().mockResolvedValue(undefined),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
+        delete: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const faultyPort = new SellStockHandler(faultyRepository);
+      const result = await faultyPort.sellStock({
+        itemId: testItem.id.getValue(),
+        quantity: 1,
+        reason: 'Sale during DB hiccup',
+        actorId: 'usr_cashier',
+        tenantId: 'tenant_wellness_01',
+      });
+
+      expect(result.isSuccess).toBe(false);
+      expect(result.error).toMatch(/PostgreSQL connection timeout/i);
+    });
+  });
 });
