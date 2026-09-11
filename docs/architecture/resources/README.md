@@ -93,6 +93,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Milestone 6.14 Quality Gate](./milestone-6.14-quality-gate.md)**                                    | Formal Architecture Review Board evaluation for Resource Overview Dashboard                                           | **Approved (100%)**   |
 | **[Milestone 6.15 Quality Gate](./milestone-6.15-quality-gate.md)**                                    | Formal Architecture Review Board evaluation for Phase 6 Frontend Hardening, Accessibility & Interaction Standards     | **Approved (100%)**   |
 | **[Milestone 6.16 Cross-Domain Integration](./milestone-6.16-cross-domain-integration-architecture.md) | Authoritative Cross-Domain Integration Specification across IAM, Clients, Scheduling, and Commercial Sales            | **Approved & Active** |
+| **[Milestone 6.16 Quality Gate](./milestone-6.16-quality-gate.md)**                                    | Formal Architecture Review Board evaluation for Cross-Domain Integration Architecture                                 | **Approved (100%)**   |
 
 ---
 
@@ -133,7 +134,7 @@ Architectural Decision Records governing Phase 6:
 
 ## 6. Status of the Architectural Baseline
 
-- **Current Milestone**: Phase 6.15 — Frontend Hardening, Accessibility & UX Quality Gate.
+- **Current Milestone**: Phase 6.16 — Cross-Domain Integration Architecture Quality Gate.
 - **Status**: **ACTIVE & APPROVED — PHASE 6 COMPLETE**.
 - **Next Step**: Phase 7 Integration and Cross-Domain Architecture.
 
@@ -143,4 +144,4 @@ Architectural Decision Records governing Phase 6:
 >
 > **The Resources Management Subsystem (Phase 6) has achieved full architectural sign-off and is approved by the Architecture Review Board.**
 >
-> The complete vertical stack across Domain-Driven Design core, PostgreSQL persistence, NestJS controllers, and hardened, accessible React/Vite frontend meets all quality gates and invariants.
+> The complete vertical stack across Domain-Driven Design core, PostgreSQL persistence, NestJS controllers, hardened React/Vite frontend, and cross-domain integration boundaries meets all quality gates and invariants.
