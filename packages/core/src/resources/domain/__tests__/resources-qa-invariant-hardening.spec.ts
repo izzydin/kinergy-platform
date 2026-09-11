@@ -634,4 +634,63 @@ describe('Resources QA Hardening & Invariant Verification Suite (Phase 6.3)', ()
       expect(engine.getMovementCount(itemId)).toBe(1); // only opening balance
     });
   });
+
+  // ============================================================================
+  // 6. CROSS-DOMAIN BOUNDARY INVARIANT TESTS (Milestone 6.16)
+  // ============================================================================
+  describe('6. Cross-Domain Invariant Enforcement Tests', () => {
+    it('prohibits external modification of asset valuation without history append', () => {
+      const asset = FixedAsset.create(
+        {
+          assetTag: 'AST-REVAL-01',
+          name: 'Cryotherapy Chamber',
+          category: AssetCategory.THERAPY_EQUIPMENT,
+          purchaseDate: new Date(),
+          purchaseValue: Money.create(85000, 'USD'),
+          currentEstimatedValue: Money.create(85000, 'USD'),
+          condition: AssetCondition.EXCELLENT,
+          location: AssetLocation.create({ facilityId: 'fac_main', roomId: 'Cryo_1' }),
+        },
+        actorId,
+      );
+
+      const initialHistoryCount = asset.historyEvents.length;
+      asset.updateEstimatedValue(
+        Money.create(75000, 'USD'),
+        actorId,
+        'Annual balance sheet depreciation',
+      );
+
+      // Invariant: revaluation must produce an immutable VALUE_UPDATED event
+      expect(asset.currentEstimatedValue.amount).toBe(75000);
+      expect(asset.historyEvents.length).toBe(initialHistoryCount + 1);
+      const revalEvent = asset.historyEvents[asset.historyEvents.length - 1];
+      expect(revalEvent?.eventType).toBe('VALUE_UPDATED');
+    });
+
+    it('prohibits external modification of asset status without state machine validation', () => {
+      const asset = FixedAsset.create(
+        {
+          assetTag: 'AST-STATUS-01',
+          name: 'Pilates Reformer',
+          category: AssetCategory.GYM_EQUIPMENT,
+          purchaseDate: new Date(),
+          purchaseValue: Money.create(5000, 'USD'),
+          currentEstimatedValue: Money.create(5000, 'USD'),
+          condition: AssetCondition.EXCELLENT,
+          location: AssetLocation.create({ facilityId: 'fac_main' }),
+        },
+        actorId,
+      );
+
+      // Valid transition
+      asset.changeStatus(AssetStatus.UNDER_MAINTENANCE, actorId, 'Routine cable replacement');
+      expect(asset.status).toBe(AssetStatus.UNDER_MAINTENANCE);
+
+      // Invariant: cannot skip to terminal states with invalid reasons
+      expect(() => {
+        asset.changeStatus(AssetStatus.ACTIVE, actorId, ''); // empty reason
+      }).toThrow();
+    });
+  });
 });
