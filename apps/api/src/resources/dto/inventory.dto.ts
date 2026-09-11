@@ -308,11 +308,23 @@ export class InventoryItemResponseDto {
   @ApiProperty({ enum: InventoryItemStatus })
   status!: InventoryItemStatus;
 
-  @ApiProperty({ description: 'Purchase unit cost' })
-  unitCost!: number;
+  @ApiPropertyOptional({ description: 'Purchase unit cost amount' })
+  purchaseCostAmount?: number;
 
-  @ApiProperty({ description: 'Retail selling price' })
-  sellingPrice!: number;
+  @ApiPropertyOptional({ description: 'Purchase unit cost currency' })
+  purchaseCostCurrency?: string;
+
+  @ApiPropertyOptional({ description: 'Purchase unit cost (legacy alias)' })
+  unitCost?: number;
+
+  @ApiPropertyOptional({ description: 'Retail selling price amount' })
+  sellingPriceAmount?: number;
+
+  @ApiPropertyOptional({ description: 'Retail selling price currency' })
+  sellingPriceCurrency?: string;
+
+  @ApiPropertyOptional({ description: 'Retail selling price (legacy alias)' })
+  sellingPrice?: number;
 
   @ApiProperty({ description: 'Physical quantity on hand' })
   quantityOnHand!: number;

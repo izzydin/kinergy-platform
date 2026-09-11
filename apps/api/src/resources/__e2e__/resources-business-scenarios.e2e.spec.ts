@@ -270,8 +270,26 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   // SCENARIO A: PURCHASE (CONSUMABLE INVENTORY STOCK RECEIPT)
   // ==========================================================================
   describe('Scenario A: Purchase (Consumable Stock Receipt)', () => {
-    it('Given a Healthy Drink with zero stock, When the Owner purchases 50 units, Then stock is 50, a PURCHASE movement exists, and inventory value reflects 50 units', async () => {
-      // Given: A newly registered Healthy Drink with 0 initial stock
+    it('Given a Healthy Drink with zero stock and an existing unrelated item, When the Owner purchases 50 units, Then stock is exactly 50, a PURCHASE movement is recorded with full metadata, valuation updates correctly, and unrelated items are unchanged', async () => {
+      // Setup Baseline: Provision an unrelated inventory item to verify cross-item isolation
+      // (10 units of Protein Bars @ $3.00 = $30.00 working capital)
+      const unrelatedProduct = await productFactory.create(owner, {
+        name: 'Organic Raw Protein Bar',
+        category: InventoryCategory.SUPPLEMENTS,
+        unitCost: 3.0,
+        sellingPrice: 5.5,
+        quantityOnHand: 10,
+      });
+      expect(unrelatedProduct.quantityOnHand).toBe(10);
+      expect(unrelatedProduct.version).toBe(1);
+
+      // Verify initial baseline valuation before Healthy Drink purchase
+      const initialValRes = await client.as(owner).get('/api/v1/resources/inventory/valuation');
+      expect(initialValRes.status).toBe(HttpStatus.OK);
+      expect(initialValRes.body.totalValueAmount).toBe(30.0);
+      expect(initialValRes.body.totalQuantityUnits).toBe(10);
+
+      // Given: A newly registered Healthy Drink with exactly 0 initial stock
       const product = await productFactory.create(owner, {
         name: 'Cold-Pressed Green Juice',
         category: InventoryCategory.HEALTHY_DRINKS,
@@ -279,31 +297,179 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
         sellingPrice: 8.5,
         quantityOnHand: 0,
       });
-      expect(product.quantityOnHand).toBe(0);
 
-      // When: The Owner purchases 50 units via stock receipt
+      // Verify: Owner can create a Healthy Drink and initial stock is exactly zero
+      expect(product.id).toBeDefined();
+      expect(product.category).toBe(InventoryCategory.HEALTHY_DRINKS);
+      expect(product.quantityOnHand).toBe(0);
+      expect(product.purchaseCostAmount).toBe(4.0);
+      expect(product.sellingPriceAmount).toBe(8.5);
+
+      // When: The Owner purchases 50 units via stock receipt (@ $4.00 invoice unit cost)
       const response = await client
         .as(owner)
         .post(`/api/v1/resources/inventory/${product.id}/receive`)
         .send({
           quantity: 50,
           unitCost: 4.0,
+          referenceNumber: 'PO-2026-9912',
           notes: 'Vendor delivery invoice INV-9912',
         });
 
-      // Then: The stock balance increments to 50
+      // Then: Purchase operation accepts 50 units and stock becomes exactly 50
       expect(response.status).toBe(HttpStatus.OK);
+      expect(response.body.item.id).toBe(product.id);
       expect(response.body.item.quantityOnHand).toBe(50);
+      expect(response.body.item.version).toBe(2);
 
-      // And: A PURCHASE movement is recorded in the append-only ledger
+      // And: A PURCHASE movement is persisted with exact quantity, reference, and metadata
+      expect(response.body.movement).toBeDefined();
       expect(response.body.movement.movementType).toBe(StockMovementType.PURCHASE);
       expect(response.body.movement.quantityDelta).toBe(50);
       expect(response.body.movement.balanceAfter).toBe(50);
+      expect(response.body.movement.unitCostAmount).toBe(4.0);
+      expect(response.body.movement.inventoryItemId).toBe(product.id);
+      expect(response.body.movement.referenceId).toBe('PO-2026-9912');
+      expect(response.body.movement.recordedByUserId).toBe(owner.userId);
+      expect(response.body.movement.reason).toBe('Vendor delivery invoice INV-9912');
 
-      // And: The inventory valuation accurately reflects 50 units × $4.00 = $200.00
+      // And: Querying the persisted ledger confirms the exact movement record exists
+      const movementsRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/movements`);
+      expect(movementsRes.status).toBe(HttpStatus.OK);
+      expect(movementsRes.body.items.length).toBe(1);
+      const persistedMovement = movementsRes.body.items[0];
+      expect(persistedMovement.id).toBe(response.body.movement.id);
+      expect(persistedMovement.movementType).toBe(StockMovementType.PURCHASE);
+      expect(persistedMovement.quantityDelta).toBe(50);
+      expect(persistedMovement.balanceAfter).toBe(50);
+      expect(persistedMovement.unitCostAmount).toBe(4.0);
+      expect(persistedMovement.inventoryItemId).toBe(product.id);
+      expect(persistedMovement.recordedByUserId).toBe(owner.userId);
+
+      // And: Inventory valuation changes correctly from known fixture inputs
+      // Unrelated item: 10 units @ $3.00 = $30.00
+      // Purchased drink: 50 units @ $4.00 = $200.00
+      // Expected total: $230.00 across 60 units
       const valRes = await client.as(owner).get('/api/v1/resources/inventory/valuation');
       expect(valRes.status).toBe(HttpStatus.OK);
-      expect(valRes.body.totalValueAmount).toBe(200.0);
+      expect(valRes.body.totalValueAmount).toBe(230.0);
+      expect(valRes.body.totalQuantityUnits).toBe(60);
+      expect(valRes.body.totalDistinctItems).toBe(2);
+
+      // And: No unrelated inventory item changes
+      const reloadedUnrelated = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${unrelatedProduct.id}`);
+      expect(reloadedUnrelated.status).toBe(HttpStatus.OK);
+      expect(reloadedUnrelated.body.quantityOnHand).toBe(10);
+      expect(reloadedUnrelated.body.version).toBe(1);
+
+      const unrelatedMovements = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${unrelatedProduct.id}/movements`);
+      expect(unrelatedMovements.status).toBe(HttpStatus.OK);
+      expect(unrelatedMovements.body.items.length).toBe(1);
+      expect(unrelatedMovements.body.items[0].movementType).toBe(StockMovementType.ADJUSTMENT_IN);
+      expect(unrelatedMovements.body.items[0].quantityDelta).toBe(10);
+      expect(unrelatedMovements.body.items[0].balanceAfter).toBe(10);
+    });
+
+    it('Negative Checks: Enforces SKU uniqueness, rejects invalid quantities, and ensures no duplicate movements or silent drops', async () => {
+      // Given: A registered Healthy Drink
+      const product = await productFactory.create(owner, {
+        sku: 'SKU-DRINK-NEG-001',
+        name: 'Immunity Citrus Shot',
+        category: InventoryCategory.HEALTHY_DRINKS,
+        unitCost: 2.5,
+        sellingPrice: 5.0,
+        quantityOnHand: 0,
+      });
+
+      // Negative Check 1: No duplicate inventory item can be created with the same SKU
+      const duplicateSkuRes = await client.as(owner).post('/api/v1/resources/inventory').send({
+        sku: 'SKU-DRINK-NEG-001',
+        name: 'Phantom Duplicate Drink',
+        category: InventoryCategory.HEALTHY_DRINKS,
+        unitCost: 2.5,
+        sellingPrice: 5.0,
+        quantityOnHand: 0,
+      });
+      expect(duplicateSkuRes.status).toBe(HttpStatus.BAD_REQUEST);
+      expect(duplicateSkuRes.body.message).toMatch(/already exists/i);
+
+      // Negative Check 2: Purchase rejects zero quantity without modifying stock
+      const zeroQtyRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${product.id}/receive`)
+        .send({
+          quantity: 0,
+          unitCost: 2.5,
+          notes: 'Zero quantity test',
+        });
+      expect(zeroQtyRes.status).toBe(HttpStatus.BAD_REQUEST);
+
+      // Negative Check 3: Purchase rejects negative quantity without modifying stock
+      const negativeQtyRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${product.id}/receive`)
+        .send({
+          quantity: -10,
+          unitCost: 2.5,
+          notes: 'Negative quantity test',
+        });
+      expect(negativeQtyRes.status).toBe(HttpStatus.BAD_REQUEST);
+
+      // Verify: Stock remains 0 and movements ledger has 0 movements after rejected attempts
+      const checkZeroRes = await client.as(owner).get(`/api/v1/resources/inventory/${product.id}`);
+      expect(checkZeroRes.body.quantityOnHand).toBe(0);
+
+      const movementsAfterRejections = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/movements`);
+      expect(movementsAfterRejections.body.items.length).toBe(0);
+
+      // Negative Check 4: Stock is incremented exactly once per purchase and not duplicated
+      const purchase1 = await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${product.id}/receive`)
+        .send({
+          quantity: 50,
+          unitCost: 2.5,
+          referenceNumber: 'PO-BATCH-001',
+          notes: 'First receipt of 50 units',
+        });
+      expect(purchase1.status).toBe(HttpStatus.OK);
+      expect(purchase1.body.item.quantityOnHand).toBe(50);
+      expect(purchase1.body.item.version).toBe(2);
+
+      // Verify exactly 1 movement exists
+      const movements1 = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/movements`);
+      expect(movements1.body.items.length).toBe(1);
+
+      // Second distinct purchase of 10 units increments stock to 60 and creates exactly 1 additional movement
+      const purchase2 = await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${product.id}/receive`)
+        .send({
+          quantity: 10,
+          unitCost: 2.5,
+          referenceNumber: 'PO-BATCH-002',
+          notes: 'Second receipt of 10 units',
+        });
+      expect(purchase2.status).toBe(HttpStatus.OK);
+      expect(purchase2.body.item.quantityOnHand).toBe(60);
+      expect(purchase2.body.item.version).toBe(3);
+
+      const movements2 = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/movements`);
+      expect(movements2.body.items.length).toBe(2);
+      expect(movements2.body.items[0].quantityDelta).toBe(10);
+      expect(movements2.body.items[1].quantityDelta).toBe(50);
     });
   });
 
