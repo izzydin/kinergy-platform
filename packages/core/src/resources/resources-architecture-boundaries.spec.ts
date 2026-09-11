@@ -132,4 +132,57 @@ describe('Phase 6: Resources Management Bounded Context Architecture & Boundary 
       expect(fixedAssetMatch[0]).not.toMatch(/\broom\b\s+Room/i);
     }
   });
+
+  it('Application Layer Purity: Resources Application layer does not import Prisma, NestJS, HTTP controllers, or unrelated domains', () => {
+    const resourcesAppPath = path.resolve(__dirname, 'application');
+    const appFiles = getProductionTsFiles(resourcesAppPath);
+    expect(appFiles.length).toBeGreaterThan(0);
+
+    const forbiddenAppPatterns = [
+      '@prisma',
+      '@nestjs',
+      'controllers',
+      'apps/',
+      '../infrastructure/persistence',
+      '../../infrastructure/persistence',
+      'scheduling',
+      'kinesiology',
+      'client-domain',
+      'identity',
+      'gym',
+    ];
+
+    for (const filePath of appFiles) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      for (const pattern of forbiddenAppPatterns) {
+        const importRegex = new RegExp(`from\\s+['"].*${pattern}.*['"]`, 'i');
+        const hasViolation = importRegex.test(content);
+        if (hasViolation) {
+          throw new Error(
+            `Application Purity Violation: File '${filePath}' contains forbidden import matching '${pattern}'.`,
+          );
+        }
+      }
+    }
+  });
+
+  it('Sales-Inventory Boundary: Resources domain/application has zero dependencies on Sales modules or Prisma models', () => {
+    const resourcesPath = path.resolve(__dirname);
+    const allResourcesFiles = getProductionTsFiles(resourcesPath);
+
+    for (const filePath of allResourcesFiles) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      expect(content).not.toMatch(/from\s+['"].*\bsales\b.*['"]/i);
+      expect(content).not.toMatch(/from\s+['"].*\bpos\b.*['"]/i);
+    }
+  });
+
+  it('Zero Duplicated IAM: Resources defines zero custom Token, Session, Password, or AuthUser models', () => {
+    const domainFiles = getProductionTsFiles(resourcesDomainPath);
+    for (const filePath of domainFiles) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      expect(content).not.toMatch(/class\s+(AuthUser|Session|Token|Credential|Password)\b/);
+      expect(content).not.toMatch(/interface\s+(AuthUser|Session|Token|Credential|Password)\b/);
+    }
+  });
 });
