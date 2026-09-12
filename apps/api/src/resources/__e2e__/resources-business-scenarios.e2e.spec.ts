@@ -845,11 +845,28 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   });
 
   // ==========================================================================
-  // SCENARIO D: INVALID SALE (NEGATIVE-STOCK & OVER-SALE REJECTION)
+  // SCENARIO D: INVALID SALE / ATOMIC FAILURE (NEGATIVE-STOCK & OVER-SALE REJECTION)
   // ==========================================================================
-  describe('Scenario D: Invalid Sale (Negative-Stock & Over-Sale Rejection)', () => {
-    it('Given a product with 10 units in stock, When an attempt is made to sell 15 units, Then the request is rejected with HTTP 400, stock remains 10, and no phantom movement is created', async () => {
-      // Given: An item with exactly 10 units in stock
+  describe('Scenario D: Invalid Sale / Atomic Failure (Negative-Stock & Over-Sale Rejection)', () => {
+    it('Given a persisted product with exactly 2 units, When attempting a sale of 5 units, Then the operation is rejected with HTTP 400, stock remains 2, 0 SALE movements are created, no partial mutations exist, and valuation remains unchanged', async () => {
+      // Setup Unrelated Product baseline: 10 units @ $3.00 cost = $30.00
+      const unrelatedProduct = await productFactory.create(owner, {
+        name: 'Unrelated Electrolyte Drink',
+        category: InventoryCategory.HEALTHY_DRINKS,
+        unitCost: 3.0,
+        sellingPrice: 6.0,
+        quantityOnHand: 0,
+      });
+      await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${unrelatedProduct.id}/receive`)
+        .send({
+          quantity: 10,
+          unitCost: 3.0,
+          notes: 'Initial stocking of electrolyte drinks',
+        });
+
+      // Given: A persisted retail item with starting stock of exactly 2 units ($2.50 unit cost, $5.00 retail)
       const product = await productFactory.create(owner, {
         name: 'Electrolyte Hydration Drink',
         category: InventoryCategory.HEALTHY_DRINKS,
@@ -858,41 +875,164 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
         quantityOnHand: 0,
       });
 
-      await client.as(owner).post(`/api/v1/resources/inventory/${product.id}/receive`).send({
-        quantity: 10,
-        unitCost: 2.5,
-        notes: 'Initial inventory receipt',
-      });
+      const receiveRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${product.id}/receive`)
+        .send({
+          quantity: 2,
+          unitCost: 2.5,
+          referenceNumber: 'PO-EXACT-2',
+          notes: 'Initial inventory receipt of 2 units',
+        });
+      expect(receiveRes.status).toBe(HttpStatus.OK);
+      expect(receiveRes.body.item.quantityOnHand).toBe(2);
 
-      // When: A sale of 15 units is requested (exceeding stock of 10)
+      // Verify baseline stock query confirms exactly 2 units
+      const stockPreRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/stock-level`);
+      expect(stockPreRes.status).toBe(HttpStatus.OK);
+      expect(stockPreRes.body.quantityOnHand).toBe(2);
+
+      // Verify initial working capital valuation: (10 * $3.00) + (2 * $2.50) = $35.00 across 12 units
+      const initialValRes = await client.as(owner).get('/api/v1/resources/inventory/valuation');
+      expect(initialValRes.status).toBe(HttpStatus.OK);
+      expect(initialValRes.body.totalValueAmount).toBe(35.0);
+      expect(initialValRes.body.totalQuantityUnits).toBe(12);
+      expect(initialValRes.body.totalDistinctItems).toBe(2);
+
+      // Snapshot aggregate state before attempted over-sale
+      const itemPre = await inventoryRepo.findById(product.id);
+      expect(itemPre).not.toBeNull();
+      const itemVersionPre = itemPre!.version;
+      const itemMovementsPre = itemPre!.movements.length;
+
+      // Snapshot unrelated product state
+      const unrelatedPre = await inventoryRepo.findById(unrelatedProduct.id);
+      expect(unrelatedPre).not.toBeNull();
+      const unrelatedVersionPre = unrelatedPre!.version;
+      const unrelatedMovementsPre = unrelatedPre!.movements.length;
+
+      // When: Receptionist attempts to sell 5 units (exceeding available stock of 2)
       const response = await client
         .as(receptionist)
         .post(`/api/v1/resources/inventory/${product.id}/sell`)
         .send({
-          quantity: 15,
+          quantity: 5,
           unitPrice: 5.0,
-          referenceId: 'ord_oversell_attempt',
-          notes: 'Customer requesting bulk purchase',
+          referenceId: 'ord_pos_oversell_attempt',
+          notes: 'Customer requesting bulk purchase beyond stock',
         });
 
-      // Then: The request is cleanly rejected with HTTP 400 Bad Request
+      // Then: The operation is rejected with HTTP 400 Bad Request
       expect(response.status).toBe(HttpStatus.BAD_REQUEST);
-      expect(response.body.message).toMatch(/insufficient stock/i);
 
-      // And: Physical stock on hand remains unaltered at exactly 10
-      const stockRes = await client
+      // And: The error is the correct domain/application error mapping (Insufficient stock with invariant INV-1)
+      expect(response.body.message).toMatch(/insufficient stock/i);
+      expect(response.body.message).toMatch(/current stock is 2/i);
+      expect(response.body.message).toMatch(/requested reduction is 5/i);
+      expect(response.body.message).toMatch(/invariant \[inv-1\] violated/i);
+
+      // And: Physical stock on hand remains unaltered at exactly 2
+      const stockPostRes = await client
         .as(owner)
         .get(`/api/v1/resources/inventory/${product.id}/stock-level`);
-      expect(stockRes.status).toBe(HttpStatus.OK);
-      expect(stockRes.body.quantityOnHand).toBe(10);
+      expect(stockPostRes.status).toBe(HttpStatus.OK);
+      expect(stockPostRes.body.quantityOnHand).toBe(2);
 
-      // And: No phantom movement was appended (ledger has only the initial 1 receipt)
-      const movementsRes = await client
+      const itemDetailRes = await client.as(owner).get(`/api/v1/resources/inventory/${product.id}`);
+      expect(itemDetailRes.status).toBe(HttpStatus.OK);
+      expect(itemDetailRes.body.quantityOnHand).toBe(2);
+
+      // And: No SALE movement is created (ledger has 0 SALE movements)
+      const saleMovementsRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/movements?movementType=SALE`);
+      expect(saleMovementsRes.status).toBe(HttpStatus.OK);
+      expect(saleMovementsRes.body.items.length).toBe(0);
+
+      // And: No phantom or invalid movements exist (ledger has only the initial 1 receipt)
+      const allMovementsRes = await client
         .as(owner)
         .get(`/api/v1/resources/inventory/${product.id}/movements`);
-      expect(movementsRes.status).toBe(HttpStatus.OK);
-      expect(movementsRes.body.items.length).toBe(1);
-      expect(movementsRes.body.items[0].movementType).toBe(StockMovementType.PURCHASE);
+      expect(allMovementsRes.status).toBe(HttpStatus.OK);
+      expect(allMovementsRes.body.items.length).toBe(1);
+      expect(allMovementsRes.body.items[0].movementType).toBe(StockMovementType.PURCHASE);
+
+      // And: No partial database mutation exists (OCC version and in-memory entity unchanged)
+      const itemPost = await inventoryRepo.findById(product.id);
+      expect(itemPost).not.toBeNull();
+      expect(itemPost!.quantityOnHand.value).toBe(2);
+      expect(itemPost!.version).toBe(itemVersionPre);
+      expect(itemPost!.movements.length).toBe(itemMovementsPre);
+
+      // And: Inventory valuation remains strictly unchanged at $35.00 across 12 units
+      const postValRes = await client.as(owner).get('/api/v1/resources/inventory/valuation');
+      expect(postValRes.status).toBe(HttpStatus.OK);
+      expect(postValRes.body.totalValueAmount).toBe(35.0);
+      expect(postValRes.body.totalQuantityUnits).toBe(12);
+      expect(postValRes.body.totalDistinctItems).toBe(2);
+
+      // And: Unrelated item remains completely unchanged
+      const unrelatedPost = await inventoryRepo.findById(unrelatedProduct.id);
+      expect(unrelatedPost).not.toBeNull();
+      expect(unrelatedPost!.quantityOnHand.value).toBe(10);
+      expect(unrelatedPost!.version).toBe(unrelatedVersionPre);
+      expect(unrelatedPost!.movements.length).toBe(unrelatedMovementsPre);
+    });
+
+    it('Proves concurrency race-condition guarantees: concurrent over-sales cannot drive stock negative or create orphaned movements', async () => {
+      // Given: A persisted retail item with starting stock of exactly 2 units
+      const item = await productFactory.create(owner, {
+        name: 'Single Energy Gel',
+        category: InventoryCategory.SUPPLEMENTS,
+        unitCost: 1.5,
+        sellingPrice: 3.5,
+        quantityOnHand: 0,
+      });
+
+      await client.as(owner).post(`/api/v1/resources/inventory/${item.id}/receive`).send({
+        quantity: 2,
+        unitCost: 1.5,
+        notes: 'Receipt of 2 energy gels',
+      });
+
+      // When: Two concurrent sales requesting 2 units each are dispatched simultaneously
+      const [result1, result2] = await Promise.all([
+        client.as(receptionist).post(`/api/v1/resources/inventory/${item.id}/sell`).send({
+          quantity: 2,
+          unitPrice: 3.5,
+          referenceId: 'race_order_A',
+          notes: 'Concurrent checkout A',
+        }),
+        client.as(receptionist).post(`/api/v1/resources/inventory/${item.id}/sell`).send({
+          quantity: 2,
+          unitPrice: 3.5,
+          referenceId: 'race_order_B',
+          notes: 'Concurrent checkout B',
+        }),
+      ]);
+
+      // Then: Exactly one must succeed (200 OK) and the other must be rejected with 400 Bad Request
+      const statuses = [result1.status, result2.status].sort();
+      expect(statuses[0]).toBe(HttpStatus.OK);
+      expect([HttpStatus.BAD_REQUEST, HttpStatus.CONFLICT]).toContain(statuses[1]);
+
+      // And: Stock never becomes negative; it must be exactly 0
+      const finalStockRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${item.id}/stock-level`);
+      expect(finalStockRes.status).toBe(HttpStatus.OK);
+      expect(finalStockRes.body.quantityOnHand).toBe(0);
+
+      // And: Exactly one SALE movement is recorded, matching the successful order only
+      const saleMovements = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${item.id}/movements?movementType=SALE`);
+      expect(saleMovements.status).toBe(HttpStatus.OK);
+      expect(saleMovements.body.items.length).toBe(1);
+      expect(saleMovements.body.items[0].quantityDelta).toBe(-2);
+      expect(saleMovements.body.items[0].balanceAfter).toBe(0);
     });
   });
 
