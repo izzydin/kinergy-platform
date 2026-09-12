@@ -86,6 +86,7 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   let fixedAssetRepo: InMemoryFixedAssetRepository;
   let productFactory: InventoryProductFactory;
   let assetFactory: FixedAssetFactory;
+  let sellStockHandler: SellStockHandler;
 
   const owner = createTestOwner();
   const receptionist = createTestReceptionist();
@@ -135,7 +136,7 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
     const activateInventoryItemHandler = new ActivateInventoryItemHandler(inventoryRepo);
     const deactivateInventoryItemHandler = new DeactivateInventoryItemHandler(inventoryRepo);
     const receiveStockHandler = new ReceiveStockHandler(inventoryRepo);
-    const sellStockHandler = new SellStockHandler(inventoryRepo);
+    sellStockHandler = new SellStockHandler(inventoryRepo);
     const consumeStockHandler = new ConsumeStockHandler(inventoryRepo);
     const scrapStockHandler = new ScrapStockHandler(inventoryRepo);
     const adjustStockHandler = new AdjustStockHandler(inventoryRepo);
@@ -477,47 +478,169 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   // SCENARIO B: SALE (RETAIL POINT-OF-SALE CHECKOUT)
   // ==========================================================================
   describe('Scenario B: Sale (Retail Point-of-Sale Checkout)', () => {
-    it('Given a Supplement product with 20 units in stock, When the Receptionist sells 5 units, Then stock is 15, a SALE movement exists, and external transaction reference is logged', async () => {
-      // Given: A retail supplement with 20 units in stock ($15.00 cost, $35.00 retail)
+    it('Given a persisted consumable inventory item with 50 units, When selling 5 units, Then stock is 45, exactly 1 SALE movement is logged, valuation is recalculated, and unrelated items remain untouched', async () => {
+      // Setup Unrelated Product baseline: 10 units @ $3.00 cost = $30.00
+      const unrelatedProduct = await productFactory.create(owner, {
+        name: 'Unrelated Electrolyte Drink',
+        category: InventoryCategory.HEALTHY_DRINKS,
+        unitCost: 3.0,
+        sellingPrice: 6.0,
+        quantityOnHand: 0,
+      });
+      await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${unrelatedProduct.id}/receive`)
+        .send({
+          quantity: 10,
+          unitCost: 3.0,
+          notes: 'Initial stocking of electrolyte drinks',
+        });
+
+      // Given: A persisted retail supplement with starting stock of 50 units ($10.00 unit cost, $25.00 retail)
       const product = await productFactory.create(owner, {
         name: 'Organic Plant Protein Powder',
         category: InventoryCategory.SUPPLEMENTS,
-        unitCost: 15.0,
-        sellingPrice: 35.0,
+        unitCost: 10.0,
+        sellingPrice: 25.0,
         quantityOnHand: 0,
       });
 
-      await client.as(owner).post(`/api/v1/resources/inventory/${product.id}/receive`).send({
-        quantity: 20,
-        unitCost: 15.0,
-        notes: 'Warehouse batch stock receipt',
-      });
+      const receiveRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${product.id}/receive`)
+        .send({
+          quantity: 50,
+          unitCost: 10.0,
+          notes: 'Initial warehouse stocking of 50 units',
+        });
+      expect(receiveRes.status).toBe(HttpStatus.OK);
+      expect(receiveRes.body.item.quantityOnHand).toBe(50);
 
-      // When: The Receptionist sells 5 units at point of sale with reference 'ord_pos_10492'
-      const response = await client
+      // Verify initial valuation: (10 * $3.00) + (50 * $10.00) = $530.00 across 60 units
+      const initialValRes = await client.as(owner).get('/api/v1/resources/inventory/valuation');
+      expect(initialValRes.status).toBe(HttpStatus.OK);
+      expect(initialValRes.body.totalValueAmount).toBe(530.0);
+      expect(initialValRes.body.totalQuantityUnits).toBe(60);
+      expect(initialValRes.body.totalDistinctItems).toBe(2);
+
+      // Snapshot unrelated item state prior to sale
+      const unrelatedPreSale = await inventoryRepo.findById(unrelatedProduct.id);
+      expect(unrelatedPreSale).not.toBeNull();
+      const unrelatedVersionPreSale = unrelatedPreSale!.version;
+      const unrelatedMovementsPreSale = unrelatedPreSale!.movements.length;
+
+      // When: The Receptionist executes a SALE operation for 5 units at point of sale with reference 'ord_pos_10492'
+      const saleRes = await client
         .as(receptionist)
         .post(`/api/v1/resources/inventory/${product.id}/sell`)
         .send({
           quantity: 5,
-          unitPrice: 35.0,
+          unitPrice: 25.0,
           referenceId: 'ord_pos_10492',
           notes: 'Counter POS credit card purchase',
         });
 
-      // Then: Stock on hand is decremented to 15
-      expect(response.status).toBe(HttpStatus.OK);
-      expect(response.body.item.quantityOnHand).toBe(15);
+      // Then: Stock on hand is decremented to exactly 45
+      expect(saleRes.status).toBe(HttpStatus.OK);
+      expect(saleRes.body.item.quantityOnHand).toBe(45);
 
-      // And: A SALE movement is recorded with the external order reference
-      expect(response.body.movement.movementType).toBe(StockMovementType.SALE);
-      expect(response.body.movement.quantityDelta).toBe(-5);
-      expect(response.body.movement.balanceAfter).toBe(15);
-      expect(response.body.movement.referenceId).toBe('ord_pos_10492');
+      // And: Stock level endpoint also confirms stock is exactly 45
+      const stockRes = await client
+        .as(receptionist)
+        .get(`/api/v1/resources/inventory/${product.id}/stock-level`);
+      expect(stockRes.status).toBe(HttpStatus.OK);
+      expect(stockRes.body.quantityOnHand).toBe(45);
 
-      // And: Working capital valuation reflects the remaining 15 units ($225.00)
-      const valRes = await client.as(owner).get('/api/v1/resources/inventory/valuation');
-      expect(valRes.status).toBe(HttpStatus.OK);
-      expect(valRes.body.totalValueAmount).toBe(225.0);
+      // And: Movement returned in response is verified
+      expect(saleRes.body.movement.movementType).toBe(StockMovementType.SALE);
+      expect(saleRes.body.movement.quantityDelta).toBe(-5);
+      expect(saleRes.body.movement.balanceAfter).toBe(45);
+      expect(saleRes.body.movement.referenceId).toBe('ord_pos_10492');
+
+      // And: Exactly one SALE movement is recorded in the chronological ledger
+      const movementsRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/movements?movementType=SALE`);
+      expect(movementsRes.status).toBe(HttpStatus.OK);
+      expect(movementsRes.body.items.length).toBe(1);
+      const saleMovement = movementsRes.body.items[0];
+      expect(saleMovement.movementType).toBe(StockMovementType.SALE);
+      expect(saleMovement.quantityDelta).toBe(-5);
+      expect(saleMovement.balanceAfter).toBe(45);
+      expect(saleMovement.referenceId).toBe('ord_pos_10492');
+      expect(saleMovement.inventoryItemId).toBe(product.id);
+
+      // And: Total movements for the item are 2 (1 RECEIPT of 50, 1 SALE of 5)
+      const allMovementsRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/movements`);
+      expect(allMovementsRes.status).toBe(HttpStatus.OK);
+      expect(allMovementsRes.body.items.length).toBe(2);
+
+      // And: Inventory working capital valuation is recalculated according to established rules
+      // (10 * $3.00) + (45 * $10.00) = $480.00 across 55 total units
+      const postValRes = await client.as(owner).get('/api/v1/resources/inventory/valuation');
+      expect(postValRes.status).toBe(HttpStatus.OK);
+      expect(postValRes.body.totalValueAmount).toBe(480.0);
+      expect(postValRes.body.totalQuantityUnits).toBe(55);
+      expect(postValRes.body.totalDistinctItems).toBe(2);
+
+      // And: Unrelated inventory item remains completely unchanged
+      const unrelatedPostSale = await inventoryRepo.findById(unrelatedProduct.id);
+      expect(unrelatedPostSale).not.toBeNull();
+      expect(unrelatedPostSale!.quantityOnHand.value).toBe(10);
+      expect(unrelatedPostSale!.version).toBe(unrelatedVersionPreSale);
+      expect(unrelatedPostSale!.movements.length).toBe(unrelatedMovementsPreSale);
+    });
+
+    it('Proves the SALE operation strictly uses the Inventory bounded context port as the owner of stock mutation (ADR-0106)', async () => {
+      // Given: A persisted inventory product with 10 units
+      const item = await productFactory.create(owner, {
+        name: 'Energy Gel Pack',
+        category: InventoryCategory.SUPPLEMENTS,
+        unitCost: 2.0,
+        sellingPrice: 5.0,
+        quantityOnHand: 0,
+      });
+
+      await client.as(owner).post(`/api/v1/resources/inventory/${item.id}/receive`).send({
+        quantity: 10,
+        unitCost: 2.0,
+        notes: 'Initial receipt for port testing',
+      });
+
+      // When: Sales bounded context invokes InventoryStockDecrementPort directly across bounded context boundary
+      const portResult = await sellStockHandler.sellStock({
+        itemId: item.id,
+        quantity: 3,
+        reason: 'Sales order checkout via application port boundary',
+        actorId: receptionist.userId,
+        referenceId: 'order_ext_99991',
+        sellingPrice: { amount: 5.0, currency: 'USD' },
+      });
+
+      // Then: The Inventory domain successfully executes the mutation and enforces invariants
+      expect(portResult.isSuccess).toBe(true);
+      expect(portResult.value.item.quantityOnHand).toBe(7);
+      expect(portResult.value.movement.balanceAfter).toBe(7);
+      expect(portResult.value.movement.quantityDelta).toBe(-3);
+      expect(portResult.value.movement.movementType).toBe(StockMovementType.SALE);
+
+      // And: Over-sale request is rejected by domain invariant without data corruption
+      const overSaleResult = await sellStockHandler.sellStock({
+        itemId: item.id,
+        quantity: 100,
+        reason: 'Attempted oversale exceeding current physical stock',
+        actorId: receptionist.userId,
+        referenceId: 'order_ext_excess',
+      });
+
+      expect(overSaleResult.isSuccess).toBe(false);
+      expect(overSaleResult.error).toMatch(/insufficient stock/i);
+
+      // And: Stock remains 7
+      const recheck = await inventoryRepo.findById(item.id);
+      expect(recheck!.quantityOnHand.value).toBe(7);
     });
   });
 
