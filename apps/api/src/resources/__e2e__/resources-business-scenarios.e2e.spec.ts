@@ -14,6 +14,7 @@ import {
   ReceiveStockHandler,
   SellStockHandler,
   ConsumeStockHandler,
+  ConsumeStockCommand,
   ScrapStockHandler,
   AdjustStockHandler,
   GetInventoryItemByIdHandler,
@@ -87,6 +88,7 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   let productFactory: InventoryProductFactory;
   let assetFactory: FixedAssetFactory;
   let sellStockHandler: SellStockHandler;
+  let consumeStockHandler: ConsumeStockHandler;
 
   const owner = createTestOwner();
   const receptionist = createTestReceptionist();
@@ -137,7 +139,7 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
     const deactivateInventoryItemHandler = new DeactivateInventoryItemHandler(inventoryRepo);
     const receiveStockHandler = new ReceiveStockHandler(inventoryRepo);
     sellStockHandler = new SellStockHandler(inventoryRepo);
-    const consumeStockHandler = new ConsumeStockHandler(inventoryRepo);
+    consumeStockHandler = new ConsumeStockHandler(inventoryRepo);
     const scrapStockHandler = new ScrapStockHandler(inventoryRepo);
     const adjustStockHandler = new AdjustStockHandler(inventoryRepo);
     const getInventoryItemByIdHandler = new GetInventoryItemByIdHandler(inventoryRepo);
@@ -648,8 +650,25 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   // SCENARIO C: CONSUMPTION (CLINICAL TREATMENT SESSION USAGE)
   // ==========================================================================
   describe('Scenario C: Consumption (Clinical Treatment Session Usage)', () => {
-    it('Given Clinical Supplies with 30 units, When the Trainer consumes 3 units during a treatment session, Then stock is 27 and a CONSUMPTION movement is logged with session ID', async () => {
-      // Given: Clinical supplies (e.g. Kinesiology Tape) with 30 units in stock
+    it('Given a persisted consumable inventory item with 45 units, When consuming 3 units during a treatment session, Then stock is 42, exactly 1 CONSUMPTION movement is logged, no SALE movements exist, valuation is recalculated, and unrelated items remain untouched', async () => {
+      // Setup Unrelated Product baseline: 10 units @ $3.00 cost = $30.00
+      const unrelatedProduct = await productFactory.create(owner, {
+        name: 'Unrelated Electrolyte Drink',
+        category: InventoryCategory.HEALTHY_DRINKS,
+        unitCost: 3.0,
+        sellingPrice: 6.0,
+        quantityOnHand: 0,
+      });
+      await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${unrelatedProduct.id}/receive`)
+        .send({
+          quantity: 10,
+          unitCost: 3.0,
+          notes: 'Initial stocking of electrolyte drinks',
+        });
+
+      // Given: A persisted clinical supplies product starting with stock of 45 units ($6.00 unit cost, $12.00 retail)
       const product = await productFactory.create(owner, {
         name: 'Elastic Therapeutic Tape Roll',
         category: InventoryCategory.CLINICAL_SUPPLIES,
@@ -658,13 +677,32 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
         quantityOnHand: 0,
       });
 
-      await client.as(owner).post(`/api/v1/resources/inventory/${product.id}/receive`).send({
-        quantity: 30,
-        unitCost: 6.0,
-        notes: 'Bulk medical supply shipment',
-      });
+      const receiveRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${product.id}/receive`)
+        .send({
+          quantity: 45,
+          unitCost: 6.0,
+          referenceNumber: 'PO-CLINICAL-45',
+          notes: 'Warehouse batch stock receipt of 45 rolls',
+        });
+      expect(receiveRes.status).toBe(HttpStatus.OK);
+      expect(receiveRes.body.item.quantityOnHand).toBe(45);
 
-      // When: The Trainer records consumption of 3 rolls for treatment session 'session_kine_881'
+      // Verify initial valuation: (10 * $3.00) + (45 * $6.00) = $300.00 across 55 units
+      const initialValRes = await client.as(owner).get('/api/v1/resources/inventory/valuation');
+      expect(initialValRes.status).toBe(HttpStatus.OK);
+      expect(initialValRes.body.totalValueAmount).toBe(300.0);
+      expect(initialValRes.body.totalQuantityUnits).toBe(55);
+      expect(initialValRes.body.totalDistinctItems).toBe(2);
+
+      // Snapshot unrelated item state prior to consumption
+      const unrelatedPre = await inventoryRepo.findById(unrelatedProduct.id);
+      expect(unrelatedPre).not.toBeNull();
+      const unrelatedVersionPre = unrelatedPre!.version;
+      const unrelatedMovementsPre = unrelatedPre!.movements.length;
+
+      // When: The Trainer records internal treatment session consumption of 3 units
       const response = await client
         .as(trainer)
         .post(`/api/v1/resources/inventory/${product.id}/consume`)
@@ -674,15 +712,135 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
           notes: 'Lumbar support taping during therapy',
         });
 
-      // Then: Stock decreases to 27
+      // Then: Stock on hand is decremented to exactly 42
       expect(response.status).toBe(HttpStatus.OK);
-      expect(response.body.item.quantityOnHand).toBe(27);
+      expect(response.body.item.quantityOnHand).toBe(42);
 
-      // And: A CONSUMPTION movement exists with the treatmentSessionId
+      // And: Dedicated stock query confirms stock is exactly 42
+      const stockRes = await client
+        .as(trainer)
+        .get(`/api/v1/resources/inventory/${product.id}/stock-level`);
+      expect(stockRes.status).toBe(HttpStatus.OK);
+      expect(stockRes.body.quantityOnHand).toBe(42);
+
+      // And: A CONSUMPTION movement exists with correct reference and quantity
       expect(response.body.movement.movementType).toBe(StockMovementType.CONSUMPTION);
       expect(response.body.movement.quantityDelta).toBe(-3);
-      expect(response.body.movement.balanceAfter).toBe(27);
+      expect(response.body.movement.balanceAfter).toBe(42);
       expect(response.body.movement.referenceId).toBe('session_kine_881');
+      expect(response.body.movement.inventoryItemId).toBe(product.id);
+
+      // And: Querying the chronological ledger confirms exactly one CONSUMPTION movement
+      const consumptionMovementsRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/movements?movementType=CONSUMPTION`);
+      expect(consumptionMovementsRes.status).toBe(HttpStatus.OK);
+      expect(consumptionMovementsRes.body.items.length).toBe(1);
+      const consumptionMovement = consumptionMovementsRes.body.items[0];
+      expect(consumptionMovement.movementType).toBe(StockMovementType.CONSUMPTION);
+      expect(consumptionMovement.quantityDelta).toBe(-3);
+      expect(consumptionMovement.balanceAfter).toBe(42);
+      expect(consumptionMovement.referenceId).toBe('session_kine_881');
+      expect(consumptionMovement.inventoryItemId).toBe(product.id);
+
+      // And: Explicitly verify that NO SALE movement was created (application does not model consumption as a sale)
+      const saleMovementsRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/movements?movementType=SALE`);
+      expect(saleMovementsRes.status).toBe(HttpStatus.OK);
+      expect(saleMovementsRes.body.items.length).toBe(0);
+
+      // And: Total movements for the item are 2 (1 RECEIPT of 45, 1 CONSUMPTION of 3)
+      const allMovementsRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/inventory/${product.id}/movements`);
+      expect(allMovementsRes.status).toBe(HttpStatus.OK);
+      expect(allMovementsRes.body.items.length).toBe(2);
+
+      // And: Working capital valuation is recalculated reflecting the remaining stock:
+      // (10 * $3.00) + (42 * $6.00) = $282.00 across 52 total units
+      const postValRes = await client.as(owner).get('/api/v1/resources/inventory/valuation');
+      expect(postValRes.status).toBe(HttpStatus.OK);
+      expect(postValRes.body.totalValueAmount).toBe(282.0);
+      expect(postValRes.body.totalQuantityUnits).toBe(52);
+      expect(postValRes.body.totalDistinctItems).toBe(2);
+
+      // And: Unrelated inventory item remains completely unchanged
+      const unrelatedPost = await inventoryRepo.findById(unrelatedProduct.id);
+      expect(unrelatedPost).not.toBeNull();
+      expect(unrelatedPost!.quantityOnHand.value).toBe(10);
+      expect(unrelatedPost!.version).toBe(unrelatedVersionPre);
+      expect(unrelatedPost!.movements.length).toBe(unrelatedMovementsPre);
+    });
+
+    it('Explicitly verifies domain distinction between SALE and CONSUMPTION and enforces invariant bounds against over-consumption', async () => {
+      // Given: A persisted clinical supplies product with 5 units remaining
+      const product = await productFactory.create(owner, {
+        name: 'Acupuncture Needles Box',
+        category: InventoryCategory.CLINICAL_SUPPLIES,
+        unitCost: 15.0,
+        sellingPrice: 30.0,
+        quantityOnHand: 0,
+      });
+
+      await client.as(owner).post(`/api/v1/resources/inventory/${product.id}/receive`).send({
+        quantity: 5,
+        unitCost: 15.0,
+        notes: 'Clinical box receipt',
+      });
+
+      // When: Consuming 2 units for clinical procedure
+      const consumeRes = await client
+        .as(trainer)
+        .post(`/api/v1/resources/inventory/${product.id}/consume`)
+        .send({
+          quantity: 2,
+          treatmentSessionId: 'session_acupuncture_01',
+          notes: 'Sterile needle usage during dry needling',
+        });
+
+      expect(consumeRes.status).toBe(HttpStatus.OK);
+      expect(consumeRes.body.item.quantityOnHand).toBe(3);
+      expect(consumeRes.body.movement.movementType).toBe(StockMovementType.CONSUMPTION);
+      expect(consumeRes.body.movement.quantityDelta).toBe(-2);
+      expect(consumeRes.body.movement.balanceAfter).toBe(3);
+
+      // Verify domain distinction: The movement is strictly CONSUMPTION and not SALE
+      expect(consumeRes.body.movement.movementType).not.toBe(StockMovementType.SALE);
+
+      // And: Verify direct handler invocation follows the same inventory rules
+      const directCommand = new ConsumeStockCommand({
+        itemId: product.id,
+        quantity: 1,
+        referenceId: 'session_acupuncture_02',
+        reason: 'Additional single needle usage',
+        actorId: trainer.userId,
+      });
+      const directResult = await consumeStockHandler.execute(directCommand);
+      expect(directResult.isSuccess).toBe(true);
+      expect(directResult.value.item.quantityOnHand).toBe(2);
+      expect(directResult.value.movement.movementType).toBe(StockMovementType.CONSUMPTION);
+      expect(directResult.value.movement.balanceAfter).toBe(2);
+
+      // Negative check: Attempting over-consumption exceeding remaining stock (10 > 2) is rejected
+      const overConsumeRes = await client
+        .as(trainer)
+        .post(`/api/v1/resources/inventory/${product.id}/consume`)
+        .send({
+          quantity: 10,
+          treatmentSessionId: 'session_excess',
+          notes: 'Excess consumption attempt',
+        });
+
+      expect(overConsumeRes.status).toBe(HttpStatus.BAD_REQUEST);
+      expect(overConsumeRes.body.message).toMatch(/insufficient stock/i);
+
+      // Stock remains exactly 2 and no phantom movements are created
+      const checkRes = await client
+        .as(trainer)
+        .get(`/api/v1/resources/inventory/${product.id}/stock-level`);
+      expect(checkRes.status).toBe(HttpStatus.OK);
+      expect(checkRes.body.quantityOnHand).toBe(2);
     });
   });
 
