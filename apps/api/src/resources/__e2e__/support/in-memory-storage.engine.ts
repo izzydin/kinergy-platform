@@ -234,6 +234,18 @@ export class InMemoryFixedAssetRepository implements FixedAssetRepositoryInterfa
     if (filter?.status) {
       const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
       list = list.filter((a) => statuses.includes(a.status));
+    } else if (filter?.includeDecommissioned === false) {
+      list = list.filter((a) => a.status !== AssetStatus.RETIRED);
+    }
+    if (filter?.condition) {
+      const conditions = Array.isArray(filter.condition) ? filter.condition : [filter.condition];
+      list = list.filter((a) => conditions.includes(a.condition));
+    }
+    if (filter?.facilityId) {
+      list = list.filter((a) => a.location?.facilityId === filter.facilityId);
+    }
+    if (filter?.roomId) {
+      list = list.filter((a) => a.location?.roomId === filter.roomId);
     }
     if (filter?.search) {
       const q = filter.search.toLowerCase();

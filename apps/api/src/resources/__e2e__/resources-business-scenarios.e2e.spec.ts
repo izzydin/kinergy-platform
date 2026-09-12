@@ -6,6 +6,7 @@ import {
   AssetCategory,
   AssetStatus,
   AssetCondition,
+  AssetHistoryEventType,
   CreateInventoryItemHandler,
   UpdateInventoryItemHandler,
   ArchiveInventoryItemHandler,
@@ -78,6 +79,7 @@ import {
   FixedAssetFactory,
   assertResourceOverview,
 } from './support';
+import { CreateFixedAssetRequestDto, FixedAssetResponseDto } from '../dto';
 
 describe('Phase 6: Resources Management End-to-End Business Scenarios (A through H)', () => {
   let app: INestApplication;
@@ -1040,38 +1042,164 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   // SCENARIO E: ASSET REGISTRATION (FIXED ASSET COMMISSIONING)
   // ==========================================================================
   describe('Scenario E: Asset Registration (Fixed Asset Commissioning)', () => {
-    it('Given no assets in the fleet, When the Owner registers an Ultrasound Therapy Unit, Then HTTP 201 is returned, status is ACTIVE, and a CREATED event is recorded', async () => {
-      // When: The Owner commissions a new Therapy Ultrasound unit ($12,000)
-      const asset = await assetFactory.create(owner, {
-        assetTag: 'AST-ULTRA-2026-001',
-        name: 'Therapeutic Ultrasound Generator Unit',
-        category: AssetCategory.THERAPY_EQUIPMENT,
-        purchaseValueAmount: 12000.0,
-        currentEstimatedValueAmount: 12000.0,
-        condition: AssetCondition.EXCELLENT,
+    it('Given no assets in the fleet, When the Owner registers a treadmill, Then HTTP 201 is returned, identity/values/status/condition are verified, CREATED event is recorded, queries reflect the asset, and valuation summary includes it', async () => {
+      // Given: Realistic domain payload representing acquisition of a Kinergy commercial treadmill
+      const purchaseValueX = 8500.0;
+      const currentEstimatedValueY = 7800.0;
+
+      const treadmillPayload: CreateFixedAssetRequestDto = {
+        assetTag: 'AST-TRD-2026-001',
+        name: 'Commercial Heavy-Duty Treadmill Pro X',
+        description:
+          'High-performance commercial running machine with incline control and telemetry',
+        category: AssetCategory.GYM_EQUIPMENT,
+        purchaseDate: '2026-03-01T08:00:00.000Z',
+        purchaseValueAmount: purchaseValueX,
+        purchaseValueCurrency: 'USD',
+        currentEstimatedValueAmount: currentEstimatedValueY,
+        condition: AssetCondition.GOOD,
+        status: AssetStatus.ACTIVE,
         location: {
           facilityId: 'fac_main',
-          roomId: 'Room_101',
-          zone: 'Physical Therapy Suite',
-          description: 'Stationary therapy cart',
+          roomId: 'Room 101',
+          zone: 'Cardio Zone A',
+          description: 'Main Gym Floor Cardio Section',
         },
-      });
+        notes: 'Acquired from authorized commercial fitness supplier with 3-year warranty',
+      };
 
-      // Then: The asset is created with status ACTIVE
-      expect(asset.id).toBeDefined();
-      expect(asset.assetTag).toBe('AST-ULTRA-2026-001');
-      expect(asset.status).toBe(AssetStatus.ACTIVE);
+      // When: Register treadmill using the existing Fixed Asset application API
+      const createRes = await client
+        .as(owner)
+        .post('/api/v1/resources/assets')
+        .send(treadmillPayload);
 
-      // And: Financial valuation is accessible via the restricted valuation endpoint
-      const valRes = await client.as(owner).get(`/api/v1/resources/assets/${asset.id}/valuation`);
-      expect(valRes.status).toBe(HttpStatus.OK);
-      expect(valRes.body.currentEstimatedValueAmount).toBe(12000.0);
+      // Verify: Asset is created with HTTP 201 Created
+      expect(createRes.status).toBe(HttpStatus.CREATED);
+      const createdAsset: FixedAssetResponseDto = createRes.body;
 
-      // And: The initial CREATED event is present in the audit history
-      const historyRes = await client.as(owner).get(`/api/v1/resources/assets/${asset.id}/history`);
+      // Verify: Asset identity is correct
+      expect(createdAsset.id).toBeDefined();
+      expect(typeof createdAsset.id).toBe('string');
+      expect(createdAsset.assetTag).toBe('AST-TRD-2026-001');
+      expect(createdAsset.name).toBe('Commercial Heavy-Duty Treadmill Pro X');
+      expect(createdAsset.description).toBe(
+        'High-performance commercial running machine with incline control and telemetry',
+      );
+
+      // Verify: Category is correct
+      expect(createdAsset.category).toBe(AssetCategory.GYM_EQUIPMENT);
+
+      // Verify: Location is correct
+      expect(createdAsset.location).toBeDefined();
+      expect(createdAsset.location.facilityId).toBe('fac_main');
+      expect(createdAsset.location.roomId).toBe('Room 101');
+      expect(createdAsset.location.zone).toBe('Cardio Zone A');
+      expect(createdAsset.location.description).toBe('Main Gym Floor Cardio Section');
+
+      // Verify: Status is ACTIVE
+      expect(createdAsset.status).toBe(AssetStatus.ACTIVE);
+
+      // Verify: Condition is GOOD
+      expect(createdAsset.condition).toBe(AssetCondition.GOOD);
+
+      // Verify: Creation history is recorded (immutable audit trail)
+      const historyRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/${createdAsset.id}/history`);
       expect(historyRes.status).toBe(HttpStatus.OK);
       expect(historyRes.body.items.length).toBe(1);
-      expect(historyRes.body.items[0].eventType).toBe('CREATED');
+      const createdEvent = historyRes.body.items[0];
+      expect(createdEvent.eventType).toBe(AssetHistoryEventType.CREATED);
+      expect(createdEvent.assetId).toBe(createdAsset.id);
+      expect(createdEvent.recordedByUserId).toBe(owner.userId);
+      expect(createdEvent.recordedAt).toBeDefined();
+      expect(createdEvent.details).toBeDefined();
+      expect(createdEvent.details.assetTag).toBe('AST-TRD-2026-001');
+      expect(createdEvent.details.category).toBe(AssetCategory.GYM_EQUIPMENT);
+
+      // Verify: Asset appears in the appropriate resource queries
+      // 1. Single asset query by ID
+      const byIdRes = await client.as(owner).get(`/api/v1/resources/assets/${createdAsset.id}`);
+      expect(byIdRes.status).toBe(HttpStatus.OK);
+      expect(byIdRes.body.id).toBe(createdAsset.id);
+      expect(byIdRes.body.assetTag).toBe('AST-TRD-2026-001');
+      expect(byIdRes.body.category).toBe(AssetCategory.GYM_EQUIPMENT);
+      expect(byIdRes.body.status).toBe(AssetStatus.ACTIVE);
+      expect(byIdRes.body.condition).toBe(AssetCondition.GOOD);
+
+      // 2. Hardware barcode / RFID tag query
+      const byTagRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/tag/${createdAsset.assetTag}`);
+      expect(byTagRes.status).toBe(HttpStatus.OK);
+      expect(byTagRes.body.id).toBe(createdAsset.id);
+      expect(byTagRes.body.name).toBe('Commercial Heavy-Duty Treadmill Pro X');
+
+      // 3. List query filtered by category (GYM_EQUIPMENT)
+      const categoryListRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets?category=${AssetCategory.GYM_EQUIPMENT}`);
+      expect(categoryListRes.status).toBe(HttpStatus.OK);
+      expect(
+        categoryListRes.body.items.some((a: FixedAssetResponseDto) => a.id === createdAsset.id),
+      ).toBe(true);
+
+      // 4. List query filtered by status (ACTIVE)
+      const statusListRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets?status=${AssetStatus.ACTIVE}`);
+      expect(statusListRes.status).toBe(HttpStatus.OK);
+      expect(
+        statusListRes.body.items.some((a: FixedAssetResponseDto) => a.id === createdAsset.id),
+      ).toBe(true);
+
+      // 5. List query filtered by condition (GOOD)
+      const conditionListRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets?condition=${AssetCondition.GOOD}`);
+      expect(conditionListRes.status).toBe(HttpStatus.OK);
+      expect(
+        conditionListRes.body.items.some((a: FixedAssetResponseDto) => a.id === createdAsset.id),
+      ).toBe(true);
+
+      // Verify: Fixed Asset Value includes the asset according to the established valuation rules
+      // 1. Single asset financial valuation endpoint
+      const valRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/${createdAsset.id}/valuation`);
+      expect(valRes.status).toBe(HttpStatus.OK);
+      expect(valRes.body.purchaseValueAmount).toBe(purchaseValueX);
+      expect(valRes.body.currentEstimatedValueAmount).toBe(currentEstimatedValueY);
+
+      // 2. Fixed asset estate valuation summary endpoint
+      const summaryRes = await client.as(owner).get('/api/v1/resources/assets/valuation/summary');
+      expect(summaryRes.status).toBe(HttpStatus.OK);
+      expect(summaryRes.body.totalPurchaseValueAmount).toBe(purchaseValueX);
+      expect(summaryRes.body.totalCarryingValueAmount).toBe(currentEstimatedValueY);
+      expect(summaryRes.body.totalAssetCount).toBe(1);
+      expect(summaryRes.body.activeAssetCount).toBe(1);
+      expect(summaryRes.body.breakdownByCategory[AssetCategory.GYM_EQUIPMENT]).toEqual({
+        totalCarryingValueAmount: currentEstimatedValueY,
+        totalPurchaseValueAmount: purchaseValueX,
+        assetCount: 1,
+      });
+      expect(summaryRes.body.breakdownByCondition[AssetCondition.GOOD]).toEqual({
+        totalCarryingValueAmount: currentEstimatedValueY,
+        count: 1,
+      });
+      expect(summaryRes.body.breakdownByStatus[AssetStatus.ACTIVE]).toEqual({
+        totalCarryingValueAmount: currentEstimatedValueY,
+        count: 1,
+      });
+
+      // 3. Combined cross-domain resource valuation summary endpoint
+      const combinedValRes = await client.as(owner).get('/api/v1/resources/valuation/summary');
+      expect(combinedValRes.status).toBe(HttpStatus.OK);
+      expect(combinedValRes.body.fixedAssets.totalCarryingValueAmount).toBe(currentEstimatedValueY);
+      expect(combinedValRes.body.fixedAssets.totalPurchaseValueAmount).toBe(purchaseValueX);
+      expect(combinedValRes.body.fixedAssets.totalAssetCount).toBe(1);
+      expect(combinedValRes.body.fixedAssets.activeAssetCount).toBe(1);
     });
   });
 
