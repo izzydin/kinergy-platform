@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { INestApplication, HttpStatus } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
@@ -134,8 +135,7 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
       }),
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const secretProvider = new ConfigSecretProvider(configServiceMock as any);
+    const secretProvider = new ConfigSecretProvider(configServiceMock as unknown as ConfigService);
     const tokenConfig = new ConfigTokenConfiguration(secretProvider);
     const jwtFactory = new JwtTokenFactory(secretProvider);
     const accessTokenService = new AccessTokenService(jwtFactory);

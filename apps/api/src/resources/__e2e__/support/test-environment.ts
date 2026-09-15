@@ -1,3 +1,4 @@
+import { ConfigService } from '@nestjs/config';
 import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
@@ -130,8 +131,7 @@ export async function createResourcesE2ETestEnvironment(): Promise<ResourcesE2ET
     }),
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const secretProvider = new ConfigSecretProvider(configServiceMock as any);
+  const secretProvider = new ConfigSecretProvider(configServiceMock as unknown as ConfigService);
   const tokenConfig = new ConfigTokenConfiguration(secretProvider);
   const jwtFactory = new JwtTokenFactory(secretProvider);
   const accessTokenService = new AccessTokenService(jwtFactory);
