@@ -91,6 +91,60 @@ export function createTestClient(tenantId = TEST_TENANT_ID): TestPersona {
   return { userId, email, roles, permissions, tenantId, token };
 }
 
+export function createTestInventoryReadOnly(tenantId = TEST_TENANT_ID): TestPersona {
+  const userId = 'usr_inv_readonly_e2e';
+  const email = 'inv-reader@wellness.e2e.test';
+  const roles = ['TRAINER'];
+  const permissions = ['inventory.read'];
+
+  const token = JwtTestFactory.createSignedToken({
+    sub: userId,
+    email,
+    roles,
+    permissions,
+    tenantId,
+    tokenVersion: 1,
+  });
+
+  return { userId, email, roles, permissions, tenantId, token };
+}
+
+export function createTestAssetsReadOnly(tenantId = TEST_TENANT_ID): TestPersona {
+  const userId = 'usr_assets_readonly_e2e';
+  const email = 'assets-reader@wellness.e2e.test';
+  const roles = ['TRAINER'];
+  const permissions = ['assets.read'];
+
+  const token = JwtTestFactory.createSignedToken({
+    sub: userId,
+    email,
+    roles,
+    permissions,
+    tenantId,
+    tokenVersion: 1,
+  });
+
+  return { userId, email, roles, permissions, tenantId, token };
+}
+
+export function createTestFinancialAuditor(tenantId = TEST_TENANT_ID): TestPersona {
+  const userId = 'usr_auditor_e2e';
+  const email = 'auditor@wellness.e2e.test';
+  const roles = ['ADMIN'];
+  const permissions = ['inventory.read', 'assets.read', 'billing.read'];
+
+  const token = JwtTestFactory.createSignedToken({
+    sub: userId,
+    email,
+    roles,
+    permissions,
+    tenantId,
+    tokenVersion: 1,
+  });
+
+  return { userId, email, roles, permissions, tenantId, token };
+}
+
 export class InMemoryE2EUserRepository implements IUserRepository {
   private readonly users = new Map<string, User>();
 
