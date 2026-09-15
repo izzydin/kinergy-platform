@@ -79,7 +79,11 @@ import {
   FixedAssetFactory,
   assertResourceOverview,
 } from './support';
-import { CreateFixedAssetRequestDto, FixedAssetResponseDto } from '../dto';
+import {
+  CreateFixedAssetRequestDto,
+  FixedAssetResponseDto,
+  TransferFixedAssetLocationRequestDto,
+} from '../dto';
 
 describe('Phase 6: Resources Management End-to-End Business Scenarios (A through H)', () => {
   let app: INestApplication;
@@ -1207,42 +1211,167 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   // SCENARIO F: ASSET TRANSFER (PHYSICAL LOCATION RELOCATION)
   // ==========================================================================
   describe('Scenario F: Asset Transfer (Physical Location Relocation)', () => {
-    it('Given an asset located in Room 101, When the Owner transfers it to Room 204, Then the location updates and a TRANSFERRED event is logged', async () => {
-      // Given: An active asset commissioned in Room 101
-      const asset = await assetFactory.create(owner, {
-        assetTag: 'AST-REFORM-001',
-        name: 'Pilates Clinical Reformer',
+    it('Given an asset located in Gym Area A, When transferring to Gym Area B, Then current location updates, previous location is preserved in history, invariants remain untouched, and unrelated assets are unaffected', async () => {
+      // Given: Gym equipment commissioned in Gym Area A
+      const locationAreaA = {
+        facilityId: 'fac_main',
+        roomId: 'area_gym_a',
+        zone: 'Gym Area A',
+        description: 'Free Weights Section North',
+      };
+
+      const rackAsset = await assetFactory.create(owner, {
+        assetTag: 'AST-RACK-2026-001',
+        name: 'Commercial Power Squat Rack Pro',
         category: AssetCategory.GYM_EQUIPMENT,
-        purchaseValueAmount: 6500.0,
+        purchaseValueAmount: 4500.0,
+        currentEstimatedValueAmount: 4500.0,
+        condition: AssetCondition.EXCELLENT,
+        location: locationAreaA,
+      });
+
+      // And Given: An unrelated stationary bike in the Cardio Deck to prove mutation isolation
+      const unrelatedBike = await assetFactory.create(owner, {
+        assetTag: 'AST-BIKE-2026-002',
+        name: 'Commercial Recumbent Stationary Bike',
+        category: AssetCategory.GYM_EQUIPMENT,
+        purchaseValueAmount: 3200.0,
+        currentEstimatedValueAmount: 3200.0,
+        condition: AssetCondition.EXCELLENT,
         location: {
           facilityId: 'fac_main',
-          roomId: 'Room_101',
-          zone: 'Consultation Room',
+          roomId: 'room_cardio',
+          zone: 'Cardio Deck',
+          description: 'Cardio machine line 2',
         },
       });
 
-      // When: The Owner relocates the equipment to Room 204 (Rehab Gym)
-      const response = await client
+      // Verify initial state
+      expect(rackAsset.location.roomId).toBe('area_gym_a');
+      expect(rackAsset.location.zone).toBe('Gym Area A');
+      expect(rackAsset.status).toBe(AssetStatus.ACTIVE);
+      expect(rackAsset.condition).toBe(AssetCondition.EXCELLENT);
+
+      // When: The Owner executes the established transfer operation to Gym Area B
+      const locationAreaB = {
+        facilityId: 'fac_main',
+        roomId: 'area_gym_b',
+        zone: 'Gym Area B',
+        description: 'Functional Training Zone South',
+      };
+
+      const transferPayload: TransferFixedAssetLocationRequestDto = {
+        location: locationAreaB,
+        reason: 'Facility layout optimization and functional training floor expansion',
+      };
+
+      const transferRes = await client
         .as(owner)
-        .post(`/api/v1/resources/assets/${asset.id}/transfer`)
-        .send({
-          location: {
-            facilityId: 'fac_main',
-            roomId: 'Room_204',
-            zone: 'Rehabilitation Gymnasium',
-            description: 'Bay 3 by the window',
-          },
-        });
+        .post(`/api/v1/resources/assets/${rackAsset.id}/transfer`)
+        .send(transferPayload);
 
-      // Then: The location reflects Room 204
-      expect(response.status).toBe(HttpStatus.OK);
-      expect(response.body.location.roomId).toBe('Room_204');
-      expect(response.body.location.zone).toBe('Rehabilitation Gymnasium');
+      // Then Verify: Transfer operation succeeded with HTTP 200 OK
+      expect(transferRes.status).toBe(HttpStatus.OK);
+      const transferredAsset: FixedAssetResponseDto = transferRes.body;
 
-      // And: A TRANSFERRED event is appended to the audit history
-      const historyRes = await client.as(owner).get(`/api/v1/resources/assets/${asset.id}/history`);
+      // Verify: Current location becomes Gym Area B
+      expect(transferredAsset.location.facilityId).toBe('fac_main');
+      expect(transferredAsset.location.roomId).toBe('area_gym_b');
+      expect(transferredAsset.location.zone).toBe('Gym Area B');
+      expect(transferredAsset.location.description).toBe('Functional Training Zone South');
+
+      // Verify: Persisted query reflects Gym Area B
+      const getByIdRes = await client.as(owner).get(`/api/v1/resources/assets/${rackAsset.id}`);
+      expect(getByIdRes.status).toBe(HttpStatus.OK);
+      expect(getByIdRes.body.location.roomId).toBe('area_gym_b');
+      expect(getByIdRes.body.location.zone).toBe('Gym Area B');
+      expect(getByIdRes.body.location.description).toBe('Functional Training Zone South');
+      expect(getByIdRes.body.version).toBe(2);
+
+      // Verify: Previous location was Gym Area A and transfer history is recorded
+      const historyRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/${rackAsset.id}/history`);
       expect(historyRes.status).toBe(HttpStatus.OK);
-      expect(historyRes.body.items[0].eventType).toBe('TRANSFERRED');
+      expect(historyRes.body.items.length).toBe(2); // [CREATED, TRANSFERRED]
+
+      // Filter query for TRANSFERRED event specifically
+      const transferOnlyHistoryRes = await client
+        .as(owner)
+        .get(
+          `/api/v1/resources/assets/${rackAsset.id}/history?eventType=${AssetHistoryEventType.TRANSFERRED}`,
+        );
+      expect(transferOnlyHistoryRes.status).toBe(HttpStatus.OK);
+      expect(transferOnlyHistoryRes.body.items.length).toBe(1);
+
+      const transferEvent = transferOnlyHistoryRes.body.items[0];
+      expect(transferEvent.eventType).toBe(AssetHistoryEventType.TRANSFERRED);
+      expect(transferEvent.assetId).toBe(rackAsset.id);
+      expect(transferEvent.recordedByUserId).toBe(owner.userId);
+      expect(transferEvent.recordedAt).toBeDefined();
+
+      // Verify: History preserves old/new location information according to domain model
+      expect(transferEvent.details).toBeDefined();
+      expect(transferEvent.details.priorLocation).toEqual({
+        facilityId: 'fac_main',
+        roomId: 'area_gym_a',
+        zone: 'Gym Area A',
+        description: 'Free Weights Section North',
+      });
+      expect(transferEvent.details.newLocation).toEqual({
+        facilityId: 'fac_main',
+        roomId: 'area_gym_b',
+        zone: 'Gym Area B',
+        description: 'Functional Training Zone South',
+      });
+      expect(transferEvent.details.reason).toBe(
+        'Facility layout optimization and functional training floor expansion',
+      );
+
+      // Verify: Asset status and condition remain unchanged
+      expect(transferredAsset.status).toBe(AssetStatus.ACTIVE);
+      expect(transferredAsset.condition).toBe(AssetCondition.EXCELLENT);
+      expect(getByIdRes.body.status).toBe(AssetStatus.ACTIVE);
+      expect(getByIdRes.body.condition).toBe(AssetCondition.EXCELLENT);
+
+      // Verify: Asset valuation remains unchanged
+      const valRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/${rackAsset.id}/valuation`);
+      expect(valRes.status).toBe(HttpStatus.OK);
+      expect(valRes.body.purchaseValueAmount).toBe(4500.0);
+      expect(valRes.body.currentEstimatedValueAmount).toBe(4500.0);
+
+      // Verify: No duplicate asset is created
+      const listAllRes = await client.as(owner).get('/api/v1/resources/assets');
+      expect(listAllRes.status).toBe(HttpStatus.OK);
+      expect(listAllRes.body.total).toBe(2); // rack + bike
+
+      const tagLookupRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/tag/${rackAsset.assetTag}`);
+      expect(tagLookupRes.status).toBe(HttpStatus.OK);
+      expect(tagLookupRes.body.id).toBe(rackAsset.id);
+
+      // Verify: No unrelated asset changes
+      const bikeRes = await client.as(owner).get(`/api/v1/resources/assets/${unrelatedBike.id}`);
+      expect(bikeRes.status).toBe(HttpStatus.OK);
+      expect(bikeRes.body.location.roomId).toBe('room_cardio');
+      expect(bikeRes.body.location.zone).toBe('Cardio Deck');
+      expect(bikeRes.body.location.description).toBe('Cardio machine line 2');
+      expect(bikeRes.body.version).toBe(1);
+      expect(bikeRes.body.status).toBe(AssetStatus.ACTIVE);
+      expect(bikeRes.body.condition).toBe(AssetCondition.EXCELLENT);
+
+      // Verify: Location query filtering reflects updated location
+      const gymARes = await client.as(owner).get('/api/v1/resources/assets?roomId=area_gym_a');
+      expect(gymARes.status).toBe(HttpStatus.OK);
+      expect(gymARes.body.items.length).toBe(0);
+
+      const gymBRes = await client.as(owner).get('/api/v1/resources/assets?roomId=area_gym_b');
+      expect(gymBRes.status).toBe(HttpStatus.OK);
+      expect(gymBRes.body.items.length).toBe(1);
+      expect(gymBRes.body.items[0].id).toBe(rackAsset.id);
     });
   });
 
