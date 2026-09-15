@@ -83,6 +83,8 @@ import {
   CreateFixedAssetRequestDto,
   FixedAssetResponseDto,
   TransferFixedAssetLocationRequestDto,
+  ChangeFixedAssetStatusRequestDto,
+  RecordAssetMaintenanceRequestDto,
 } from '../dto';
 
 describe('Phase 6: Resources Management End-to-End Business Scenarios (A through H)', () => {
@@ -1378,47 +1380,176 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   // ==========================================================================
   // SCENARIO G: ASSET MAINTENANCE (SERVICING & WORK ORDER LOGGING)
   // ==========================================================================
-  describe('Scenario G: Maintenance (Servicing & Work Order Logging)', () => {
-    it('Given an operational asset, When scheduled calibration is recorded, Then a maintenance record is persisted and a MAINTENANCE_RECORDED event is logged', async () => {
-      // Given: An operational Class IV laser equipment asset
-      const asset = await assetFactory.create(owner, {
-        assetTag: 'AST-LASER-2026-004',
-        name: 'Class IV High-Power Laser',
-        category: AssetCategory.THERAPY_EQUIPMENT,
-        purchaseValueAmount: 18000.0,
+  describe('Scenario G: Maintenance Lifecycle (Servicing & Work Order Logging)', () => {
+    it('Given an ACTIVE treadmill, When transitioned to UNDER_MAINTENANCE and serviced, Then maintenance record is created, status returns to ACTIVE, history is preserved, and invalid transitions are rejected', async () => {
+      // Given: An ACTIVE commercial treadmill with initial condition GOOD ($7,500 carrying value)
+      const treadmill = await assetFactory.create(owner, {
+        assetTag: 'AST-TRD-2026-009',
+        name: 'Commercial Club Series Treadmill Pro',
+        category: AssetCategory.GYM_EQUIPMENT,
+        purchaseValueAmount: 7500.0,
+        currentEstimatedValueAmount: 7500.0,
+        condition: AssetCondition.GOOD,
+        location: {
+          facilityId: 'fac_main',
+          roomId: 'area_gym_cardio',
+          zone: 'Cardio Deck',
+          description: 'Main running machine aisle, unit #4',
+        },
       });
 
-      // When: The Owner logs a formal maintenance record
-      const response = await client
+      expect(treadmill.status).toBe(AssetStatus.ACTIVE);
+      expect(treadmill.condition).toBe(AssetCondition.GOOD);
+
+      // Step 1: Transition asset to UNDER_MAINTENANCE
+      const statusPayload: ChangeFixedAssetStatusRequestDto = {
+        status: AssetStatus.UNDER_MAINTENANCE,
+        reason: 'Scheduled motor drive belt tensioning and speed sensor calibration',
+      };
+
+      const statusRes = await client
         .as(owner)
-        .post(`/api/v1/resources/assets/${asset.id}/maintenance`)
-        .send({
-          serviceDate: '2026-06-15T10:00:00.000Z',
-          description: 'Semi-annual diode calibration and optical safety inspection',
-          costAmount: 450.0,
-          costCurrency: 'USD',
-          performedBy: 'Apex Laser Biomedical Technicians',
-          notes: 'Passed all focal tests; certificate issue #8841',
-        });
+        .post(`/api/v1/resources/assets/${treadmill.id}/status`)
+        .send(statusPayload);
 
-      // Then: The maintenance endpoint returns HTTP 200 with persisted record
-      expect(response.status).toBe(HttpStatus.OK);
-      expect(response.body.description).toContain('diode calibration');
-      expect(response.body.costAmount).toBe(450.0);
-      expect(response.body.performedBy).toBe('Apex Laser Biomedical Technicians');
+      expect(statusRes.status).toBe(HttpStatus.OK);
+      expect(statusRes.body.status).toBe(AssetStatus.UNDER_MAINTENANCE);
 
-      // And: A MAINTENANCE_RECORDED event is recorded in the asset audit stream
-      const historyRes = await client.as(owner).get(`/api/v1/resources/assets/${asset.id}/history`);
-      expect(historyRes.status).toBe(HttpStatus.OK);
-      expect(historyRes.body.items[0].eventType).toBe('MAINTENANCE_RECORDED');
+      // Verify asset query confirms UNDER_MAINTENANCE and version incremented
+      const intermediateAssetRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/${treadmill.id}`);
+      expect(intermediateAssetRes.status).toBe(HttpStatus.OK);
+      expect(intermediateAssetRes.body.status).toBe(AssetStatus.UNDER_MAINTENANCE);
+      expect(intermediateAssetRes.body.id).toBe(treadmill.id);
 
-      // And: Maintenance history ledger lists the work order
+      // Verify valuation remains consistent: according to ADR-0097, assets in UNDER_MAINTENANCE are included in carrying value
+      const intermediateValRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/${treadmill.id}/valuation`);
+      expect(intermediateValRes.status).toBe(HttpStatus.OK);
+      expect(intermediateValRes.body.currentEstimatedValueAmount).toBe(7500.0);
+
+      // Step 2: Record maintenance work order and complete servicing
+      const maintenancePayload: RecordAssetMaintenanceRequestDto = {
+        serviceDate: '2026-06-20T10:00:00.000Z',
+        description:
+          'Replaced drive belt, lubricated running deck, and recalibrated motor tachometer',
+        costAmount: 385.0,
+        costCurrency: 'USD',
+        performedBy: 'Precision Fitness Technical Services',
+        updateConditionTo: AssetCondition.EXCELLENT,
+        notes: 'Passed dynamic load stress test up to 22 km/h; work order #WO-9912',
+      };
+
       const maintenanceRes = await client
         .as(owner)
-        .get(`/api/v1/resources/assets/${asset.id}/maintenance`);
+        .post(`/api/v1/resources/assets/${treadmill.id}/maintenance`)
+        .send(maintenancePayload);
+
       expect(maintenanceRes.status).toBe(HttpStatus.OK);
-      expect(maintenanceRes.body.items.length).toBe(1);
-      expect(maintenanceRes.body.items[0].costAmount).toBe(450.0);
+      expect(maintenanceRes.body.id).toBeDefined();
+      expect(maintenanceRes.body.assetId).toBe(treadmill.id);
+      expect(maintenanceRes.body.description).toContain('Replaced drive belt');
+      expect(maintenanceRes.body.costAmount).toBe(385.0);
+      expect(maintenanceRes.body.costCurrency).toBe('USD');
+      expect(maintenanceRes.body.performedBy).toBe('Precision Fitness Technical Services');
+      expect(maintenanceRes.body.recordedByUserId).toBe(owner.userId);
+
+      // Step 3: Verify asset returns to ACTIVE upon completion with serviceable condition EXCELLENT
+      const completedAssetRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/${treadmill.id}`);
+      expect(completedAssetRes.status).toBe(HttpStatus.OK);
+      expect(completedAssetRes.body.id).toBe(treadmill.id);
+      expect(completedAssetRes.body.assetTag).toBe('AST-TRD-2026-009');
+      expect(completedAssetRes.body.status).toBe(AssetStatus.ACTIVE);
+      expect(completedAssetRes.body.condition).toBe(AssetCondition.EXCELLENT);
+
+      // Step 4: Verify maintenance history is persisted without duplicates
+      const maintenanceListRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/${treadmill.id}/maintenance`);
+      expect(maintenanceListRes.status).toBe(HttpStatus.OK);
+      expect(maintenanceListRes.body.items.length).toBe(1);
+      expect(maintenanceListRes.body.items[0].id).toBe(maintenanceRes.body.id);
+      expect(maintenanceListRes.body.items[0].costAmount).toBe(385.0);
+      expect(maintenanceListRes.body.items[0].performedBy).toBe(
+        'Precision Fitness Technical Services',
+      );
+
+      // Step 5: Verify asset audit history contains required lifecycle events
+      const historyRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/${treadmill.id}/history`);
+      expect(historyRes.status).toBe(HttpStatus.OK);
+
+      const eventTypes = historyRes.body.items.map((e: { eventType: string }) => e.eventType);
+      expect(eventTypes).toContain(AssetHistoryEventType.CREATED);
+      expect(eventTypes).toContain(AssetHistoryEventType.STATUS_CHANGED);
+      expect(eventTypes).toContain(AssetHistoryEventType.MAINTENANCE_RECORDED);
+
+      const statusChangeEvent = historyRes.body.items.find(
+        (e: { eventType: string }) => e.eventType === AssetHistoryEventType.STATUS_CHANGED,
+      );
+      expect(statusChangeEvent).toBeDefined();
+      expect(statusChangeEvent.details.priorStatus).toBe(AssetStatus.ACTIVE);
+      expect(statusChangeEvent.details.newStatus).toBe(AssetStatus.UNDER_MAINTENANCE);
+
+      const maintenanceEvent = historyRes.body.items.find(
+        (e: { eventType: string }) => e.eventType === AssetHistoryEventType.MAINTENANCE_RECORDED,
+      );
+      expect(maintenanceEvent).toBeDefined();
+      expect(maintenanceEvent.details.performedBy).toBe('Precision Fitness Technical Services');
+      expect(maintenanceEvent.recordedByUserId).toBe(owner.userId);
+
+      // Step 6: Verify current estimated value remains consistent with valuation rules
+      const valRes = await client
+        .as(owner)
+        .get(`/api/v1/resources/assets/${treadmill.id}/valuation`);
+      expect(valRes.status).toBe(HttpStatus.OK);
+      expect(valRes.body.purchaseValueAmount).toBe(7500.0);
+      expect(valRes.body.currentEstimatedValueAmount).toBe(7500.0);
+
+      // Step 7: Verify invalid maintenance transitions are rejected (Milestone 6.3 State Machine)
+      // A retired/decommissioned asset cannot undergo maintenance
+      const retiredAsset = await assetFactory.create(owner, {
+        assetTag: 'AST-RETIRED-001',
+        name: 'Obsolete Rowing Machine',
+        category: AssetCategory.GYM_EQUIPMENT,
+      });
+
+      // Transition to RETIRED
+      const retireRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/assets/${retiredAsset.id}/status`)
+        .send({
+          status: AssetStatus.RETIRED,
+          reason: 'End-of-life decommission; frame cracked and unrepairable',
+        });
+      expect(retireRes.status).toBe(HttpStatus.OK);
+
+      // Attempt maintenance on RETIRED asset -> MUST BE REJECTED
+      const invalidMaintenanceRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/assets/${retiredAsset.id}/maintenance`)
+        .send({
+          serviceDate: '2026-06-21T10:00:00.000Z',
+          description: 'Attempted overhaul of retired equipment',
+          costAmount: 100.0,
+          performedBy: 'Technician',
+        });
+      expect(invalidMaintenanceRes.status).toBe(HttpStatus.BAD_REQUEST);
+
+      // Attempt invalid status transition from RETIRED -> UNDER_MAINTENANCE -> MUST BE REJECTED
+      const invalidStatusRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/assets/${retiredAsset.id}/status`)
+        .send({
+          status: AssetStatus.UNDER_MAINTENANCE,
+          reason: 'Attempting invalid status transition',
+        });
+      expect(invalidStatusRes.status).toBe(HttpStatus.BAD_REQUEST);
     });
   });
 
