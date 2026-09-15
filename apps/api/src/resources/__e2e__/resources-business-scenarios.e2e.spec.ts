@@ -85,6 +85,7 @@ import {
   TransferFixedAssetLocationRequestDto,
   ChangeFixedAssetStatusRequestDto,
   RecordAssetMaintenanceRequestDto,
+  UpdateFixedAssetValuationRequestDto,
 } from '../dto';
 
 describe('Phase 6: Resources Management End-to-End Business Scenarios (A through H)', () => {
@@ -1554,51 +1555,203 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   });
 
   // ==========================================================================
-  // SCENARIO H: VALUATION (MULTI-DOMAIN BALANCE SHEET SYNTHESIS)
+  // SCENARIO H: RESOURCE VALUATION (CROSS-DOMAIN BALANCE SHEET CONSISTENCY)
   // ==========================================================================
-  describe('Scenario H: Valuation (Multi-Domain Balance Sheet Synthesis)', () => {
-    it('Given 50 units of drinks ($200.00) and a capital asset ($12,000.00), When the Owner queries the overview dashboard, Then Combined Resource Value reflects $12,200.00', async () => {
-      // Given: 50 units of green juice ($4.00 unit cost = $200.00 inventory value)
-      const juice = await productFactory.create(owner, {
-        name: 'Cold-Pressed Juice',
+  describe('Scenario H: Resource Valuation (Cross-Domain Balance Sheet Consistency)', () => {
+    it('Given consumable inventory and a fixed asset, verifies Consumable Inventory Value (A) + Fixed Asset Value (B) = Combined Resource Value (A + B), and proves mathematical consistency across stock mutations and asset revaluation', async () => {
+      // ----------------------------------------------------------------------
+      // 1. DETERMINISTIC BUSINESS DATASET SETUP
+      // ----------------------------------------------------------------------
+      // Consumable inventory item: 50 units @ $4.00 purchase cost -> Inventory Value A = $200.00
+      const drink = await productFactory.create(owner, {
+        name: 'Electrolyte Hydration Drink Pro',
+        sku: 'DRK-ELECTRO-001',
         category: InventoryCategory.HEALTHY_DRINKS,
         unitCost: 4.0,
         sellingPrice: 8.0,
       });
 
-      await client.as(owner).post(`/api/v1/resources/inventory/${juice.id}/receive`).send({
-        quantity: 50,
-        unitCost: 4.0,
-        notes: 'Batch shipment',
-      });
+      const receiveRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${drink.id}/receive`)
+        .send({
+          quantity: 50,
+          unitCost: 4.0,
+          notes: 'Initial lot receipt for valuation testing',
+        });
+      expect(receiveRes.status).toBe(HttpStatus.OK);
 
-      // And: An active capital asset with carrying value of $12,000.00
-      await assetFactory.create(owner, {
-        assetTag: 'AST-CRYO-001',
-        name: 'Whole Body Cryotherapy Chamber',
+      // Fixed asset: Purchase value = $15,000.00, Current fair value = $15,000.00 -> Asset Value B = $15,000.00
+      const asset = await assetFactory.create(owner, {
+        assetTag: 'AST-CRYO-VAL-001',
+        name: 'Commercial Cryotherapy Recovery Chamber',
         category: AssetCategory.THERAPY_EQUIPMENT,
-        purchaseValueAmount: 12000.0,
-        currentEstimatedValueAmount: 12000.0,
+        purchaseValueAmount: 15000.0,
+        currentEstimatedValueAmount: 15000.0,
         condition: AssetCondition.EXCELLENT,
       });
 
-      // When: The Owner queries the executive overview dashboard
-      const response = await client.as(owner).get('/api/v1/resources/overview');
+      // ----------------------------------------------------------------------
+      // 2. BASELINE VERIFICATION: Inventory Value A, Asset Value B, Combined A + B
+      // ----------------------------------------------------------------------
+      const expectedA0 = 200.0; // 50 * $4.00
+      const expectedB0 = 15000.0;
+      const expectedCombined0 = expectedA0 + expectedB0; // $15,200.00
 
-      // Then: HTTP 200 OK is returned
-      expect(response.status).toBe(HttpStatus.OK);
+      // Verify Consumable Inventory Valuation = A
+      const invValRes0 = await client.as(owner).get('/api/v1/resources/inventory/valuation');
+      expect(invValRes0.status).toBe(HttpStatus.OK);
+      expect(invValRes0.body.totalValueAmount).toBeCloseTo(expectedA0, 2);
+      expect(invValRes0.body.totalQuantityUnits).toBe(50);
+      expect(invValRes0.body.totalDistinctItems).toBe(1);
 
-      // And: Working capital inventory valuation is exactly $200.00
-      // And: Fixed asset carrying valuation is exactly $12,000.00
-      // And: Combined Resource Value is exactly $12,200.00
-      assertResourceOverview(response.body, {
-        inventoryTotal: 200.0,
+      // Verify Fixed Asset Valuation = B
+      const assetValRes0 = await client.as(owner).get('/api/v1/resources/assets/valuation/summary');
+      expect(assetValRes0.status).toBe(HttpStatus.OK);
+      expect(assetValRes0.body.totalCarryingValueAmount).toBeCloseTo(expectedB0, 2);
+      expect(assetValRes0.body.totalPurchaseValueAmount).toBeCloseTo(expectedB0, 2);
+      expect(assetValRes0.body.activeAssetCount).toBe(1);
+
+      // Verify Combined Resource Valuation = A + B
+      const combValRes0 = await client.as(owner).get('/api/v1/resources/valuation/summary');
+      expect(combValRes0.status).toBe(HttpStatus.OK);
+      expect(combValRes0.body.inventory.totalValueAmount).toBeCloseTo(expectedA0, 2);
+      expect(combValRes0.body.fixedAssets.totalCarryingValueAmount).toBeCloseTo(expectedB0, 2);
+      expect(combValRes0.body.totalCombinedValueAmount).toBeCloseTo(expectedCombined0, 2);
+
+      // Verify Executive Overview Dashboard
+      const overviewRes0 = await client.as(owner).get('/api/v1/resources/overview');
+      expect(overviewRes0.status).toBe(HttpStatus.OK);
+      assertResourceOverview(overviewRes0.body, {
+        inventoryTotal: expectedA0,
         inventoryQuantity: 50,
-        assetsCarryingTotal: 12000.0,
+        inventoryItemsCount: 1,
+        assetsCarryingTotal: expectedB0,
         activeAssetCount: 1,
         totalAssetCount: 1,
-        combinedTotal: 12200.0,
+        combinedTotal: expectedCombined0,
       });
+
+      // Proof: Combined == A + B and no double-counting
+      expect(combValRes0.body.totalCombinedValueAmount).toBeCloseTo(
+        invValRes0.body.totalValueAmount + assetValRes0.body.totalCarryingValueAmount,
+        2,
+      );
+
+      // ----------------------------------------------------------------------
+      // 3. MUTATION 1: Consumable Stock Mutation (SALE Operation)
+      // ----------------------------------------------------------------------
+      // Sell 10 units @ $8.00 -> remaining stock = 40 units
+      // Delta Inventory: -10 * $4.00 = -$40.00
+      const sellRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/inventory/${drink.id}/sell`)
+        .send({
+          quantity: 10,
+          unitPrice: 8.0,
+          referenceId: 'POS-REC-VAL-001',
+          notes: 'Customer beverage purchase at gym front desk',
+        });
+      expect(sellRes.status).toBe(HttpStatus.OK);
+
+      const expectedA1 = 160.0; // 40 * $4.00
+      const deltaA = expectedA1 - expectedA0; // -40.00
+      const expectedCombined1 = expectedCombined0 + deltaA; // $15,160.00
+
+      // Verify Consumable Inventory Valuation changes correctly
+      const invValRes1 = await client.as(owner).get('/api/v1/resources/inventory/valuation');
+      expect(invValRes1.status).toBe(HttpStatus.OK);
+      expect(invValRes1.body.totalValueAmount).toBeCloseTo(expectedA1, 2);
+      expect(invValRes1.body.totalQuantityUnits).toBe(40);
+
+      // Verify Fixed Asset Value remains completely unchanged
+      const assetValRes1 = await client.as(owner).get('/api/v1/resources/assets/valuation/summary');
+      expect(assetValRes1.status).toBe(HttpStatus.OK);
+      expect(assetValRes1.body.totalCarryingValueAmount).toBeCloseTo(expectedB0, 2);
+
+      // Verify Combined Resource Value changes by exactly deltaA
+      const combValRes1 = await client.as(owner).get('/api/v1/resources/valuation/summary');
+      expect(combValRes1.status).toBe(HttpStatus.OK);
+      expect(combValRes1.body.inventory.totalValueAmount).toBeCloseTo(expectedA1, 2);
+      expect(combValRes1.body.fixedAssets.totalCarryingValueAmount).toBeCloseTo(expectedB0, 2);
+      expect(combValRes1.body.totalCombinedValueAmount).toBeCloseTo(expectedCombined1, 2);
+      expect(
+        combValRes1.body.totalCombinedValueAmount - combValRes0.body.totalCombinedValueAmount,
+      ).toBeCloseTo(deltaA, 2);
+
+      // Mathematical consistency check after stock mutation: Combined = A1 + B0
+      expect(combValRes1.body.totalCombinedValueAmount).toBeCloseTo(
+        invValRes1.body.totalValueAmount + assetValRes1.body.totalCarryingValueAmount,
+        2,
+      );
+
+      // ----------------------------------------------------------------------
+      // 4. MUTATION 2: Fixed Asset Value Mutation (Revaluation Operation)
+      // ----------------------------------------------------------------------
+      // Revalue fixed asset to $13,500.00 (Delta Asset = -$1,500.00 write-down)
+      const expectedB2 = 13500.0;
+      const deltaB = expectedB2 - expectedB0; // -1500.00
+      const revaluationPayload: UpdateFixedAssetValuationRequestDto = {
+        estimatedValueAmount: expectedB2,
+        currency: 'USD',
+        reason: 'Annual balance-sheet depreciation and market appraisal adjustment',
+      };
+
+      const revalueRes = await client
+        .as(owner)
+        .post(`/api/v1/resources/assets/${asset.id}/valuation`)
+        .send(revaluationPayload);
+      expect(revalueRes.status).toBe(HttpStatus.OK);
+      expect(revalueRes.body.currentEstimatedValueAmount).toBeCloseTo(expectedB2, 2);
+
+      const expectedCombined2 = expectedCombined1 + deltaB; // $13,660.00
+
+      // Verify Fixed Asset Value changes to expectedB2
+      const assetValRes2 = await client.as(owner).get('/api/v1/resources/assets/valuation/summary');
+      expect(assetValRes2.status).toBe(HttpStatus.OK);
+      expect(assetValRes2.body.totalCarryingValueAmount).toBeCloseTo(expectedB2, 2);
+      // Purchase Capex value remains unchanged at original $15,000.00
+      expect(assetValRes2.body.totalPurchaseValueAmount).toBeCloseTo(15000.0, 2);
+
+      // Verify Inventory Valuation remains strictly independent from fixed asset revaluation
+      const invValRes2 = await client.as(owner).get('/api/v1/resources/inventory/valuation');
+      expect(invValRes2.status).toBe(HttpStatus.OK);
+      expect(invValRes2.body.totalValueAmount).toBeCloseTo(expectedA1, 2);
+      expect(invValRes2.body.totalQuantityUnits).toBe(40);
+
+      // Verify Combined Resource Value changes by exactly the same delta as fixed asset
+      const combValRes2 = await client.as(owner).get('/api/v1/resources/valuation/summary');
+      expect(combValRes2.status).toBe(HttpStatus.OK);
+      expect(combValRes2.body.inventory.totalValueAmount).toBeCloseTo(expectedA1, 2);
+      expect(combValRes2.body.fixedAssets.totalCarryingValueAmount).toBeCloseTo(expectedB2, 2);
+      expect(combValRes2.body.totalCombinedValueAmount).toBeCloseTo(expectedCombined2, 2);
+      expect(
+        combValRes2.body.totalCombinedValueAmount - combValRes1.body.totalCombinedValueAmount,
+      ).toBeCloseTo(deltaB, 2);
+
+      // Verify Executive Overview reflects the updated balance sheet
+      const overviewRes2 = await client.as(owner).get('/api/v1/resources/overview');
+      expect(overviewRes2.status).toBe(HttpStatus.OK);
+      assertResourceOverview(overviewRes2.body, {
+        inventoryTotal: expectedA1,
+        inventoryQuantity: 40,
+        inventoryItemsCount: 1,
+        assetsCarryingTotal: expectedB2,
+        activeAssetCount: 1,
+        totalAssetCount: 1,
+        combinedTotal: expectedCombined2,
+      });
+
+      // ----------------------------------------------------------------------
+      // 5. CRITICAL REQUIREMENT PROOF: Combined = A + B, No double-counting
+      // ----------------------------------------------------------------------
+      expect(combValRes2.body.totalCombinedValueAmount).toBeCloseTo(
+        invValRes2.body.totalValueAmount + assetValRes2.body.totalCarryingValueAmount,
+        2,
+      );
+      expect(combValRes2.body.totalCombinedValueAmount).toBeCloseTo(13660.0, 2);
+      expect(invValRes2.body.totalValueAmount).toBeCloseTo(160.0, 2);
+      expect(assetValRes2.body.totalCarryingValueAmount).toBeCloseTo(13500.0, 2);
     });
   });
 
