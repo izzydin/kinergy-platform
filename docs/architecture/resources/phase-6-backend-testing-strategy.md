@@ -1,7 +1,7 @@
 # Phase 6: Resources Management — Authoritative Backend Testing Strategy
 
 **Status**: Authoritative & Approved  
-**Milestone**: Phase 6.10 — Backend Testing  
+**Milestone**: Phase 6.17 — Full Backend Testing & Data Integrity Validation  
 **Domain**: Resources Management (Consumable Inventory, Fixed Assets, Cross-Domain Valuation)  
 **Author**: Principal QA Architect, Domain Testing Strategist & ARB Member  
 **Governing Documents**:
@@ -10,6 +10,7 @@
 - [**Resources Architecture Baseline & Capability Gap Analysis**](./backend-api-baseline.md)
 - [**Resource API Testing & Quality Specification**](./resource-api-testing.md)
 - [**Milestone 6.9 Quality Gate**](./milestone-6.9-quality-gate.md)
+- [**Milestone 6.17 Quality Gate**](./milestone-6.17-quality-gate.md)
 
 ---
 
@@ -38,21 +39,25 @@ The testing pyramid partitions verification into distinct, non-overlapping level
 ```
                           ▲
                          / \
-                        /   \     Level 4: API & E2E Contract Tests
-                       / E2E \    HTTP Boundaries, DTO Validation, OpenAPI, RBAC
-                      /───────\   (11 Suites / 205 Tests)
-                     /         \
-                    /Concurrenc \ Level 3: Concurrency & Race Tests
-                   /  & Locking  \ Optimistic Locking (version), Collisions
-                  /───────────────\ (2 Dedicated Suites / 30 Tests)
-                 /                 \
-                / Application CQRS  \ Level 2: Application & Persistence Integration
-               /    & Persistence    \ CQRS Handlers, Prisma Mappers, Transactions
-              /───────────────────────\ (21 Suites / 277 Tests)
-             /                         \
-            /   Domain Aggregates & VOs \ Level 1: Pure Domain Unit Tests
-           /   Invariants & State Machine\ Business Rules, Math, State Machines
-          /───────────────────────────────\ (16 Suites / 248 Tests)
+                        / E2E\    Level 5: Multi-Scenario Journeys & Integrity Audits
+                       / Audit\   Cross-Scenario Invariants, Atomicity, Ledger Parity
+                      /────────\  (4 Suites / 36 Tests in apps/api/src/resources/__e2e__/)
+                     /          \
+                    /    API     \ Level 4: External API & OpenAPI Contract Tests
+                   /  Contracts   \ HTTP Envelopes, DTO Validation, RBAC Security
+                  /────────────────\ (11 Suites / 205 Tests)
+                 /                  \
+                / Concurrency Tests  \ Level 3: Concurrency & Lock Contention Tests
+               /   & Race Control     \ Optimistic Locking (version), Collisions
+              /────────────────────────\ (2 Dedicated Suites / 30 Tests)
+             /                          \
+            /  Application CQRS Handlers \ Level 2: Application & Persistence Integration
+           /      & Relational Mappers    \ CQRS Handlers, Prisma Repositories, Tx Atomicity
+          /────────────────────────────────\ (21 Suites / 277 Tests)
+         /                                  \
+        /      Domain Aggregates & VOs       \ Level 1: Pure Domain Unit Tests
+       /    Invariants & FSM State Machines   \ Business Rules, Math, State Machines
+      /────────────────────────────────────────\ (16 Suites / 248 Tests)
 ```
 
 ---
@@ -79,6 +84,20 @@ The testing pyramid partitions verification into distinct, non-overlapping level
 
 - **Scope**: NestJS controllers, `GlobalSanitizationValidationPipe`, `GlobalExceptionFilter`, `AuthorizationGuard`, route resolution, and OpenAPI 3.0 document generation.
 - **Rules**: Tests observable external HTTP behavior (status codes, JSON envelopes, header compliance). Does not re-test pure domain arithmetic already proven at Level 1.
+
+### Level 5: End-to-End Business Scenarios & Cross-Scenario Integrity Audits (`apps/api/src/resources/__e2e__/`)
+
+- **Scope**: Realistic multi-step business journeys (Scenarios A through H), multi-scenario operating day journeys, Phase 1 IAM role and permission boundaries, and deep cross-scenario relational integrity audits.
+- **Harness Architecture (`apps/api/src/resources/__e2e__/support/`)**:
+  - `InMemoryStorageEngine`: Thread-safe, multi-tenant storage engine providing full relational simulation, foreign key integrity, and optimistic concurrency version tracking containerlessly.
+  - `TestEnvironment`: High-fidelity runner providing real NestJS DI resolution, `ValidationPipe`, `GlobalExceptionFilter`, and `AuthorizationGuard`.
+  - `AuthPersonas`: Pre-configured JWT personas (`OWNER`, `THERAPIST`, `TRAINER`, `RECEPTIONIST`, `MEMBER`, `UNAUTHENTICATED`) validating authoritative backend security boundaries.
+- **Mandatory Audit Assertions**:
+  1. **Ledger Parity**: $QOH = \text{initialStock} + \sum \Delta$ holds exactly across every persisted product.
+  2. **Atomic Failure**: Rejected operations (such as insufficient-stock sales) produce exactly zero movement rows, zero partial stock mutations, and zero valuation adjustments.
+  3. **Valuation Equilibrium**: $\text{Combined Value} = \text{Inventory Value} + \text{Fixed Asset Carrying Value}$ matches to the exact cent across multi-step mutations.
+  4. **Referential Integrity**: Work orders, maintenance records, and history events strictly reference valid parent entity IDs.
+  5. **Security Isolation**: Unauthorized requests fail with HTTP 403 and commit zero side-effects to database state.
 
 ---
 
