@@ -49,6 +49,7 @@ docs/
 - **[Resources API Error & Failure Specification](file:///c:/Projects/kinergy-platform/docs/architecture/resources/api-error-handling.md)**: Phase 6 complete 4-tier error pipeline, domain exceptions, HTTP status mappings, validation constraints, and UI behavior.
 - **[Resources Frontend Architecture Specification](file:///c:/Projects/kinergy-platform/docs/architecture/resources/frontend-architecture.md)**: Phase 6 complete frontend architecture, module boundaries, 5-pillar state separation, forms, permissions, 4-state UI, and screen playbook.
 - **[Resources Testing Architecture & Verification Specification](file:///c:/Projects/kinergy-platform/docs/architecture/resources/testing-architecture.md)**: Phase 6 complete 6-layer testing pyramid, proof vs non-proof matrix, layer roles, and Phase 6.17 Scenarios A–H.
+- **[Resources Concurrency Strategy & Stock Guarantees](file:///c:/Projects/kinergy-platform/docs/architecture/resources/concurrency-strategy.md)**: Phase 6 complete 3-layer defense-in-depth, OCC conditional updates, transaction boundaries, and race resolution.
 
 ### 3. Frontend Architecture Vision & Principles
 
