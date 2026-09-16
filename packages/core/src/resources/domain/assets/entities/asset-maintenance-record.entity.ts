@@ -1,6 +1,6 @@
 import { MaintenanceRecordId } from '../value-objects/maintenance-record-id.vo';
 import { AssetId } from '../value-objects/asset-id.vo';
-import { Money } from '../../inventory/value-objects/money.vo';
+import { Money } from '../../shared/value-objects/money.vo';
 
 export interface AssetMaintenanceRecordProps {
   id: MaintenanceRecordId;

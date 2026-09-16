@@ -2,7 +2,7 @@ import { AggregateRoot } from '../shared/aggregate-root';
 import { DomainEvent } from '../shared/domain-event';
 import { AssetId } from './value-objects/asset-id.vo';
 import { AssetLocation } from './value-objects/asset-location.vo';
-import { Money } from '../inventory/value-objects/money.vo';
+import { Money } from '../shared/value-objects/money.vo';
 import { AssetCategory, isAssetCategory } from './enums/asset-category.enum';
 import { AssetStatus, isAssetStatus, isTerminalAssetStatus } from './enums/asset-status.enum';
 import { AssetCondition, isAssetCondition } from './enums/asset-condition.enum';
