@@ -43,6 +43,7 @@ docs/
 - **[Resources Management Architecture (Phase 6)](file:///c:/Projects/kinergy-platform/docs/architecture/resources/README.md)**: Phase 6.0 architecture hub, discovery baseline, and governance for Consumable Inventory & Fixed Assets.
 - **[Resources Bounded Context Specification](file:///c:/Projects/kinergy-platform/docs/architecture/contexts/resources.md)**: Phase 6 domain ownership boundaries, inventory ledger, asset state machine, and cross-domain contracts.
 - **[Resources Management Canonical Vocabulary](file:///c:/Projects/kinergy-platform/docs/business/resources-vocabulary.md)**: Phase 6 ubiquitous language, entity models, movement types matrix, and invariant definitions.
+- **[Resources Executable Business Rules & Invariants](file:///c:/Projects/kinergy-platform/docs/architecture/resources/business-rules.md)**: Phase 6 canonical business rules, low-stock equality case, inventory & asset valuation policies, authorization matrix, and concurrency defense.
 
 ### 3. Frontend Architecture Vision & Principles
 

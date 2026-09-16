@@ -1,32 +1,33 @@
 # Resources Management — Executable Business Rules & Invariants Specification
 
-**Document Version**: 1.0.0  
-**Status**: APPROVED & EXECUTABLE  
-**Context**: Kinergy Platform — Resources Bounded Context (Consumable Inventory Subsystem)  
-**Author**: Staff Domain & Backend Engineering
+- **Status**: Authoritative Behavioral Contract Baseline (APPROVED & EXECUTABLE)
+- **Bounded Context**: Resources Management (`packages/core/src/resources/`, `apps/api/src/resources/`)
+- **Sub-Domains**: Consumable Inventory & Fixed Assets
+- **Author**: Principal Software Architect & Lead Domain Engineer
+- **Governing ADRs**: [ADR-0081](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md) through [ADR-0106](./adr/0106-sales-inventory-integration-boundary-and-stock-ownership-policy.md)
 
 ---
 
-## 1. Architectural Responsibility Boundaries
+## 1. Architectural Responsibility & Invariant Tiers
 
-To maintain strict Clean Architecture boundaries and avoid misplaced domain logic, all rules within the Resources Management domain are classified into five explicit architectural tiers:
+To maintain strict Clean Architecture boundaries and eliminate misplaced domain logic, all business rules within Resources Management are classified into five explicit architectural tiers:
 
 ```mermaid
 flowchart TD
-    subgraph L1["Presentation Tier (HTTP / UI)"]
-        PV["PRESENTATION VALIDATION<br/>• Payload shape validation<br/>• HTTP status mapping<br/>• Format formatting"]
+    subgraph L1["Tier 1: Presentation & Validation"]
+        PV["HTTP DTO Whitelist Validation<br/>• forbidNonWhitelisted: true<br/>• Query normalization & enum parsing<br/>• HTTP status code mapping"]
     end
-    subgraph L2["Security & Access Tier"]
-        AC["AUTHORIZATION CONCERN<br/>• Role & Permission enforcement<br/>• Tenant boundary isolation<br/>• Session token verification"]
+    subgraph L2["Tier 2: Security & Authorization"]
+        AC["AUTHORIZATION TIER<br/>• Bearer JWT authentication<br/>• RBAC / ABAC permission gates<br/>• Tenant boundary isolation (tenantId)"]
     end
-    subgraph L3["Application Orchestration Tier"]
-        AO["APPLICATION ORCHESTRATION<br/>• Use Case Command Handlers<br/>• Aggregate loading & saving<br/>• Domain event dispatching<br/>• Actor propagation"]
+    subgraph L3["Tier 3: Application Orchestration"]
+        AO["APPLICATION ORCHESTRATION<br/>• CQRS Command / Query Handlers<br/>• Aggregate loading & saving<br/>• Domain event publication<br/>• Actor ID propagation"]
     end
-    subgraph L4["Domain Invariant Tier"]
-        DI["DOMAIN INVARIANT<br/>• Aggregate Root Invariants<br/>• Pure Value Object validations<br/>• State Machine rules<br/>• Stock Balance calculation"]
+    subgraph L4["Tier 4: Domain Invariants (Core)"]
+        DI["DOMAIN INVARIANT TIER<br/>• Pure Aggregate Root invariants<br/>• AssetLifecycleStateMachine (5x5 matrix)<br/>• Stock ledger math: QOH >= 0<br/>• Value Objects: Quantity, Money, SKU"]
     end
-    subgraph L5["Persistence Integrity Tier"]
-        PI["PERSISTENCE INTEGRITY<br/>• DB CHECK constraints (QOH >= 0)<br/>• Foreign Key integrity<br/>• Optimistic Concurrency Control (version)<br/>• ACID Transaction atomicity"]
+    subgraph L5["Tier 5: Persistence & Database Integrity"]
+        PI["PERSISTENCE INTEGRITY TIER<br/>• DB CHECK constraints: QOH >= 0<br/>• PostgreSQL RESTRICT on movement ledgers<br/>• Optimistic Concurrency Control (version)<br/>• ACID Transaction Atomicity ($transaction)"]
     end
 
     PV --> AC --> AO --> DI --> PI
@@ -34,188 +35,226 @@ flowchart TD
 
 ---
 
-## 2. Product Rules (Catalog Items)
+## 2. Consumable Inventory Invariants & Business Rules
 
-| Rule ID     | Statement                                                                                                             | Architectural Layer                                   | Enforcement Mechanism                                                                                                                                                                                                              |
-| :---------- | :-------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **PROD-01** | Every inventory product must possess a globally non-empty, alphanumeric SKU.                                          | `DOMAIN INVARIANT`                                    | [`SKU`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/value-objects/sku.vo.ts) Value Object (regex: `^[A-Z0-9_-]{3,32}$`).                                                                     |
-| **PROD-02** | SKU must be unique per tenant across all active, inactive, and archived products.                                     | `APPLICATION ORCHESTRATION` & `PERSISTENCE INTEGRITY` | `InventoryItemRepository.findBySku()` check + DB unique index `UNIQUE(tenant_id, sku)`.                                                                                                                                            |
-| **PROD-03** | Product display name must be non-empty and between 2 and 120 characters.                                              | `DOMAIN INVARIANT`                                    | [`InventoryItem.create()`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/inventory-item.aggregate.ts).                                                                                         |
-| **PROD-04** | Product lifecycle states are strictly governed: `ACTIVE`, `INACTIVE`, `ARCHIVED`.                                     | `DOMAIN INVARIANT`                                    | [`InventoryItemStatus`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/enums/inventory-item-status.enum.ts) enum.                                                                               |
-| **PROD-05** | Mutations (`PURCHASE`, `SALE`, `CONSUMPTION`, `ADJUSTMENT`) are strictly forbidden on `INACTIVE` or `ARCHIVED` items. | `DOMAIN INVARIANT`                                    | `InventoryItem.assertActiveCatalogStatus()` throws [`InvalidInventoryItemStateException`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/exceptions/invalid-inventory-item-state.exception.ts). |
-| **PROD-06** | Minimum safety stock threshold must be a non-negative decimal quantity ($\ge 0.00$).                                  | `DOMAIN INVARIANT`                                    | [`Quantity`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/value-objects/quantity.vo.ts) Value Object.                                                                                         |
-| **PROD-07** | When `quantityOnHand <= minimumStock`, a `LowStockThresholdReachedDomainEvent` is raised.                             | `DOMAIN INVARIANT`                                    | `InventoryItem.checkAndRaiseLowStockAlert()`.                                                                                                                                                                                      |
+### 2.1 Product & Catalog Item Rules
 
----
+| Rule ID       | Rule Statement                                                                                                                                                                                                          | Architectural Layer                | Enforcement Mechanism                                                                                                                           |
+| :------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`PROD-01`** | **SKU Format Invariant `[INV-INV-1]`**: Every inventory item must possess a standardized alphanumeric SKU matching `^[A-Z0-9_-]{3,50}$`.                                                                                | `DOMAIN INVARIANT`                 | [`SKU`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/value-objects/sku.vo.ts) Value Object.                |
+| **`PROD-02`** | **SKU Tenant Uniqueness**: An SKU must be unique per tenant across all catalog statuses (`ACTIVE`, `INACTIVE`, `ARCHIVED`).                                                                                             | `PERSISTENCE INTEGRITY`            | Database unique index `UNIQUE(tenant_id, sku)`.                                                                                                 |
+| **`PROD-03`** | **Item Name Length**: Product display name must be non-empty and between 2 and 120 characters.                                                                                                                          | `DOMAIN INVARIANT`                 | `InventoryItem.create()`.                                                                                                                       |
+| **`PROD-04`** | **Catalog State Taxonomy**: Allowed statuses are strictly: `ACTIVE`, `INACTIVE`, `ARCHIVED`.                                                                                                                            | `DOMAIN INVARIANT`                 | [`InventoryItemStatus`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/enums/inventory-item-status.enum.ts). |
+| **`PROD-05`** | **Operational State Guard**: Mutations (`PURCHASE`, `SALE`, `CONSUMPTION`, `SCRAP`, `ADJUSTMENT`) are strictly forbidden on `INACTIVE` or `ARCHIVED` items.                                                             | `DOMAIN INVARIANT`                 | `InventoryItem.assertActiveCatalogStatus()` throws `InvalidInventoryItemStateException`.                                                        |
+| **`PROD-06`** | **Minimum Stock Non-Negative `[INV-INV-3]`**: Minimum safety stock threshold must be a non-negative decimal quantity ($\ge 0.00$).                                                                                      | `DOMAIN INVARIANT`                 | [`Quantity`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/value-objects/quantity.vo.ts) Value Object.      |
+| **`PROD-07`** | **Low Stock Operational Invariant**: When $\text{quantityOnHand} \le \text{minimumStock}$ (including the exact equality case), the item enters low-stock standing and triggers a `LowStockThresholdReachedDomainEvent`. | `DOMAIN INVARIANT` & `APPLICATION` | `InventoryItem.checkAndRaiseLowStockAlert()`; evaluated in queries via `get-low-stock-items.query.ts`.                                          |
 
-## 3. Category Rules
+### 2.2 Stock Mutation & Movement Invariants
 
-| Rule ID    | Statement                                                                                                                                                                                      | Architectural Layer | Enforcement Mechanism                                                                                                                           |
-| :--------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------- |
-| **CAT-01** | Inventory category classification is closed and code-defined via domain enum.                                                                                                                  | `DOMAIN INVARIANT`  | [`InventoryCategory`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/enums/inventory-category.enum.ts) enum. |
-| **CAT-02** | The minimum canonical categories are: `HEALTHY_MEALS`, `HEALTHY_DRINKS`, `CLEANING_SUPPLIES`, `OFFICE_SUPPLIES`, `SUPPLEMENTS`, `CLINICAL_SUPPLIES`, `THERAPY_CONSUMABLES`, `RETAIL_PRODUCTS`. | `DOMAIN INVARIANT`  | `INVENTORY_CATEGORY_REGISTRY` metadata map.                                                                                                     |
-| **CAT-03** | Retail sales operations are restricted to categories flagged `isRetailEligible: true`.                                                                                                         | `DOMAIN INVARIANT`  | `INVENTORY_CATEGORY_REGISTRY[category].isRetailEligible`.                                                                                       |
-| **CAT-04** | Categorization cannot be null or empty upon catalog creation or updates.                                                                                                                       | `DOMAIN INVARIANT`  | `isValidInventoryCategory()` runtime check.                                                                                                     |
+| Rule ID      | Rule Statement                                                                                                                                                                                                                                                  | Architectural Layer                | Enforcement Mechanism                                                                             |
+| :----------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------- | :------------------------------------------------------------------------------------------------ |
+| **`STK-01`** | **Strict Non-Negative Balance `[INV-INV-2]`**: Stock on hand can never drop below zero under any circumstance: $$\text{quantityOnHand} \ge 0.00$$                                                                                                               | `DOMAIN INVARIANT` & `PERSISTENCE` | `Quantity.of()` throws `InvalidQuantityException`; PostgreSQL `CHECK (quantity_on_hand >= 0.00)`. |
+| **`STK-02`** | **Purchase Receipt (`PURCHASE`)**: Increases physical stock balance: $\text{QOH}_{\text{new}} = \text{QOH}_{\text{prior}} + \Delta Q$. Requires positive quantity ($> 0.00$) and receipt reason.                                                                | `DOMAIN INVARIANT`                 | `InventoryItem.receiveStock()`.                                                                   |
+| **`STK-03`** | **Retail Sale (`SALE`)**: Decreases physical stock balance: $\text{QOH}_{\text{new}} = \text{QOH}_{\text{prior}} - \Delta Q$. Allowed only when item is `ACTIVE` and $\text{QOH} \ge \Delta Q$. Throws `InsufficientStockException` if $\Delta Q > \text{QOH}$. | `DOMAIN INVARIANT`                 | `InventoryItem.sellStock()`.                                                                      |
+| **`STK-04`** | **Clinical Consumption (`CONSUMPTION`)**: Decreases physical stock balance: $\text{QOH}_{\text{new}} = \text{QOH}_{\text{prior}} - \Delta Q$. Requires treatment or operational correlation ID. Throws `InsufficientStockException` if $\Delta Q > \text{QOH}$. | `DOMAIN INVARIANT`                 | `InventoryItem.consumeStock()`.                                                                   |
+| **`STK-05`** | **Positive Adjustment (`ADJUSTMENT_IN`)**: Increases stock balance: $\text{QOH}_{\text{new}} = \text{QOH}_{\text{prior}} + \Delta Q$. Used for audited cycle count discoveries. Requires explanation note.                                                      | `DOMAIN INVARIANT`                 | `InventoryItem.adjustStockIn()`.                                                                  |
+| **`STK-06`** | **Negative Adjustment (`ADJUSTMENT_OUT`)**: Decreases stock balance: $\text{QOH}_{\text{new}} = \text{QOH}_{\text{prior}} - \Delta Q$. Throws `InsufficientStockException` if $\Delta Q > \text{QOH}$.                                                          | `DOMAIN INVARIANT`                 | `InventoryItem.adjustStockOut()`.                                                                 |
+| **`STK-07`** | **Disposal Write-Off (`SCRAP`)**: Decreases physical stock balance: $\text{QOH}_{\text{new}} = \text{QOH}_{\text{prior}} - \Delta Q$. Used for spoiled, expired, or contaminated items. Throws `InsufficientStockException` if $\Delta Q > \text{QOH}$.         | `DOMAIN INVARIANT`                 | `InventoryItem.scrapStock()`.                                                                     |
+| **`STK-08`** | **Audit Baseline Correction (`CORRECTION`)**: Sets $\text{QOH}_{\text{new}} = Q_{\text{target}}$. Records signed delta: $\Delta Q = Q_{\text{target}} - Q_{\text{prior}}$. Restricted to authorized audit managers.                                             | `DOMAIN INVARIANT`                 | `InventoryItem.correctStock()`.                                                                   |
+| **`STK-09`** | **Atomic Ledger Creation**: Every successful stock mutation produces exactly one corresponding immutable `StockMovement` ledger entry.                                                                                                                          | `DOMAIN INVARIANT` & `PERSISTENCE` | Atomic transaction in `PrismaInventoryItemRepository.save()`.                                     |
+| **`STK-10`** | **Zero Phantom Movements**: Any rejected mutation (due to insufficient stock, OCC collision, or auth failure) aborts completely, creating zero movement records and causing zero balance drift.                                                                 | `PERSISTENCE INTEGRITY`            | ACID Transaction Rollback (`$transaction`).                                                       |
+| **`STK-11`** | **Fundamental Historical Parity**: Current stock is mathematically verifiable at all times by summing all historical ledger movements: $$\text{quantityOnHand} \equiv \sum_{i=1}^{n} \text{quantityDelta}_i$$                                                   | `DOMAIN INVARIANT` & `PERSISTENCE` | Reconstitution test verification (`inventory-stock-mutation-invariants.spec.ts`).                 |
 
----
+### 2.3 Inventory Working Capital Valuation Invariant
 
-## 4. Quantity Rules
+$$\text{\bf Consumable Inventory Valuation} = \sum_{i \in \text{Items}} (\text{currentStock}_i \times \text{purchaseCostAmount}_i)$$
 
-| Rule ID    | Statement                                                                                                                                                            | Architectural Layer                              | Enforcement Mechanism                                                                                                                                         |
-| :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **QTY-01** | All physical stock balances (`quantityOnHand`, `minimumStock`) must have Scale 2 fixed decimal precision.                                                            | `DOMAIN INVARIANT`                               | [`Quantity`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/value-objects/quantity.vo.ts) (`Math.round(val * 100) / 100`). |
-| **QTY-02** | Stock on hand balance can never be negative ($QOH \ge 0.00$).                                                                                                        | `DOMAIN INVARIANT` & `PERSISTENCE INTEGRITY`     | `Quantity.of()` throws `InvalidQuantityException`; DB `CHECK (quantity_on_hand >= 0)`.                                                                        |
-| **QTY-03** | Discrete items must have integer quantities (e.g. `10.00` bottles, `5.00` boxes). Continuous items may have fractional decimals (e.g. `1.25` liters, `25.50` grams). | `DOMAIN INVARIANT`                               | `UnitOfMeasure` classification (`isContinuous`).                                                                                                              |
-| **QTY-04** | Mutation input quantities must be strictly positive ($> 0.00$). Zero or negative inputs are rejected.                                                                | `APPLICATION ORCHESTRATION` & `DOMAIN INVARIANT` | `InventoryItem.parsePositiveQuantity()` throws `InvalidQuantityException`.                                                                                    |
-| **QTY-05** | Outbound movements record negative quantity deltas ($-\Delta$), inbound record positive ($+\Delta$), and corrections record signed deltas ($\pm\Delta$).             | `DOMAIN INVARIANT`                               | `Quantity.ofDelta(val)` Value Object factory.                                                                                                                 |
-
----
-
-## 5. Monetary Rules
-
-| Rule ID    | Statement                                                                                                                                                                                                                                | Architectural Layer | Enforcement Mechanism                                                                                                                                                       |
-| :--------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **MON-01** | Monetary values (`purchaseCost`, `sellingPrice`, `unitCost`) must be represented as strongly typed [`Money`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/value-objects/money.vo.ts) Value Objects. | `DOMAIN INVARIANT`  | `Money` Value Object (Scale 2, half-up rounding).                                                                                                                           |
-| **MON-02** | Floating-point binary arithmetic on monetary numbers is strictly prohibited.                                                                                                                                                             | `DOMAIN INVARIANT`  | `Money.add()`, `Money.subtract()`, `Money.multiply()`.                                                                                                                      |
-| **MON-03** | Monetary amounts cannot be negative ($< 0.00$). Zero amounts ($0.00$) are permitted for internal/clinical consumables.                                                                                                                   | `DOMAIN INVARIANT`  | `Money.create()` throws [`InvalidMoneyException`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/exceptions/invalid-money.exception.ts). |
-| **MON-04** | Currency codes must adhere to ISO-4217 3-letter uppercase standard. Cross-currency addition/subtraction is rejected.                                                                                                                     | `DOMAIN INVARIANT`  | `Money.assertSameCurrency()` validation.                                                                                                                                    |
-| **MON-05** | Inventory asset valuation on hand is derived deterministically: $\text{Valuation} = QOH \times \text{purchaseCost}$.                                                                                                                     | `DOMAIN INVARIANT`  | Pure domain calculation.                                                                                                                                                    |
+- **Status Inclusion Policy**:
+  - **By Default (`includeArchived: false`)**: Applies to all items in **`ACTIVE`** and **`INACTIVE`** statuses. Inactive products physically remain in the warehouse or shelf and represent committed working capital until sold, consumed, or scrapped.
+  - **Archived Items**: Excluded from default valuation queries. Included only when `includeArchived: true` is explicitly passed.
+- **Arithmetic Precision**: Calculated using **exact integer-cents arithmetic** ($\text{round}(Q \times \text{cost} \times 100)$) before summing, completely eliminating floating-point rounding errors.
 
 ---
 
-## 6. Movement Rules (Stock Ledger)
+## 3. Fixed Assets Invariants & Business Rules
 
-| Rule ID    | Statement                                                                                                                                                     | Architectural Layer                          | Enforcement Mechanism                                                                                                                                                              |
-| :--------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------ | :------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **MOV-01** | The canonical stock movement types are: `PURCHASE`, `SALE`, `CONSUMPTION`, `ADJUSTMENT_IN`, `ADJUSTMENT_OUT`, `CORRECTION`, `SCRAP`.                          | `DOMAIN INVARIANT`                           | [`StockMovementType`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/enums/stock-movement-type.enum.ts) enum.                                   |
-| **MOV-02** | Movements are immutable historical ledger entries. Update and Delete operations are prohibited.                                                               | `DOMAIN INVARIANT` & `PERSISTENCE INTEGRITY` | Read-only [`StockMovement`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/entities/stock-movement.entity.ts) entity; no update SQL statements. |
-| **MOV-03** | Every movement must record: `id`, `inventoryItemId`, `movementType`, `quantityDelta`, `balanceAfter`, `unitCost`, `reason`, `recordedByUserId`, `recordedAt`. | `DOMAIN INVARIANT`                           | `StockMovement.create()` factory invariant checks.                                                                                                                                 |
-| **MOV-04** | Every movement must be stamped with the authenticated user ID (`recordedByUserId`) who performed the mutation.                                                | `APPLICATION ORCHESTRATION`                  | Propagated through Use Case Commands (`actorId`).                                                                                                                                  |
-| **MOV-05** | Movements cannot be created independently outside of aggregate stock mutation workflows.                                                                      | `DOMAIN INVARIANT`                           | Encapsulated within `InventoryItem` aggregate root methods.                                                                                                                        |
+### 3.1 Taxonomy & Valid Classifications
 
----
-
-## 7. Stock Rules & Mutation Semantics
-
-| Rule ID    | Statement                                                                                                                      | Architectural Layer | Enforcement Mechanism                                                                                                                                                                            |
-| :--------- | :----------------------------------------------------------------------------------------------------------------------------- | :------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **STK-01** | `PURCHASE` strictly increases stock: $QOH_{\text{new}} = QOH_{\text{prior}} + \text{qty}$.                                     | `DOMAIN INVARIANT`  | `InventoryItem.receiveStock()`.                                                                                                                                                                  |
-| **STK-02** | `SALE` strictly decreases stock: $QOH_{\text{new}} = QOH_{\text{prior}} - \text{qty}$. Throws if $\text{qty} > QOH$.           | `DOMAIN INVARIANT`  | `InventoryItem.sellStock()` throws [`InsufficientStockException`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/exceptions/insufficient-stock.exception.ts). |
-| **STK-03** | `CONSUMPTION` strictly decreases stock: $QOH_{\text{new}} = QOH_{\text{prior}} - \text{qty}$. Throws if $\text{qty} > QOH$.    | `DOMAIN INVARIANT`  | `InventoryItem.consumeStock()` throws `InsufficientStockException`.                                                                                                                              |
-| **STK-04** | `ADJUSTMENT_IN` strictly increases stock: $QOH_{\text{new}} = QOH_{\text{prior}} + \text{qty}$.                                | `DOMAIN INVARIANT`  | `InventoryItem.adjustStockIn()`.                                                                                                                                                                 |
-| **STK-05** | `ADJUSTMENT_OUT` strictly decreases stock: $QOH_{\text{new}} = QOH_{\text{prior}} - \text{qty}$. Throws if $\text{qty} > QOH$. | `DOMAIN INVARIANT`  | `InventoryItem.adjustStockOut()` throws `InsufficientStockException`.                                                                                                                            |
-| **STK-06** | Every valid stock mutation produces exactly one corresponding `StockMovement` ledger entry.                                    | `DOMAIN INVARIANT`  | Atomic aggregate method execution.                                                                                                                                                               |
+- **Valid Operational Statuses (`AssetStatus`)**:
+  - `ACTIVE`: Commissioned and operational for gym members or patients.
+  - `UNDER_MAINTENANCE`: Temporarily taken offline for servicing, preventive overhaul, or calibration.
+  - `DAMAGED`: Impaired due to breakdown or safety hazard pending evaluation.
+  - `RETIRED`: Decommissioned due to age or obsolescence. Prohibits transfers and maintenance.
+  - `SOLD`: **Terminal State `[AST-INV-1]`**. Permanently liquidated. Prohibits all future mutations.
+- **Valid Condition Ratings (`AssetCondition`)**:
+  - `EXCELLENT` (Rank 1): Pristine, like-new condition, zero wear.
+  - `GOOD` (Rank 2): Normal operational wear, fully functional.
+  - `FAIR` (Rank 3): Noticeable cosmetic/mechanical wear; nearing scheduled servicing.
+  - `NEEDS_REPAIR` (Rank 4): Unserviceable; requires prompt technician intervention.
+  - `OUT_OF_SERVICE` (Rank 5): Complete breakdown or safety hazard; prohibited from operation.
+- **Valid Categories (`AssetCategory`)**:
+  - `GYM_EQUIPMENT`, `THERAPY_EQUIPMENT`, `KITCHEN_EQUIPMENT`, `OFFICE_FURNITURE`, `ELECTRONICS`, `CLEANING_EQUIPMENT`.
 
 ---
 
-## 8. Transaction & Persistence Rules
+### 3.2 Authoritative 5x5 Lifecycle State Transition Matrix
 
-| Rule ID   | Statement                                                                                                    | Architectural Layer         | Enforcement Mechanism                                                                                                                                                                                         |
-| :-------- | :----------------------------------------------------------------------------------------------------------- | :-------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **TX-01** | Stock balance update and movement ledger insertion must execute within a single atomic database transaction. | `PERSISTENCE INTEGRITY`     | [`PrismaInventoryItemRepository.save()`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/infrastructure/persistence/prisma/repositories/prisma-inventory-item.repository.ts) `$transaction`. |
-| **TX-02** | A failed stock mutation must roll back completely, leaving zero movement rows and unmutated balance.         | `PERSISTENCE INTEGRITY`     | ACID Transaction Rollback.                                                                                                                                                                                    |
-| **TX-03** | Domain events must be dispatched only after successful transaction commit.                                   | `APPLICATION ORCHESTRATION` | Handler dispatches uncommitted events after `repository.save()`.                                                                                                                                              |
+The `AssetLifecycleStateMachine` strictly enforces the allowed operational transitions between lifecycle states:
 
----
+```
+From \ To            ACTIVE    UNDER_MAINTENANCE   DAMAGED   RETIRED     SOLD
+─────────────────────────────────────────────────────────────────────────────
+ACTIVE                 —            ALLOWED        ALLOWED   ALLOWED    ALLOWED
+UNDER_MAINTENANCE   ALLOWED            —           ALLOWED   ALLOWED    ALLOWED
+DAMAGED             ALLOWED         ALLOWED           —      ALLOWED    ALLOWED
+RETIRED            FORBIDDEN       FORBIDDEN      FORBIDDEN     —       ALLOWED
+SOLD (Terminal)    FORBIDDEN       FORBIDDEN      FORBIDDEN  FORBIDDEN     —
+```
 
-## 9. Concurrency & Isolation Rules
-
-| Rule ID     | Statement                                                                                                                                                                                                                                       | Architectural Layer                          | Enforcement Mechanism                                                                                              |
-| :---------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------- | :----------------------------------------------------------------------------------------------------------------- |
-| **CONC-01** | All aggregate mutations must use Optimistic Concurrency Control (OCC) via integer `version`.                                                                                                                                                    | `DOMAIN INVARIANT` & `PERSISTENCE INTEGRITY` | `InventoryItem.version` increment on mutation; repository `UPDATE ... WHERE id = :id AND version = :priorVersion`. |
-| **CONC-02** | If a concurrent transaction commits first, competing transactions fail immediately with [`OptimisticLockException`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/exceptions/optimistic-lock.exception.ts). | `PERSISTENCE INTEGRITY`                      | Prisma `P2025` / OCC version mismatch check.                                                                       |
-| **CONC-03** | Under extreme concurrency race conditions, physical stock depletion is mathematically protected by the database engine `CHECK (quantity_on_hand >= 0)`.                                                                                         | `PERSISTENCE INTEGRITY`                      | PostgreSQL table constraint.                                                                                       |
-
----
-
-## 10. History & Ledger Audit Rules
-
-| Rule ID                                                                              | Statement                                                                                                       | Architectural Layer                       | Enforcement Mechanism                                      |
-| :----------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------- | :---------------------------------------- | :--------------------------------------------------------- |
-| **HIST-01**                                                                          | Movement historical ordering is deterministic and monotonically increasing by `recordedAt` and sequential `id`. | `PERSISTENCE INTEGRITY`                   | Repository query order `ORDER BY recorded_at ASC, id ASC`. |
-| **HIST-02**                                                                          | **Fundamental Invariant of Stock History**: For every committed product:                                        |
-| $$QOH = \text{initialStock} + \sum_{m \in \text{movements}} m.\text{quantityDelta}$$ | `DOMAIN INVARIANT` & `PERSISTENCE INTEGRITY`                                                                    | Reconstitution mathematical verification. |
+- **Terminal Sink Rule `[AST-INV-1]`**: Once an asset enters `SOLD`, it can **never** transition to any other state. All attempts to change status, transfer location, record maintenance, or update valuation on a `SOLD` asset are unconditionally rejected.
+- **Retirement Rule**: An asset in `RETIRED` cannot return to active service, maintenance, or damaged states. It may only transition to `SOLD` (liquidation).
 
 ---
 
-## 11. Error Conditions
+### 3.3 Fixed Asset Operation Invariants
 
-| Error Condition                                   | Thrown Domain Exception                                                                                                                                                        | HTTP Status Code (Mapping)                     |
-| :------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------- |
-| Attempt to mutate an inactive or archived product | [`InvalidInventoryItemStateException`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/exceptions/invalid-inventory-item-state.exception.ts) | `400 Bad Request` / `422 Unprocessable Entity` |
-| Attempt to reduce stock beyond current balance    | [`InsufficientStockException`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/exceptions/insufficient-stock.exception.ts)                   | `409 Conflict` / `422 Unprocessable Entity`    |
-| Invalid SKU syntax or length                      | [`InvalidSKUException`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/exceptions/invalid-sku.exception.ts)                                 | `400 Bad Request`                              |
-| Negative quantity input or invalid decimal scale  | [`InvalidQuantityException`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/exceptions/invalid-quantity.exception.ts)                       | `400 Bad Request`                              |
-| Negative monetary amount or invalid currency      | [`InvalidMoneyException`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/exceptions/invalid-money.exception.ts)                             | `400 Bad Request`                              |
-| Concurrent update conflict (OCC)                  | [`OptimisticLockException`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/exceptions/optimistic-lock.exception.ts)                         | `409 Conflict`                                 |
-
----
-
-## 12. Non-Goals (Consumable Inventory)
-
-1. **No Independent Movement CRUD**: Movements are exclusively generated by domain mutation methods. No direct REST `POST /movements` or `PUT /movements` endpoints will ever exist.
-2. **No Floating-Point Storage**: Double/float arithmetic is prohibited for financial and inventory quantity attributes.
-3. **No Multi-Currency Conversions**: The platform operates in fixed local tenant currencies (defaulting to `USD`). Premature multi-currency exchange engines are explicitly out of scope.
-4. **No Direct Database Writes Outside Repositories**: All writes must flow through `InventoryItemRepository` to ensure OCC and invariant enforcement.
+| Rule ID          | Statement                                                                                                                                                                                                                                   | Architectural Layer     | Enforcement Mechanism                                                                                                                           |
+| :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :---------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`AST-TRF-01`** | **Location Transfer Eligibility `[AST-INV-2]`**: Transfers are allowed **only** when an asset is in `ACTIVE`, `UNDER_MAINTENANCE`, or `DAMAGED` status.                                                                                     | `DOMAIN INVARIANT`      | `FixedAsset.transferLocation()` throws `InvalidAssetStateException` if status is `RETIRED` or `SOLD`.                                           |
+| **`AST-TRF-02`** | **Transfer Anti-Noise Suppression**: Attempting to transfer an asset to its current location is a no-op; it does not increment version and produces no audit event.                                                                         | `DOMAIN INVARIANT`      | `FixedAsset.transferLocation()` equality check.                                                                                                 |
+| **`AST-TRF-03`** | **Transfer Audit Side Effect**: A valid transfer updates `location` and appends an immutable `TRANSFERRED` `AssetHistoryEvent` recording `{ priorLocation, newLocation, reason }`.                                                          | `DOMAIN INVARIANT`      | Atomic aggregate method execution.                                                                                                              |
+| **`AST-MNT-01`** | **Maintenance Servicing Eligibility `[AST-INV-4]`**: Servicing logs can be added **only** to assets in `ACTIVE`, `UNDER_MAINTENANCE`, or `DAMAGED` status. Forbidden on `RETIRED` or `SOLD`.                                                | `DOMAIN INVARIANT`      | `FixedAsset.recordMaintenance()` throws `InvalidAssetStateException`.                                                                           |
+| **`AST-MNT-02`** | **Automatic Status Restoration**: If maintenance is recorded on an `UNDER_MAINTENANCE` or `DAMAGED` asset, and the resulting condition is serviceable (`EXCELLENT`, `GOOD`, `FAIR`), the asset's status automatically restores to `ACTIVE`. | `DOMAIN INVARIANT`      | `FixedAsset.recordMaintenance()` status auto-reconciliation.                                                                                    |
+| **`AST-MNT-03`** | **Maintenance Immutability**: Historical maintenance records in `asset_maintenance_records` cannot be edited or deleted (`onDelete: Restrict`).                                                                                             | `PERSISTENCE INTEGRITY` | Database relational mapping.                                                                                                                    |
+| **`AST-VAL-01`** | **Asset Valuation Non-Negative**: `purchaseValue` and `currentEstimatedValue` must be non-negative `Money` amounts ($\ge 0.00$).                                                                                                            | `DOMAIN INVARIANT`      | [`Money`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/value-objects/money.vo.ts) Value Object validation. |
+| **`AST-VAL-02`** | **Revaluation Audit**: Updating `currentEstimatedValue` is allowed for any non-sold asset and appends a `VALUE_UPDATED` `AssetHistoryEvent`. Forbidden on `SOLD` assets.                                                                    | `DOMAIN INVARIANT`      | `FixedAsset.updateEstimatedValue()`.                                                                                                            |
 
 ---
 
-## 13. Fixed Asset Invariants & Deterministic Business Rules
+### 3.4 Fixed Asset Carrying Valuation Policy (ADR-0097)
 
-### 13.1 Business Operation Permission Matrix
+$$\text{\bf Fixed Asset Carrying Value} = \sum_{a \in \text{Assets}} \text{currentEstimatedValue}_a$$
 
-| Operation                  |  `ACTIVE`   | `UNDER_MAINTENANCE` |  `DAMAGED`  |           `RETIRED`           |            `SOLD`             |
-| :------------------------- | :---------: | :-----------------: | :---------: | :---------------------------: | :---------------------------: |
-| **`transferLocation`**     | **ALLOWED** |     **ALLOWED**     | **ALLOWED** | **FORBIDDEN (`[AST-INV-6]`)** | **FORBIDDEN (`[AST-INV-1]`)** |
-| **`changeStatus` (FSM)**   | **ALLOWED** |     **ALLOWED**     | **ALLOWED** |   **FORBIDDEN (Terminal)**    |   **FORBIDDEN (Terminal)**    |
-| **`updateCondition`**      | **ALLOWED** |     **ALLOWED**     | **ALLOWED** |    **ALLOWED (Auditing)**     | **FORBIDDEN (`[AST-INV-1]`)** |
-| **`updateEstimatedValue`** | **ALLOWED** |     **ALLOWED**     | **ALLOWED** |   **ALLOWED (Book Value)**    | **FORBIDDEN (`[AST-INV-1]`)** |
-| **`recordMaintenance`**    | **ALLOWED** |     **ALLOWED**     | **ALLOWED** | **FORBIDDEN (`[AST-INV-6]`)** | **FORBIDDEN (`[AST-INV-1]`)** |
-| **`updateDetails`**        | **ALLOWED** |     **ALLOWED**     | **ALLOWED** |          **ALLOWED**          | **FORBIDDEN (`[AST-INV-1]`)** |
-
----
-
-### 13.2 Deterministic Fixed Asset Rules
-
-| Rule ID          | Condition                                                                                                                        | Allowed Operation                                        | Resulting State                                                                                                                                    | History Side Effect                                                                   |
-| :--------------- | :------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------ |
-| **`AST-TRF-01`** | Asset is in `ACTIVE`, `UNDER_MAINTENANCE`, or `DAMAGED` status. Target location differs from current location.                   | `asset.transferLocation(newLocation, actorId, reason?)`  | `asset.location` updated to `newLocation`.                                                                                                         | Appends `TRANSFERRED` history with `{ priorLocation, newLocation, reason? }`.         |
-| **`AST-TRF-02`** | Asset is in `RETIRED` or `SOLD` status.                                                                                          | `asset.transferLocation(...)`                            | **Rejected** with `InvalidAssetStateException`. State unmodified.                                                                                  | **None** (atomic abort).                                                              |
-| **`AST-TRF-03`** | Target location is identical to current location.                                                                                | `asset.transferLocation(...)`                            | **No-op**. Location and version unchanged.                                                                                                         | **None** (anti-noise suppression).                                                    |
-| **`AST-VAL-01`** | Asset is in any non-terminal state, or `RETIRED`. New valuation is finite, non-negative `Money` ($\ge 0.00$ USD).                | `asset.updateEstimatedValue(newValue, actorId, reason?)` | `asset.currentEstimatedValue` updated.                                                                                                             | Appends `VALUE_UPDATED` history with `{ priorValue, newValue, reason? }`.             |
-| **`AST-VAL-02`** | Asset is in `SOLD` terminal state.                                                                                               | `asset.updateEstimatedValue(...)`                        | **Rejected** with `InvalidAssetStateException`. State unmodified.                                                                                  | **None** (atomic abort).                                                              |
-| **`AST-VAL-03`** | Initial valuation upon asset creation.                                                                                           | `FixedAsset.create(...)`                                 | Initial purchase and estimated values set.                                                                                                         | Snapshot captured in `CREATED` event. No duplicate `VALUE_UPDATED` event generated.   |
-| **`AST-CND-01`** | Asset is in any non-sold state. Valid `AssetCondition` supplied (`EXCELLENT`, `GOOD`, `FAIR`, `NEEDS_REPAIR`, `OUT_OF_SERVICE`). | `asset.updateCondition(newCondition, actorId, reason?)`  | `asset.condition` updated.                                                                                                                         | Appends `CONDITION_CHANGED` history with `{ priorCondition, newCondition, reason? }`. |
-| **`AST-CND-02`** | Asset is in `SOLD` terminal state.                                                                                               | `asset.updateCondition(...)`                             | **Rejected** with `InvalidAssetStateException`. State unmodified.                                                                                  | **None** (atomic abort).                                                              |
-| **`AST-STS-01`** | Valid transition according to `AssetLifecycleStateMachine` transition matrix. Non-empty `reason` ($\ge 3$ chars).                | `asset.changeStatus(newStatus, actorId, reason)`         | `asset.status` updated to `newStatus`.                                                                                                             | Appends `STATUS_CHANGED` history with `{ priorStatus, newStatus, reason }`.           |
-| **`AST-STS-02`** | Invalid state transition attempted (e.g. `SOLD -> ACTIVE` or `RETIRED -> UNDER_MAINTENANCE`).                                    | `asset.changeStatus(...)`                                | **Rejected** with `InvalidAssetStateException`. State unmodified.                                                                                  | **None** (atomic abort).                                                              |
-| **`AST-MNT-01`** | Asset in `ACTIVE`, `UNDER_MAINTENANCE`, or `DAMAGED`. Valid servicing payload supplied.                                          | `asset.recordMaintenance(params, actorId)`               | New `AssetMaintenanceRecord` appended. If status was `UNDER_MAINTENANCE`/`DAMAGED` and condition is serviceable, status auto-restores to `ACTIVE`. | Appends `MAINTENANCE_RECORDED` history with servicing details and cost.               |
-| **`AST-MNT-02`** | Asset in `RETIRED` or `SOLD` state.                                                                                              | `asset.recordMaintenance(...)`                           | **Rejected** with `InvalidAssetStateException`. State unmodified.                                                                                  | **None** (atomic abort).                                                              |
-| **`AST-TRM-01`** | Asset in `ACTIVE` or `DAMAGED` state. Valid decommissioning reason ($\ge 3$ chars).                                              | `asset.retire(actorId, reason)`                          | `asset.status` transitions to `RETIRED`. Terminal state entered.                                                                                   | Appends `RETIRED` history with `{ priorStatus, newStatus: 'RETIRED', reason }`.       |
-| **`AST-TRM-02`** | Asset in any state except `SOLD`. Valid liquidation proceeds `Money` and reason.                                                 | `asset.sell(saleAmount, actorId, reason)`                | `asset.status` transitions to `SOLD`. Absolute terminal sink entered.                                                                              | Appends `SOLD` history with `{ priorStatus, newStatus: 'SOLD', saleAmount, reason }`. |
+- **Inclusion Rules**:
+  - `ACTIVE`: **INCLUDED**. Capital equipment in active operational use.
+  - `UNDER_MAINTENANCE`: **INCLUDED**. Equipment offline for servicing remains a capital facility asset.
+  - `DAMAGED`: **INCLUDED**. Impaired equipment retains its estimated residual/salvage carrying value.
+- **Exclusion Rules ($0.00 Contribution)**:
+  - `RETIRED`: **EXCLUDED ($0.00)**. Fully decommissioned from the operational balance sheet.
+  - `SOLD`: **EXCLUDED ($0.00)**. Property rights liquidated and transferred away from the facility.
+- **Arithmetic Precision**: Evaluated using integer-cents arithmetic to prevent fractional cent drift.
 
 ---
 
-## 14. Resource Overview Synthesized Business Rules & Valuation Policies
+## 4. Combined Resource Value
 
-| Rule ID          | Statement                                                                                                                                                                                                                          | Architectural Layer                          | Enforcement Mechanism                                                                                                                                                                              |
-| :--------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`OVR-VAL-01`** | **Consumable Inventory Valuation**: Evaluated as $\sum (\text{currentStock} \times \text{purchaseCost})$ across active items. Excludes archived items unless `includeArchived: true` is explicitly requested.                      | `APPLICATION ORCHESTRATION` & `PERSISTENCE`  | `GetResourceOverviewHandler` integer-cents arithmetic + `PrismaInventoryItemRepository.getOverviewMetrics`.                                                                                        |
-| **`OVR-VAL-02`** | **Fixed Asset Carrying Valuation**: Evaluated as $\sum (\text{currentEstimatedValue})$ strictly for assets in `ACTIVE`, `UNDER_MAINTENANCE`, and `DAMAGED` statuses. `RETIRED` and `SOLD` assets contribute $0.00.                 | `APPLICATION ORCHESTRATION` & `PERSISTENCE`  | `GetResourceOverviewHandler` integer-cents arithmetic + `PrismaFixedAssetRepository.getOverviewMetrics` ([ADR-0097](./adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md)). |
-| **`OVR-VAL-03`** | **Combined Resource Value**: $\text{Inventory Value} + \text{Fixed Asset Value}$. Strict Invariant: Must **NEVER** be labeled as "Inventory Value" or merged into a single inventory aggregate.                                    | `APPLICATION ORCHESTRATION` & `PRESENTATION` | `ResourceOverviewResponseDto` / `OverallResourceValueCard` UI label enforcement ([ADR-0102](./adr/0102-resource-overview-synthesized-read-query-architecture.md)).                                 |
-| **`OVR-OPS-01`** | **Operational Metrics Consistency**: Low-stock counts identify items where $\text{quantityOnHand} \le \text{minimumStock}$. Asset metrics classify units independently across `ACTIVE`, `UNDER_MAINTENANCE`, `DAMAGED`, `RETIRED`. | `APPLICATION ORCHESTRATION` & `DOMAIN CORE`  | Exact domain aggregate filter comparisons and repository group-by aggregations.                                                                                                                    |
-| **`OVR-SEC-01`** | **Overview Access Governance**: Access is strictly restricted to callers possessing `inventory.read` + `assets.read` + `billing.read`, or holding executive roles `ADMIN`, `SUPER_ADMIN`, `OWNER`.                                 | `SECURITY & ACCESS TIER`                     | NestJS `@Roles('ADMIN', 'SUPER_ADMIN', 'OWNER')` and `@Permissions('inventory.read', 'assets.read', 'billing.read')` with `AuthorizationGuard`.                                                    |
+$$\text{\bf Combined Resource Value} = \text{\bf Consumable Inventory Value} + \text{\bf Fixed Asset Carrying Value}$$
+
+- **Strict Separation Invariant ([ADR-0102](./adr/0102-resource-overview-synthesized-read-query-architecture.md))**:
+  - Consumable supplies and Fixed assets represent fundamentally distinct economic classes.
+  - The Combined Resource Value is a synthesized presentation metric.
+  - Under no circumstances may Consumables and Assets be merged into a single database table or called simply "Inventory."
 
 ---
 
-## 15. Cross-Scenario Data Integrity & Verification Invariants (Proven in Milestone 6.17)
+## 5. Authorization & Permission Governance Matrix
 
-The following invariants have been proven empirically across the full suite of end-to-end business scenarios and the cross-scenario data integrity audit (`apps/api/src/resources/__e2e__/`):
+Every Phase 6 operation is strictly protected by Phase 1 IAM infrastructure:
 
-| Rule ID       | Statement                                                                                                                                                                                                                                                                                                                                                                                                    | Architectural Layer                                   | Empirical Verification & Proof                                                                                                                              |
-| :------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`INTG-01`** | **Fundamental Ledger Parity**: Physical stock on hand must always equal the initial baseline quantity plus the algebraic sum of all historical movement deltas: $$QOH = QOH_{\text{initial}} + \sum_{m \in \text{movements}} m.\text{quantityDelta}$$                                                                                                                                                        | `DOMAIN INVARIANT` & `PERSISTENCE INTEGRITY`          | Audited in `resources-cross-scenario-integrity-audit.e2e.spec.ts`. Verified across active, replenished, and depleted products.                              |
-| **`INTG-02`** | **Atomic Rejection & Zero Phantoms**: Any operation rejected by domain logic (e.g., Scenario D insufficient stock sale) or authorization guards must abort with zero database state mutations, zero phantom movement records, and zero valuation drift.                                                                                                                                                      | `APPLICATION ORCHESTRATION` & `PERSISTENCE INTEGRITY` | Verified in Scenario D: Attempted sale of 5 with stock of 2 leaves stock at exactly 2, creates 0 movement rows, and preserves exact valuation.              |
-| **`INTG-03`** | **Valuation Mathematical Equilibrium**: $\text{Combined Resource Valuation} = \text{Consumable Inventory Value} + \text{Fixed Asset Carrying Value}$. Mutations to consumable inventory modify Combined Valuation by the exact stock delta without affecting Fixed Asset Valuation; revaluations of Fixed Assets modify Combined Valuation by the exact capital delta without affecting Inventory Valuation. | `APPLICATION ORCHESTRATION` & `DOMAIN CORE`           | Verified in Scenario H: Inventory $+ \$50.00 \to$ Combined $+ \$50.00$; Asset $-\$2,000.00 \to$ Combined $-\$2,000.00$; zero cross-subdomain contamination. |
-| **`INTG-04`** | **Cross-Domain Decoupling Boundaries**: Resources Management aggregates reference external contexts exclusively via unconstrained scalar identifiers (`clientId: string`, `treatmentSessionId: string`, `roomId: string`). Zero foreign key constraints or duplicate person models exist between Resources and external bounded contexts.                                                                    | `ARCHITECTURAL INTEGRITY` & `PERSISTENCE`             | Verified by `resources-architecture-boundaries.spec.ts` and ADRs 0104, 0105, 0106.                                                                          |
-| **`INTG-05`** | **Security Boundary Immutability**: All mutations are protected at the authoritative backend application boundary. Unauthorized callers receive HTTP 403 and are completely prevented from mutating database state.                                                                                                                                                                                          | `SECURITY & ACCESS TIER`                              | Verified in `resources-business-authorization.e2e.spec.ts`: Member attempting transfer, sale, or maintenance is rejected with 0 side-effects.               |
+| Endpoint Route                               | HTTP Method | Required Permissions                            | Purpose & Scope                                                                   |
+| :------------------------------------------- | :---------: | :---------------------------------------------- | :-------------------------------------------------------------------------------- |
+| `/api/v1/resources/inventory`                |    `GET`    | `inventory.read`                                | Browse inventory catalog with filters and pagination.                             |
+| `/api/v1/resources/inventory/:id`            |    `GET`    | `inventory.read`                                | Retrieve single inventory item details.                                           |
+| `/api/v1/resources/inventory/low-stock`      |    `GET`    | `inventory.read`                                | Inspect operational low-stock attention items ($\text{QOH} \le \text{minStock}$). |
+| `/api/v1/resources/inventory/:id/movements`  |    `GET`    | `inventory.read`                                | View immutable audit ledger for a specific SKU.                                   |
+| `/api/v1/resources/inventory/valuation`      |    `GET`    | `inventory.read`, `billing.read`                | Access sensitive inventory financial valuation totals.                            |
+| `/api/v1/resources/inventory`                |   `POST`    | `inventory.write`                               | Register new inventory SKU.                                                       |
+| `/api/v1/resources/inventory/:id`            |   `PATCH`   | `inventory.write`                               | Update catalog metadata, reorder thresholds, or pricing.                          |
+| `/api/v1/resources/inventory/:id/receive`    |   `POST`    | `inventory.write`                               | Record purchase stock receipt (`PURCHASE`).                                       |
+| `/api/v1/resources/inventory/:id/sell`       |   `POST`    | `inventory.write`                               | Record counter retail sale (`SALE`).                                              |
+| `/api/v1/resources/inventory/:id/consume`    |   `POST`    | `inventory.write`                               | Record clinical/facility usage (`CONSUMPTION`).                                   |
+| `/api/v1/resources/inventory/:id/scrap`      |   `POST`    | `inventory.write`                               | Record disposal of spoiled or broken stock (`SCRAP`).                             |
+| `/api/v1/resources/inventory/:id/adjust`     |   `POST`    | `inventory.write`                               | Record audited inventory reconciliation adjustments.                              |
+| `/api/v1/resources/assets`                   |    `GET`    | `assets.read`                                   | Browse fixed asset registry with filters and pagination.                          |
+| `/api/v1/resources/assets/:id`               |    `GET`    | `assets.read`                                   | Retrieve single fixed asset details.                                              |
+| `/api/v1/resources/assets/:id/history`       |    `GET`    | `assets.read`                                   | View chronological audit timeline for an asset.                                   |
+| `/api/v1/resources/assets/:id/maintenance`   |    `GET`    | `assets.read`                                   | Inspect maintenance and servicing logs.                                           |
+| `/api/v1/resources/assets/valuation-summary` |    `GET`    | `assets.read`, `billing.read`                   | Access sensitive capital asset valuation totals.                                  |
+| `/api/v1/resources/assets/:id/valuation`     |    `GET`    | `assets.read`, `billing.read`                   | Inspect individual asset valuation and depreciation.                              |
+| `/api/v1/resources/assets`                   |   `POST`    | `assets.write`                                  | Register new capital asset.                                                       |
+| `/api/v1/resources/assets/:id`               |   `PATCH`   | `assets.write`                                  | Update asset description or operational notes.                                    |
+| `/api/v1/resources/assets/:id/status`        |   `POST`    | `assets.write`                                  | Transition lifecycle state (enforces 5x5 matrix).                                 |
+| `/api/v1/resources/assets/:id/condition`     |   `POST`    | `assets.write`                                  | Update physical condition rating.                                                 |
+| `/api/v1/resources/assets/:id/transfer`      |   `POST`    | `assets.write`                                  | Transfer physical placement location.                                             |
+| `/api/v1/resources/assets/:id/maintenance`   |   `POST`    | `assets.write`                                  | Log servicing, calibration, or repair expenditure.                                |
+| `/api/v1/resources/assets/:id/valuation`     |   `POST`    | `assets.write`, `billing.read`                  | Record official economic revaluation.                                             |
+| `/api/v1/resources/overview`                 |    `GET`    | `inventory.read`, `assets.read`, `billing.read` | Executive dashboard: Combined metrics and valuations.                             |
+| `/api/v1/resources/valuation`                |    `GET`    | `inventory.read`, `assets.read`, `billing.read` | Synthesized combined valuation endpoint.                                          |
+
+---
+
+## 6. Concurrency & Race Condition Defense Strategy
+
+### 6.1 What is Protected & Why
+
+The platform protects the **integrity of physical stock balances (`quantityOnHand`)** and **preventing negative stock balances**.
+
+In a fast-paced sports and wellness clinic:
+
+- Multiple front-desk receptionists may simultaneously process sales of the last remaining units of a retail supplement.
+- Clinical therapists may concurrently log consumption of therapeutic tape while reception records a purchase receipt.
+
+Without concurrency protection, standard read-modify-write interleavings would cause **lost updates** and allow physical stock to drop below zero, creating phantom inventory and unfulfillable physical transactions.
+
+```
+THREAD A (Sell 2 units)           THREAD B (Sell 2 units)           DATABASE (Balance = 2)
+──────────────────────────────────────────────────────────────────────────────────────────
+Read Balance (2, Version 1)       Read Balance (2, Version 1)       Balance = 2, Version = 1
+Check 2 >= 2 (OK)                 Check 2 >= 2 (OK)
+Deduct 2 -> Balance = 0           Deduct 2 -> Balance = 0
+Commit UPDATE (Version 1 -> 2) ───────────────────────────────────► Balance = 0, Version = 2
+                                  Commit UPDATE (Version 1 -> 2) ──► CONFLICT DETECTED!
+                                                                     (Expected Version 1,
+                                                                      Found Version 2)
+                                                                     ABORT & ROLLBACK!
+```
+
+---
+
+### 6.2 The Dual-Layer Defense Mechanism
+
+#### Layer 1: Optimistic Concurrency Control (OCC)
+
+- Both `InventoryItem` and `FixedAsset` maintain an integer `version` field (initialized at `1`).
+- When saving an aggregate, the repository executes an atomic version check:
+  ```sql
+  UPDATE inventory_items
+  SET quantity_on_hand = :newQty, version = :priorVersion + 1, ...
+  WHERE id = :id AND version = :priorVersion;
+  ```
+- If a competing transaction committed first, `:priorVersion` does not match, affecting `0` rows (`count === 0`).
+- The repository immediately aborts and throws `OptimisticLockException('InventoryItem', id, priorVersion)`.
+- The exception bubbles up to the presentation layer and is mapped to `HTTP 409 Conflict`.
+
+#### Layer 2: PostgreSQL Database Engine CHECK Constraint
+
+- Even if an application bug, bypass vector, or direct SQL script bypassed the domain layer, the relational database guarantees that stock can never become negative:
+  ```sql
+  ALTER TABLE inventory_items
+  ADD CONSTRAINT chk_inventory_items_qoh_non_negative
+  CHECK (quantity_on_hand >= 0.00);
+  ```
+- Any write attempting to force `quantity_on_hand < 0` is rejected with a fatal database constraint violation.
+
+---
+
+### 6.3 Expected Consistency Guarantees
+
+1. **ACID Unit of Work**:
+   - `PrismaInventoryItemRepository.save()` executes the stock balance update and the append-only `stock_movements` insertion within a single Prisma interactive transaction (`this.prisma.$transaction(...)`).
+2. **Zero Partial Failures / Zero Phantoms**:
+   - If writing to `stock_movements` fails, the `quantityOnHand` change is rolled back.
+   - If the version check fails, no movement row is created.
+3. **Deterministic Double-Entry Equality**:
+   - Physical balance on hand is provably reconstructible from the movement ledger at any point in time:
+     $$\text{quantityOnHand} \equiv \sum_{i=1}^{n} \text{quantityDelta}_i$$
