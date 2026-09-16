@@ -52,6 +52,7 @@ docs/
 - **[Resources Concurrency Strategy & Stock Guarantees](file:///c:/Projects/kinergy-platform/docs/architecture/resources/concurrency-strategy.md)**: Phase 6 complete 3-layer defense-in-depth, OCC conditional updates, transaction boundaries, and race resolution.
 - **[Resources Audit & History Strategy](file:///c:/Projects/kinergy-platform/docs/architecture/resources/audit-and-history-strategy.md)**: Phase 6 complete specification of current state vs historical records, movement ledger, asset history, and anti-noise policy.
 - **[Resources Authorization & Security Model](file:///c:/Projects/kinergy-platform/docs/architecture/resources/authorization-model.md)**: Phase 6 complete specification of IAM integration, permissions, dual-permission valuation, and backend security boundaries.
+- **[Resources Cross-Domain Integration Specification](file:///c:/Projects/kinergy-platform/docs/architecture/resources/cross-domain-integration.md)**: Phase 6 complete integration decisions across Client (decoupled), Scheduling (deferred), Sales (in-process port), and IAM.
 
 ### 3. Frontend Architecture Vision & Principles
 
