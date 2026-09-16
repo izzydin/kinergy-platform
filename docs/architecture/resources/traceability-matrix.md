@@ -8,6 +8,9 @@ $$\text{Business Requirement} \longrightarrow \text{Domain Rule} \longrightarrow
 
 Every cell references the actual, verified source file, class name, endpoint, component, or test suite in the Kinergy Platform monorepo. No speculative or artificial layers have been introduced.
 
+> [!TIP]
+> For the complete architectural onboarding walk-through across all layers, refer to the **[Senior Engineer Onboarding & Architecture Navigation Guide](./onboarding.md)**.
+
 ---
 
 ## 2. Canonical Phase 6 Traceability Matrix

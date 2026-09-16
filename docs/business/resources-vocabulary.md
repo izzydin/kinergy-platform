@@ -3,6 +3,7 @@
 - **Status**: Authoritative Ubiquitous Language Baseline
 - **Bounded Context**: Resources Management (`packages/core/src/resources/`)
 - **Governing ADRs**: [ADR-0081](../architecture/resources/adr/0081-resources-bounded-context-topology-and-domain-segregation.md), [ADR-0082](../architecture/resources/adr/0082-fixed-asset-domain-modeling-and-complete-segregation-from-inventory.md), [ADR-0083](../architecture/resources/adr/0083-inventory-movement-ledger-and-materialized-stock-mutation-strategy.md), [ADR-0085](../architecture/resources/adr/0085-fixed-asset-operational-lifecycle-state-machine-and-terminal-disposal-policy.md), [ADR-0088](../architecture/resources/adr/0088-inventory-category-classification-strategy.md), [ADR-0089](../architecture/resources/adr/0089-inventory-monetary-quantity-and-unit-precision-semantics.md), [ADR-0090](../architecture/resources/adr/0090-fixed-asset-classification-lifecycle-state-and-condition-rating-strategy.md)
+- **Onboarding & Navigation**: [Senior Engineer Onboarding & Architecture Navigation Guide](../architecture/resources/onboarding.md)
 
 ---
 

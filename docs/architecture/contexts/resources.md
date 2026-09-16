@@ -4,7 +4,8 @@
 - **Location**: `packages/core/src/resources/` (Domain & Application), `apps/api/src/resources/` (API & Adapters), `apps/web/src/modules/resources/` (Frontend)
 - **Owners**: Principal Software Engineer, Software Architecture Team
 - **Milestone Baseline**: Phase 6 (Milestones 6.0 – 6.17)
-- **Governing ADRs**: [ADR-0081](../../architecture/resources/adr/0081-resources-bounded-context-topology-and-domain-segregation.md) through [ADR-0106](../../architecture/resources/adr/0106-sales-inventory-integration-boundary-and-stock-ownership-policy.md)
+- **Governing ADRs**: [ADR-0081](../../architecture/resources/adr/0081-resources-bounded-context-topology-and-domain-segregation.md) through [ADR-0107](../../architecture/resources/adr/0107-phase-6-multi-tier-verification-architecture-and-proof-boundary-testing-strategy.md)
+- **Onboarding & Navigation**: [Senior Engineer Onboarding & Architecture Navigation Guide](../../architecture/resources/onboarding.md)
 
 ---
 
