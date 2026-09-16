@@ -105,7 +105,7 @@ Goal: Audit test coverage, verify regression scenarios, reproduce edge cases, or
 2. **Inspect Scenarios A–H**: [Testing Architecture — Scenarios Section](file:///c:/Projects/kinergy-platform/docs/architecture/resources/testing-architecture.md#7-phase-617-scenarios-a-h-specification) — End-to-end multi-step business journeys.
 3. **Trace Requirements to Tests**: [Canonical Traceability Matrix](file:///c:/Projects/kinergy-platform/docs/architecture/resources/traceability-matrix.md) — The 15 canonical capabilities mapped across all 5 architecture layers.
 4. **Read Decision Rationale**: [ADR-0107: Multi-Tier Verification Strategy](file:///c:/Projects/kinergy-platform/docs/architecture/resources/adr/0107-phase-6-multi-tier-verification-architecture-and-proof-boundary-testing-strategy.md).
-5. **Code Anchor**: [`packages/core/src/resources/test/`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/test/) and [`apps/api/test/resources/`](file:///c:/Projects/kinergy-platform/apps/api/test/resources/).
+5. **Code Anchor**: [`packages/core/src/resources/domain/__tests__/`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/), [`packages/core/src/resources/application/__tests__/`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/application/__tests__/), and [`apps/api/src/resources/__e2e__/`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/__e2e__/).
 
 ### Path D: Principal Architect & Tech Lead
 
@@ -225,9 +225,10 @@ Every senior engineer must understand how architectural intent cascades down to 
 
 **Key API Routes**:
 
-- Consumable Inventory: `/api/v1/resources/inventory/items` (CRUD, movements, restock, consume, audit)
+- Consumable Inventory: `/api/v1/resources/inventory` (CRUD, movements, restock, sell, consume, scrap, adjust)
 - Fixed Assets: `/api/v1/resources/assets` (CRUD, status transitions, transfers, maintenance logs)
 - Resource Overview: `/api/v1/resources/overview` (Synthesized dashboard, alerts, aggregate valuation)
+- Combined Valuation: `/api/v1/resources/valuation/summary` (Cross-domain working capital + capital asset valuation)
 
 ---
 
@@ -353,7 +354,7 @@ _Read Full Spec_: [Fixed Asset Status State Machine](file:///c:/Projects/kinergy
 
 ### Q4: How is sensitive financial valuation protected in API responses?
 
-**Answer**: Under policy **[VAL-AUTH-1]** ([ADR-0095](file:///c:/Projects/kinergy-platform/docs/architecture/resources/adr/0095-resource-sensitive-valuation-data-access-and-response-shaping-policy.md)), valuation endpoints require specific permissions (`resources:inventory:read` AND `resources:asset:read` for combined valuation). In standard list endpoints, sensitive monetary fields (`purchaseCostAmount`, `totalCarryingValue`) are redacted or omitted unless the caller possesses financial read privileges.  
+**Answer**: Under policy **[VAL-AUTH-1]** ([ADR-0095](file:///c:/Projects/kinergy-platform/docs/architecture/resources/adr/0095-resource-sensitive-valuation-data-access-and-response-shaping-policy.md)), valuation endpoints require specific permissions (`inventory.read` AND `billing.read` for inventory, `assets.read` AND `billing.read` for assets, and `inventory.read`, `assets.read`, AND `billing.read` for combined valuation). In standard list endpoints, sensitive monetary fields (`purchaseCostAmount`, `totalCarryingValue`) are redacted or omitted unless the caller possesses financial read privileges.  
 _Read Full Spec_: [Resources Authorization Model](file:///c:/Projects/kinergy-platform/docs/architecture/resources/authorization-model.md).
 
 ### Q5: How do frontend components handle loading, error, empty, and populated states?
@@ -363,5 +364,5 @@ _Read Full Spec_: [Resources Frontend Architecture](file:///c:/Projects/kinergy-
 
 ### Q6: Where is the authoritative proof that an automated test exists for Scenario D (Atomic Sale Rejection)?
 
-**Answer**: Consult the canonical Traceability Matrix: Row 5 ("Invalid sale rejected atomically") maps directly to domain invariant `[INV-INV-1]`, use case `RecordStockMovementUseCase`, endpoint `POST /api/v1/resources/inventory/items/:id/movements`, and test `apps/api/test/resources/inventory-movements.e2e-spec.ts`.  
+**Answer**: Consult the canonical Traceability Matrix: Row 5 ("Invalid sale rejected atomically") maps directly to domain invariant `[INV-INV-2]`, use case `SellStockHandler` (`sell-stock.handler.ts`), endpoint `POST /api/v1/resources/inventory/:id/sell`, and automated tests `resources-business-scenarios.e2e.spec.ts` (Scenario D) and `inventory-workflows-purchase-sale-consumption.spec.ts`.  
 _Read Full Spec_: [Phase 6 Traceability Matrix](file:///c:/Projects/kinergy-platform/docs/architecture/resources/traceability-matrix.md).

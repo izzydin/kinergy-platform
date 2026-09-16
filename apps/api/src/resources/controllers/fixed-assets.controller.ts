@@ -534,7 +534,7 @@ export class FixedAssetsController {
   @ApiOperation({
     summary: 'Transition lifecycle status of a fixed asset',
     description:
-      'Enforces aggregate state-machine rules (IN_SERVICE, MAINTENANCE, STORAGE, DECOMMISSIONED, DISPOSED).',
+      'Enforces aggregate state-machine rules (ACTIVE, UNDER_MAINTENANCE, DAMAGED, RETIRED, SOLD).',
   })
   @ApiParam({ name: 'id', description: 'Unique Fixed Asset ID' })
   public async changeStatus(

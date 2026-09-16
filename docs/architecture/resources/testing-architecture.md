@@ -294,17 +294,17 @@ flowchart LR
 - **Business Action**: Facility registers a new product with zero stock, then receives a purchase order of 50 units @ $2.50.
 - **Verification Pipeline**:
   - Starts with `quantityOnHand = 0`.
-  - `POST /resources/inventory/:id/purchase` with `{ quantity: 50, unitCost: 2.50 }`.
+  - `POST /api/v1/resources/inventory/:id/receive` with `{ quantity: 50, unitCost: 2.50, referenceNumber: "PO-2026-9912" }`.
   - Stock increases to exactly `50`.
   - Exactly one `PURCHASE` movement recorded in the ledger with `delta = +50`.
   - Inventory valuation increases from `$0.00` to `$125.00`.
-- **Test Assertion**: Verified in `resources-business-scenarios.e2e.spec.ts` under test _"Scenario A: Initial Stock & Purchase Receipt"_.
+- **Test Assertion**: Verified in `resources-business-scenarios.e2e.spec.ts` under test _"Scenario A: Purchase (Consumable Stock Receipt)"_.
 
 ### 8.2. Scenario B: Retail Sale
 
 - **Business Action**: Front desk sells 10 units to a gym member @ $5.00 selling price.
 - **Verification Pipeline**:
-  - `POST /resources/inventory/:id/sale` with `{ quantity: 10, unitPrice: 5.00 }`.
+  - `POST /api/v1/resources/inventory/:id/sell` with `{ quantity: 10, unitPrice: 5.00 }`.
   - Stock decreases from 50 to `40`.
   - Exactly one `SALE` movement recorded with `delta = -10` and `balanceAfter = 40`.
   - Inventory valuation adjusts to `$100.00` (40 units $\times$ $2.50 cost).
@@ -314,7 +314,7 @@ flowchart LR
 
 - **Business Action**: Kinesiologist uses 5 units during a patient therapy session.
 - **Verification Pipeline**:
-  - `POST /resources/inventory/:id/consumption` with `{ quantity: 5, referenceId: "session-uuid" }`.
+  - `POST /api/v1/resources/inventory/:id/consume` with `{ quantity: 5, treatmentSessionId: "session-uuid" }`.
   - Stock decreases from 40 to `35`.
   - Exactly one `CONSUMPTION` movement recorded with `delta = -5` and reference ID.
   - Zero billing or retail sales record created (internal operational cost).
@@ -324,7 +324,7 @@ flowchart LR
 
 - **Business Action**: Operator attempts to sell 50 units when only 2 units exist in stock.
 - **Verification Pipeline**:
-  - `POST /resources/inventory/:id/sale` with `{ quantity: 50 }`.
+  - `POST /api/v1/resources/inventory/:id/sell` with `{ quantity: 50 }`.
   - Operation rejected with `400 Bad Request` / `InsufficientStockException`.
   - Stock remains **exactly 2 units**.
   - **Zero movements** created in the ledger; zero partial mutations.
@@ -335,7 +335,7 @@ flowchart LR
 
 - **Business Action**: Facility commissions a commercial treadmill ($15,000 acquisition, $15,000 estimated value).
 - **Verification Pipeline**:
-  - `POST /resources/assets` with `{ assetTag: "TRD-001", purchaseValueAmount: 15000, status: "ACTIVE", condition: "EXCELLENT" }`.
+  - `POST /api/v1/resources/assets` with `{ assetTag: "TRD-001", purchaseValueAmount: 15000, status: "ACTIVE", condition: "EXCELLENT" }`.
   - Asset created with `ACTIVE` status and `EXCELLENT` condition.
   - Acquisition cost and current estimated value match input.
   - Asset recognized in fixed asset queries and valuation summaries.
@@ -345,7 +345,7 @@ flowchart LR
 
 - **Business Action**: Maintenance staff moves treadmill from "Main Gym" to "Cardio Studio B".
 - **Verification Pipeline**:
-  - `PATCH /resources/assets/:id/transfer` with `{ newLocation: "Cardio Studio B" }`.
+  - `POST /api/v1/resources/assets/:id/transfer` with `{ location: { facilityId: "fac-1", room: "Cardio Studio B" } }`.
   - Asset `location` updated.
   - Exactly one `TRANSFERRED` `AssetHistoryEvent` recorded containing previous and new locations.
   - Asset status and financial valuation remain unchanged.
@@ -355,9 +355,9 @@ flowchart LR
 
 - **Business Action**: Treadmill experiences belt wear; placed under maintenance, serviced by technician, and returned to active service.
 - **Verification Pipeline**:
-  - `PATCH /resources/assets/:id/status` $\to$ `UNDER_MAINTENANCE`.
-  - `POST /resources/assets/:id/maintenance` records servicing work order ($250 labor, parts replaced).
-  - `PATCH /resources/assets/:id/status` $\to$ `ACTIVE`.
+  - `POST /api/v1/resources/assets/:id/status` $\to$ `UNDER_MAINTENANCE`.
+  - `POST /api/v1/resources/assets/:id/maintenance` records servicing work order ($250 labor, parts replaced).
+  - `POST /api/v1/resources/assets/:id/status` $\to$ `ACTIVE`.
   - Status transition loop succeeds: `ACTIVE` $\to$ `UNDER_MAINTENANCE` $\to$ `ACTIVE`.
   - Exactly one `AssetMaintenanceRecord` persisted.
   - History audit trail captures both status transitions and the servicing event.

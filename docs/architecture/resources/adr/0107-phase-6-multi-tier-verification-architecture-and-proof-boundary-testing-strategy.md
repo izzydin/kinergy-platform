@@ -65,7 +65,7 @@ flowchart TD
    - **Scope**: React modules ([`apps/web/src/modules/resources/`](file:///c:/Projects/kinergy-platform/apps/web/src/modules/resources/)).
    - **Guarantees Proven**: 4-State UI contract (`Loading`, `Empty`, `Error`, `Populated`), React Hook Form Zod validation, accessible modal focus traps, and TanStack Query cache invalidation. Network calls mocked strictly via Mock Service Worker (MSW v2) at the transport boundary.
 6. **Tier 6: End-to-End Business Scenario Tests (Operational Proof)**:
-   - **Scope**: Phase 6.17 Scenarios A through H ([`resources-business-scenarios.e2e.spec.ts`](file:///c:/Projects/kinergy-platform/apps/api/test/resources-business-scenarios.e2e.spec.ts)).
+   - **Scope**: Phase 6.17 Scenarios A through H ([`resources-business-scenarios.e2e.spec.ts`](file:///c:/Projects/kinergy-platform/apps/api/src/resources/__e2e__/resources-business-scenarios.e2e.spec.ts)).
    - **Guarantees Proven**: Full cross-tier execution from authenticated HTTP request through database commit to final observable API response.
 
 ### 3.2. Dual-Storage Testing Strategy

@@ -179,7 +179,7 @@ Every Phase 6 operation is strictly protected by Phase 1 IAM infrastructure:
 | `/api/v1/resources/assets/:id`               |    `GET`    | `assets.read`                                   | Retrieve single fixed asset details.                                              |
 | `/api/v1/resources/assets/:id/history`       |    `GET`    | `assets.read`                                   | View chronological audit timeline for an asset.                                   |
 | `/api/v1/resources/assets/:id/maintenance`   |    `GET`    | `assets.read`                                   | Inspect maintenance and servicing logs.                                           |
-| `/api/v1/resources/assets/valuation-summary` |    `GET`    | `assets.read`, `billing.read`                   | Access sensitive capital asset valuation totals.                                  |
+| `/api/v1/resources/assets/valuation/summary` |    `GET`    | `assets.read`, `billing.read`                   | Access sensitive capital asset valuation totals.                                  |
 | `/api/v1/resources/assets/:id/valuation`     |    `GET`    | `assets.read`, `billing.read`                   | Inspect individual asset valuation and depreciation.                              |
 | `/api/v1/resources/assets`                   |   `POST`    | `assets.write`                                  | Register new capital asset.                                                       |
 | `/api/v1/resources/assets/:id`               |   `PATCH`   | `assets.write`                                  | Update asset description or operational notes.                                    |
@@ -189,7 +189,7 @@ Every Phase 6 operation is strictly protected by Phase 1 IAM infrastructure:
 | `/api/v1/resources/assets/:id/maintenance`   |   `POST`    | `assets.write`                                  | Log servicing, calibration, or repair expenditure.                                |
 | `/api/v1/resources/assets/:id/valuation`     |   `POST`    | `assets.write`, `billing.read`                  | Record official economic revaluation.                                             |
 | `/api/v1/resources/overview`                 |    `GET`    | `inventory.read`, `assets.read`, `billing.read` | Executive dashboard: Combined metrics and valuations.                             |
-| `/api/v1/resources/valuation`                |    `GET`    | `inventory.read`, `assets.read`, `billing.read` | Synthesized combined valuation endpoint.                                          |
+| `/api/v1/resources/valuation/summary`        |    `GET`    | `inventory.read`, `assets.read`, `billing.read` | Synthesized combined valuation endpoint.                                          |
 
 ---
 

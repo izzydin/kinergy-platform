@@ -117,25 +117,26 @@ A comprehensive audit of all write paths in the codebase was conducted:
 
 ## 5. Authorization & Permission Matrix
 
-Every operation in the Consumable Inventory application layer is mapped to canonical Kinergy RBAC permissions:
+Every operation in the Consumable Inventory application layer is mapped to canonical Kinergy RBAC permissions as codified in [ADR-0094](./adr/0094-resources-authorization-and-permission-taxonomy-model.md) and enforced by NestJS guards:
 
-| Operation / Use Case             | Required Permission             | Allowed Roles (Default)                                      |
-| -------------------------------- | ------------------------------- | ------------------------------------------------------------ |
-| `CreateInventoryItem`            | `resources:inventory:create`    | `ADMIN`, `FACILITY_MANAGER`                                  |
-| `UpdateInventoryItem`            | `resources:inventory:update`    | `ADMIN`, `FACILITY_MANAGER`                                  |
-| `ArchiveInventoryItem`           | `resources:inventory:archive`   | `ADMIN`, `FACILITY_MANAGER`                                  |
-| `DeactivateInventoryItem`        | `resources:inventory:update`    | `ADMIN`, `FACILITY_MANAGER`                                  |
-| `ActivateInventoryItem`          | `resources:inventory:update`    | `ADMIN`, `FACILITY_MANAGER`                                  |
-| `GetInventoryItemById`           | `resources:inventory:read`      | `ADMIN`, `FACILITY_MANAGER`, `STAFF`, `TRAINER`, `CLINICIAN` |
-| `ListInventoryItems`             | `resources:inventory:read`      | `ADMIN`, `FACILITY_MANAGER`, `STAFF`, `TRAINER`, `CLINICIAN` |
-| `GetStockLevel`                  | `resources:inventory:read`      | `ADMIN`, `FACILITY_MANAGER`, `STAFF`, `TRAINER`, `CLINICIAN` |
-| `ListStockMovements`             | `resources:inventory:audit`     | `ADMIN`, `FACILITY_MANAGER`, `AUDITOR`                       |
-| `GetLowStockItems`               | `resources:inventory:read`      | `ADMIN`, `FACILITY_MANAGER`, `STAFF`                         |
-| `GetInventoryValuation`          | `resources:inventory:valuation` | `ADMIN`, `FACILITY_MANAGER`, `ACCOUNTANT`                    |
-| `ReceiveStock` (Purchase)        | `resources:stock:receive`       | `ADMIN`, `FACILITY_MANAGER`, `STAFF`                         |
-| `SellStock` (Retail Sale)        | `resources:stock:sell`          | `ADMIN`, `FACILITY_MANAGER`, `STAFF`, `RECEPTIONIST`         |
-| `ConsumeStock` (Clinical/Gym)    | `resources:stock:consume`       | `ADMIN`, `FACILITY_MANAGER`, `CLINICIAN`, `TRAINER`          |
-| `AdjustStock` (Audit Correction) | `resources:stock:adjust`        | `ADMIN`, `FACILITY_MANAGER`, `AUDITOR`                       |
+| Operation / Use Case             | Required Permission               | Allowed Roles (Default)                                                     |
+| -------------------------------- | --------------------------------- | --------------------------------------------------------------------------- |
+| `CreateInventoryItem`            | `inventory.write`                 | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`                            |
+| `UpdateInventoryItem`            | `inventory.write`                 | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`                            |
+| `ArchiveInventoryItem`           | `inventory.write`                 | `ADMIN`, `SUPER_ADMIN`, `OWNER`                                             |
+| `DeactivateInventoryItem`        | `inventory.write`                 | `ADMIN`, `SUPER_ADMIN`, `OWNER`                                             |
+| `ActivateInventoryItem`          | `inventory.write`                 | `ADMIN`, `SUPER_ADMIN`, `OWNER`                                             |
+| `GetInventoryItemById`           | `inventory.read`                  | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`, `TRAINER`, `RECEPTIONIST` |
+| `ListInventoryItems`             | `inventory.read`                  | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`, `TRAINER`, `RECEPTIONIST` |
+| `GetStockLevel`                  | `inventory.read`                  | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`, `TRAINER`, `RECEPTIONIST` |
+| `ListStockMovements`             | `inventory.read`                  | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`                            |
+| `GetLowStockItems`               | `inventory.read`                  | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`                            |
+| `GetInventoryValuation`          | `inventory.read` + `billing.read` | `ADMIN`, `SUPER_ADMIN`, `OWNER`                                             |
+| `ReceiveStock` (Purchase)        | `inventory.write`                 | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`                            |
+| `SellStock` (Retail Sale)        | `inventory.write`                 | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`, `RECEPTIONIST`            |
+| `ConsumeStock` (Clinical/Gym)    | `inventory.write`                 | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`, `TRAINER`                 |
+| `ScrapStock` (Disposal)          | `inventory.write`                 | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`                            |
+| `AdjustStock` (Audit Correction) | `inventory.write`                 | `ADMIN`, `SUPER_ADMIN`, `OWNER`, `KITCHEN_STAFF`                            |
 
 ---
 
