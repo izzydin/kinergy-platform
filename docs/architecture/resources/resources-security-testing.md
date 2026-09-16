@@ -88,7 +88,7 @@ Security verification in Kinergy requires explicit negative testing. Proving tha
 | **Generic Stock Overwrite**                | Verified `UpdateInventoryItemRequestDto` has no stock fields; mutations strictly require ledger-backed movement handlers.                              | ✅ `PASSED` |
 | **Generic Asset Status / Value Overwrite** | Verified `UpdateFixedAssetDetailsRequestDto` strictly filters metadata (`name`, `description`, `notes`), disallowing lifecycle or valuation tampering. | ✅ `PASSED` |
 | **Client-Supplied `actorId` Tampering**    | Verified `actorId` is injected exclusively from `@CurrentUser()` (`user.userId`), ignoring request body parameters.                                    | ✅ `PASSED` |
-| **Terminal State Bypass**                  | Verified domain aggregate invariants prevent transitioning or modifying `DISPOSED` assets regardless of caller write permissions.                      | ✅ `PASSED` |
+| **Terminal State Bypass**                  | Verified domain aggregate invariants prevent transitioning or modifying `SOLD` assets regardless of caller write permissions.                          | ✅ `PASSED` |
 
 ---
 

@@ -82,7 +82,7 @@ flowchart TD
         Guard -->|assets.write + billing.read| ValMut[Mutate Valuation: UpdateFixedAssetValuation]
     end
 
-    ValMut -.->|Must Also Satisfy| DomainInvariant[Domain Invariant: State != DISPOSED, Value >= 0.00]
+    ValMut -.->|Must Also Satisfy| DomainInvariant[Domain Invariant: State != SOLD, Value >= 0.00]
 ```
 
 ### Authorization Requirements:
@@ -96,7 +96,7 @@ flowchart TD
 3. **Mutate Asset Valuation (`UpdateFixedAssetValuationCommand`)**:
    - Requires: `@Permissions('assets.write', 'billing.read')`
    - Authorized Roles: `ADMIN`, `SUPER_ADMIN`, `OWNER`
-   - Domain Invariant: Asset must not be `DISPOSED`; estimated value must be $\ge 0.00$.
+   - Domain Invariant: Asset must not be `SOLD`; estimated value must be $\ge 0.00$.
 
 ---
 

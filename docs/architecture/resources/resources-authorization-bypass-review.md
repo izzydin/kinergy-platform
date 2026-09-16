@@ -86,10 +86,10 @@ The objective of this assessment is to prove that Phase 6 authorization cannot b
 
 ### 3.5 Terminal State Invariant Security
 
-- _Threat_: A user possessing valid `assets.write` permission attempts to transition an asset out of `DISPOSED` terminal state or record maintenance on a disposed asset.
+- _Threat_: A user possessing valid `assets.write` permission attempts to transition an asset out of `SOLD` terminal state or record maintenance on a sold asset.
 - _Defense_:
   - Authorization and domain lifecycle validation are separate defensive layers. While `AuthorizationGuard` verifies permissions, the `FixedAsset` aggregate enforces state-machine invariants (`assertActive()`, `assertCanTransitionTo()`).
-  - Attempting any mutation on a `DISPOSED` asset throws `InvalidAssetStateException` inside the domain layer, resulting in an immediate operation rejection and zero history generation.
+  - Attempting any mutation on a `SOLD` asset throws `InvalidAssetStateException` inside the domain layer, resulting in an immediate operation rejection and zero history generation.
 - _Status_: `SAFE`
 
 ---

@@ -130,7 +130,7 @@ The architecture enforces a strict guarantee: **a failed authorization decision 
 2. **Physical Facility & Location Validation**:
    - Fixed asset location transfers validate facility and room references within aggregate boundaries, creating an immutable `AssetLocationHistoryRecord` on transfer.
 3. **Terminal Lifecycle Security**:
-   - Authorization and domain lifecycle validation are decoupled. Holding `assets.write` does not permit modifying assets in terminal `DISPOSED` state; the aggregate throws `InvalidAssetStateException` immediately.
+   - Authorization and domain lifecycle validation are decoupled. Holding `assets.write` does not permit modifying assets in terminal `SOLD` state; the aggregate throws `InvalidAssetStateException` immediately.
 
 ---
 

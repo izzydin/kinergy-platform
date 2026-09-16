@@ -155,7 +155,7 @@ A complete audit of controllers, DTOs, application services, domain aggregates, 
 Authorization does not replace domain invariant validation:
 
 - **Stock Non-Negativity**: An authorized user cannot reduce inventory below 0.
-- **Terminal Asset State**: An authorized user cannot mutate an asset in `DISPOSED` state.
+- **Terminal Asset State**: An authorized user cannot mutate an asset in `SOLD` state.
 - **Monetary Positive Non-Zero**: Unit prices, purchase values, and costs must remain strictly non-negative.
 
 ---

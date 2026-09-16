@@ -35,7 +35,7 @@ The phase is partitioned into two distinct sub-domains:
 1. **Consumable Inventory**:
    - Tracking stock levels, SKUs, reorder thresholds, batch/lot tracking, unit costs, stock adjustments, receipts, and clinical/operational consumption logs.
 2. **Fixed Assets**:
-   - Tracking physical capital assets (machines, treatment devices, furniture, facility fixtures), asset tagging, serial numbers, acquisition costs, depreciation schedules, warranty status, maintenance histories, and operational lifecycle states (`OPERATIONAL`, `MAINTENANCE`, `DECOMMISSIONED`, `DISPOSED`).
+   - Tracking physical capital assets (machines, treatment devices, furniture, facility fixtures), asset tagging, serial numbers, acquisition costs, depreciation schedules, warranty status, maintenance histories, and operational lifecycle states (`ACTIVE`, `UNDER_MAINTENANCE`, `DAMAGED`, `RETIRED`, `SOLD`).
 
 ---
 
