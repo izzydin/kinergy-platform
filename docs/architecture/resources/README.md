@@ -131,7 +131,7 @@ Architectural Decision Records governing Phase 6:
 | **[ADR-0094](./adr/0094-resources-authorization-and-permission-taxonomy-model.md)**                                 | Resources Authorization & Permission Taxonomy Model                                  | Accepted | 2026-08-30 |
 | **[ADR-0095](./adr/0095-resource-sensitive-valuation-data-access-and-response-shaping-policy.md)**                  | Resource Sensitive Valuation Data Access & Response-Shaping Policy                   | Accepted | 2026-08-31 |
 | **[ADR-0096](./adr/0096-consumable-inventory-operational-valuation-basis.md)**                                      | Consumable Inventory Operational Valuation Basis                                     | Accepted | 2026-08-31 |
-| **[ADR-0097](./adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md)**                         | Fixed Asset Carrying Valuation & Lifecycle Inclusion Matrix                          | Accepted | 2026-08-31 |
+| **[ADR-0097](./adr/0097-fixed-asset-lifecycle-valuation-inclusion-policy.md)**                                      | Fixed Asset Carrying Valuation & Lifecycle Inclusion Matrix                          | Accepted | 2026-08-31 |
 | **[ADR-0098](./adr/0098-cross-domain-derived-resource-valuation-architecture.md)**                                  | Cross-Domain Derived Resource Valuation Architecture                                 | Accepted | 2026-08-31 |
 | **[ADR-0099](./adr/0099-explicit-subresource-state-mutation-endpoints-vs-generic-patch.md)**                        | Explicit Sub-Resource State Mutation Endpoints vs. Generic PATCH                     | Accepted | 2026-08-31 |
 | **[ADR-0100](./adr/0100-frontend-resources-feature-module-boundaries.md)**                                          | Frontend Resources Feature-Module Boundaries & Encapsulation                         | Accepted | 2026-09-02 |
@@ -141,6 +141,7 @@ Architectural Decision Records governing Phase 6:
 | **[ADR-0104](./adr/0104-resources-cross-domain-decoupling-and-client-boundary-invariant.md)**                       | Resources Cross-Domain Decoupling & Client Boundary Invariant                        | Accepted | 2026-09-10 |
 | **[ADR-0105](./adr/0105-scheduling-and-fixed-asset-decoupling-invariant.md)**                                       | Scheduling & Fixed Asset Decoupling Invariant and Location Semantics                 | Accepted | 2026-09-10 |
 | **[ADR-0106](./adr/0106-sales-inventory-integration-boundary-and-stock-ownership-policy.md)**                       | Sales ↔ Inventory Integration Boundary and Stock Ownership Policy                    | Accepted | 2026-09-11 |
+| **[ADR-0107](./adr/0107-phase-6-multi-tier-verification-architecture-and-proof-boundary-testing-strategy.md)**      | Phase 6 Multi-Tier Verification Architecture & Proof-Boundary Testing Strategy       | Accepted | 2026-09-16 |
 
 ---
 
