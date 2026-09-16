@@ -46,6 +46,7 @@ docs/
 - **[Resources Executable Business Rules & Invariants](file:///c:/Projects/kinergy-platform/docs/architecture/resources/business-rules.md)**: Phase 6 canonical business rules, low-stock equality case, inventory & asset valuation policies, authorization matrix, and concurrency defense.
 - **[Resources Entity Responsibility Matrix & Placement Guide](file:///c:/Projects/kinergy-platform/docs/architecture/resources/entity-responsibility-matrix.md)**: Phase 6 domain ownership matrix, entity lifecycles, mutation entry points, repository boundaries, and anti-pattern catalog.
 - **[Resources Authoritative API Reference & Contract](file:///c:/Projects/kinergy-platform/docs/architecture/resources/api-documentation.md)**: Phase 6 complete REST endpoints reference, DTO schemas, permissions, validation rules, realistic JSON examples, and error contracts.
+- **[Resources API Error & Failure Specification](file:///c:/Projects/kinergy-platform/docs/architecture/resources/api-error-handling.md)**: Phase 6 complete 4-tier error pipeline, domain exceptions, HTTP status mappings, validation constraints, and UI behavior.
 
 ### 3. Frontend Architecture Vision & Principles
 
