@@ -105,6 +105,7 @@ The phase is partitioned into two distinct sub-domains:
 | **[Cross-Domain Integration Specification](./cross-domain-integration.md)**                            | Authoritative integration decisions across Client (decoupled), Scheduling (deferred), Sales (port), and IAM                            | **Approved & Active Contract**     |
 | **[Milestone 6.16 Quality Gate](./milestone-6.16-quality-gate.md)**                                    | Formal Architecture Review Board evaluation for Cross-Domain Integration Architecture                                                  | **Approved (100%)**                |
 | **[Milestone 6.17 Quality Gate](./milestone-6.17-quality-gate.md)**                                    | Formal Architecture Review Board evaluation for End-to-End Business Scenarios, Journeys & Data Integrity Audit                         | **Approved (100%)**                |
+| **[Phase 6 Traceability Matrix](./traceability-matrix.md)**                                            | Canonical requirement-to-test traceability matrix linking domain rules, use cases, REST APIs, and automated tests                      | **Approved & Active Contract**     |
 
 ---
 
