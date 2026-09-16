@@ -44,6 +44,7 @@ docs/
 - **[Resources Bounded Context Specification](file:///c:/Projects/kinergy-platform/docs/architecture/contexts/resources.md)**: Phase 6 domain ownership boundaries, inventory ledger, asset state machine, and cross-domain contracts.
 - **[Resources Management Canonical Vocabulary](file:///c:/Projects/kinergy-platform/docs/business/resources-vocabulary.md)**: Phase 6 ubiquitous language, entity models, movement types matrix, and invariant definitions.
 - **[Resources Executable Business Rules & Invariants](file:///c:/Projects/kinergy-platform/docs/architecture/resources/business-rules.md)**: Phase 6 canonical business rules, low-stock equality case, inventory & asset valuation policies, authorization matrix, and concurrency defense.
+- **[Resources Entity Responsibility Matrix & Placement Guide](file:///c:/Projects/kinergy-platform/docs/architecture/resources/entity-responsibility-matrix.md)**: Phase 6 domain ownership matrix, entity lifecycles, mutation entry points, repository boundaries, and anti-pattern catalog.
 
 ### 3. Frontend Architecture Vision & Principles
 
