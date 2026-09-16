@@ -41,6 +41,7 @@ docs/
 - **[Gym Management Aggregate Boundaries](file:///c:/Projects/kinergy-platform/docs/architecture/gym-aggregate-boundaries.md)**: Phase 5.1-D aggregate boundaries (`Membership`, `MembershipPlan`, `AttendanceRecord`), invariants, and concurrency rules.
 - **[Gym Management Lifecycle & Invariants](file:///c:/Projects/kinergy-platform/docs/architecture/gym-lifecycle-and-invariants.md)**: Phase 5.1-E state transitions, freeze/renewal mathematical rules, and time model.
 - **[Resources Management Architecture (Phase 6)](file:///c:/Projects/kinergy-platform/docs/architecture/resources/README.md)**: Phase 6.0 architecture hub, discovery baseline, and governance for Consumable Inventory & Fixed Assets.
+- **[Resources Bounded Context Specification](file:///c:/Projects/kinergy-platform/docs/architecture/contexts/resources.md)**: Phase 6 domain ownership boundaries, inventory ledger, asset state machine, and cross-domain contracts.
 
 ### 3. Frontend Architecture Vision & Principles
 

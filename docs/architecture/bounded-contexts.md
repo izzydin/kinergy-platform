@@ -38,6 +38,12 @@ graph TD
             GYM_REPO[Prisma Gym Repositories]
         end
 
+        subgraph "Resources Management Context (packages/core/src/resources)"
+            RES_DOM[InventoryItem / FixedAsset / Movements]
+            RES_UC[Stock Mutations, Asset Lifecycle & Overview]
+            RES_REPO[Prisma Resources Repositories]
+        end
+
         subgraph "Enterprise Platform Layer"
             PLAT_PRISMA[Prisma Module]
             PLAT_LOG[Logging Module]
@@ -50,24 +56,27 @@ graph TD
     SCHED_REPO --> PLAT_PRISMA
     KIN_REPO --> PLAT_PRISMA
     GYM_REPO --> PLAT_PRISMA
+    RES_REPO --> PLAT_PRISMA
 
     GYM_UC -->|Synchronous Status Query| CLT_FACADE
     KIN_UC -->|Correlation Port Query| SCHED_UC
     GYM_UC -.->|Async Timeline Events| CLT_UC
     KIN_UC -.->|Async Timeline Events| CLT_UC
+    RES_DOM -.->|Scalar Id References: clientId, roomId| CLT_DOM
 ```
 
 ---
 
 ## 2. Bounded Context Catalog & Specifications
 
-| Bounded Context       | Package / Directory               | Core Aggregates                                    | Specification Document                                                     |
-| :-------------------- | :-------------------------------- | :------------------------------------------------- | :------------------------------------------------------------------------- |
-| **Identity (IAM)**    | `apps/api/src/platform/identity/` | `User`, `Role`, `Permission`, `RefreshToken`       | [Identity Domain Model](./identity-domain-model.md)                        |
-| **Client Management** | `modules/client/`                 | `Client`, `ClientTimelineEntry`                    | [Client Subsystem Architecture](../../modules/client/docs/ARCHITECTURE.md) |
-| **Scheduling**        | `packages/core/src/scheduling/`   | `Appointment`, `RecurrenceSeries`, `Room`          | [Scheduling Architecture](../scheduling/architecture.md)                   |
-| **Kinesiology**       | `packages/core/src/kinesiology/`  | `TreatmentSession`, `SessionNotes` (SOAP)          | [Kinesiology Specification](./contexts/kinesiology.md)                     |
-| **Gym Management**    | `packages/core/src/gym/`          | `Membership`, `MembershipPlan`, `AttendanceRecord` | [Gym Specification](./contexts/gym.md)                                     |
+| Bounded Context          | Package / Directory               | Core Aggregates                                              | Specification Document                                                     |
+| :----------------------- | :-------------------------------- | :----------------------------------------------------------- | :------------------------------------------------------------------------- |
+| **Identity (IAM)**       | `apps/api/src/platform/identity/` | `User`, `Role`, `Permission`, `RefreshToken`                 | [Identity Domain Model](./identity-domain-model.md)                        |
+| **Client Management**    | `modules/client/`                 | `Client`, `ClientTimelineEntry`                              | [Client Subsystem Architecture](../../modules/client/docs/ARCHITECTURE.md) |
+| **Scheduling**           | `packages/core/src/scheduling/`   | `Appointment`, `RecurrenceSeries`, `Room`                    | [Scheduling Architecture](../scheduling/architecture.md)                   |
+| **Kinesiology**          | `packages/core/src/kinesiology/`  | `TreatmentSession`, `SessionNotes` (SOAP)                    | [Kinesiology Specification](./contexts/kinesiology.md)                     |
+| **Gym Management**       | `packages/core/src/gym/`          | `Membership`, `MembershipPlan`, `AttendanceRecord`           | [Gym Specification](./contexts/gym.md)                                     |
+| **Resources Management** | `packages/core/src/resources/`    | `InventoryItem`, `StockMovement`, `FixedAsset`, AssetHistory | [Resources Specification](./contexts/resources.md)                         |
 
 ---
 

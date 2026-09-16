@@ -43,6 +43,7 @@ The phase is partitioned into two distinct sub-domains:
 
 | Document                                                                                               | Description                                                                                                           | Status                |
 | :----------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- | :-------------------- |
+| **[Resources Bounded Context Specification](../contexts/resources.md)**                                | Authoritative bounded context specification, ownership matrix, Clean Architecture layering, and invariants            | **Approved & Active** |
 | **[Phase 6 Architecture Discovery](./phase-6-architecture-discovery.md)**                              | Comprehensive reconnaissance of existing architecture, constraints, evolution, reusable patterns, risks, and evidence | Complete / Baseline   |
 | **[Domain Boundary Design](./domain-boundaries.md)**                                                   | Domain boundaries, entity classification, aggregate root definitions, invariants, and lifecycle state machines        | Complete / Baseline   |
 | **[Production Persistence Strategy](./persistence-strategy.md)**                                       | Database schema topology, table models, indexing, OCC concurrency controls, and asset history reconstruction          | Complete / Baseline   |
