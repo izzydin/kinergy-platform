@@ -8,8 +8,8 @@ The authorization architecture for **Phase 6: Resources Management** integrates 
 
 - **IAM Bounded Context (`Phase 1`) Owns**: User identities, credential hashing (Argon2id), JWT token issuance, Refresh Token Rotation (RTR), role hierarchies, and the central permission catalog. For complete IAM architectural specifications, see:
   - [Phase 1 Security Architecture Guide](file:///c:/Projects/kinergy-platform/docs/security/README.md)
-  - [Token & Session Architecture Specification](file:///c:/Projects/kinergy-platform/docs/security/tokens.md)
-  - [Web Security & Threat Model](file:///c:/Projects/kinergy-platform/docs/security/web-security.md)
+  - [Token & Session Architecture Specification](file:///c:/Projects/kinergy-platform/docs/security/token-strategy.md)
+  - [Web Security & Threat Model](file:///c:/Projects/kinergy-platform/docs/security/web-security-cors-and-headers.md)
 - **Resources Bounded Context (`Phase 6`) Owns**: Consuming IAM identity tokens, declaring endpoint permission requirements (`inventory.*`, `assets.*`), enforcing multi-tenant boundaries on resource entities, and recording authenticated actor provenance in audit ledgers.
 
 > [!IMPORTANT]
@@ -256,6 +256,6 @@ return (
 For deep implementation details regarding IAM infrastructure, token encryption, password policies, and security headers, consult the following Phase 1 authoritative specifications:
 
 - **[Phase 1 Security Architecture Guide](file:///c:/Projects/kinergy-platform/docs/security/README.md)**: Overall security boundaries, encryption at rest and in transit.
-- **[Token Architecture Specification](file:///c:/Projects/kinergy-platform/docs/security/tokens.md)**: Cryptographic signature algorithms (HS256/RS256), token expiration, and Refresh Token Rotation (RTR).
-- **[Web Security Specification](file:///c:/Projects/kinergy-platform/docs/security/web-security.md)**: CSRF mitigation, CORS headers, Helmet policies, and brute-force rate limiting.
+- **[Token Architecture Specification](file:///c:/Projects/kinergy-platform/docs/security/token-strategy.md)**: Cryptographic signature algorithms (HS256/RS256), token expiration, and Refresh Token Rotation (RTR).
+- **[Web Security Specification](file:///c:/Projects/kinergy-platform/docs/security/web-security-cors-and-headers.md)**: CSRF mitigation, CORS headers, Helmet policies, and brute-force rate limiting.
 - **[ADR-0094: Resources Authorization Taxonomy](file:///c:/Projects/kinergy-platform/docs/architecture/resources/adr/0094-resources-authorization-and-permission-taxonomy-model.md)**: ARB decision record ratifying the Phase 6 permission model.

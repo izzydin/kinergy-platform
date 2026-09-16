@@ -7,7 +7,7 @@
 
 - [ADR-0094: Resources Authorization & Permission Taxonomy Model](./adr/0094-resources-authorization-and-permission-taxonomy-model.md)
 - [ADR-0095: Resource Sensitive Valuation Data Access & Response Shaping Policy](./adr/0095-resource-sensitive-valuation-data-access-and-response-shaping-policy.md)
-- [ADR-0102: Fixed Asset Lifecycle State Machine & Transition Invariants](./adr/0102-fixed-asset-lifecycle-state-machine-and-transition-invariants.md)
+- [ADR-0085: Fixed Asset Operational Lifecycle State Machine and Terminal Disposal Policy](./adr/0085-fixed-asset-operational-lifecycle-state-machine-and-terminal-disposal-policy.md)
 - [Fixed Asset Transfer Architecture](./asset-transfer-ux.md)
 - [Fixed Asset Lifecycle Operations Architecture](./asset-lifecycle-operations-ux.md)
 - [Fixed Asset Maintenance Architecture](./asset-maintenance-ux.md)

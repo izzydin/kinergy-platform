@@ -7,7 +7,7 @@
 **Governing Documents**:
 
 - [**ADR-0099: Explicit Sub-Resource State Mutation Endpoints vs. Generic PATCH**](./adr/0099-explicit-subresource-state-mutation-endpoints-vs-generic-patch.md)
-- [**ADR-0098: Cross-Domain Valuation Query Handler Composition**](./adr/0098-cross-domain-valuation-query-handler-composition.md)
+- [**ADR-0098: Cross-Domain Derived Resource Valuation Architecture**](./adr/0098-cross-domain-derived-resource-valuation-architecture.md)
 - [**Resources API Contracts & Validation**](./resource-api-contracts.md)
 - [**Backend API Architecture Baseline**](./backend-api-baseline.md)
 

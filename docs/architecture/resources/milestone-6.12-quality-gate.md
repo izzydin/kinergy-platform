@@ -166,7 +166,7 @@ Frontend authorization enforces defense-in-depth across three tiers:
 
 ## 12. Valuation Visibility Review
 
-Working capital and acquisition costs are protected according to Kinergy security policy ([ADR-0095](./adr/0095-three-layer-concurrency-defense-for-inventory-mutations.md)):
+Working capital and acquisition costs are protected according to Kinergy security policy ([ADR-0095](./adr/0084-inventory-concurrency-control-and-race-condition-prevention.md)):
 
 - **Dual-Tier Protection**: Backend suppresses unit cost if the caller lacks `valuation.read` or `billing.read`.
 - **Frontend Masking**:

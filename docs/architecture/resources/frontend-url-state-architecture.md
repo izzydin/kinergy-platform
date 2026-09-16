@@ -6,7 +6,7 @@
 **Author**: Principal Frontend Engineer & URL-Driven State Architecture Specialist  
 **Governing ADRs**:
 
-- [**ADR-0084: Resources Subsystem Architecture & Boundaries**](./adr/0084-resources-subsystem-architecture-and-boundaries.md)
+- [**ADR-0081: Resources Bounded Context Topology and Domain Segregation**](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md)
 - [**ADR-0100: Frontend Resources Feature-Module Boundaries & Encapsulation**](./adr/0100-frontend-resources-feature-module-boundaries.md)
 - [**Phase 6 Frontend Routing Architecture**](./frontend-routing-architecture.md)
 - [**Phase 6 Frontend Query State Architecture**](./frontend-query-state-architecture.md)

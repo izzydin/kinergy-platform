@@ -6,8 +6,8 @@
 **Author**: Principal Database Concurrency Engineer, Senior Backend Architect & ARB Member  
 **Governing ADRs**:
 
-- [**ADR-0084: Resources Subsystem Architecture & Boundaries**](./adr/0084-resources-subsystem-architecture-and-boundaries.md)
-- [**ADR-0095: Three-Layer Concurrency Defense Strategy for Stock Mutations**](./adr/0095-three-layer-concurrency-defense-for-inventory-mutations.md)
+- [**ADR-0081: Resources Bounded Context Topology and Domain Segregation**](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md)
+- [**ADR-0084: Inventory Concurrency Control and Race Condition Prevention**](./adr/0084-inventory-concurrency-control-and-race-condition-prevention.md)
 - [**Phase 6 Backend Testing Strategy**](./phase-6-backend-testing-strategy.md)
 
 ---

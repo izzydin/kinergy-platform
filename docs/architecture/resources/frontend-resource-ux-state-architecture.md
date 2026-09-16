@@ -6,7 +6,7 @@
 **Author**: Principal UX Engineer, Senior Frontend Engineer & Resilience Architecture Reviewer  
 **Governing ADRs**:
 
-- [**ADR-0084: Resources Subsystem Architecture & Boundaries**](./adr/0084-resources-subsystem-architecture-and-boundaries.md)
+- [**ADR-0081: Resources Bounded Context Topology and Domain Segregation**](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md)
 - [**ADR-0099: Explicit Sub-Resource State Mutation Endpoints vs. Generic PATCH**](./adr/0099-explicit-subresource-state-mutation-endpoints-vs-generic-patch.md)
 - [**Phase 6 Frontend Architecture Baseline**](./frontend-architecture-baseline.md)
 - [**Phase 6 Frontend Query State Architecture**](./frontend-query-state-architecture.md)

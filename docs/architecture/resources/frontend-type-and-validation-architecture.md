@@ -6,7 +6,7 @@
 **Author**: Principal TypeScript Engineer & Frontend Domain Boundary Architect  
 **Governing ADRs**:
 
-- [**ADR-0084: Resources Subsystem Architecture & Boundaries**](./adr/0084-resources-subsystem-architecture-and-boundaries.md)
+- [**ADR-0081: Resources Bounded Context Topology and Domain Segregation**](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md)
 - [**ADR-0089: Inventory Monetary, Quantity, and Unit Precision Semantics**](./adr/0089-inventory-monetary-quantity-and-unit-precision-semantics.md)
 - [**ADR-0090: Fixed Asset Classification, Lifecycle State, and Condition Rating Strategy**](./adr/0090-fixed-asset-classification-lifecycle-state-and-condition-rating-strategy.md)
 - [**ADR-0100: Frontend Resources Feature-Module Boundaries & Encapsulation**](./adr/0100-frontend-resources-feature-module-boundaries.md)

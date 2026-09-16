@@ -6,10 +6,10 @@
 **Author**: Application Security Engineer, Senior QA Engineer & Authorization Architecture Reviewer  
 **Governing Architecture Documents**:
 
-- [**Phase 1 Authentication & Authorization Architecture**](../identity/0001-authentication-architecture.md)
-- [**ADR-0084: Resources Subsystem Architecture & Boundaries**](./adr/0084-resources-subsystem-architecture-and-boundaries.md)
+- [**Phase 1 Authentication & Authorization Architecture**](../identity-domain-model.md)
+- [**ADR-0081: Resources Bounded Context Topology and Domain Segregation**](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md)
 - [**Phase 6 Backend Testing Strategy**](./phase-6-backend-testing-strategy.md)
-- [**Phase 6 API Contract Specification**](./phase-6-api-contract-and-implementation.md)
+- [**Phase 6 API Contract Specification**](./api-documentation.md)
 
 ---
 

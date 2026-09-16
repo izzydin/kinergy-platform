@@ -6,7 +6,7 @@
 **Subsystem**: Resources Management (`apps/web/src/modules/resources/inventory/`)  
 **Related ADRs**:
 
-- [ADR-0084: Resources Subsystem Architecture & Boundaries](./0084-resources-subsystem-architecture-and-boundaries.md)
+- [ADR-0081: Resources Bounded Context Topology and Domain Segregation](./0081-resources-bounded-context-topology-and-domain-segregation.md)
 - [ADR-0092: Consumable Inventory Application Orchestration](./0092-consumable-inventory-application-orchestration-and-atomic-stock-mutation-pattern.md)
 - [ADR-0100: Frontend Resources Feature-Module Boundaries](./0100-frontend-resources-feature-module-boundaries.md)
 

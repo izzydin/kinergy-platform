@@ -70,7 +70,7 @@ $$\text{Inventory Value} = \sum_{i \in \text{Active Items}} (\text{currentStock}
 
 $$\text{Fixed Asset Value} = \sum_{a \in \text{Carrying Assets}} \text{currentEstimatedValue}_a$$
 
-- Strictly bounded by the lifecycle valuation policy defined in [ADR-0097](./adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md):
+- Strictly bounded by the lifecycle valuation policy defined in [ADR-0097](./adr/0097-fixed-asset-lifecycle-valuation-inclusion-policy.md):
   - `ACTIVE`: Included at 100% carrying value.
   - `UNDER_MAINTENANCE`: Included at 100% carrying value (asset is temporarily offline for servicing).
   - `DAMAGED`: Included at 100% carrying value (impaired but retains residual appraisal until formal disposal).
@@ -261,7 +261,7 @@ Milestone 6.14 operates strictly under approved ADRs:
 - **[ADR-0094](./adr/0094-resources-authorization-and-permission-taxonomy-model.md)**: Resources Authorization & Permission Taxonomy Model.
 - **[ADR-0095](./adr/0095-resource-sensitive-valuation-data-access-and-response-shaping-policy.md)**: Resource Sensitive Valuation Data Access & Response-Shaping Policy.
 - **[ADR-0096](./adr/0096-consumable-inventory-operational-valuation-basis.md)**: Consumable Inventory Operational Valuation Basis.
-- **[ADR-0097](./adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md)**: Fixed Asset Carrying Valuation & Lifecycle Inclusion Matrix.
+- **[ADR-0097](./adr/0097-fixed-asset-lifecycle-valuation-inclusion-policy.md)**: Fixed Asset Carrying Valuation & Lifecycle Inclusion Matrix.
 - **[ADR-0098](./adr/0098-cross-domain-derived-resource-valuation-architecture.md)**: Cross-Domain Derived Resource Valuation Architecture.
 - **[ADR-0100](./adr/0100-frontend-resources-feature-module-boundaries.md)**: Frontend Resources Feature-Module Boundaries & Encapsulation.
 - **[ADR-0102](./adr/0102-resource-overview-synthesized-read-query-architecture.md)**: Resource Overview Synthesized Read-Query Architecture & Executive Cockpit.

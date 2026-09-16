@@ -51,7 +51,7 @@ Every view within Phase 6 was inspected, hardened, and verified against the 4 fu
 
 ## 3. Mutation Architecture & TanStack Query Synchronization
 
-Governed by **[ADR 0072](../../../adr/0072-frontend-optimistic-ux-architecture-and-decision-policy.md)** and **[ADR-0103](./adr/0103-frontend-modal-interaction-and-safe-focus-policy.md)**:
+Governed by **[ADR 0072](../../adr/0072-frontend-optimistic-ux-architecture-and-decision-policy.md)** and **[ADR-0103](./adr/0103-frontend-modal-interaction-and-safe-focus-policy.md)**:
 
 ### A. Pessimistic Default for Hazardous Operations
 
@@ -84,7 +84,7 @@ Governed by **[ADR 0072](../../../adr/0072-frontend-optimistic-ux-architecture-a
 
 ## 5. Table Architecture & Authoritative URL State
 
-Governed by **[ADR 0071](../../../adr/0071-frontend-crud-experience-lifecycle-and-composition-contract.md)**:
+Governed by **[ADR 0071](../../adr/0071-frontend-crud-experience-lifecycle-and-composition-contract.md)**:
 
 1. **Authoritative URL State**: All list views (`InventoryListPage`, `AssetsListPage`, `InventoryMovementsPage`, `AssetHistoryPage`, `AssetMaintenancePage`) synchronize search terms (`q`), categorical filters (`category`, `status`, `condition`, `movementType`), pagination (`page`, `limit`), and sorting (`sort`) bidirectionally with `useSearchParams`.
 2. **Browser History**: Full support for native browser Back and Forward navigation with state preservation.

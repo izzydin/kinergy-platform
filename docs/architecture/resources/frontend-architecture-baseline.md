@@ -6,9 +6,9 @@
 **Author**: Principal Frontend Architect, Senior React Engineer & Kinergy ARB Member  
 **Governing ADRs**:
 
-- [**ADR-0084: Resources Subsystem Architecture & Boundaries**](./adr/0084-resources-subsystem-architecture-and-boundaries.md)
-- [**ADR-0095: Three-Layer Concurrency Defense Strategy for Stock Mutations**](./adr/0095-three-layer-concurrency-defense-for-inventory-mutations.md)
-- [**ADR-0097: Resource Valuation Policy & Carrying Value Rules**](./adr/0097-resource-valuation-policy-and-carrying-value.md)
+- [**ADR-0081: Resources Bounded Context Topology and Domain Segregation**](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md)
+- [**ADR-0084: Inventory Concurrency Control and Race Condition Prevention**](./adr/0084-inventory-concurrency-control-and-race-condition-prevention.md)
+- [**ADR-0097: Fixed Asset Lifecycle Valuation Inclusion Policy**](./adr/0097-fixed-asset-lifecycle-valuation-inclusion-policy.md)
 - [**Track A / B / C Frontend Framework Specifications**](../../frontend/dashboard_auth_integration_contract.md)
 
 ---

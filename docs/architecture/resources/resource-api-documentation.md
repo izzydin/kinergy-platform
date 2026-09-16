@@ -170,11 +170,11 @@ All API errors produce the unified platform error envelope formatted by `GlobalE
 
 ### 7.3 Cross-Domain Valuation Endpoint
 
-1. `GET /api/v1/resources/valuation/summary`: Composed balance sheet valuation summary combining consumable inventory working capital and fixed asset carrying value ([ADR-0098](./adr/0098-cross-domain-valuation-query-handler-composition.md)).
+1. `GET /api/v1/resources/valuation/summary`: Composed balance sheet valuation summary combining consumable inventory working capital and fixed asset carrying value ([ADR-0098](./adr/0098-cross-domain-derived-resource-valuation-architecture.md)).
 
 ### 7.4 Resource Overview Endpoint
 
-1. `GET /api/v1/resources/overview`: Enterprise resource dashboard metrics combining consumable inventory working capital and distinct item counts with fixed asset carrying values and lifecycle counts ([ADR-0094](./adr/0094-resource-domain-permission-matrix-and-rbac.md)).
+1. `GET /api/v1/resources/overview`: Enterprise resource dashboard metrics combining consumable inventory working capital and distinct item counts with fixed asset carrying values and lifecycle counts ([ADR-0094](./adr/0094-resources-authorization-and-permission-taxonomy-model.md)).
 
 ---
 

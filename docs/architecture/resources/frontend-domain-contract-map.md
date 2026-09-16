@@ -7,9 +7,9 @@
 **Governing Architecture Documents**:
 
 - [**Phase 6 Frontend Architecture Baseline**](./frontend-architecture-baseline.md)
-- [**Phase 6 API Contract Specification**](./phase-6-api-contract-and-implementation.md)
-- [**ADR-0084: Resources Subsystem Architecture & Boundaries**](./adr/0084-resources-subsystem-architecture-and-boundaries.md)
-- [**ADR-0097: Resource Valuation Policy & Carrying Value Rules**](./adr/0097-resource-valuation-policy-and-carrying-value.md)
+- [**Phase 6 API Contract Specification**](./api-documentation.md)
+- [**ADR-0081: Resources Bounded Context Topology and Domain Segregation**](./adr/0081-resources-bounded-context-topology-and-domain-segregation.md)
+- [**ADR-0097: Fixed Asset Lifecycle Valuation Inclusion Policy**](./adr/0097-fixed-asset-lifecycle-valuation-inclusion-policy.md)
 
 ---
 

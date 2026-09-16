@@ -9,8 +9,8 @@
 - [**ADR-0099: Explicit Sub-Resource State Mutation Endpoints vs. Generic PATCH**](./adr/0099-explicit-subresource-state-mutation-endpoints-vs-generic-patch.md)
 - [**Resources Public HTTP API Surface**](./resource-api-surface.md)
 - [**Consumable Inventory API Contracts**](./inventory-api-contracts.md)
-- [**Asset Application Layer Baseline**](./asset-application-baseline.md)
-- [**Asset State Machine Specification**](./asset-state-machine.md)
+- [**Asset Application Layer Baseline**](./fixed-assets-application-baseline.md)
+- [**Asset State Machine Specification**](./asset-status-state-machine.md)
 
 ---
 

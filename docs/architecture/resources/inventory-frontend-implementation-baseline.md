@@ -8,7 +8,7 @@
 
 - [**ADR-0083: Inventory Movement Ledger and Materialized Stock Mutation Strategy**](./adr/0083-inventory-movement-ledger-and-materialized-stock-mutation-strategy.md)
 - [**ADR-0084: Inventory Concurrency Control and Race Condition Prevention**](./adr/0084-inventory-concurrency-control-and-race-condition-prevention.md)
-- [**ADR-0095: Three-Layer Concurrency Defense Strategy for Stock Mutations**](./adr/0095-three-layer-concurrency-defense-for-inventory-mutations.md)
+- [**ADR-0084: Inventory Concurrency Control and Race Condition Prevention**](./adr/0084-inventory-concurrency-control-and-race-condition-prevention.md)
 - [**ADR-0099: Explicit Sub-Resource State Mutation Endpoints vs. Generic PATCH**](./adr/0099-explicit-subresource-state-mutation-endpoints-vs-generic-patch.md)
 - [**ADR-0100: Frontend Resources Feature-Module Boundaries & Encapsulation**](./adr/0100-frontend-resources-feature-module-boundaries.md)
 - [**ADR-0101: Frontend Low Stock Operational Attention Architecture**](./adr/0101-frontend-low-stock-operational-attention-architecture.md)

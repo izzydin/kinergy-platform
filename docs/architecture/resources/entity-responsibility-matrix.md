@@ -156,7 +156,7 @@ classDiagram
   - `InventoryItemRepositoryInterface` / `PrismaInventoryItemRepository`.
   - Atomically saves item updates and appends new `StockMovement` records in a single Prisma `$transaction`.
 - **Test Coverage**:
-  - Unit: [`inventory-item.aggregate.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/__tests__/inventory-item.aggregate.spec.ts)
+  - Unit: [`inventory-item.aggregate.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/inventory-item.aggregate.spec.ts)
   - Invariants: [`inventory-stock-mutation-invariants.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/inventory-stock-mutation-invariants.spec.ts)
   - Integration: [`inventory-application-persistence-integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/application/__tests__/inventory-application-persistence-integration.spec.ts)
 
@@ -182,7 +182,7 @@ classDiagram
 - **Repository Ownership**:
   - Has **no standalone repository**. Persisted exclusively through `InventoryItemRepositoryInterface.save()`.
 - **Test Coverage**:
-  - Unit: [`stock-movement.entity.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/inventory/entities/__tests__/stock-movement.entity.spec.ts)
+  - Unit: [`stock-movement.entity.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/inventory-movement.spec.ts)
   - Ledger Reconstitution: [`inventory-stock-mutation-invariants.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/inventory-stock-mutation-invariants.spec.ts)
 
 ---
@@ -235,7 +235,7 @@ classDiagram
 - **Repository Ownership**:
   - Has **no standalone repository**. Persisted through `FixedAssetRepositoryInterface.save()`.
 - **Test Coverage**:
-  - Unit: [`asset-maintenance.entity.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/assets/entities/__tests__/asset-maintenance.entity.spec.ts)
+  - Unit: [`asset-maintenance.entity.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/asset-maintenance-record.spec.ts)
   - Integration: [`fixed-asset-application-persistence-integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/application/__tests__/fixed-asset-application-persistence-integration.spec.ts)
 
 ---
@@ -257,7 +257,7 @@ classDiagram
 - **Repository Ownership**:
   - Has **no standalone repository**. Persisted through `FixedAssetRepositoryInterface.save()`.
 - **Test Coverage**:
-  - Unit: [`asset-history.entity.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/assets/entities/__tests__/asset-history.entity.spec.ts)
+  - Unit: [`asset-history.entity.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/asset-history-meaningful-audit.spec.ts)
   - Suppression & Invariants: [`asset-business-operations-invariants.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/resources/domain/__tests__/asset-business-operations-invariants.spec.ts)
 
 ---

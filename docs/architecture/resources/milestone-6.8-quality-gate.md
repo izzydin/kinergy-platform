@@ -69,7 +69,7 @@ All three valuation capabilities have been fully implemented, secured under the 
 
 ## 6. Fixed Asset Valuation Basis
 
-- **Carrying Value Basis**: Current Fair Estimated Appraisal Value ($\sum \text{currentEstimatedValue}$) as established in [ADR-0097](./adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md) and [fixed-asset-valuation-policy.md](./fixed-asset-valuation-policy.md).
+- **Carrying Value Basis**: Current Fair Estimated Appraisal Value ($\sum \text{currentEstimatedValue}$) as established in [ADR-0097](./adr/0097-fixed-asset-lifecycle-valuation-inclusion-policy.md) and [fixed-asset-valuation-policy.md](./fixed-asset-valuation-policy.md).
 - **CAPEX Purchase History**: Total original acquisition cost ($\sum \text{purchaseValue}$) is tracked concurrently for balance sheet auditability.
 
 ---
@@ -184,7 +184,7 @@ The following Architectural Decision Records govern Milestone 6.8:
 
 - [**ADR-0095**](./adr/0095-resource-sensitive-valuation-data-access-and-response-shaping-policy.md): Resource Sensitive Valuation Data Access & Response-Shaping Policy (`ACCEPTED`).
 - [**ADR-0096**](./adr/0096-consumable-inventory-operational-valuation-basis.md): Consumable Inventory Operational Valuation Basis (`ACCEPTED`).
-- [**ADR-0097**](./adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md): Fixed Asset Lifecycle Valuation Inclusion Policy (`ACCEPTED`).
+- [**ADR-0097**](./adr/0097-fixed-asset-lifecycle-valuation-inclusion-policy.md): Fixed Asset Lifecycle Valuation Inclusion Policy (`ACCEPTED`).
 - [**ADR-0098**](./adr/0098-cross-domain-derived-resource-valuation-architecture.md): Cross-Domain Derived Resource Valuation Architecture (`ACCEPTED`).
 
 ---

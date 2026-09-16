@@ -64,7 +64,7 @@ $$\text{Inventory Value} = \sum (\text{currentStock} \times \text{purchaseCost})
 
 ## 3. Fixed Asset Lifecycle & Valuation Matrix
 
-The fixed asset valuation engine computes carrying book value according to the authoritative lifecycle inclusion matrix ([ADR-0097](file:///c:/Projects/kinergy-platform/docs/architecture/resources/adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md)):
+The fixed asset valuation engine computes carrying book value according to the authoritative lifecycle inclusion matrix ([ADR-0097](file:///c:/Projects/kinergy-platform/docs/architecture/resources/adr/0097-fixed-asset-lifecycle-valuation-inclusion-policy.md)):
 
 | Lifecycle State     | Operational Status           |  Carrying Book Value Contribution   |          CAPEX Acquisition History Contribution           | Test Status |
 | :------------------ | :--------------------------- | :---------------------------------: | :-------------------------------------------------------: | :---------: |

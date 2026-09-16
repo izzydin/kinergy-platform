@@ -11,7 +11,7 @@
 - [ADR-0094: Resources Authorization & Permission Taxonomy Model](./0094-resources-authorization-and-permission-taxonomy-model.md)
 - [ADR-0095: Resource Sensitive Valuation Data Access & Response-Shaping Policy](./0095-resource-sensitive-valuation-data-access-and-response-shaping-policy.md)
 - [ADR-0096: Consumable Inventory Operational Valuation Basis](./0096-consumable-inventory-operational-valuation-basis.md)
-- [ADR-0097: Fixed Asset Carrying Valuation & Lifecycle Inclusion Matrix](./0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md)
+- [ADR-0097: Fixed Asset Lifecycle Valuation Inclusion Policy](./0097-fixed-asset-lifecycle-valuation-inclusion-policy.md)
 - [ADR-0098: Cross-Domain Derived Resource Valuation Architecture](./0098-cross-domain-derived-resource-valuation-architecture.md)
 - [ADR-0100: Frontend Resources Feature-Module Boundaries & Encapsulation](./0100-frontend-resources-feature-module-boundaries.md)
 

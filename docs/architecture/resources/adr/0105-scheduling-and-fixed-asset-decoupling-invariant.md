@@ -29,7 +29,7 @@ We must establish the precise architectural boundary distinguishing:
   - In Kinergy's clinical and gym operations, appointments book a **Space** (`Room`), a **Therapist**, and a **Client**.
   - Equipment is an amenity/fixture residing within spaces or facilities. Clients and practitioners do not book equipment items as distinct lines on calendar agendas.
 - **Maintenance Decoupling**:
-  - `Room` manages its own spatial availability and sanitation/maintenance schedules via `MaintenanceWindow` value objects per [ADR-0044](../../adr/0044-schedulable-resource-and-room-scheduling-architecture.md).
+  - `Room` manages its own spatial availability and sanitation/maintenance schedules via `MaintenanceWindow` value objects per [ADR-0044](../../../adr/0044-schedulable-resource-and-room-scheduling-architecture.md).
   - If a single physical asset (e.g., an ultrasound device) enters maintenance, the room itself remains operational for general therapy, consultations, or manual manipulation. Automatically blocking room bookings upon equipment failure would disrupt unaffected clinical appointments.
 - **Portability & Relational Cleanliness**:
   - Forcing a foreign key `fixed_assets.room_id -> rooms.id` would make assets unassignable to common zones (e.g., "Main Cardio Floor", "Reception Lounge"), off-site calibration labs, or storage depots without creating synthetic "dummy rooms".

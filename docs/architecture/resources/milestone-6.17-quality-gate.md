@@ -98,7 +98,7 @@ graph TD
 - **Domain Focus**: Derived executive financial valuation synthesizing working capital and capital asset equity.
 - **Valuation Invariant**:
   $$\text{Combined Resource Value} = \text{Inventory Value} + \text{Fixed Asset Carrying Value}$$
-- **Lifecycle Inclusion Policy**: Per [ADR-0097](./adr/0097-fixed-asset-carrying-valuation-and-lifecycle-inclusion-matrix.md), only assets in `ACTIVE`, `UNDER_MAINTENANCE`, and `DAMAGED` statuses contribute to carrying valuation. `RETIRED` and `SOLD` assets contribute exactly $\$0.00$.
+- **Lifecycle Inclusion Policy**: Per [ADR-0097](./adr/0097-fixed-asset-lifecycle-valuation-inclusion-policy.md), only assets in `ACTIVE`, `UNDER_MAINTENANCE`, and `DAMAGED` statuses contribute to carrying valuation. `RETIRED` and `SOLD` assets contribute exactly $\$0.00$.
 - **Independence Invariant**: Consumable stock mutations modify inventory valuation with zero impact on fixed asset valuation. Fixed asset revaluations modify capital valuation with zero impact on consumable inventory. Combined valuation adjusts by the exact mathematical delta.
 
 ---

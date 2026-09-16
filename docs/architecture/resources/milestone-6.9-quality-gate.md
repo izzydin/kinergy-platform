@@ -142,7 +142,7 @@ api/v1/resources/
 | **[`resource-api-query-conventions.md`](./resource-api-query-conventions.md)**                 | Standardized pagination, filtering, search, and sorting conventions            | **Approved & Active** |
 | **[`resource-api-documentation.md`](./resource-api-documentation.md)**                         | Comprehensive OpenAPI 3.0 specification and operations inventory               | **Approved & Active** |
 | **[`resource-api-testing.md`](./resource-api-testing.md)**                                     | External API test matrices and E2E lifecycle verification                      | **Approved & Active** |
-| **[`ADR-0098`](./adr/0098-cross-domain-valuation-query-handler-composition.md)**               | Cross-Domain Valuation Query Handler Composition                               | **Approved & Active** |
+| **[`ADR-0098`](./adr/0098-cross-domain-derived-resource-valuation-architecture.md)**           | Cross-Domain Valuation Query Handler Composition                               | **Approved & Active** |
 | **[`ADR-0099`](./adr/0099-explicit-subresource-state-mutation-endpoints-vs-generic-patch.md)** | Explicit Sub-Resource State Mutation Endpoints vs. Generic PATCH               | **Approved & Active** |
 
 ---
