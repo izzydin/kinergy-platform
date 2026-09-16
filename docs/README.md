@@ -50,6 +50,7 @@ docs/
 - **[Resources Frontend Architecture Specification](file:///c:/Projects/kinergy-platform/docs/architecture/resources/frontend-architecture.md)**: Phase 6 complete frontend architecture, module boundaries, 5-pillar state separation, forms, permissions, 4-state UI, and screen playbook.
 - **[Resources Testing Architecture & Verification Specification](file:///c:/Projects/kinergy-platform/docs/architecture/resources/testing-architecture.md)**: Phase 6 complete 6-layer testing pyramid, proof vs non-proof matrix, layer roles, and Phase 6.17 Scenarios A–H.
 - **[Resources Concurrency Strategy & Stock Guarantees](file:///c:/Projects/kinergy-platform/docs/architecture/resources/concurrency-strategy.md)**: Phase 6 complete 3-layer defense-in-depth, OCC conditional updates, transaction boundaries, and race resolution.
+- **[Resources Audit & History Strategy](file:///c:/Projects/kinergy-platform/docs/architecture/resources/audit-and-history-strategy.md)**: Phase 6 complete specification of current state vs historical records, movement ledger, asset history, and anti-noise policy.
 
 ### 3. Frontend Architecture Vision & Principles
 
