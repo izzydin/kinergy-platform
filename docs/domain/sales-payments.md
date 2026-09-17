@@ -212,17 +212,37 @@ SourceReference
 
 ### 3.6 `Money` (Canonical Shared Kernel Value Object)
 
-In accordance with Phase 6 architectural standards and ADR-0098:
+In accordance with Phase 6 architectural standards, ADR-0098, and ADR-0108:
 
-- **`amount: number`**: Finite, non-negative number ($0 \le \text{amount} < \infty$).
-- **`currency: string`**: ISO-4217 standard 3-letter uppercase code (e.g., `USD`, `CAD`, `EUR`). Default: `USD`.
-- **Precision**: Fixed to 2 decimal places (integer cents / hundredths). Precision is enforced via `Math.round(amount * 100) / 100`.
-- **Arithmetic Rules**:
-  - `add(other: Money)`: Requires identical currencies; returns new `Money`.
-  - `subtract(other: Money)`: Requires identical currencies; throws `InvalidMoneyException` if result $< 0$.
-  - `multiply(factor: number)`: Requires finite factor $\ge 0$; returns new `Money` rounded to cents.
-  - `isZero()`: Returns `true` when amount is `0`.
-- **Strict Invariant**: Floating-point currency math is strictly forbidden. Monetary amounts are immutable (`Object.freeze`).
+- **Mathematical Determinism**: Binary floating-point arithmetic (IEEE 754 `number`) is strictly prohibited for monetary calculations.
+- **`amount: number`**: Represents major currency units (e.g. `$49.99`). Must be a finite, non-negative number ($0 \le \text{amount} < \infty$).
+- **Precision & Scale**: Fixed scale of **2 decimal places** (integer cents / hundredths). Precision is enforced at instantiation:
+  $$\text{amount} = \frac{\text{round}(\text{amount} \times 100)}{100}$$
+- **`currency: string`**: Normalized 3-letter uppercase ISO-4217 standard currency code (e.g., `USD`, `CAD`, `EUR`). Default: `USD`.
+- **Arithmetic Rules (Guaranteed Cent-Integer Math)**:
+  - `add(other: Money)`: Requires identical currencies; computes $\frac{\text{round}(a \times 100) + \text{round}(b \times 100)}{100}$. Returns new `Money`.
+  - `subtract(other: Money)`: Requires identical currencies; computes $\frac{\text{round}(a \times 100) - \text{round}(b \times 100)}{100}$. Throws `InvalidMoneyException` if result $< 0$.
+  - `multiply(factor: number)`: Factor must be finite and $\ge 0$; computes $\frac{\text{round}(a \times 100 \times \text{factor})}{100}$. Returns new `Money`.
+  - `isZero()`: Returns `true` if $\text{amount} === 0$.
+- **Comparison Methods**:
+  - `equals(other: Money)`: `this.currency === other.currency && this.amount === other.amount`.
+  - `greaterThan(other: Money)`: Guarded currency check; `this.amount > other.amount`.
+  - `greaterThanOrEqual(other: Money)`: Guarded currency check; `this.amount >= other.amount`.
+  - `lessThan(other: Money)`: Guarded currency check; `this.amount < other.amount`.
+  - `lessThanOrEqual(other: Money)`: Guarded currency check; `this.amount <= other.amount`.
+- **Zero & Negative Values**:
+  - Zero is instantiated via `Money.zero(currency)`.
+  - Negative values are **strictly forbidden** in domain aggregates and throw `InvalidMoneyException`. Refunds and reversals are modeled as discrete compensating transactions, never as negative price quantities.
+- **Persistence Representation (PostgreSQL / Prisma)**:
+  - Stored as `Decimal @db.Decimal(12, 2)` alongside `currency String @db.VarChar(3)`.
+  - Supports balances up to `$9,999,999,999.99` with zero decimal drift.
+  - Repositories map bidirectional: `Money.create(Number(raw.amount), raw.currency)` and `new Prisma.Decimal(money.amount)`.
+- **API Representation**:
+  - Serialized as structured JSON object: `{ "amount": 49.99, "currency": "USD" }`.
+- **Payment Gateway Conversion**:
+  - External adapters convert deterministically:
+    $$\text{amountInCents} = \text{round}(\text{money.amount} \times 100)$$
+    $$\text{money} = \text{Money.create}\left(\frac{\text{cents}}{100}, \text{currency}\right)$$
 
 ---
 
@@ -235,18 +255,104 @@ Discount
 ├── type: DiscountType (FIXED_AMOUNT | PERCENTAGE)
 ├── value: number (Finite positive number)
 ├── reason: string (Mandatory business justification)
-└── authorizedByUserId?: string (Required for discounts exceeding cashier discretion threshold)
+└── authorizedByUserId?: string (Required for overrides)
 ```
 
-#### Invariants & Rules
+#### Deterministic Invariants & Rules
 
-1. **Percentage Boundary**: If `type == PERCENTAGE`, $0 < \text{value} \le 100$. A discount of 100% produces a $0.00 line total (e.g., promotional gift or comp).
-2. **Fixed Amount Boundary**: If `type == FIXED_AMOUNT`, value must be $> 0$. A fixed discount cannot reduce a line item or order total below $0.00.
-3. **Application Hierarchy**:
-   - **Step 1 (Line-Item Discounts)**: Applied directly to the individual `SaleItem` subtotal ($\text{quantity} \times \text{unitPrice}$).
-   - **Step 2 (Order-Level Discount)**: Applied to the net sum of all discounted line items.
-4. **Rounding Policy**: When calculating percentage discounts, the resulting currency reduction is rounded half-up to integer cents (`Math.round(val * 100) / 100`).
-5. **Mandatory Justification**: A discount without a non-empty `reason` string (e.g. `"VIP Member Loyalty 10%"`, `"Damaged packaging promo"`) is strictly rejected by domain validation.
+1. **Percentage Boundaries**: If `type == PERCENTAGE`, $0 < \text{value} \le 100$ with scale up to 2 decimal places (e.g. `12.5%`). A 100% discount reduces the balance to zero (complimentary item/service).
+2. **Fixed Amount Boundaries**: If `type == FIXED_AMOUNT`, value must be $> 0$ in the sale's functional currency.
+3. **Cap at Subtotal (Non-Negative Guard)**:
+   - A discount can **never exceed the subtotal** to which it applies.
+   - If a fixed discount of $50.00 is applied to a $35.00 item, the reduction is capped at $35.00. The net line total is $0.00; it never becomes negative.
+4. **Rounding Policy**:
+   - Percentage discounts round half-up at the cent boundary:
+     $$\text{reductionAmount} = \frac{\text{round}\left(\text{subtotal} \times \frac{\text{percentage}}{100} \times 100\right)}{100}$$
+5. **Hierarchy & Precedence**:
+   - **Level 1 (Item-Level Discounts)**: Evaluated first against individual line item gross subtotals ($\text{quantity} \times \text{unitPrice}$).
+   - **Level 2 (Order-Level Discount)**: Evaluated second against the net sum of all discounted line items.
+6. **Mandatory Justification**:
+   - Every discount requires a non-empty `reason` string (e.g., `"Seasonal Clinic Promo"`, `"Damaged outer seal"`, `"VIP Staff Benefit"`). Discretionary discounts without justification are rejected by domain validation.
+7. **Authorization Overrides**:
+   - Cashiers have discretionary discount authority up to a configured threshold (e.g., up to 15% or $20.00).
+   - Discounts exceeding this threshold require `authorizedByUserId` linking to an IAM user with `Owner` or `Manager` role.
+
+---
+
+### 3.8 Deterministic Sale Totals & Reconciliation Formulas
+
+To guarantee that corporate balance sheets, receipts, and payment transactions reconcile to the exact cent without penny discrepancies, the domain enforces the following 13 deterministic formulas:
+
+```
+1.  Line Subtotal:
+    lineSubtotal = round(quantity * unitPrice.amount * 100) / 100
+
+2.  Line Discount:
+    lineDiscount = min(lineSubtotal, calculatedLineReduction)
+
+3.  Line Net Amount (Pre-Tax):
+    lineNet = lineSubtotal - lineDiscount
+
+4.  Line Tax:
+    lineTax = round(lineNet * taxRate * 100) / 100
+
+5.  Line Total:
+    lineTotal = lineNet + lineTax
+
+6.  Sale Gross Subtotal:
+    saleSubtotal = Sum(lineSubtotal[i])
+
+7.  Total Line Discounts:
+    totalLineDiscounts = Sum(lineDiscount[i])
+
+8.  Sale Net (Pre-Order Discount):
+    saleNetPreOrderDisc = Sum(lineNet[i])
+
+9.  Order-Level Discount:
+    orderDiscountAmount = min(saleNetPreOrderDisc, orderDiscount.calculateReduction(saleNetPreOrderDisc))
+
+10. Total All Discounts:
+    totalDiscounts = totalLineDiscounts + orderDiscountAmount
+
+11. Total Sale Tax:
+    saleTaxTotal = Sum(lineTax[i])
+
+12. Sale Total (Final Net Payable):
+    saleTotal = max(0, saleSubtotal - totalDiscounts + saleTaxTotal)
+
+13. Balance Remaining:
+    balanceRemaining = max(0, saleTotal - Sum(SettledPayments.amount))
+```
+
+---
+
+### 3.9 Financial Immutability Milestones
+
+Financial records are subject to progressive immutability to prevent retroactive corruption:
+
+1. **Order Finalization (`PENDING_PAYMENT`)**:
+   - `SaleItem` commercial attributes (`description`, `skuOrCode`, `unitPrice`, `taxRate`) are permanently frozen.
+   - Line items cannot be added, removed, or edited.
+   - Net order total and discount amounts are permanently locked.
+2. **Tender Settlement (`SETTLED`)**:
+   - `Payment` amount, currency, tender method, and gateway transaction IDs are permanently immutable.
+   - Zero SQL `UPDATE` or `DELETE` operations are permitted.
+   - Any financial correction requires an explicit compensating refund transaction (`REFUND` or `VOID`).
+3. **Receipt Issuance (`Receipt`)**:
+   - The legal receipt voucher is read-only forever.
+   - Customer reprint requests re-render the frozen JSON voucher with a duplicate stamp; the underlying record is never modified.
+
+---
+
+### 3.10 Currency Strategy
+
+1. **Initial Scope (Mono-Currency per Tenant)**:
+   - Each tenant organization configures a single functional operating currency (default: `"USD"`).
+   - Every `Sale` within that tenant must use the tenant's configured currency.
+   - Mixed currencies within a single checkout session are strictly prohibited.
+2. **Extension Path (Multi-Branch / Multi-Country Expansion)**:
+   - Currency is modeled explicitly as a first-class property (`currency: string`) on every entity and Value Object.
+   - When international facilities are introduced, currency per branch (`branchId`) will be activated without schema modifications or domain model breakage.
 
 ---
 
