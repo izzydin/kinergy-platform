@@ -13,7 +13,7 @@ import {
 } from '../../../../domain/assets/repositories/fixed-asset.repository.interface';
 import { FixedAsset } from '../../../../domain/assets/fixed-asset.aggregate';
 import { AssetId } from '../../../../domain/assets/value-objects/asset-id.vo';
-import { OptimisticLockException } from '../../../../domain/inventory/exceptions/optimistic-lock.exception';
+import { OptimisticLockException } from '../../../../domain/shared/exceptions/optimistic-lock.exception';
 import { PrismaFixedAssetMapper } from '../mappers/prisma-fixed-asset.mapper';
 import { PrismaAssetHistoryEventMapper } from '../mappers/prisma-asset-history-event.mapper';
 import { PrismaAssetMaintenanceRecordMapper } from '../mappers/prisma-asset-maintenance-record.mapper';

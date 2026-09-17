@@ -4,7 +4,7 @@ import { AssetLocation } from '../../../../domain/assets/value-objects/asset-loc
 import { AssetCategory } from '../../../../domain/assets/enums/asset-category.enum';
 import { AssetStatus } from '../../../../domain/assets/enums/asset-status.enum';
 import { AssetCondition } from '../../../../domain/assets/enums/asset-condition.enum';
-import { Money } from '../../../../domain/inventory/value-objects/money.vo';
+import { Money } from '../../../../domain/shared/value-objects/money.vo';
 import { PrismaFixedAssetMapper } from '../mappers/prisma-fixed-asset.mapper';
 import { PrismaAssetHistoryEventMapper } from '../mappers/prisma-asset-history-event.mapper';
 import { PrismaAssetMaintenanceRecordMapper } from '../mappers/prisma-asset-maintenance-record.mapper';

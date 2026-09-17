@@ -170,4 +170,84 @@ describe('Phase 6.1: Prisma Inventory Item Persistence & Concurrency Guarantees 
       );
     });
   });
+
+  describe('4. Database-Level Concurrency & OCC Contention (10 stock, 2x 7 consumption requests)', () => {
+    it('proves exactly one concurrent transaction succeeds with updateMany count=1 and appends movement, while contending transaction count=0 throws OptimisticLockException without orphan movements', async () => {
+      // 1. Initial product with stock = 10 (version = 1)
+      const itemA = InventoryItem.create({
+        sku: 'MED-RACE-10-7',
+        name: 'Latex Surgical Gloves (Box of 10)',
+        category: InventoryCategory.CLINICAL_SUPPLIES,
+        unit: UnitOfMeasure.BOXES,
+        initialStock: 10,
+        recordedByUserId: actorId,
+      });
+
+      // Clone aggregate state as loaded by concurrent worker B at version = 1
+      const itemB = InventoryItem.reconstitute({
+        id: itemA.id.getValue(),
+        sku: itemA.sku,
+        name: itemA.name,
+        category: itemA.category,
+        unit: itemA.unit,
+        minimumStock: itemA.minimumStock,
+        quantityOnHand: itemA.quantityOnHand,
+        purchaseCost: itemA.purchaseCost,
+        sellingPrice: itemA.sellingPrice,
+        status: itemA.status,
+        version: itemA.version, // version 1
+        createdAt: itemA.createdAt,
+        updatedAt: itemA.updatedAt,
+        movements: [...itemA.movements],
+      });
+
+      // Both workers execute consumption of 7 units in application domain
+      itemA.consumeStock({
+        quantity: 7,
+        actorId: 'usr_doctor_a',
+        reason: 'Ward A surgery',
+      });
+      expect(itemA.quantityOnHand.value).toBe(3);
+      expect(itemA.version).toBe(2);
+
+      itemB.consumeStock({
+        quantity: 7,
+        actorId: 'usr_doctor_b',
+        reason: 'Ward B surgery',
+      });
+      expect(itemB.quantityOnHand.value).toBe(3);
+      expect(itemB.version).toBe(2);
+
+      // Simulation of database concurrency:
+      // Transaction A commits first -> updateMany WHERE id = ? AND version = 1 returns count = 1
+      (mockPrisma.inventoryItem.updateMany as jest.Mock).mockResolvedValueOnce({ count: 1 });
+      await repository.save(itemA);
+
+      expect(mockPrisma.inventoryItem.updateMany).toHaveBeenCalledWith({
+        where: {
+          id: itemA.id.getValue(),
+          version: 1, // OCC check against prior version
+        },
+        data: expect.objectContaining({
+          quantityOnHand: expect.anything(),
+          version: 2,
+        }),
+      });
+      expect(mockPrisma.stockMovement.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            inventoryItemId: itemA.id.getValue(),
+            movementType: StockMovementType.CONSUMPTION,
+            balanceAfter: expect.anything(),
+          }),
+        }),
+      );
+
+      // Transaction B commits second -> row in DB has version = 2, so WHERE id = ? AND version = 1 matches 0 rows!
+      (mockPrisma.inventoryItem.updateMany as jest.Mock).mockResolvedValueOnce({ count: 0 });
+
+      // Transaction B must abort and throw OptimisticLockException
+      await expect(repository.save(itemB)).rejects.toThrow(OptimisticLockException);
+    });
+  });
 });

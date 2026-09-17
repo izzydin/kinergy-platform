@@ -557,4 +557,106 @@ describe('Phase 6.10: Inventory Concurrency, Race Condition & Invariant Protecti
       expect(sumDeltas).toBe(persisted!.quantityOnHand.value);
     });
   });
+
+  // ============================================================================
+  // 8. MANDATORY PERSISTENCE ARCHITECTURE CONCURRENCY SCENARIO (PHASE 6.19.3)
+  // ============================================================================
+  describe('8. Mandatory Architecture Concurrency Scenario: Stock = 10, Request A consumes 7, Request B consumes 7', () => {
+    it('proves exactly one consumption operation succeeds (final stock = 3), one is rejected with OCC conflict, and zero orphan movements are persisted', async () => {
+      // 1. Initial product with stock = 10
+      const createRes = await createItemHandler.execute(
+        new CreateInventoryItemCommand({
+          tenantId,
+          sku: 'RACE-10-7-7',
+          name: 'Sterile Surgical Bandages (Pack of 10)',
+          category: InventoryCategory.CLINICAL_SUPPLIES,
+          initialStock: 10,
+          minimumStock: 2,
+          actorId: 'usr_admin',
+        }),
+      );
+      expect(createRes.isSuccess).toBe(true);
+      const itemId = createRes.getValue().id;
+
+      // Initial state verification
+      const initialItem = await repository.findById(itemId);
+      expect(initialItem).not.toBeNull();
+      expect(initialItem!.quantityOnHand.value).toBe(10);
+      expect(initialItem!.version).toBe(1);
+      expect(initialItem!.movements).toHaveLength(1); // Opening balance
+
+      // 2. Launch simultaneous consuming requests concurrently:
+      // Request A consumes 7, Request B consumes 7
+      const requestA = consumeStockHandler.execute(
+        new ConsumeStockCommand({
+          tenantId,
+          itemId,
+          quantity: 7,
+          referenceId: 'REQ-A-7',
+          reason: 'Clinical treatment ward A consumption',
+          actorId: 'usr_doctor_a',
+        }),
+      );
+
+      const requestB = consumeStockHandler.execute(
+        new ConsumeStockCommand({
+          tenantId,
+          itemId,
+          quantity: 7,
+          referenceId: 'REQ-B-7',
+          reason: 'Clinical treatment ward B consumption',
+          actorId: 'usr_doctor_b',
+        }),
+      );
+
+      // Wait for both concurrent requests to settle
+      const [resA, resB] = await Promise.all([requestA, requestB]);
+
+      // 3. Evaluate results:
+      // Exactly one operation may succeed if only 10 units exist
+      const successCount = (resA.isSuccess ? 1 : 0) + (resB.isSuccess ? 1 : 0);
+      const failureCount = (!resA.isSuccess ? 1 : 0) + (!resB.isSuccess ? 1 : 0);
+
+      expect(successCount).toBe(1);
+      expect(failureCount).toBe(1);
+
+      // The losing request must fail deterministically with an OCC error
+      const winningResult = resA.isSuccess ? resA : resB;
+      const losingResult = !resA.isSuccess ? resA : resB;
+
+      expect(winningResult.isSuccess).toBe(true);
+      expect(winningResult.getValue().item.quantityOnHand).toBe(3);
+      expect(winningResult.getValue().movement.quantityDelta).toBe(-7);
+
+      expect(losingResult.isSuccess).toBe(false);
+      expect(losingResult.getError()).toContain('Optimistic lock conflict');
+
+      // 4. Assertions on final persisted database state:
+      const finalItem = await repository.findById(itemId);
+      expect(finalItem).not.toBeNull();
+
+      // Final stock MUST equal exactly 3
+      expect(finalItem!.quantityOnHand.value).toBe(3);
+      expect(finalItem!.quantityOnHand.value).toBeGreaterThanOrEqual(0);
+
+      // Version must be exactly 2 (incremented once by the winning transaction)
+      expect(finalItem!.version).toBe(2);
+
+      // Movements ledger: Exactly 2 movements (1 opening + 1 successful consumption)
+      // Proves: ZERO orphan movements from the rolled-back losing transaction!
+      expect(finalItem!.movements).toHaveLength(2);
+      expect(finalItem!.movements[0]!.movementType).toBe(StockMovementType.ADJUSTMENT_IN);
+      expect(finalItem!.movements[1]!.movementType).toBe(StockMovementType.CONSUMPTION);
+      expect(finalItem!.movements[1]!.quantityDelta.value).toBe(-7);
+      expect(finalItem!.movements[1]!.balanceAfter.value).toBe(3);
+
+      // Ledger integrity proof: sum of all deltas == quantityOnHand
+      const reconciledStock = finalItem!.movements.reduce(
+        (acc, m) => acc + m.quantityDelta.value,
+        0,
+      );
+      expect(reconciledStock).toBe(3);
+      expect(reconciledStock).toBe(finalItem!.quantityOnHand.value);
+    });
+  });
 });
