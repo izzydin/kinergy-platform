@@ -345,37 +345,30 @@ flowchart TD
 
 To eliminate any ambiguity across the engineering team, ownership is strictly established as follows:
 
-| Conceptual Relationship                     | Ownership Status                              | Governing Authority                   | Rationale                                                                                    |
-| :------------------------------------------ | :-------------------------------------------- | :------------------------------------ | :------------------------------------------------------------------------------------------- |
-| **`Sale` $\rightarrow$ `SaleItem`**         | **Strict Internal Ownership**                 | `Sale` Aggregate                      | A line item has no identity or purpose outside its parent commercial order.                  |
-| **`Sale` $\rightarrow$ `Payment`**          | **Decoupled Reference** (`saleId`)            | Autonomous Aggregates                 | Supports split tenders, async gateway retries, and independent financial auditing.           |
-| **`Sale` $\rightarrow$ `Receipt`**          | **Immutable Downstream Voucher**              | Autonomous Entity                     | Legal receipts must remain immutable even if the sale is subsequently contested or refunded. |
-| **`Sale` $\rightarrow$ `Client`**           | **Loose Scalar Reference** (`clientId?`)      | Client Management                     | Sales associates purchases with clients, but clients are owned and governed by Phase 2.      |
-| **`SaleItem` $\rightarrow$ Source Product** | **Loose Typed Reference** (`SourceReference`) | Source Context (Resources, Gym, etc.) | Source domains own business entities; Sales only snapshots commercial terms.                 |
-| **`Sale` $\rightarrow$ Cashier / Actor**    | **Loose Scalar Reference** (`cashierId`)      | IAM (Phase 1)                         | Sales records the acting user; IAM owns authentication and credential lifecycles.            |
+| Concept                    | Owning Bounded Context   | Sales & Payments Role                 | Authoritative Boundary Rule                                                      |
+| :------------------------- | :----------------------- | :------------------------------------ | :------------------------------------------------------------------------------- |
+| **`Sale`**                 | **Sales & Payments**     | **Aggregate Root Owner**              | Full transactional ownership of order state, line items, and lifecycle.          |
+| **`SaleItem`**             | **Sales & Payments**     | **Internal Entity Owner**             | Owns line item snapshot; lifetime bound to parent `Sale`.                        |
+| **`Payment`**              | **Sales & Payments**     | **Autonomous Aggregate Owner**        | Owns tender capture, gateway references, and settlement lifecycle.               |
+| **`Receipt`**              | **Sales & Payments**     | **Autonomous Document Owner**         | Owns legal receipt formatting, sequential numbering, and frozen output.          |
+| **`Client`**               | **Client Management**    | **Customer Reference** (`clientId?`)  | Master identity owned by Phase 2. Sales stores optional unconstrained reference. |
+| **`User` (Cashier/Staff)** | **Identity (IAM)**       | **Actor Reference** (`cashierId`)     | User identities, sessions, and credentials owned by Phase 1.                     |
+| **`InventoryItem`**        | **Resources Management** | **Source Reference** (`sourceId`)     | Physical stock and warehouse catalog owned by Phase 6.                           |
+| **`StockMovement`**        | **Resources Management** | **External Trigger via Port**         | Stock ledger owned by Phase 6. Sales triggers movement via capability port.      |
+| **`FixedAsset`**           | **Resources Management** | **Never Owned by Sales**              | Capital equipment and depreciation owned by Phase 6.                             |
+| **`Membership`**           | **Gym Management**       | **External Trigger via Port**         | Membership validity and freeze state owned by Phase 5.                           |
+| **`MembershipPlan`**       | **Gym Management**       | **Source Reference** (`sourceId`)     | Commercial plan definition and validity terms owned by Phase 5.                  |
+| **`AttendanceRecord`**     | **Gym Management**       | **Never Owned by Sales**              | Facility check-in and access eligibility owned by Phase 5.                       |
+| **`TreatmentSession`**     | **Kinesiology**          | **Source Reference** (`sourceId`)     | Clinical care, diagnoses, and SOAP notes owned by Phase 4.                       |
+| **`Appointment` / `Room`** | **Scheduling**           | **Correlation Reference** (`apptId?`) | Calendar reservations and room capacities owned by Phase 3.                      |
 
 ---
 
-## 6. Source References Architecture
+## 6. Source References Architecture & Deep Analysis
 
-### 6.1 The Problem
+### 6.1 The Source Reference Pattern
 
-When a customer buys something at Kinergy, the item could be:
-
-- A physical consumable product (e.g., Protein Shake, Magnesium Tablets)
-- A gym membership subscription (e.g., 1-Month Standard Plan, Annual VIP)
-- A clinical kinesiology therapy session (e.g., 60-min Neuromuscular Re-education)
-- An ad-hoc charge (e.g., Locker Key Deposit, Guest Day Pass, Facility Rental)
-
-If the `SaleItem` table used hardcoded relational foreign keys (e.g., `inventory_item_id`, `membership_plan_id`, `treatment_session_id`), it would:
-
-1. Couple the relational database schema of 5 different bounded contexts into one table.
-2. Require nullable columns for every new product type, causing schema bloat.
-3. Break when a source product is discontinued, deleted, or altered.
-
-### 6.2 The Solution: Typed Identifier-Based Source Reference
-
-Kinergy establishes the **Typed Identifier-Based Source Reference pattern**:
+When a sale line item is created, it points to a source entity using the **Typed Identifier-Based Source Reference pattern**:
 
 ```typescript
 export enum SourceType {
@@ -389,15 +382,21 @@ export class SourceReference {
   readonly sourceType: SourceType;
   readonly sourceId: string; // External UUID in the owning context (or "CUSTOM")
   readonly sourceCode?: string; // Human-readable code (SKU, PlanCode, ServiceCode)
-
-  constructor(sourceType: SourceType, sourceId: string, sourceCode?: string) {
-    this.sourceType = sourceType;
-    this.sourceId = sourceId;
-    this.sourceCode = sourceCode;
-    Object.freeze(this);
-  }
 }
 ```
+
+### 6.2 Source-by-Source Detailed Analysis
+
+The table below explicitly analyzes how Sales & Payments interacts with every potential source of charges:
+
+| Source Type                                                 | 1. Source Owner                     | 2. Sales Responsibility                                                                   | 3. Source Reference                                                               |                                  4. Validates Existence?                                  |                                                  5. May Mutate Source?                                                   |                                        6. Can Source Be Deleted After Sale?                                        | 7. What If Source Changes Later?                                                                                                          |
+| :---------------------------------------------------------- | :---------------------------------- | :---------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. `TreatmentSession`**                                   | **Kinesiology (Phase 4)**           | Records billing of the clinical session; collects patient/client payment; issues receipt. | `sourceType: TREATMENT_SESSION`<br>`sourceId: treatmentSessionId`                 | **Yes**, queries treatment query port; verifies session exists and is completed/billable. |   **No**, Sales invokes `TreatmentBillingPort.markSessionBilled()` upon settlement. Sales never touches medical notes.   | **No**, clinical sessions are immutable legal medical records. Medico-legal retention protects them from deletion. | `SaleItem` retains its frozen price/service snapshot. If the clinical note is amended, the commercial billing amount does **not** change. |
+| **2. `Gym Membership / Plan`**                              | **Gym Management (Phase 5)**        | Collects membership subscription or renewal fee; issues receipt.                          | `sourceType: MEMBERSHIP_PLAN`<br>`sourceId: membershipPlanId`                     |               **Yes**, queries plan query port; verifies plan is `ACTIVE`.                |   **No**, Sales invokes `GymMembershipActivationPort` to activate/renew. Sales never mutates validity dates directly.    |       **No**, plans with historical memberships/sales are `ARCHIVED`, never hard-deleted from the database.        | `SaleItem` retains the frozen plan price at checkout. If the gym administrator raises the plan price next week, past sales remain frozen. |
+| **3. `Healthy Meal`**                                       | **Resources (Phase 6 Consumables)** | Sells meal at POS/kitchen; collects payment; requests inventory depletion.                | `sourceType: INVENTORY_ITEM`<br>`sourceId: inventoryItemId`<br>`sourceCode: SKU`  |  **Yes**, queries inventory query port; checks active item and available stock on hand.   | **No**, Sales invokes `InventoryStockDecrementPort.sellStock()`. Sales never writes to `inventory_items.quantityOnHand`. |    **No**, inventory items with transaction history are `ARCHIVED` (soft-delete), never hard-deleted from SQL.     | `SaleItem` retains frozen meal description and price. If kitchen updates recipe cost or retail price, past sales remain frozen.           |
+| **4. `Healthy Drink`**                                      | **Resources (Phase 6 Consumables)** | Sells beverage at reception/bar; collects payment; requests stock deduction.              | `sourceType: INVENTORY_ITEM`<br>`sourceId: inventoryItemId`<br>`sourceCode: SKU`  |      **Yes**, checks item status and verifies `quantityOnHand >= requestedQuantity`.      |    **No**, Sales requests deduction via capability port. Resources verifies OCC and logs append-only `SALE` movement.    |      **No**, protected by relational integrity in Resources. Deletion blocked if historical movements exist.       | `SaleItem` retains frozen drink description and price. Historical inventory valuation and accounting remain intact.                       |
+| **5. Future Sellable Service** (e.g. Room Rental, Workshop) | **Scheduling / Facility Context**   | Assembles service fee; collects payment; confirms booking reservation.                    | `sourceType: CUSTOM_SERVICE`<br>`sourceId: serviceOrRoomId`                       |                 **Yes**, verifies room/amenity reservation availability.                  |                                **No**, invokes scheduling port to confirm booked window.                                 |                               **No**, reservation records remain archived for audit.                               | Commercial terms remain frozen in `SaleItem`. Future price tier changes do not affect historical rentals.                                 |
+| **6. Future Sellable Product** (e.g. Branded Apparel, Gear) | **Resources / Retail Catalog**      | Point-of-sale checkout; collects tender; coordinates stock deduction.                     | `sourceType: INVENTORY_ITEM`<br>`sourceId: retailItemId`<br>`sourceCode: Barcode` |                        **Yes**, verifies stock and active status.                         |                               **No**, delegates stock mutation strictly to inventory port.                               |                            **No**, retail items with sales movements are soft-archived.                            | Price and tax rate frozen in `SaleItem` remain immutable forever.                                                                         |
 
 ### 6.3 Permanent Commercial Snapshotting Invariant
 
@@ -415,56 +414,100 @@ If an administrator subsequently changes the price of "Whey Protein Shake" from 
 
 ---
 
-## 7. Cross-Domain Integration Rules & Matrix
+## 7. Cross-Domain Integration Architecture
+
+### 7.1 Integration Strategy (Decoupled & Anti-Speculative)
+
+In accordance with Kinergy's Clean Architecture standards, cross-domain integration follows three established patterns:
 
 ```mermaid
 flowchart TD
-    subgraph SalesContext["Phase 7: Sales & Payments Context"]
-        Sale["Sale Aggregate"]
-        Payment["Payment Aggregate"]
-        FulfillmentSvc["SalesFulfillmentService"]
+    subgraph SalesApp["Sales & Payments Application Layer"]
+        Orchestrator["SalesCheckoutOrchestrator"]
     end
 
-    subgraph InventoryContext["Phase 6: Resources (Inventory)"]
-        StockPort["InventoryStockDecrementPort<br/>sellStock()"]
-        Item["InventoryItem Aggregate"]
+    subgraph SynchronousQuery["1. Pre-Sale Verification (Synchronous Ports)"]
+        InvPort["InventoryQueryPort (Check stock, price)"]
+        PlanPort["GymPlanQueryPort (Check plan validity)"]
+        ClientPort["IClientFacade (Check client status)"]
     end
 
-    subgraph GymContext["Phase 5: Gym Management"]
-        GymService["GymMembershipActivationPort<br/>activateOrRenew()"]
-        Membership["Membership Aggregate"]
+    subgraph CapabilityPorts["2. Post-Payment Fulfillment (Application Ports)"]
+        StockDecrPort["InventoryStockDecrementPort.sellStock()"]
+        GymActPort["GymMembershipActivationPort.activateOrRenew()"]
+        TreatBillPort["TreatmentBillingPort.markSessionBilled()"]
     end
 
-    subgraph ClinicalContext["Phase 4: Kinesiology"]
-        TreatmentPort["TreatmentBillingPort<br/>markSessionBilled()"]
-        Session["TreatmentSession Aggregate"]
+    subgraph AsyncEvents["3. Longitudinal Activity Stream (Async Events)"]
+        TimelineEntry["ClientTimelineProjection (Project to Client Timeline)"]
     end
 
-    subgraph ClientContext["Phase 2: Client Management"]
-        TimelinePort["ClientTimelineService<br/>recordEvent()"]
-    end
-
-    Sale -->|Settled by| Payment
-    Payment -->|Triggers on PAID| FulfillmentSvc
-    FulfillmentSvc -->|sourceType == INVENTORY_ITEM| StockPort
-    FulfillmentSvc -->|sourceType == MEMBERSHIP_PLAN| GymService
-    FulfillmentSvc -->|sourceType == TREATMENT_SESSION| TreatmentPort
-    FulfillmentSvc -.->|Async Integration Event| TimelinePort
-    StockPort --> Item
-    GymService --> Membership
-    TreatmentPort --> Session
+    Orchestrator -->|Queries before adding items| SynchronousQuery
+    Orchestrator -->|Invokes upon PAID settlement| CapabilityPorts
+    Orchestrator -.->|Emits integration event| AsyncEvents
 ```
 
-### Context Boundary Authority Matrix
+1. **Pre-Sale Verification (Synchronous Query Ports)**:
+   - When adding an item to a `Sale`, the Sales application layer calls query ports implemented by source contexts (or shared facades like `IClientFacade`) to verify that the item exists, is active, and has adequate stock.
+2. **Post-Payment Fulfillment (In-Process Capability Ports)**:
+   - When payment is confirmed (`PAID`), the `SalesCheckoutOrchestrator` invokes the source domain's registered capability port (`InventoryStockDecrementPort`, `GymMembershipActivationPort`, `TreatmentBillingPort`) in-process.
+   - **No Distributed Transactions ($2\text{PC}$)**: Each port call executes within the source domain's autonomous consistency boundary.
+3. **Timeline Projections (Asynchronous Domain Events)**:
+   - Upon completion, Sales emits a `SaleCompletedIntegrationEvent`. An asynchronous projection handler writes a summary entry to `client_timeline_entries` (`source_module = 'SALES'`), enriching the client's longitudinal record without creating synchronous coupling.
+   - **No Artificial Event Bus**: Direct in-process invocation is preferred; no complex distributed message broker (RabbitMQ/Kafka) is introduced where simple NestJS application ports suffice.
 
-| Bounded Context          | Owning Concept                                                      | Integration Mechanism with Sales                                 | Authoritative Invariant                                                                                                                      |
-| :----------------------- | :------------------------------------------------------------------ | :--------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Resources Management** | Consumable inventory items, stock on hand, physical movements       | Application Port: `InventoryStockDecrementPort`                  | **Resources strictly owns stock balances and negative-stock prevention.** Sales requests deduction via port with external `saleId`.          |
-| **Gym Management**       | Memberships, membership plans, expiration dates, attendance         | Application Port: `GymMembershipActivationPort`                  | **Gym strictly owns validity periods and access eligibility.** Sales settles payment; Gym computes start/end dates.                          |
-| **Kinesiology**          | Treatment sessions, clinical SOAP progress notes, assessments       | Application Port: `TreatmentBillingPort`                         | **Kinesiology strictly owns clinical encounter states.** Sales records payment; session is flagged as settled without exposing medical data. |
-| **Client Management**    | Client demographic profiles, contact details, longitudinal timeline | Synchronous Port: `IClientFacade` / Async: `ClientTimelineEntry` | **Client Management strictly owns master client identity.** Sales holds optional `clientId`; emits events for client timeline projection.    |
-| **Identity (IAM)**       | User accounts, credentials, system roles, permissions               | JWT Context: `AuthenticatedUserContext`                          | **IAM strictly owns authentication and authorization decisions.** Sales consumes actor identity (`cashierId`) and tenant context.            |
-| **Scheduling**           | Rooms, appointment calendars, practitioner availability             | Optional Correlation Port                                        | **Scheduling strictly owns time slots and calendar capacity.** Schedulable appointments linked to treatments are settled via correlation ID. |
+### 7.2 Client Relationship & Privacy Boundary
+
+- **Ownership**: The master client profile is strictly owned by `modules/client`. Sales **never** duplicates customer names, addresses, or phone numbers in its database schema.
+- **Organization Boundary**: `clientId` must belong to the identical `tenantId`.
+- **Nullable / Optional Semantics**: `clientId?: string` is **strictly optional**. Front-desk retail purchases (e.g. walk-in visitor buying a bottle of water) do not require client registration.
+- **GDPR & Anonymization Immunity**: If a client exercises their "Right to be Forgotten" (GDPR) and their record in `clients` is anonymized or purged, the financial records (`Sale`, `Payment`, `Receipt`) remain **100% intact**. The `clientId` becomes an orphaned or anonymized scalar string, preserving corporate fiscal audit history without violating privacy laws.
+
+### 7.3 Resources Integration: Consumables & Stock Mutation
+
+> **Fundamental Rule**:  
+> **Sales records financial transactions; Resources owns physical stock mutation.**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Cashier
+    participant Sales as Sales & Payments (Phase 7)
+    participant Port as InventoryStockDecrementPort
+    participant Inv as Resources Management (Phase 6)
+    participant DB as PostgreSQL (inventory_items + stock_movements)
+
+    Cashier->>Sales: confirmAndPaySale(saleId, tenderDetails)
+    Sales->>Sales: verifyPayment() -> status = PAID
+    Sales->>Port: sellStock({ itemId, quantity, referenceId: saleId, actorId })
+    Port->>Inv: InventoryItem.sellStock(quantity, referenceId)
+    Note over Inv: Enforces currentStock >= quantity<br/>Checks Optimistic Concurrency (version)
+    Inv->>DB: UPDATE inventory_items (decrement balance, increment version)
+    Inv->>DB: INSERT INTO stock_movements (type: SALE, delta: -qty, ref: saleId)
+    DB-->>Inv: OK
+    Inv-->>Port: StockMutationResultDTO (Success)
+    Port-->>Sales: ApplicationResult.ok()
+    Sales->>Sales: status = COMPLETED
+    Sales-->>Cashier: Checkout Complete (Receipt Issued)
+```
+
+- Sales **never** writes SQL queries to `inventory_items` or updates `quantity_on_hand`.
+- Resources aggregate enforces the `currentStock >= quantity` non-negative invariant and optimistic concurrency control (`version`).
+- If stock is depleted, the port returns an error (`ApplicationResult.fail('Insufficient stock')`). The payment is not captured, or an immediate void/compensation is executed.
+
+### 7.4 Treatment & Gym Integration Flow
+
+1. **Gym Management**:
+   - Gym publishes sellable plans via `MembershipPlanRepository` query ports.
+   - When a customer purchases a plan at checkout, Sales records `sourceType: MEMBERSHIP_PLAN`.
+   - Upon payment settlement (`PAID`), Sales calls `GymMembershipActivationPort.activateOrRenew({ clientId, planId, paymentRef: saleId })`.
+   - Gym Management computes the start date, end date, and assigns status `ACTIVE`.
+2. **Kinesiology / Treatments**:
+   - Therapists complete clinical treatment sessions in Kinesiology (`TreatmentSession`).
+   - When the client arrives at reception to pay, the cashier selects the completed session.
+   - Sales snapshots the agreed therapy fee and records `sourceType: TREATMENT_SESSION`.
+   - Upon payment settlement, Sales calls `TreatmentBillingPort.markSessionBilled({ sessionId, saleId })`.
+   - Kinesiology records the session as settled. Sales never accesses or stores SOAP progress notes.
 
 ---
 
@@ -572,19 +615,21 @@ To prevent scope creep and maintain architectural purity, the following areas ar
 
 ---
 
-## 13. The Phase 7 Architectural Contract
+## 13. The Cross-Domain Architectural Contract
 
-Every pull request, implementation task, and test suite in Phase 7 must strictly satisfy these twelve non-negotiable rules:
+Every pull request, implementation task, and test suite in Phase 7 must strictly satisfy these non-negotiable cross-domain rules:
 
-1. **References Over Ownership**: Sales & Payments holds scalar/typed references to external entities (`clientId`, `sourceId`, `cashierId`). It must never import, nest, or own domain entities from Client, Gym, Resources, Kinesiology, or Scheduling.
-2. **No Cross-Context Foreign Keys**: In `schema.prisma`, tables in Sales & Payments must never define relational foreign keys (`references: [...]`) to tables of other bounded contexts.
-3. **Permanent Price Snapshotting**: `SaleItem` must snapshot unit price, description, and tax rate at checkout. It must never dynamically query source tables for historical prices.
-4. **Autonomous Payments**: `Payment` is an autonomous aggregate root linked to `Sale` via scalar `saleId`. Payments must never be embedded as mutable private arrays inside `Sale`.
-5. **Immutable Receipts**: `Receipt` is write-once, read-only. Once issued with a receipt number, it can never be updated or deleted. Compensations require an explicit `RefundReceipt`.
-6. **Append-Only Financial Ledgers**: Payment records and financial transaction logs are strictly append-only. Zero SQL `DELETE` operations are permitted on financial tables.
-7. **Monetary Value Object Consistency**: All monetary amounts must use the canonical `Money` value object with exact integer-cents arithmetic and explicit ISO-4217 currency codes. Floating-point currency math is strictly prohibited.
-8. **Negative Stock Defense**: Sales must never directly update inventory balances in the database. Stock deductions must pass through `InventoryStockDecrementPort`, respecting Resources OCC versioning and non-negative constraints.
-9. **Optional Client Association**: `clientId` must remain optional on `Sale` to accommodate walk-in and guest customers without CRM pollution.
-10. **Multi-Tenant Isolation**: Every database table, query, command, and handler must enforce strict `tenantId` scoping.
-11. **Pure Domain Core**: The domain layer in `packages/core/src/sales/` must remain 100% pure TypeScript with zero imports of `@nestjs/*`, `@prisma/*`, or external frameworks.
-12. **Aligned Permissions**: All endpoints must enforce the established platform RBAC security pipeline using `@UseGuards(AuthenticationGuard, AuthorizationGuard)` and the canonical `Billing` permission catalog.
+1. **Rule 1 — References Over Ownership**: Sales & Payments holds scalar/typed references to external entities (`clientId`, `sourceId`, `cashierId`). It must never import, nest, or own domain entities from Client, Gym, Resources, Kinesiology, or Scheduling.
+2. **Rule 2 — No Cross-Context Relational Foreign Keys**: In `schema.prisma`, tables in Sales & Payments must never define relational foreign keys (`references: [...]`) to tables of other bounded contexts.
+3. **Rule 3 — Permanent Commercial Price Snapshotting**: `SaleItem` must permanently snapshot unit price, description, and tax rate at checkout. It must never dynamically query source tables for historical prices.
+4. **Rule 4 — Autonomous Payment Aggregates**: `Payment` is an autonomous aggregate root linked to `Sale` via scalar `saleId`. Payments must never be embedded as mutable private arrays inside `Sale`.
+5. **Rule 5 — Immutable Legal Receipts**: `Receipt` is write-once, read-only. Once issued with a receipt number, it can never be updated or deleted. Compensations require an explicit `RefundReceipt`.
+6. **Rule 6 — Append-Only Financial Ledgers**: Payment records and financial transaction logs are strictly append-only. Zero SQL `DELETE` operations are permitted on financial tables.
+7. **Rule 7 — Monetary Value Object Consistency**: All monetary amounts must use the canonical `Money` value object with exact integer-cents arithmetic and explicit ISO-4217 currency codes. Floating-point currency math is strictly prohibited.
+8. **Rule 8 — Stock Mutation Authority**: Sales must never directly update inventory balances in the database. Stock deductions must pass through `InventoryStockDecrementPort`, respecting Resources OCC versioning and non-negative constraints.
+9. **Rule 9 — Optional Client Association**: `clientId` must remain optional on `Sale` to accommodate walk-in and guest customers without CRM pollution.
+10. **Rule 10 — Multi-Tenant Isolation**: Every database table, query, command, and handler must enforce strict `tenantId` scoping.
+11. **Rule 11 — Pure Domain Core**: The domain layer in `packages/core/src/sales/` must remain 100% pure TypeScript with zero imports of `@nestjs/*`, `@prisma/*`, or external frameworks.
+12. **Rule 12 — Aligned Permissions**: All endpoints must enforce the established platform RBAC security pipeline using `@UseGuards(AuthenticationGuard, AuthorizationGuard)` and the canonical `Billing` permission catalog.
+13. **Rule 13 — Medico-Legal Privacy Isolation**: Sales transactions involving kinesiology clinical treatments must capture only the commercial fee and appointment reference; they must never receive, store, or display SOAP clinical notes or medical assessments.
+14. **Rule 14 — Membership Validity Independence**: Sales records membership fees; Gym Management remains the sole authority for evaluating access eligibility, expiration dates, and anti-passback turnstile rules.

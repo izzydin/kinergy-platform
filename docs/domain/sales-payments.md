@@ -184,7 +184,7 @@ The domain explicitly supports **one-to-many payments per sale**:
 
 ---
 
-### 3.5 `SourceReference` (Value Object)
+### 3.5 `SourceReference` (Value Object) & Source Analysis
 
 #### Structure & Semantics
 
@@ -197,15 +197,16 @@ SourceReference
 └── sourceCode?: string (Optional human-readable SKU or business identifier)
 ```
 
-#### Validation & Ownership Boundary
+#### Detailed Source-by-Source Domain Matrix
 
-- **Validation**: At the time of adding an item to a `Sale`, the application layer queries the owning context's query port (e.g., verifying `InventoryItem` exists, is `ACTIVE`, and has sufficient stock; or verifying `MembershipPlan` is `ACTIVE`).
-- **Zero Foreign Keys**: `SourceReference` contains scalar strings only. There are no relational database foreign keys connecting `sale_items` to `inventory_items`, `membership_plans`, or `treatment_sessions`.
-- **Fulfillment Dispatch**: When the sale transitions to `PAID`, an application orchestrator inspects `sourceType` to route fulfillment calls to the appropriate domain port:
-  - `INVENTORY_ITEM` $\rightarrow$ `InventoryStockDecrementPort.sellStock(...)`
-  - `MEMBERSHIP_PLAN` $\rightarrow$ `GymMembershipActivationPort.activateOrRenew(...)`
-  - `TREATMENT_SESSION` $\rightarrow$ `TreatmentBillingPort.markSessionBilled(...)`
-  - `CUSTOM_SERVICE` $\rightarrow$ No domain fulfillment required (commercial fee only).
+| Source Type                                                 | 1. Source Owner                     | 2. Sales Responsibility                                                                   | 3. Source Reference                                                               |                                  4. Validates Existence?                                  |                                                  5. May Mutate Source?                                                   |                                        6. Can Source Be Deleted After Sale?                                        | 7. What If Source Changes Later?                                                                                                          |
+| :---------------------------------------------------------- | :---------------------------------- | :---------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------------: | :----------------------------------------------------------------------------------------------------------------: | :---------------------------------------------------------------------------------------------------------------------------------------- |
+| **1. `TreatmentSession`**                                   | **Kinesiology (Phase 4)**           | Records billing of the clinical session; collects patient/client payment; issues receipt. | `sourceType: TREATMENT_SESSION`<br>`sourceId: treatmentSessionId`                 | **Yes**, queries treatment query port; verifies session exists and is completed/billable. |   **No**, Sales invokes `TreatmentBillingPort.markSessionBilled()` upon settlement. Sales never touches medical notes.   | **No**, clinical sessions are immutable legal medical records. Medico-legal retention protects them from deletion. | `SaleItem` retains its frozen price/service snapshot. If the clinical note is amended, the commercial billing amount does **not** change. |
+| **2. `Gym Membership / Plan`**                              | **Gym Management (Phase 5)**        | Collects membership subscription or renewal fee; issues receipt.                          | `sourceType: MEMBERSHIP_PLAN`<br>`sourceId: membershipPlanId`                     |               **Yes**, queries plan query port; verifies plan is `ACTIVE`.                |   **No**, Sales invokes `GymMembershipActivationPort` to activate/renew. Sales never mutates validity dates directly.    |       **No**, plans with historical memberships/sales are `ARCHIVED`, never hard-deleted from the database.        | `SaleItem` retains the frozen plan price at checkout. If the gym administrator raises the plan price next week, past sales remain frozen. |
+| **3. `Healthy Meal`**                                       | **Resources (Phase 6 Consumables)** | Sells meal at POS/kitchen; collects payment; requests inventory depletion.                | `sourceType: INVENTORY_ITEM`<br>`sourceId: inventoryItemId`<br>`sourceCode: SKU`  |  **Yes**, queries inventory query port; checks active item and available stock on hand.   | **No**, Sales invokes `InventoryStockDecrementPort.sellStock()`. Sales never writes to `inventory_items.quantityOnHand`. |    **No**, inventory items with transaction history are `ARCHIVED` (soft-delete), never hard-deleted from SQL.     | `SaleItem` retains frozen meal description and price. If kitchen updates recipe cost or retail price, past sales remain frozen.           |
+| **4. `Healthy Drink`**                                      | **Resources (Phase 6 Consumables)** | Sells beverage at reception/bar; collects payment; requests stock deduction.              | `sourceType: INVENTORY_ITEM`<br>`sourceId: inventoryItemId`<br>`sourceCode: SKU`  |      **Yes**, checks item status and verifies `quantityOnHand >= requestedQuantity`.      |    **No**, Sales requests deduction via capability port. Resources verifies OCC and logs append-only `SALE` movement.    |      **No**, protected by relational integrity in Resources. Deletion blocked if historical movements exist.       | `SaleItem` retains frozen drink description and price. Historical inventory valuation and accounting remain intact.                       |
+| **5. Future Sellable Service** (e.g. Room Rental, Workshop) | **Scheduling / Facility Context**   | Assembles service fee; collects payment; confirms booking reservation.                    | `sourceType: CUSTOM_SERVICE`<br>`sourceId: serviceOrRoomId`                       |                 **Yes**, verifies room/amenity reservation availability.                  |                                **No**, invokes scheduling port to confirm booked window.                                 |                               **No**, reservation records remain archived for audit.                               | Commercial terms remain frozen in `SaleItem`. Future price tier changes do not affect historical rentals.                                 |
+| **6. Future Sellable Product** (e.g. Branded Apparel, Gear) | **Resources / Retail Catalog**      | Point-of-sale checkout; collects tender; coordinates stock deduction.                     | `sourceType: INVENTORY_ITEM`<br>`sourceId: retailItemId`<br>`sourceCode: Barcode` |                        **Yes**, verifies stock and active status.                         |                               **No**, delegates stock mutation strictly to inventory port.                               |                            **No**, retail items with sales movements are soft-archived.                            | Price and tax rate frozen in `SaleItem` remain immutable forever.                                                                         |
 
 ---
 
@@ -391,7 +392,7 @@ stateDiagram-v2
 
 ---
 
-## 6. Non-Negotiable Domain Invariants
+## 6. Non-Negotiable Domain Invariants & Cross-Domain Contract
 
 The following invariants are fundamental business laws of Kinergy. Any proposed code change that violates these rules must be rejected by architecture and automated domain tests:
 
@@ -434,6 +435,24 @@ The following invariants are fundamental business laws of Kinergy. Any proposed 
 
 > **Domain Law**: A `Receipt` is a legal voucher representing an already-recorded financial transaction.  
 > Modifying receipt contents after generation is prohibited. Duplicate prints must be explicitly stamped as reprints without altering stored transaction records.
+
+### Invariant 9: Physical Stock Authority in Resources
+
+> **Domain Law**: Sales must never write directly to `inventory_items` or decrement `quantityOnHand`.  
+> All physical stock deductions must route through `InventoryStockDecrementPort`, ensuring Resources enforces its own non-negative stock and optimistic concurrency rules.
+
+### Invariant 10: Medico-Legal Privacy Isolation
+
+> **Domain Law**: Sales records billing of clinical therapy encounters via scalar reference only; it must **never** receive, store, or display SOAP clinical notes or medical diagnoses from Kinesiology.
+
+### Invariant 11: Gym Membership Validity Independence
+
+> **Domain Law**: Gym Management is the sole authority for membership dates, grace periods, and access eligibility.  
+> Sales captures subscription fees and calls `GymMembershipActivationPort`; it never computes membership validity dates or turnstile permissions.
+
+### Invariant 12: Anonymous Retail Purchase Support
+
+> **Domain Law**: `clientId` must remain optional (`clientId?: string`) on `Sale` to support walk-in front-desk retail purchases without polluting the master CRM database.
 
 ---
 
