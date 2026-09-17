@@ -31,6 +31,7 @@ describe('Identity Database Seed Specification', () => {
       expect(groups).toContain('Appointments');
       expect(groups).toContain('Kitchen');
       expect(groups).toContain('Inventory');
+      expect(groups).toContain('Assets');
       expect(groups).toContain('Billing');
       expect(groups).toContain('Reports');
       expect(groups).toContain('Settings');

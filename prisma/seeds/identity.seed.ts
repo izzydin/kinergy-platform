@@ -37,6 +37,10 @@ export const PERMISSION_CATALOG: Record<string, PermissionDefinition[]> = {
     { code: 'inventory.read', description: 'View stock levels and inventory items' },
     { code: 'inventory.write', description: 'Update stock levels and manage inventory' },
   ],
+  Assets: [
+    { code: 'assets.read', description: 'View fixed assets and equipment' },
+    { code: 'assets.write', description: 'Manage and update fixed assets' },
+  ],
   Billing: [
     { code: 'billing.read', description: 'View invoices and payment history' },
     { code: 'billing.write', description: 'Process payments and issue invoices' },
