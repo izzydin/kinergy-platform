@@ -25,4 +25,10 @@ module.exports = tseslint.config(
       'no-console': ['warn', { allow: ['warn', 'error'] }],
     },
   },
+  {
+    files: ['prisma/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
 );
