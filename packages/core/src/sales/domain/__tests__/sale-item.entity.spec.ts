@@ -446,4 +446,241 @@ describe('SaleItem Entity', () => {
       expect(updatedDisc.discountTotal.amount).toBe(5);
     });
   });
+
+  describe('Financial Determinism & Invariant Guardrails (MNY-01 through MNY-05, ITEM-02, ITEM-03, ITEM-07, ITEM-08)', () => {
+    describe('Quantity Semantics & Boundaries', () => {
+      it('supports discrete integer quantities', () => {
+        const item = SaleItem.create({
+          source: defaultSource,
+          description: 'Resistance Band Set',
+          quantity: 4,
+          unitPrice: Money.create(15.0, 'USD'),
+        });
+        expect(item.quantity).toBe(4);
+        expect(item.subtotal.amount).toBe(60.0);
+        expect(item.total.amount).toBe(60.0);
+      });
+
+      it('supports fractional bulk quantities with 3-decimal precision', () => {
+        const item = SaleItem.create({
+          source: defaultSource,
+          description: 'Electrolyte Powder (Bulk kg)',
+          quantity: 0.75,
+          unitPrice: Money.create(40.0, 'USD'),
+        });
+        expect(item.quantity).toBe(0.75);
+        expect(item.subtotal.amount).toBe(30.0);
+      });
+
+      it('accepts minimum supported quantity (0.001)', () => {
+        const item = SaleItem.create({
+          source: defaultSource,
+          description: 'Microgram Sample',
+          quantity: 0.001,
+          unitPrice: Money.create(1000.0, 'USD'),
+        });
+        expect(item.quantity).toBe(0.001);
+        expect(item.subtotal.amount).toBe(1.0);
+      });
+
+      it('accepts maximum supported quantity (999,999)', () => {
+        const item = SaleItem.create({
+          source: defaultSource,
+          description: 'Bulk Order',
+          quantity: 999_999,
+          unitPrice: Money.create(1.0, 'USD'),
+        });
+        expect(item.quantity).toBe(999_999);
+        expect(item.subtotal.amount).toBe(999_999.0);
+      });
+
+      it('rejects quantities exceeding MAX_QUANTITY (1,000,000)', () => {
+        expect(() => {
+          SaleItem.create({
+            source: defaultSource,
+            description: 'Excessive Quantity',
+            quantity: 1_000_000,
+            unitPrice: Money.create(1.0, 'USD'),
+          });
+        }).toThrow(InvalidSaleItemException);
+      });
+
+      it('rejects fractional quantities that round down to 0 at 3 decimals (< 0.0005)', () => {
+        expect(() => {
+          SaleItem.create({
+            source: defaultSource,
+            description: 'Too Small',
+            quantity: 0.0004,
+            unitPrice: Money.create(100.0, 'USD'),
+          });
+        }).toThrow(InvalidSaleItemException);
+      });
+    });
+
+    describe('Unit Price Invariants', () => {
+      it('supports zero-price promotional complimentary items ($0.00)', () => {
+        const item = SaleItem.create({
+          source: defaultSource,
+          description: 'Free Promotional Sample',
+          quantity: 2,
+          unitPrice: Money.zero('USD'),
+        });
+        expect(item.unitPrice.amount).toBe(0.0);
+        expect(item.subtotal.amount).toBe(0.0);
+        expect(item.discountTotal.amount).toBe(0.0);
+        expect(item.total.amount).toBe(0.0);
+      });
+
+      it('supports large commercial price points within safe scale', () => {
+        const item = SaleItem.create({
+          source: defaultSource,
+          description: 'Commercial Commercial Machine',
+          quantity: 2,
+          unitPrice: Money.create(12500.5, 'USD'),
+        });
+        expect(item.subtotal.amount).toBe(25001.0);
+        expect(item.total.amount).toBe(25001.0);
+      });
+
+      it('rejects negative unit price', () => {
+        expect(() => {
+          SaleItem.create({
+            source: defaultSource,
+            description: 'Negative Item',
+            quantity: 1,
+            unitPrice: Money.create(-10.0, 'USD'),
+          });
+        }).toThrow();
+      });
+    });
+
+    describe('Discount Semantics & Caps', () => {
+      it('calculates zero discount correctly for 0% and $0.00 discounts', () => {
+        const itemWithZeroPct = SaleItem.create({
+          source: defaultSource,
+          description: 'Item A',
+          quantity: 2,
+          unitPrice: Money.create(25.0, 'USD'),
+          discount: Discount.percentage(0, 'Zero Discount'),
+        });
+        expect(itemWithZeroPct.discountTotal.amount).toBe(0.0);
+        expect(itemWithZeroPct.total.amount).toBe(50.0);
+
+        const itemWithZeroFixed = SaleItem.create({
+          source: defaultSource,
+          description: 'Item B',
+          quantity: 2,
+          unitPrice: Money.create(25.0, 'USD'),
+          discount: Discount.fixedAmount(0, 'Zero Fixed'),
+        });
+        expect(itemWithZeroFixed.discountTotal.amount).toBe(0.0);
+        expect(itemWithZeroFixed.total.amount).toBe(50.0);
+      });
+
+      it('calculates 100% maximum percentage discount leaving zero net total', () => {
+        const item = SaleItem.create({
+          source: defaultSource,
+          description: '100% Scholarship',
+          quantity: 1,
+          unitPrice: Money.create(75.0, 'USD'),
+          discount: Discount.percentage(100, 'Full Waiver'),
+        });
+        expect(item.subtotal.amount).toBe(75.0);
+        expect(item.discountTotal.amount).toBe(75.0);
+        expect(item.total.amount).toBe(0.0);
+      });
+
+      it('caps fixed discount exactly at subtotal when discount exceeds subtotal', () => {
+        const item = SaleItem.create({
+          source: defaultSource,
+          description: 'Gift Card Exceeding Item Price',
+          quantity: 1,
+          unitPrice: Money.create(30.0, 'USD'),
+          discount: Discount.fixedAmount(50.0, '$50 Gift Card'),
+        });
+        expect(item.subtotal.amount).toBe(30.0);
+        expect(item.discountTotal.amount).toBe(30.0);
+        expect(item.total.amount).toBe(0.0);
+      });
+
+      it('rejects invalid discount parameters (negative, > 100%, empty reason)', () => {
+        expect(() => Discount.percentage(-5, 'Invalid Negative')).toThrow();
+        expect(() => Discount.percentage(101, 'Over 100%')).toThrow();
+        expect(() => Discount.fixedAmount(-10, 'Negative Fixed')).toThrow();
+        expect(() => Discount.percentage(10, '   ')).toThrow();
+      });
+    });
+
+    describe('Exact Half-Up Cent Rounding Math', () => {
+      it('executes Half-Up rounding when unit price multiplied by fractional quantity yields sub-cents', () => {
+        // unitPrice: 10.55, quantity: 1.333 -> 10.55 * 1.333 = 14.06315 -> rounds to 14.06
+        const item = SaleItem.create({
+          source: defaultSource,
+          description: 'Fractional Powder',
+          quantity: 1.333,
+          unitPrice: Money.create(10.55, 'USD'),
+        });
+        expect(item.subtotal.amount).toBe(14.06);
+      });
+
+      it('executes Half-Up rounding on percentage discounts yielding fractional cents', () => {
+        // subtotal: 14.06, discount: 15% -> 14.06 * 0.15 = 2.109 -> rounds to 2.11
+        // net total: 14.06 - 2.11 = 11.95
+        const item = SaleItem.create({
+          source: defaultSource,
+          description: 'Fractional Powder with Discount',
+          quantity: 1.333,
+          unitPrice: Money.create(10.55, 'USD'),
+          discount: Discount.percentage(15, '15% Seasonal Promo'),
+        });
+        expect(item.subtotal.amount).toBe(14.06);
+        expect(item.discountTotal.amount).toBe(2.11);
+        expect(item.total.amount).toBe(11.95);
+      });
+
+      it('reconstitutes reconciled totals successfully and rejects un-reconciled totals by even 1 cent', () => {
+        const id = SaleItemId.create();
+        const valid = SaleItem.reconstitute({
+          id,
+          source: defaultSource,
+          description: 'Exact Reconstitution',
+          quantity: 1.333,
+          unitPrice: Money.create(10.55, 'USD'),
+          discount: Discount.percentage(15, 'Promo'),
+          subtotal: Money.create(14.06, 'USD'),
+          discountTotal: Money.create(2.11, 'USD'),
+          total: Money.create(11.95, 'USD'),
+        });
+        expect(valid.total.amount).toBe(11.95);
+
+        // 1 cent drift in subtotal
+        expect(() => {
+          SaleItem.reconstitute({
+            id,
+            source: defaultSource,
+            description: '1 Cent Drift',
+            quantity: 1.333,
+            unitPrice: Money.create(10.55, 'USD'),
+            subtotal: Money.create(14.07, 'USD'), // drift
+            total: Money.create(14.07, 'USD'),
+          });
+        }).toThrow(InvalidSaleItemException);
+
+        // 1 cent drift in discountTotal
+        expect(() => {
+          SaleItem.reconstitute({
+            id,
+            source: defaultSource,
+            description: '1 Cent Drift in Discount',
+            quantity: 1.333,
+            unitPrice: Money.create(10.55, 'USD'),
+            discount: Discount.percentage(15, 'Promo'),
+            subtotal: Money.create(14.06, 'USD'),
+            discountTotal: Money.create(2.12, 'USD'), // drift
+            total: Money.create(11.94, 'USD'),
+          });
+        }).toThrow(InvalidSaleItemException);
+      });
+    });
+  });
 });

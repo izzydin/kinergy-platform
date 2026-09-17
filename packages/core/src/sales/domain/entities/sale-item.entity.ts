@@ -425,6 +425,9 @@ export class SaleItem implements Entity<SaleItemId> {
 
   // --- Invariant Validation Helpers ---
 
+  public static readonly MIN_QUANTITY = 0.001;
+  public static readonly MAX_QUANTITY = 999_999;
+
   private static assertValidQuantity(quantity: number): void {
     if (typeof quantity !== 'number' || isNaN(quantity) || !isFinite(quantity)) {
       throw new InvalidSaleItemException(
@@ -434,6 +437,11 @@ export class SaleItem implements Entity<SaleItemId> {
     if (quantity <= 0) {
       throw new InvalidSaleItemException(
         `Quantity must be strictly positive (> 0), got: ${quantity}.`,
+      );
+    }
+    if (quantity > SaleItem.MAX_QUANTITY) {
+      throw new InvalidSaleItemException(
+        `Quantity cannot exceed ${SaleItem.MAX_QUANTITY}, got: ${quantity}.`,
       );
     }
   }
