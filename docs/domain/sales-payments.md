@@ -111,54 +111,94 @@ This specification defines the ubiquitous domain language, aggregate boundaries,
 
 ### 3.2 `SaleItem` (Internal Entity)
 
-#### Ownership & Lifecycle
+#### Ownership & Aggregate Control
 
-`SaleItem` is an **internal child entity** exclusively owned by the `Sale` aggregate. It has no independent global existence, no standalone repository, and cannot be accessed, queried, or updated outside of its parent `Sale`.
+`SaleItem` is an **internal child entity** exclusively owned by the `Sale` aggregate root. It has no independent global identity, no standalone repository, and cannot be created, queried, or modified directly by external callers. The parent `Sale` aggregate root controls the entire lifecycle:
 
-#### Quantities & Pricing
+- Adding: `sale.addItem(props, clock?)`
+- Modifying Quantity: `sale.updateItemQuantity(itemId, newQty, clock?)`
+- Applying Discount: `sale.applyItemDiscount(itemId, discount, clock?)`
+- Removing Discount: `sale.removeItemDiscount(itemId, clock?)`
+- Removing Item: `sale.removeItem(itemId, clock?)`
+- Querying: `sale.getItem(itemId)`, `sale.hasItem(itemId)`, `sale.itemCount`, and `sale.items` (frozen defensive array)
 
-- **`id: SaleItemId`**: Canonical Value Object uniquely identifying the line item within the sale.
-- **`source: SourceReference`**: Value Object capturing origin entity (`sourceType`, `sourceId`, `sourceCode?`). Also accessible via alias `sourceReference`.
-- **`description: string`**: Non-empty trimmed text snapshot of the purchased good or service.
-- **`skuOrCode: string | null`**: Snapshot of the catalog SKU, plan code, or billing code.
-- **`quantity: number`**: Finite positive decimal or integer ($> 0$), normalized to 3 decimal places (`Math.round((quantity + Number.EPSILON) * 1000) / 1000`). Quantities rounding to $\le 0$ throw `InvalidSaleItemException`.
-- **`unitPrice: Money`**: Non-negative gross unit price snapshot agreed upon at checkout.
-- **`discount: Discount | null`**: Optional line-item specific discount Value Object.
-- **`subtotal: Money`** (alias: `lineSubtotal`): $\text{unitPrice.multiply(quantity)}$.
-- **`discountTotal: Money`** (alias: `lineDiscountTotal`): $\min(\text{subtotal}, \text{discount.calculateReduction(subtotal)})$.
-- **`total: Money`** (alias: `lineTotal`): $\text{subtotal.subtract(discountTotal)}$.
-
-#### Immutability & Safe Updating
-
-`SaleItem` instances are deeply frozen at construction (`Object.freeze(this)`). Updates are purely functional, returning new `SaleItem` instances preserving entity identity:
-
-- `withQuantity(newQuantity)`: Returns a new `SaleItem` with updated quantity, recalculating line subtotal, discount, and total.
-- `withDiscount(newDiscount)`: Returns a new `SaleItem` with updated discount, recalculating line discount and total.
-
-#### The Permanent Snapshotting Requirement
+#### Historical Commercial Snapshot Principle
 
 > [!IMPORTANT]
-> **Why `SaleItem` Must Snapshot Commercial Information**:  
-> A `SaleItem` must **never** store a foreign key that dynamically joins to the product or membership table to display descriptions or prices at read time.
->
-> Real-world prices change frequently:
->
-> - A gym plan priced at $50/month in January is raised to $60/month in March.
-> - A protein shake priced at $4.00 is discounted to $3.50 or increased to $4.50.
->
-> If `SaleItem` queried source tables dynamically:
->
-> 1. Historical sales totals would retroactively mutate whenever an administrator updated a product price.
-> 2. Daily revenue reports, tax filings, and audited receipts would silently corrupt.
-> 3. Discontinuing or deleting a product catalog entry would crash historical order queries.
->
-> Therefore, `SaleItem` **permanently freezes**:
->
-> - `description`: Exact text label (e.g., `"1-Month Standard Membership Plan"`, `"Optimum Whey Protein 2lb"`).
-> - `skuOrCode`: Source SKU or business code at the moment of sale (e.g., `"PLAN-MTH-STD"`, `"PROT-WHEY-01"`).
-> - `unitPrice`: Exact price snapshot.
-> - `quantity`: Exact quantity purchased.
-> - `discount`: Line discount snapshot.
+> **Historical Commercial Snapshot Law**:  
+> A `SaleItem` represents what was commercially agreed upon and sold at the exact point in time of checkout.  
+> The source catalog entity (e.g. `InventoryItem`, `MembershipPlan`, `TreatmentSession`) represents current operational catalog state.  
+> Under no circumstance may a `SaleItem` dynamically query or re-read current catalog prices, descriptions, or availability from upstream source tables at runtime.
+
+If a catalog product is repriced, renamed, discontinued, or archived, historical `SaleItem` records remain permanently frozen and valid.
+
+#### Detailed Attributes & Semantics
+
+- **`id: SaleItemId`**: Canonical Value Object uniquely identifying the line item locally within the sale.
+- **`source: SourceReference`**: Value Object capturing origin entity (`sourceType`, `sourceId`, `sourceCode?`). Identifies the commercial origin without creating foreign keys or taking domain ownership.
+- **`description: string`**: Non-empty, trimmed text snapshot of the purchased good or service at checkout. Subsequent catalog renaming does not alter this historical text.
+- **`skuOrCode: string | null`**: Snapshot of the catalog SKU, plan code, or billing code at checkout.
+- **`quantity: number`**: Finite, strictly positive number ($> 0$).
+  - **Minimum Quantity**: `0.001` (values strictly $< 0.0005$ round down to `0` and throw `InvalidSaleItemException`).
+  - **Maximum Quantity**: `999,999` (`SaleItem.MAX_QUANTITY`). Values exceeding this limit are deterministically rejected.
+  - **Normalization**: Normalized to 3 decimal places (`Math.round((quantity + Number.EPSILON) * 1000) / 1000`), supporting both discrete integers and bulk/weighted goods.
+  - **Rejections**: Zero, negative values, `NaN`, non-finite numbers, and values rounding to zero throw `InvalidSaleItemException`.
+- **`unitPrice: Money`**: Canonical `Money` Value Object representing the agreed gross commercial price at checkout:
+  - **Non-Negativity**: Must be $\ge 0.00$.
+  - **Promotional / Complimentary Items**: Supported at `$0.00`.
+  - **Negative Values**: Strictly rejected by `Money` and `SaleItem` invariants.
+  - **No Dynamic Recalculation**: Once established, unit price is never refreshed from the source catalog.
+- **`discount: Discount | null`**: Canonical `Discount` Value Object representing line-item reductions:
+  - **Allowed Types**: `PERCENTAGE` ($0\%$ to $100\%$) or `FIXED_AMOUNT` ($\ge \$0.00$).
+  - **Mandatory Audit Reason**: Non-empty trimmed string explaining the commercial justification.
+  - **Cent Rounding**: Commercial Half-Up rounding in integer minor units.
+  - **Ceiling / Cap**: Capped at line subtotal ($\min(\text{subtotal}, \text{calcReduction})$), guaranteeing that line net total is always $\ge \$0.00$.
+  - **Zero Behavior**: $0\%$ or $\$0.00$ produces $\$0.00$ reduction and leaves net total identical to subtotal.
+  - **Rejections**: Negative discounts, percentages $> 100\%$, and blank reason strings are rejected.
+- **`subtotal: Money`** (alias: `lineSubtotal`): $\text{unitPrice.multiply(normalizedQuantity)}$, calculated via canonical `Money` with Half-Up cent rounding.
+- **`discountTotal: Money`** (alias: `lineDiscountTotal`): $\min(\text{subtotal}, \text{discount.calculateReduction(subtotal)})$.
+- **`total: Money`** (alias: `lineTotal`): $\text{subtotal.subtract(discountTotal)}$, guaranteed $\ge \$0.00$.
+
+#### Immutability Milestones
+
+1. **Creation & Cart Phase (`status == DRAFT`)**:
+   - `description`, `skuOrCode`, `unitPrice`, and `source` are immutable snapshots established at insertion.
+   - `quantity` and `discount` are conditionally mutable, but **only** via `Sale` aggregate root methods (`updateItemQuantity`, `applyItemDiscount`, `removeItemDiscount`).
+   - `SaleItem` instances are frozen with `Object.freeze(this)`. Updates return replacement instances preserving entity identity.
+2. **Finalization Milestone (`status != DRAFT`)**:
+   - Once the parent `Sale` is finalized (`PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, `CANCELLED`, `REFUNDED`), **all commercial terms are locked**.
+   - Any attempt to add, remove, or modify items throws `SaleAlreadyFinalizedException`.
+   - Historical item values and aggregate totals remain permanently immutable.
+
+#### Historical Snapshot Traceability Matrix
+
+The following end-to-end traceability chain connects high-level requirements to executable regression tests:
+
+```text
+Requirement: REQ-HIST-01 (Historical Commercial Truth)
+    ↓
+Business Rules: SALE-08 (Commercial Lock), ITEM-04 (Permanent Snapshot), ITEM-09 (Post-Finalization Freeze)
+    ↓
+SaleItem Invariants: ITEM-01 (Ownership), ITEM-02 (Quantity), ITEM-03 (Price), ITEM-07 (Discount Cap)
+    ↓
+Domain Implementation:
+  - packages/core/src/sales/domain/sale.aggregate.ts
+  - packages/core/src/sales/domain/entities/sale-item.entity.ts
+  - packages/core/src/sales/domain/value-objects/source-reference.vo.ts
+    ↓
+Executable Test Suites:
+  - packages/core/src/sales/domain/__tests__/sale-item-historical-snapshot.spec.ts (Scenarios 1–8)
+  - packages/core/src/sales/domain/__tests__/sale-item-integration.spec.ts
+  - packages/core/src/sales/domain/__tests__/sale-item.entity.spec.ts
+```
+
+| Step in Traceability  | Artifact / Identifier                   | Verified Behavior                                                                                                                                                       |
+| :-------------------- | :-------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Requirement**       | `REQ-HIST-01`                           | Commercial transactions must preserve point-in-time checkout values regardless of source changes.                                                                       |
+| **Business Rule**     | `SALE-08`, `ITEM-04`, `ITEM-09`         | Commercial terms freeze at checkout; dynamic joins to source catalog tables are forbidden.                                                                              |
+| **Domain Rule**       | `ITEM-01` through `ITEM-09`             | Subtotal, discount capping, quantity bounds ($0.001$ to $999,999$), non-negative price, and unowned source reference.                                                   |
+| **Implementation**    | `Sale`, `SaleItem`, `SourceReference`   | Immutable frozen value objects and entities; arithmetic via integer minor units; aggregate root gatekeeping.                                                            |
+| **Verification Test** | `sale-item-historical-snapshot.spec.ts` | 8 dedicated regression scenarios: Price Change, Description Change, Status Change, Deletion/Archival, Finalized Sale, Encapsulation, Reconciliation, Failure Atomicity. |
 
 ---
 

@@ -153,7 +153,9 @@ classDiagram
         +string? cancellationReason
         +Date? refundedAt
         +create(props, clock) Sale$
-        +reconstitute(props) Sale$
+        +getItem(itemId) SaleItem?
+        +hasItem(itemId) boolean
+        +itemCount number
         +addItem(props, clock) SaleItem
         +updateItemQuantity(itemId, quantity, clock) void
         +removeItem(itemId, clock) void

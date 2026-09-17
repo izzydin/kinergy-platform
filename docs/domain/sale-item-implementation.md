@@ -88,11 +88,12 @@ Money is represented via the canonical `Money` value object (`packages/core/src/
 
 ### 7. How are quantities represented?
 
-Quantity is represented as a finite, strictly positive number (`number`), normalized to 3 decimal places precision (`Math.round((quantity + Number.EPSILON) * 1000) / 1000`) where `quantity > 0`:
+Quantity is represented as a finite, strictly positive number (`number`), bounded and normalized to 3 decimal places precision (`Math.round((quantity + Number.EPSILON) * 1000) / 1000`):
 
-- Supports discrete integer units (e.g., 1 session, 2 retail shirts).
-- Supports fractional amounts up to 3 decimal places without rounding down to zero (e.g., 0.500 kg powder).
-- Negative, zero, NaN, or non-finite values are rejected with `InvalidSaleItemException`.
+- **Supported Range**: Minimum positive quantity is `0.001`; maximum supported quantity is `999,999` (`SaleItem.MAX_QUANTITY`).
+- **Supports Discrete and Bulk**: Fully supports integer counts (e.g. 1 session, 2 retail shirts) and bulk/weighted goods (e.g. 1.250 kg powder, 0.333 L oil).
+- **Underflow Guard**: Quantities strictly $< 0.0005$ round down to `0.000` at 3 decimal places and are deterministically rejected with `InvalidSaleItemException`.
+- **Invalid Rejections**: Negative values, zero, `NaN`, non-finite numbers, and values exceeding `999,999` throw `InvalidSaleItemException`.
 
 ### 8. How are discounts represented?
 
@@ -287,6 +288,43 @@ When adding a line item to a sale:
 
 ## 7. Conclusion & Readiness
 
-The `SaleItem` domain foundation authored in Phase 7.1 meets 100% of the architectural, mathematical, and historical snapshot requirements for Phase 7.2.
+The `SaleItem` domain foundation authored in Phase 7.1 and hardened in Phase 7.2 meets 100% of the architectural, mathematical, and historical snapshot requirements for Phase 7.2.
 
 No duplicate domain concepts (`ProductSnapshot`, `HistoricalProduct`, `SaleProduct`) are needed. Phase 7.2 will build application use cases, persistence adapters, and catalog integration ports on top of this established domain foundation without altering its core model.
+
+---
+
+## 8. Historical Commercial Snapshot Traceability & Executable Scenarios
+
+### Traceability Chain
+
+```text
+Requirement: REQ-HIST-01 (Historical Commercial Truth)
+    ↓
+Business Rules: SALE-08 (Commercial Lock), ITEM-04 (Permanent Snapshot), ITEM-09 (Post-Finalization Freeze)
+    ↓
+SaleItem Invariants: ITEM-01 (Ownership), ITEM-02 (Quantity), ITEM-03 (Price), ITEM-07 (Discount Cap)
+    ↓
+Domain Implementation:
+  - packages/core/src/sales/domain/sale.aggregate.ts
+  - packages/core/src/sales/domain/entities/sale-item.entity.ts
+  - packages/core/src/sales/domain/value-objects/source-reference.vo.ts
+    ↓
+Executable Test Suites:
+  - packages/core/src/sales/domain/__tests__/sale-item-historical-snapshot.spec.ts (Scenarios 1–8)
+  - packages/core/src/sales/domain/__tests__/sale-item-integration.spec.ts
+  - packages/core/src/sales/domain/__tests__/sale-item.entity.spec.ts
+```
+
+### Verified Regression Scenarios (`sale-item-historical-snapshot.spec.ts`)
+
+| Scenario       | Title                        | Domain Invariant Proven                                                                                                       |
+| :------------- | :--------------------------- | :---------------------------------------------------------------------------------------------------------------------------- |
+| **Scenario 1** | **Price Change**             | Source repricing ($10.00 $\rightarrow$ $15.00) leaves historical `unitPrice = 10`, `subtotal = 20`, and `total = 20` stable.  |
+| **Scenario 2** | **Description Change**       | Source renaming (`"Healthy Shake"` $\rightarrow$ `"Premium Healthy Shake"`) leaves historical transaction description intact. |
+| **Scenario 3** | **Source Status Change**     | Source retirement or deprecation (`INACTIVE`, `UNAVAILABLE`, `RETIRED`, `OUT_OF_STOCK`) leaves historical lines valid.        |
+| **Scenario 4** | **Source Deletion/Archival** | Source deletion from memory or table does not impair `SaleItem` calculation or serialization.                                 |
+| **Scenario 5** | **Finalized Sale**           | Finalized sale locks description, quantity, price, discount, source, and items with `SaleAlreadyFinalizedException`.          |
+| **Scenario 6** | **Aggregate Encapsulation**  | Mutating returned item collections (`push`, `pop`, `splice`) or invoking withers fails to corrupt aggregate state.            |
+| **Scenario 7** | **Financial Reconciliation** | Sum of line subtotals and net totals reconciles with order subtotal, discounts, and payable total.                            |
+| **Scenario 8** | **Failure Atomicity**        | Every rejected invalid operation preserves `before === after` across all aggregate state fields.                              |

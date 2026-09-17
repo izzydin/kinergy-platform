@@ -61,17 +61,37 @@ flowchart TD
 
 ## 3. SaleItem Business Rules
 
-| Rule ID       | Rule Statement                                                                                                                                                                                                            | Architectural Tier     | Enforcement Mechanism                                                        |
-| :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :--------------------- | :--------------------------------------------------------------------------- |
-| **`ITEM-01`** | **Exclusive Parent Ownership**: `SaleItem` has no global identity or standalone repository. It is an internal entity exclusively created, updated, and persisted through the `Sale` aggregate root.                       | `DOMAIN INVARIANT`     | `Sale.addItem()`, `Sale.removeItem()`                                        |
-| **`ITEM-02`** | **Strict Positive Quantity**: Quantity must be a finite, positive number: $$\text{quantity} > 0.00$$ Supports integers (discrete items) and up to 3 decimal places for weighted bulk goods.                               | `DOMAIN INVARIANT`     | Value Object validation (`Quantity.of()`)                                    |
-| **`ITEM-03`** | **Non-Negative Unit Price**: Gross unit price snapshot must be non-negative: $$\text{unitPrice} \ge 0.00$$ Zero-price items represent authorized promotional complimentary gifts.                                         | `DOMAIN INVARIANT`     | `Money.create()`                                                             |
-| **`ITEM-04`** | **Permanent Commercial Snapshotting**: `SaleItem` must permanently freeze `description`, `skuOrCode`, `unitPrice`, and `taxRate` at checkout. Dynamic SQL joins to source catalog tables at query time are prohibited.    | `DOMAIN & PERSISTENCE` | Stored as standalone columns in `sale_items`                                 |
-| **`ITEM-05`** | **Unconstrained Source Reference**: `SourceReference` must be recorded as an immutable Value Object (`sourceType`, `sourceId`, `sourceCode`). No relational foreign keys to upstream tables may exist in `schema.prisma`. | `DOMAIN INVARIANT`     | `SourceReference` Value Object                                               |
-| **`ITEM-06`** | **Source Existence & Tenant Verification**: When an item is added, Sales queries the owning domain's query port to verify that the entity exists, is `ACTIVE`, and belongs to the identical `tenantId`.                   | `APPLICATION`          | `AddSaleItemUseCase`                                                         |
-| **`ITEM-07`** | **Item Discount Cap**: Line-item discounts are capped at the item gross subtotal. An item total can never become negative: $$\text{lineDiscount} \le \text{lineSubtotal}$$                                                | `DOMAIN INVARIANT`     | Formula: $\text{lineDiscount} = \min(\text{subtotal}, \text{calcReduction})$ |
-| **`ITEM-08`** | **Line Net & Tax Calculation**: Item net amount is calculated as $\text{lineSubtotal} - \text{lineDiscount}$. Applicable tax is calculated as $\text{round}(\text{lineNet} \times \text{taxRate} \times 100) / 100$.      | `DOMAIN INVARIANT`     | `SaleItem.calculateLineTotal()`                                              |
-| **`ITEM-09`** | **Post-Finalization Freeze**: `SaleItem` attributes cannot be updated, adjusted, or deleted once the parent `Sale` departs `DRAFT` status.                                                                                | `DOMAIN INVARIANT`     | `Sale.assertDraftState()`                                                    |
+| Rule ID       | Rule Statement                                                                                                                                                                                                                                                                                                    | Architectural Tier     | Enforcement Mechanism                                                                       |
+| :------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------- | :------------------------------------------------------------------------------------------ |
+| **`ITEM-01`** | **Exclusive Parent Ownership**: `SaleItem` has no global identity or standalone repository. It is an internal child entity exclusively created, updated, and persisted through the `Sale` aggregate root (`addItem`, `updateItemQuantity`, `applyItemDiscount`, `removeItemDiscount`, `removeItem`).              | `DOMAIN INVARIANT`     | `Sale.addItem()`, `Sale.removeItem()`                                                       |
+| **`ITEM-02`** | **Strict Positive Quantity**: Quantity must be a finite, strictly positive number: $$0.001 \le \text{quantity} \le 999,999$$ Normalized to 3 decimal places (`Math.round((q + EPS) * 1000) / 1000`). Values $< 0.0005$ round down to 0 and throw `InvalidSaleItemException`. Values $> 999,999$ are rejected.     | `DOMAIN INVARIANT`     | `SaleItem.assertValidQuantity()` throws `InvalidSaleItemException`                          |
+| **`ITEM-03`** | **Non-Negative Unit Price Snapshot**: Gross unit price snapshot must be non-negative: $$\text{unitPrice} \ge 0.00$$ Stored as canonical `Money`. Zero-price items represent authorized promotional complimentary gifts. Negative values rejected. Once established, unit price is never dynamically recalculated. | `DOMAIN INVARIANT`     | `Money.create()`, `SaleItem.assertValidUnitPrice()`                                         |
+| **`ITEM-04`** | **Permanent Commercial Snapshotting**: `SaleItem` must permanently freeze `description`, `skuOrCode`, and `unitPrice` at checkout. Dynamic SQL joins to source catalog tables at query time are strictly prohibited.                                                                                              | `DOMAIN & PERSISTENCE` | Stored as immutable entity fields and standalone columns in `sale_items`                    |
+| **`ITEM-05`** | **Unconstrained Source Reference**: `SourceReference` must be recorded as an immutable Value Object (`sourceType`, `sourceId`, `sourceCode`). No relational foreign keys to upstream tables may exist in `schema.prisma`.                                                                                         | `DOMAIN INVARIANT`     | `SourceReference` Value Object (`Object.freeze(this)`)                                      |
+| **`ITEM-06`** | **Source Existence & Tenant Verification**: When an item is added, Sales queries the owning domain's query port to verify that the entity exists, is `ACTIVE`, and belongs to the identical `tenantId`.                                                                                                           | `APPLICATION`          | `AddSaleItemUseCase`                                                                        |
+| **`ITEM-07`** | **Item Discount Cap & Non-Negative Floor**: Line-item discounts are capped at the item gross subtotal. An item total can never become negative: $$\text{lineDiscount} = \min(\text{subtotal}, \text{calcReduction})$$ Half-Up cent rounding applies. Negative discounts or percentages $> 100\%$ are rejected.    | `DOMAIN INVARIANT`     | `Discount.calculateReduction()`, `SaleItem.discountTotal`                                   |
+| **`ITEM-08`** | **Line Net & Total Determinism**: Item financial amounts are calculated deterministically: $$\text{subtotal} = \text{unitPrice} \times \text{quantity}$$ $$\text{total} = \text{subtotal} - \text{discountTotal}$$ Pre-tax line net total is guaranteed $\ge 0.00$. (Tax calculation deferred to Phase 7.3+).     | `DOMAIN INVARIANT`     | `SaleItem.subtotal`, `SaleItem.total`, `Money.multiply()`                                   |
+| **`ITEM-09`** | **Post-Finalization Freeze**: `SaleItem` attributes, quantities, discounts, and parent collection cannot be updated, adjusted, or deleted once the parent `Sale` departs `DRAFT` status.                                                                                                                          | `DOMAIN INVARIANT`     | `Sale.assertDraftState()` throws `SaleAlreadyFinalizedException` (`SALE_ALREADY_FINALIZED`) |
+
+### Historical Snapshot Traceability Chain
+
+```text
+Requirement: REQ-HIST-01 (Historical Commercial Truth)
+    ↓
+Business Rules: SALE-08 (Commercial Lock), ITEM-04 (Permanent Snapshot), ITEM-09 (Post-Finalization Freeze)
+    ↓
+SaleItem Invariants: ITEM-01 (Ownership), ITEM-02 (Quantity), ITEM-03 (Price), ITEM-07 (Discount Cap)
+    ↓
+Domain Implementation:
+  - packages/core/src/sales/domain/sale.aggregate.ts
+  - packages/core/src/sales/domain/entities/sale-item.entity.ts
+  - packages/core/src/sales/domain/value-objects/source-reference.vo.ts
+    ↓
+Executable Test Suites:
+  - packages/core/src/sales/domain/__tests__/sale-item-historical-snapshot.spec.ts (Scenarios 1–8)
+  - packages/core/src/sales/domain/__tests__/sale-item-integration.spec.ts
+  - packages/core/src/sales/domain/__tests__/sale-item.entity.spec.ts
+```
 
 ---
 
