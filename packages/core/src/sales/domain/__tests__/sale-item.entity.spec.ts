@@ -1,5 +1,6 @@
 import { SaleItem } from '../entities/sale-item.entity';
 import { SaleItemId } from '../value-objects/sale-item-id.vo';
+import { SaleId } from '../value-objects/sale-id.vo';
 import { SourceReference } from '../value-objects/source-reference.vo';
 import { SourceType } from '../enums/source-type.enum';
 import { Money } from '../value-objects/money.vo';
@@ -295,6 +296,154 @@ describe('SaleItem Entity', () => {
           total: Money.create(5.0, 'USD'), // Expected 20.00
         });
       }).toThrow(InvalidSaleItemException);
+    });
+
+    it('reconstitutes with optional saleId from instance or string', () => {
+      const saleId = SaleId.create('sale_rec_999');
+      const itemWithInstance = SaleItem.reconstitute({
+        id: SaleItemId.create(),
+        saleId,
+        source: defaultSource,
+        description: 'Historical Item',
+        quantity: 1,
+        unitPrice: Money.create(10.0, 'USD'),
+      });
+      expect(itemWithInstance.saleId?.equals(saleId)).toBe(true);
+
+      const itemWithString = SaleItem.reconstitute({
+        id: SaleItemId.create(),
+        saleId: 'sale_rec_999',
+        source: defaultSource,
+        description: 'Historical Item',
+        quantity: 1,
+        unitPrice: Money.create(10.0, 'USD'),
+      });
+      expect(itemWithString.saleId?.value).toBe('sale_rec_999');
+    });
+
+    it('throws InvalidSaleItemException on reconstitution if saleId is invalid', () => {
+      expect(() => {
+        SaleItem.reconstitute({
+          id: SaleItemId.create(),
+          saleId: '   ' as unknown as SaleId,
+          source: defaultSource,
+          description: 'Item',
+          quantity: 1,
+          unitPrice: Money.create(10.0, 'USD'),
+        });
+      }).toThrow(InvalidSaleItemException);
+    });
+  });
+
+  describe('Entity Identity & Equality', () => {
+    it('returns true when comparing two SaleItem instances with identical SaleItemId', () => {
+      const id = SaleItemId.create('item_common_1');
+      const item1 = SaleItem.create({
+        id,
+        source: defaultSource,
+        description: 'Product A',
+        quantity: 1,
+        unitPrice: Money.create(10.0, 'USD'),
+      });
+      const item2 = SaleItem.create({
+        id,
+        source: defaultSource,
+        description: 'Product A (Modified Description)',
+        quantity: 5,
+        unitPrice: Money.create(20.0, 'USD'),
+      });
+
+      expect(item1.equals(item2)).toBe(true);
+    });
+
+    it('returns false when comparing two SaleItem instances with different IDs', () => {
+      const item1 = SaleItem.create({
+        source: defaultSource,
+        description: 'Product A',
+        quantity: 1,
+        unitPrice: Money.create(10.0, 'USD'),
+      });
+      const item2 = SaleItem.create({
+        source: defaultSource,
+        description: 'Product A',
+        quantity: 1,
+        unitPrice: Money.create(10.0, 'USD'),
+      });
+
+      expect(item1.equals(item2)).toBe(false);
+    });
+
+    it('returns false when comparing against null or undefined or non-SaleItem', () => {
+      const item = SaleItem.create({
+        source: defaultSource,
+        description: 'Product A',
+        quantity: 1,
+        unitPrice: Money.create(10.0, 'USD'),
+      });
+
+      expect(item.equals(null)).toBe(false);
+      expect(item.equals(undefined)).toBe(false);
+      expect(item.equals({} as unknown as SaleItem)).toBe(false);
+    });
+  });
+
+  describe('Snapshot Serialization', () => {
+    it('produces a plain JavaScript snapshot with all properties for persistence mapping', () => {
+      const saleId = SaleId.create('sale_snap_1');
+      const discount = Discount.percentage(10, 'Seasonal Discount');
+      const item = SaleItem.create({
+        saleId,
+        source: defaultSource,
+        description: 'Snapshot Product',
+        skuOrCode: 'SNAP-01',
+        quantity: 2,
+        unitPrice: Money.create(25.0, 'USD'),
+        discount,
+      });
+
+      const snapshot = item.toSnapshot();
+
+      expect(snapshot).toEqual({
+        id: item.id.value,
+        saleId: 'sale_snap_1',
+        sourceType: SourceType.INVENTORY_ITEM,
+        sourceId: 'inv_101',
+        sourceCode: 'WHEY-VAN-01',
+        description: 'Snapshot Product',
+        skuOrCode: 'SNAP-01',
+        quantity: 2,
+        unitPrice: 25.0,
+        currency: 'USD',
+        discount: {
+          type: 'PERCENTAGE',
+          value: 10,
+          reason: 'Seasonal Discount',
+        },
+        subtotal: 50.0,
+        discountTotal: 5.0,
+        total: 45.0,
+      });
+    });
+
+    it('preserves saleId across withQuantity and withDiscount mutations', () => {
+      const saleId = SaleId.create('sale_mutate_1');
+      const item = SaleItem.create({
+        saleId,
+        source: defaultSource,
+        description: 'Mutating Product',
+        quantity: 1,
+        unitPrice: Money.create(20.0, 'USD'),
+      });
+
+      expect(item.saleId?.value).toBe('sale_mutate_1');
+
+      const updatedQty = item.withQuantity(3);
+      expect(updatedQty.saleId?.value).toBe('sale_mutate_1');
+      expect(updatedQty.quantity).toBe(3);
+
+      const updatedDisc = updatedQty.withDiscount(Discount.fixedAmount(5, 'Coupon'));
+      expect(updatedDisc.saleId?.value).toBe('sale_mutate_1');
+      expect(updatedDisc.discountTotal.amount).toBe(5);
     });
   });
 });

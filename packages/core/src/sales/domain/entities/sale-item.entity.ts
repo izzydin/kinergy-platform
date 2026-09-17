@@ -1,4 +1,6 @@
+import { Entity } from '../shared/entity';
 import { SaleItemId } from '../value-objects/sale-item-id.vo';
+import { SaleId } from '../value-objects/sale-id.vo';
 import { SourceReference } from '../value-objects/source-reference.vo';
 import { Money } from '../value-objects/money.vo';
 import { Discount } from '../value-objects/discount.vo';
@@ -6,6 +8,7 @@ import { InvalidSaleItemException } from '../exceptions/invalid-sale-item.except
 
 export interface CreateSaleItemProps {
   id?: SaleItemId;
+  saleId?: SaleId;
   source: SourceReference;
   description: string;
   skuOrCode?: string | null;
@@ -16,6 +19,7 @@ export interface CreateSaleItemProps {
 
 export interface ReconstituteSaleItemProps {
   id: SaleItemId;
+  saleId?: SaleId | string;
   source: SourceReference;
   description: string;
   skuOrCode?: string | null;
@@ -30,14 +34,32 @@ export interface ReconstituteSaleItemProps {
   lineTotal?: Money;
 }
 
+export interface SaleItemSnapshot {
+  id: string;
+  saleId?: string;
+  sourceType: string;
+  sourceId: string;
+  sourceCode: string | null;
+  description: string;
+  skuOrCode: string | null;
+  quantity: number;
+  unitPrice: number;
+  currency: string;
+  discount: { type: string; value: number; reason: string } | null;
+  subtotal: number;
+  discountTotal: number;
+  total: number;
+}
+
 /**
  * SaleItem is an immutable child entity exclusively owned and governed by the Sale aggregate root.
  * Permanently snapshots commercial information (description, SKU/code, unit price, quantity, discount)
  * at the moment of checkout, ensuring historical financial transactions remain unaffected by subsequent
  * source catalog modifications.
  */
-export class SaleItem {
+export class SaleItem implements Entity<SaleItemId> {
   private readonly _id: SaleItemId;
+  private readonly _saleId?: SaleId;
   private readonly _source: SourceReference;
   private readonly _description: string;
   private readonly _skuOrCode: string | null;
@@ -50,6 +72,7 @@ export class SaleItem {
 
   private constructor(props: {
     id: SaleItemId;
+    saleId?: SaleId;
     source: SourceReference;
     description: string;
     skuOrCode: string | null;
@@ -61,6 +84,7 @@ export class SaleItem {
     total: Money;
   }) {
     this._id = props.id;
+    this._saleId = props.saleId;
     this._source = props.source;
     this._description = props.description;
     this._skuOrCode = props.skuOrCode;
@@ -84,6 +108,9 @@ export class SaleItem {
     }
     if (props.id !== undefined && !(props.id instanceof SaleItemId)) {
       throw new InvalidSaleItemException('SaleItemId must be a valid SaleItemId instance.');
+    }
+    if (props.saleId !== undefined && !(props.saleId instanceof SaleId)) {
+      throw new InvalidSaleItemException('SaleId must be a valid SaleId instance.');
     }
     if (
       !props.description ||
@@ -120,6 +147,7 @@ export class SaleItem {
 
     return new SaleItem({
       id,
+      saleId: props.saleId,
       source: props.source,
       description: props.description.trim(),
       skuOrCode: props.skuOrCode ? props.skuOrCode.trim() : null,
@@ -140,6 +168,16 @@ export class SaleItem {
       throw new InvalidSaleItemException(
         'SaleItemId is required and must be a valid SaleItemId instance.',
       );
+    }
+    let resolvedSaleId: SaleId | undefined;
+    if (props.saleId) {
+      if (props.saleId instanceof SaleId) {
+        resolvedSaleId = props.saleId;
+      } else if (typeof props.saleId === 'string' && props.saleId.trim()) {
+        resolvedSaleId = SaleId.create(props.saleId.trim());
+      } else {
+        throw new InvalidSaleItemException('Invalid saleId format on reconstitution.');
+      }
     }
     if (!props.source || !(props.source instanceof SourceReference)) {
       throw new InvalidSaleItemException(
@@ -220,6 +258,7 @@ export class SaleItem {
 
     return new SaleItem({
       id: props.id,
+      saleId: resolvedSaleId,
       source: props.source,
       description: props.description.trim(),
       skuOrCode: props.skuOrCode ? props.skuOrCode.trim() : null,
@@ -236,6 +275,10 @@ export class SaleItem {
 
   public get id(): SaleItemId {
     return this._id;
+  }
+
+  public get saleId(): SaleId | undefined {
+    return this._saleId;
   }
 
   public get source(): SourceReference {
@@ -291,15 +334,25 @@ export class SaleItem {
     return this._total;
   }
 
+  // --- Entity Equality ---
+
+  public equals(other: Entity<SaleItemId> | undefined | null): boolean {
+    if (!other || !(other instanceof SaleItem)) {
+      return false;
+    }
+    return this._id.equals(other.id);
+  }
+
   // --- Immutable Mutation Helpers ---
 
   /**
-   * Returns a new SaleItem with updated quantity, preserving entity identity.
+   * Returns a new SaleItem with updated quantity, preserving entity identity and saleId.
    */
   public withQuantity(newQuantity: number): SaleItem {
     SaleItem.assertValidQuantity(newQuantity);
     return SaleItem.create({
       id: this._id,
+      saleId: this._saleId,
       source: this._source,
       description: this._description,
       skuOrCode: this._skuOrCode,
@@ -310,11 +363,12 @@ export class SaleItem {
   }
 
   /**
-   * Returns a new SaleItem with updated line discount, preserving entity identity.
+   * Returns a new SaleItem with updated line discount, preserving entity identity and saleId.
    */
   public withDiscount(discount: Discount | null): SaleItem {
     return SaleItem.create({
       id: this._id,
+      saleId: this._saleId,
       source: this._source,
       description: this._description,
       skuOrCode: this._skuOrCode,
@@ -343,6 +397,30 @@ export class SaleItem {
    */
   public removeDiscount(): SaleItem {
     return this.withDiscount(null);
+  }
+
+  // --- Snapshot Serialization Helper ---
+
+  /**
+   * Produces an immutable, plain JavaScript snapshot suitable for read projections or persistence mapping.
+   */
+  public toSnapshot(): SaleItemSnapshot {
+    return {
+      id: this._id.value,
+      saleId: this._saleId?.value,
+      sourceType: this._source.sourceType,
+      sourceId: this._source.sourceId,
+      sourceCode: this._source.sourceCode,
+      description: this._description,
+      skuOrCode: this._skuOrCode,
+      quantity: this._quantity,
+      unitPrice: this._unitPrice.amount,
+      currency: this._unitPrice.currency,
+      discount: this._discount ? this._discount.getValue() : null,
+      subtotal: this._subtotal.amount,
+      discountTotal: this._discountTotal.amount,
+      total: this._total.amount,
+    };
   }
 
   // --- Invariant Validation Helpers ---

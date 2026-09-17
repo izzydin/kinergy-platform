@@ -374,6 +374,11 @@ export class Sale implements AggregateRoot<SaleId> {
       }
       itemIds.add(item.id.value);
 
+      if (item.saleId && !item.saleId.equals(props.id)) {
+        throw new InvalidSaleStateException(
+          `SaleItem '${item.id.value}' belongs to Sale '${item.saleId.value}', not '${props.id.value}'.`,
+        );
+      }
       if (item.unitPrice.currency !== currency) {
         throw new InvalidSaleStateException(
           `Item currency '${item.unitPrice.currency}' does not match Sale currency '${currency}'.`,
@@ -527,7 +532,7 @@ export class Sale implements AggregateRoot<SaleId> {
       );
     }
 
-    const item = SaleItem.create(props);
+    const item = SaleItem.create({ ...props, saleId: this._id });
     this._items.push(item);
     this.recalculateTotals();
 
