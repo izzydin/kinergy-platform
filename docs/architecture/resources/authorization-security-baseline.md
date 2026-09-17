@@ -86,7 +86,8 @@ $$\text{<resource>}.\text{<action>}\quad\text{or}\quad\text{<resource>}.\text{<s
 - **Clients**: `clients.read`, `clients.write`, `clients.delete`
 - **Appointments**: `appointments.read`, `appointments.create`, `appointments.update`, `appointments.delete`
 - **Kitchen**: `kitchen.read`, `kitchen.orders.manage`
-- **Inventory (Legacy Consumable)**: `inventory.read`, `inventory.write`
+- **Inventory**: `inventory.read`, `inventory.write`
+- **Assets**: `assets.read`, `assets.write`
 - **Billing**: `billing.read`, `billing.write`
 - **Reports**: `reports.read`, `reports.export`
 - **Settings**: `settings.read`, `settings.write`
@@ -212,7 +213,7 @@ Testing in Kinergy follows a multi-tier authorization testing methodology:
 ## 12. Proposed Milestone 6.7 Implementation Sequence
 
 1. **Phase 1 Alignment & Permission Catalog Registration**:
-   - Update `prisma/seeds/identity.seed.ts` to register `Assets` module permissions (`assets.read`, `assets.write`, `assets.transfer`, `assets.status`, `assets.condition`, `assets.maintenance`, `assets.revalue`, `assets.admin`) and assign them to system roles according to least-privilege principles.
+   - Registered `Assets` module permissions (`assets.read`, `assets.write`) in `prisma/seeds/identity.seed.ts` (per ADR-0094) and verified via `identity.seed.spec.ts`. Granted to bootstrap `Owner` role.
 2. **API Controller Security & RBAC Decorators**:
    - Implement NestJS REST controllers for Resources (Consumable Inventory & Fixed Assets) in `apps/api/src/resources/controllers/`.
    - Apply `@UseGuards(AuthenticationGuard, AuthorizationGuard)` and precise `@Permissions(...)` decorators across every route.
