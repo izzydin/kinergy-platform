@@ -452,6 +452,26 @@ export class Sale implements AggregateRoot<SaleId> {
     return Object.freeze([...this._items]);
   }
 
+  public get itemCount(): number {
+    return this._items.length;
+  }
+
+  public getItem(itemId: SaleItemId | string): SaleItem | undefined {
+    const idStr = typeof itemId === 'string' ? itemId.trim() : (itemId?.value ?? '');
+    if (!idStr) {
+      return undefined;
+    }
+    return this._items.find((item) => item.id.value === idStr);
+  }
+
+  public hasItem(itemId: SaleItemId | string): boolean {
+    const idStr = typeof itemId === 'string' ? itemId.trim() : (itemId?.value ?? '');
+    if (!idStr) {
+      return false;
+    }
+    return this._items.some((item) => item.id.value === idStr);
+  }
+
   public get orderDiscount(): Discount | null {
     return this._orderDiscount;
   }
