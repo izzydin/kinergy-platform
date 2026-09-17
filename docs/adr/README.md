@@ -91,6 +91,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0109](file:///c:/Projects/kinergy-platform/docs/adr/0109-payment-lifecycle.md)                                                                                      | Payment Lifecycle, Multi-Tender Settlement, and Financial Immutability                                       | Accepted   | 2026-09-17              |
 | [0110](file:///c:/Projects/kinergy-platform/docs/adr/0110-sale-ownership.md)                                                                                         | Sale Transaction Ownership and Source Bounded-Context Integrity                                              | Accepted   | 2026-09-17              |
 | [0111](file:///c:/Projects/kinergy-platform/docs/adr/0111-sales-payments-authorization-and-audit.md)                                                                 | Sales & Payments Authorization, Organization Isolation, and Audit Boundaries                                 | Accepted   | 2026-09-17              |
+| [0112](file:///c:/Projects/kinergy-platform/docs/adr/0112-sales-bounded-context.md)                                                                                  | Sales & Payments Bounded Context Establishment                                                               | Accepted   | 2026-09-17              |
 
 ## Format
 
