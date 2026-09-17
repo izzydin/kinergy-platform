@@ -12,7 +12,6 @@ import { EmptySaleException } from './exceptions/empty-sale.exception';
 import { SaleAlreadyFinalizedException } from './exceptions/sale-already-finalized.exception';
 import { InvalidSaleStateException } from './exceptions/invalid-sale-state.exception';
 import { InvalidSaleTransitionException } from './exceptions/invalid-sale-transition.exception';
-import { SaleDomainException } from './exceptions/sale-domain.exception';
 import {
   SaleCreatedEvent,
   SaleFinalizedEvent,
@@ -849,7 +848,10 @@ export class Sale implements AggregateRoot<SaleId> {
       );
     }
     if (reason !== undefined && (typeof reason !== 'string' || !reason.trim())) {
-      throw new SaleDomainException('Refund reason, if provided, must be a non-empty string.');
+      throw new InvalidSaleStateException(
+        'Refund reason, if provided, must be a non-empty string.',
+        'INVALID_REFUND_REASON',
+      );
     }
 
     const now = clock.now();
@@ -879,7 +881,10 @@ export class Sale implements AggregateRoot<SaleId> {
    */
   public cancel(reason: string, clock: Clock = new SystemClock()): void {
     if (!reason || typeof reason !== 'string' || !reason.trim()) {
-      throw new SaleDomainException('Cancellation reason is required to cancel a Sale.');
+      throw new InvalidSaleStateException(
+        'Cancellation reason is required to cancel a Sale.',
+        'INVALID_CANCELLATION_REASON',
+      );
     }
 
     if (

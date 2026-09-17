@@ -9,7 +9,7 @@ export class SaleId implements ValueObject<string> {
 
   private constructor(id: string) {
     if (!id || typeof id !== 'string' || id.trim().length === 0) {
-      throw new SaleDomainException('Sale ID cannot be empty.');
+      throw new SaleDomainException('Sale ID cannot be empty.', 'INVALID_SALE_ID');
     }
     this._value = id.trim();
     Object.freeze(this);

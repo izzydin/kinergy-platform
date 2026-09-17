@@ -2,9 +2,12 @@
  * Base domain exception for all domain invariant violations within the Sales context.
  */
 export class SaleDomainException extends Error {
-  constructor(message: string) {
+  public readonly code: string;
+
+  constructor(message: string, code = 'SALE_DOMAIN_ERROR') {
     super(message);
-    this.name = 'SaleDomainException';
+    this.name = this.constructor.name;
+    this.code = code;
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }

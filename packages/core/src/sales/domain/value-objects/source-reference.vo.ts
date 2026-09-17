@@ -20,14 +20,17 @@ export class SourceReference implements ValueObject<SourceReferenceProps> {
 
   private constructor(props: SourceReferenceProps) {
     if (!props.sourceType || !isValidSourceType(props.sourceType)) {
-      throw new SaleDomainException(`Invalid or unsupported SourceType: '${props.sourceType}'.`);
+      throw new SaleDomainException(
+        `Invalid or unsupported SourceType: '${props.sourceType}'.`,
+        'INVALID_SOURCE_TYPE',
+      );
     }
     if (
       !props.sourceId ||
       typeof props.sourceId !== 'string' ||
       props.sourceId.trim().length === 0
     ) {
-      throw new SaleDomainException('Source ID cannot be empty.');
+      throw new SaleDomainException('Source ID cannot be empty.', 'INVALID_SOURCE_ID');
     }
 
     this._sourceType = props.sourceType;
