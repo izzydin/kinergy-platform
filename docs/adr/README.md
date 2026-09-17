@@ -88,6 +88,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0080](file:///c:/Projects/kinergy-platform/docs/adr/0080-gym-management-production-persistence-and-relational-mapping.md)                                           | Gym Management Production Persistence, Relational Mapping & Constraint Model                                 | Accepted   | 2026-08-24              |
 | [0081–0107](file:///c:/Projects/kinergy-platform/docs/architecture/resources/README.md#5-architectural-decision-records-adr-index)                                   | Phase 6 Resources Management ADRs (Topology, Persistence, Invariants, Frontend, Integration, & Verification) | Accepted   | 2026-08-25 – 2026-09-16 |
 | [0108](file:///c:/Projects/kinergy-platform/docs/adr/0108-money-representation.md)                                                                                   | Deterministic Financial Representation and Currency Modeling                                                 | Accepted   | 2026-09-17              |
+| [0109](file:///c:/Projects/kinergy-platform/docs/adr/0109-payment-lifecycle.md)                                                                                      | Payment Lifecycle, Multi-Tender Settlement, and Financial Immutability                                       | Accepted   | 2026-09-17              |
 
 ## Format
 

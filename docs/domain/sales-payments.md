@@ -141,26 +141,45 @@ This specification defines the ubiquitous domain language, aggregate boundaries,
 
 ### 3.3 `Payment` (Autonomous Aggregate Root)
 
-#### Identity & Relationship to `Sale`
+#### Identity & Multi-Tenancy
 
 - **`id: PaymentId`**: Canonical UUID uniquely identifying the financial transaction.
 - **`tenantId: TenantId`**: Enforces organization-level isolation.
 - **`saleId: SaleId`**: Unconstrained scalar reference to the `Sale` being settled.
-- **`amount: Money`**: Monetary amount of this specific tender transaction ($> 0$ for charges, $< 0$ for refunds).
-- **`method: PaymentMethod`**: The tender mechanism (`CASH`, `CREDIT_CARD`, `DEBIT_CARD`, `BANK_TRANSFER`, `DIGITAL_WALLET`, `ACCOUNT_CREDIT`).
-- **`status: PaymentStatus`**: Lifecycle state (`INITIATED`, `AUTHORIZED`, `SETTLED`, `FAILED`, `REFUNDED`).
-- **`externalTransactionId?: string`**: External gateway authorization code, terminal receipt number, or bank wire reference.
+- **`amount: Money`**: Monetary amount of this specific tender transaction ($> 0$).
+- **`method: PaymentMethod`**: The tender mechanism (`CASH`, `CARD`, `QR_CODE`, `BANK_TRANSFER`, `DIGITAL_WALLET`).
+- **`status: PaymentStatus`**: Lifecycle state (`PENDING`, `AUTHORIZED`, `SETTLED`, `FAILED`, `CANCELLED`).
+- **`externalProviderState?: ExternalProviderState`**: Isolated Value Object encapsulating raw third-party gateway identifiers and payloads.
 - **`cashierId: UserId`**: Identity of staff member recording or operating the tender.
 - **`initiatedAt: DateTime`**: Timestamp of payment initiation.
-- **`settledAt?: DateTime`**: Timestamp when funds were verified/settled.
+- **`settledAt?: DateTime`**: Timestamp when funds were verified and permanently locked.
 
-#### Support for Multiple Payments per Sale (Split Tender)
+#### Decoupled Triad: Method vs. Status vs. External State
 
-The domain explicitly supports **one-to-many payments per sale**:
+To prevent third-party gateway leakage, the domain strictly separates:
+
+1. **`PaymentMethod` (Domain Enum)**: The commercial classification of tender (`CASH`, `CARD`, `QR_CODE`, `BANK_TRANSFER`, `DIGITAL_WALLET`).
+2. **`PaymentStatus` (Internal State Machine)**: Internal business and accounting lifecycle (`PENDING`, `AUTHORIZED`, `SETTLED`, `FAILED`, `CANCELLED`).
+3. **`ExternalProviderState` (Isolated Value Object)**: Third-party processor attributes (`provider: 'STRIPE' | 'TERMINAL' | 'MANUAL'`, `externalTransactionId`, `rawGatewayStatus`, `authorizationCode`). The core domain never evaluates raw provider statuses directly; adapters translate them at boundary ports.
+
+#### Multi-Tender & Partial Payment Settlement
+
+The domain explicitly supports **1-to-many payments per sale** (`Sale 1 -> 0..* Payment`):
 
 1. **Split Tenders**: A customer paying a $100 bill with $40 Cash and $60 Credit Card produces two distinct `Payment` aggregates linked to the same `saleId`.
-2. **Partial Deposits**: A customer placing a $20 deposit on a $100 service, paying the remaining $80 upon arrival.
-3. **Refund Traceability**: Refunding $30 on a card tender creates an autonomous refund payment record linked to the original transaction.
+2. **Partial Deposits & Underpayment**:
+   - A customer placing a $30 deposit on a $100 treatment plan generates a $30 settled payment.
+   - `Sale.balanceRemaining` decrements to $70.00, placing the sale in `PARTIALLY_PAID`.
+   - **Fulfillment Guard**: Underpayment is allowed during checkout, but the `Sale` **CANNOT** transition to `PAID` or `COMPLETED` until $\text{balanceRemaining} == 0$.
+3. **Overpayment & Cash Change Handling**:
+   - **Electronic Tenders (Card, QR, Transfer)**: Overpayment is strictly forbidden. The system will reject any electronic payment where $\text{amount} > \text{Sale.balanceRemaining}$.
+   - **Cash Tenders**: If a customer pays with a larger denomination (e.g., $100 bill on a $75.50 balance), `Payment.amount` is recorded as the exact debt-settling amount ($75.50). The front-end POS records `tenderedAmount` ($100.00) and `changeGiven` ($24.50) for cash drawer balancing. The sale balance never drops below zero.
+
+#### Refund Conceptual Architecture: Append-Only Compensating Records
+
+- **No In-Place Mutation**: Settled payments are **permanently immutable**. A settled payment record is never edited, deleted, or transitioned to `REFUNDED`. In-place mutations violate double-entry bookkeeping and corrupt historical cash drawer reconciliations.
+- **Compensating Transactions**: A refund is an autonomous compensating financial record (`PaymentRefund` or `Payment` with direction `REFUND`) referencing `originalPaymentId` and `saleId`, containing a positive scalar refund amount ($\le \text{originalPayment.amount}$), mandatory business justification, and `authorizedByUserId`.
+- **Phase 7 Scope**: Phase 7.0 establishes this append-only data contract. Full automated external gateway refund dispatch (e.g. Stripe refund API execution) is scheduled for Phase 7.x extension.
 
 ---
 
@@ -174,13 +193,13 @@ The domain explicitly supports **one-to-many payments per sale**:
 > The financial truth is authoritatively governed by the `Sale` and `Payment` aggregates.  
 > A `Receipt` is an **immutable, customer-facing legal voucher** that represents and evidences an already-settled financial transaction.
 
-#### Generation & Immutability Rules
+#### Generation, Immutability & Reprint Rules
 
-1. **Generation Trigger**: Emitted automatically once a `Sale` reaches `PAID` status (or upon recording a partial deposit).
-2. **Monotonic Sequential Numbering**: Every receipt receives a unique, human-readable, sequentially increasing receipt number within the tenant (e.g. `REC-2026-000184`).
-3. **Absolute Immutability**: Once generated, a `Receipt` record can **never** be updated or deleted.
-4. **Reprint Behavior**: If a customer requests a duplicate receipt, the system does **not** create a new receipt number or alter financial data. It re-renders the frozen receipt payload, marking the printed output with a `"DUPLICATE / REPRINT"` watermark and logging the reprint event in technical audit logs.
-5. **Refund Representation**: When a sale is refunded, the original receipt is preserved. A separate `RefundVoucher` or `CreditNote` (e.g. `CN-2026-000012`) is generated to document the reversal.
+1. **Generation Trigger**: Automatically generated once a `Sale` reaches `PAID` status (or upon recording an official partial deposit).
+2. **No Regeneration**: Once issued, a receipt cannot be regenerated with a new identifier or altered financial data.
+3. **No Deletion**: Deletion is prohibited by database foreign key constraints and audit policies.
+4. **Reprint Behavior**: Customer reprint requests do **not** create a new receipt entity. The system re-renders the frozen receipt snapshot stamped with a mandatory `DUPLICATE / REPRINT` watermark, logging the reprint timestamp and operator in technical audit logs.
+5. **Refund Representation**: When a sale is refunded, the original receipt remains frozen. A separate `CreditNote` or `RefundVoucher` is issued to document the reversal.
 
 ---
 
@@ -326,21 +345,16 @@ To guarantee that corporate balance sheets, receipts, and payment transactions r
 
 ---
 
-### 3.9 Financial Immutability Milestones
+### 3.9 Financial Immutability Milestones & Matrix
 
-Financial records are subject to progressive immutability to prevent retroactive corruption:
+To guarantee mathematical and audit integrity, financial records undergo progressive immutability across four distinct lifecycle milestones:
 
-1. **Order Finalization (`PENDING_PAYMENT`)**:
-   - `SaleItem` commercial attributes (`description`, `skuOrCode`, `unitPrice`, `taxRate`) are permanently frozen.
-   - Line items cannot be added, removed, or edited.
-   - Net order total and discount amounts are permanently locked.
-2. **Tender Settlement (`SETTLED`)**:
-   - `Payment` amount, currency, tender method, and gateway transaction IDs are permanently immutable.
-   - Zero SQL `UPDATE` or `DELETE` operations are permitted.
-   - Any financial correction requires an explicit compensating refund transaction (`REFUND` or `VOID`).
-3. **Receipt Issuance (`Receipt`)**:
-   - The legal receipt voucher is read-only forever.
-   - Customer reprint requests re-render the frozen JSON voucher with a duplicate stamp; the underlying record is never modified.
+| Milestone                 | Trigger Event            | Permanently Immutable Fields                                                                                                                                                                | Permitted Mutations                                                                                    |
+| :------------------------ | :----------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------------- |
+| **1. Sale Creation**      | Enters `DRAFT`           | `id`, `tenantId`, `createdAt`, `initialCashierId`.                                                                                                                                          | `items`, `quantities`, `itemDiscounts`, `orderDiscount`, `notes`, `clientId`.                          |
+| **2. Sale Finalization**  | Enters `PENDING_PAYMENT` | **All commercial terms locked**: `items` array, `description`, `skuOrCode`, `unitPrice`, `taxRate`, `itemDiscount`, `orderDiscount`, `subtotal`, `taxTotal`, `total`. Cart editing blocked. | `status`, `payments` relation, `completedAt`, `cancelledAt`, `cancellationReason`.                     |
+| **3. Payment Completion** | Enters `SETTLED`         | **Entire payment record frozen**: `id`, `saleId`, `tenantId`, `amount`, `currency`, `method`, `settledAt`, `externalTransactionId`. SQL `UPDATE` and `DELETE` prohibited.                   | **None**. Settled records are write-once. Reversals require separate compensating refund records.      |
+| **4. Receipt Issuance**   | Emitted upon `PAID`      | `id`, `receiptNumber`, `saleId`, `issuedAt`, `totalAmount`, `tenderBreakdownSnapshot`, `customerSnapshot`.                                                                                  | **None**. Permanent historical legal document. Reprints render existing document with duplicate stamp. |
 
 ---
 
@@ -398,7 +412,9 @@ classDiagram
 
 ## 5. Domain State Machines
 
-### 5.1 `Sale` State Machine
+### 5.1 `Sale` State Machine & Lifecycle Definitions
+
+The `Sale` lifecycle governs the **commercial contract and fulfillment status** of an order. It is completely decoupled from individual tender attempts.
 
 ```mermaid
 stateDiagram-v2
@@ -406,7 +422,7 @@ stateDiagram-v2
 
     DRAFT --> DRAFT : addItem() / removeItem() / applyDiscount()
     DRAFT --> CANCELLED : cancel(reason)
-    DRAFT --> PENDING_PAYMENT : confirmOrder()
+    DRAFT --> PENDING_PAYMENT : finalizeOrder()
 
     PENDING_PAYMENT --> PAID : recordPayment() [Balance == 0]
     PENDING_PAYMENT --> PARTIALLY_PAID : recordPayment() [Balance > 0]
@@ -427,56 +443,68 @@ stateDiagram-v2
     COMPLETED --> [*]
 ```
 
-#### Detailed Transition Table
+#### Sale Lifecycle States Defined
 
-| Source State         | Target State         | Allowed Actor         | Business Trigger / Reason                             | Invariant / Guard Rule                                           |
-| :------------------- | :------------------- | :-------------------- | :---------------------------------------------------- | :--------------------------------------------------------------- |
-| `[*] `               | `DRAFT`              | Cashier, Receptionist | Customer begins checkout session                      | Must assign new `SaleId`, set `tenantId`, cashier identity.      |
-| `DRAFT`              | `DRAFT`              | Cashier, Receptionist | Items added/removed, discounts applied                | Total recalculates. Items array cannot be empty at confirmation. |
-| `DRAFT`              | `CANCELLED`          | Cashier, Receptionist | Customer abandons checkout                            | Mandatory cancellation reason. No financial movements.           |
-| `DRAFT`              | `PENDING_PAYMENT`    | Cashier, Receptionist | Order finalized; customer presented with balance      | Must contain at least 1 item. Net total $\ge 0$. Items locked.   |
-| `PENDING_PAYMENT`    | `PAID`               | Payment Orchestrator  | Full payment tender verified                          | $\sum \text{SettledPayments} \ge \text{Sale.total}$.             |
-| `PENDING_PAYMENT`    | `PARTIALLY_PAID`     | Payment Orchestrator  | Partial deposit recorded                              | $0 < \sum \text{SettledPayments} < \text{Sale.total}$.           |
-| `PARTIALLY_PAID`     | `PAID`               | Payment Orchestrator  | Remaining balance settled                             | $\sum \text{SettledPayments} \ge \text{Sale.total}$.             |
-| `PAID`               | `COMPLETED`          | System / Fulfillment  | All items fulfilled (stock decremented, plans active) | Fulfillment ports confirm completion without errors.             |
-| `PAID` / `COMPLETED` | `REFUNDED`           | Owner, Manager        | Entire transaction reversed                           | Compensating refund payments equal original total.               |
-| `PAID` / `COMPLETED` | `PARTIALLY_REFUNDED` | Owner, Manager        | One or more items returned/refunded                   | Cumulative refund amount $\le \text{Sale.total}$.                |
+- **`DRAFT`**: Active checkout session. Cashiers may add, remove, or modify items, adjust quantities, and apply discretionary discounts. No customer payment obligation exists.
+- **`PENDING_PAYMENT` (Finalized / Unpaid)**: The cashier has finalized the order. All commercial line items, prices, discounts, and order totals are **permanently frozen**. The customer is presented with the final net payable balance. If payment terms apply (e.g. corporate invoicing), this represents an uncollected balance.
+- **`PARTIALLY_PAID`**: At least one payment has settled ($> 0$), but $\text{balanceRemaining} > 0$. Goods or service fulfillment may be held or restricted depending on business line policy.
+- **`PAID`**: All outstanding balances are settled ($\text{balanceRemaining} == 0$). Legal receipt generation is triggered.
+- **`COMPLETED`**: The sale is both fully paid AND all physical inventory has been decremented and service memberships activated.
+- **`CANCELLED`**: The order was voided prior to payment, or abandoned. No further operations permitted.
+- **`REFUNDED` / `PARTIALLY_REFUNDED`**: Post-settlement compensating transactions have reversed part or all of the collected funds.
+
+#### Separation of Concerns: Sale Lifecycle vs. Payment Lifecycle
+
+> [!IMPORTANT]
+> **Never Conflate Sale Lifecycle with Payment Lifecycle**:
+>
+> - **The `Sale` Lifecycle** governs commercial agreements, cart totals, and item fulfillment. There is **1 Sale** per checkout session.
+> - **The `Payment` Lifecycle** governs individual tender attempts (cash, card, QR). There can be **0, 1, or many Payments** per Sale.
+> - A `Payment` failure does **not** cancel a `Sale`. The customer can simply retry with another card or cash.
+> - A `Sale` is only `PAID` when the algebraic sum of all settled payments satisfies the order total ($\sum \text{SettledPayments} \ge \text{Sale.total}$).
 
 ---
 
-### 5.2 `Payment` State Machine
+### 5.2 `Payment` State Machine & Transition Rules
+
+The `Payment` state machine governs an autonomous monetary tender transaction:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> INITIATED : initiatePayment()
+    [*] --> PENDING : initiatePayment()
 
-    INITIATED --> AUTHORIZED : authorize(gatewayRef)
-    INITIATED --> SETTLED : captureImmediate(cash/terminal)
-    INITIATED --> FAILED : gatewayReject(code, reason)
+    PENDING --> AUTHORIZED : authorizeHold()
+    PENDING --> SETTLED : immediateCapture(cash/terminal)
+    PENDING --> FAILED : gatewayReject()
+    PENDING --> CANCELLED : abort()
 
     AUTHORIZED --> SETTLED : capture()
     AUTHORIZED --> FAILED : captureError()
-    AUTHORIZED --> VOIDED : voidAuthorization()
-
-    SETTLED --> REFUNDED : refund(reason)
+    AUTHORIZED --> CANCELLED : voidHold()
 
     FAILED --> [*]
-    VOIDED --> [*]
-    REFUNDED --> [*]
+    CANCELLED --> [*]
     SETTLED --> [*]
 ```
 
-#### Detailed Transition Table
+#### Formal State Transition Matrix
 
-| Source State | Target State | Allowed Actor   | Business Trigger / Reason                           | Invariant / Guard Rule                                     |
-| :----------- | :----------- | :-------------- | :-------------------------------------------------- | :--------------------------------------------------------- |
-| `[*] `       | `INITIATED`  | Cashier, System | Tender chosen, payment process started              | Positive non-zero amount. Valid payment method.            |
-| `INITIATED`  | `SETTLED`    | Cashier         | Cash received in drawer or debit terminal confirmed | Cash transactions settle immediately upon physical count.  |
-| `INITIATED`  | `AUTHORIZED` | Gateway Adapter | Credit card pre-authorization hold verified         | External gateway authorization reference required.         |
-| `INITIATED`  | `FAILED`     | Gateway Adapter | Card declined, insufficient funds, timeout          | Failure reason code recorded. Zero impact on sale balance. |
-| `AUTHORIZED` | `SETTLED`    | Gateway Adapter | Pre-authorized hold successfully captured           | Funds settled. Emits `PaymentSettledDomainEvent`.          |
-| `AUTHORIZED` | `VOIDED`     | Cashier, System | Authorization cancelled before capture              | Hold released. No money changed hands.                     |
-| `SETTLED`    | `REFUNDED`   | Owner, Manager  | Customer refund executed                            | Linked to original payment. Emits refund audit event.      |
+The table below exhaustively defines every permitted and forbidden state transition for `Payment`:
+
+| From         | To           | Allowed? | Reason                                                                          | Preconditions                                                                                  |
+| :----------- | :----------- | :------: | :------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------- |
+| `[*]`        | `PENDING`    | **YES**  | Tender initiated at checkout.                                                   | Amount $> 0$, valid `tenantId`, `saleId`, and `PaymentMethod`.                                 |
+| `PENDING`    | `AUTHORIZED` | **YES**  | Pre-authorization credit hold confirmed by gateway.                             | Gateway authorization reference code received; hold expiration timestamp set.                  |
+| `PENDING`    | `SETTLED`    | **YES**  | Cash counted in drawer or instant electronic capture confirmed.                 | Full tender amount received; cashier or terminal confirmation logged.                          |
+| `PENDING`    | `FAILED`     | **YES**  | Card declined, terminal timeout, hardware error, insufficient funds.            | Provider error code and descriptive failure reason recorded.                                   |
+| `PENDING`    | `CANCELLED`  | **YES**  | Cashier aborts tender or customer switches to a different tender.               | No funds received or held; executed prior to gateway charge.                                   |
+| `AUTHORIZED` | `SETTLED`    | **YES**  | Pre-authorized hold successfully captured.                                      | Capture request accepted within authorization validity window.                                 |
+| `AUTHORIZED` | `CANCELLED`  | **YES**  | Cashier voids pre-authorization hold before capture.                            | Gateway void confirmed; hold released; no funds transferred.                                   |
+| `AUTHORIZED` | `FAILED`     | **YES**  | Capture request rejected or pre-authorization hold expired.                     | Gateway capture rejection code recorded.                                                       |
+| `AUTHORIZED` | `PENDING`    |  **NO**  | Cannot revert an active hold back to pending initiation.                        | —                                                                                              |
+| `SETTLED`    | `*` (Any)    |  **NO**  | **Settled payments are permanently immutable**. Zero state mutations permitted. | Financial records cannot be altered. Reversals require autonomous compensating refund records. |
+| `FAILED`     | `*` (Any)    |  **NO**  | Terminal state. Retry requires creating a new `Payment` aggregate.              | Failed attempts remain preserved for audit logging.                                            |
+| `CANCELLED`  | `*` (Any)    |  **NO**  | Terminal state. Tender was aborted without financial transfer.                  | Preserved for cashier audit history.                                                           |
 
 ---
 
