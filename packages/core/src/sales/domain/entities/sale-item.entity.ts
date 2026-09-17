@@ -77,8 +77,13 @@ export class SaleItem {
    * Factory to create a new SaleItem with full domain invariant enforcement.
    */
   public static create(props: CreateSaleItemProps): SaleItem {
-    if (!props.source) {
-      throw new InvalidSaleItemException('SourceReference is required for SaleItem.');
+    if (!props.source || !(props.source instanceof SourceReference)) {
+      throw new InvalidSaleItemException(
+        'SourceReference is required and must be a valid SourceReference instance.',
+      );
+    }
+    if (props.id !== undefined && !(props.id instanceof SaleItemId)) {
+      throw new InvalidSaleItemException('SaleItemId must be a valid SaleItemId instance.');
     }
     if (
       !props.description ||
@@ -98,9 +103,15 @@ export class SaleItem {
       throw new InvalidSaleItemException('SaleItem discount must be a valid Discount instance.');
     }
 
+    const normalizedQuantity = Math.round((props.quantity + Number.EPSILON) * 1000) / 1000;
+    if (normalizedQuantity <= 0) {
+      throw new InvalidSaleItemException(
+        `Quantity rounds down to 0 at 3 decimal places precision, got: ${props.quantity}.`,
+      );
+    }
+
     const id = props.id ?? SaleItemId.create();
     const currency = props.unitPrice.currency;
-    const normalizedQuantity = Math.round((props.quantity + Number.EPSILON) * 1000) / 1000;
     const subtotal = props.unitPrice.multiply(normalizedQuantity);
     const discountTotal = props.discount
       ? props.discount.calculateReduction(subtotal)
@@ -125,11 +136,15 @@ export class SaleItem {
    * Reconstitutes an existing SaleItem from persistence, asserting exact mathematical reconciliation.
    */
   public static reconstitute(props: ReconstituteSaleItemProps): SaleItem {
-    if (!props.id) {
-      throw new InvalidSaleItemException('SaleItemId is required to reconstitute SaleItem.');
+    if (!props.id || !(props.id instanceof SaleItemId)) {
+      throw new InvalidSaleItemException(
+        'SaleItemId is required and must be a valid SaleItemId instance.',
+      );
     }
-    if (!props.source) {
-      throw new InvalidSaleItemException('SourceReference is required to reconstitute SaleItem.');
+    if (!props.source || !(props.source instanceof SourceReference)) {
+      throw new InvalidSaleItemException(
+        'SourceReference is required and must be a valid SourceReference instance.',
+      );
     }
     if (
       !props.description ||
@@ -143,7 +158,21 @@ export class SaleItem {
     SaleItem.assertValidQuantity(props.quantity);
     SaleItem.assertValidUnitPrice(props.unitPrice);
 
+    if (
+      props.discount !== undefined &&
+      props.discount !== null &&
+      !(props.discount instanceof Discount)
+    ) {
+      throw new InvalidSaleItemException('SaleItem discount must be a valid Discount instance.');
+    }
+
     const normalizedQuantity = Math.round((props.quantity + Number.EPSILON) * 1000) / 1000;
+    if (normalizedQuantity <= 0) {
+      throw new InvalidSaleItemException(
+        `Quantity rounds down to 0 at 3 decimal places precision, got: ${props.quantity}.`,
+      );
+    }
+
     const currency = props.unitPrice.currency;
     const expectedSubtotal = props.unitPrice.multiply(normalizedQuantity);
     const expectedDiscountTotal = props.discount
@@ -152,24 +181,41 @@ export class SaleItem {
     const expectedTotal = expectedSubtotal.subtract(expectedDiscountTotal);
 
     const providedSubtotal = props.subtotal ?? props.lineSubtotal;
-    if (providedSubtotal && !providedSubtotal.equals(expectedSubtotal)) {
-      throw new InvalidSaleItemException(
-        `Persisted subtotal (${providedSubtotal}) does not reconcile with unitPrice * quantity (${expectedSubtotal}).`,
-      );
+    if (providedSubtotal) {
+      if (!(providedSubtotal instanceof Money)) {
+        throw new InvalidSaleItemException('Persisted subtotal must be a valid Money instance.');
+      }
+      if (!providedSubtotal.equals(expectedSubtotal)) {
+        throw new InvalidSaleItemException(
+          `Persisted subtotal (${providedSubtotal}) does not reconcile with unitPrice * quantity (${expectedSubtotal}).`,
+        );
+      }
     }
 
     const providedDiscountTotal = props.discountTotal ?? props.lineDiscountTotal;
-    if (providedDiscountTotal && !providedDiscountTotal.equals(expectedDiscountTotal)) {
-      throw new InvalidSaleItemException(
-        `Persisted discountTotal (${providedDiscountTotal}) does not reconcile with discount reduction (${expectedDiscountTotal}).`,
-      );
+    if (providedDiscountTotal) {
+      if (!(providedDiscountTotal instanceof Money)) {
+        throw new InvalidSaleItemException(
+          'Persisted discountTotal must be a valid Money instance.',
+        );
+      }
+      if (!providedDiscountTotal.equals(expectedDiscountTotal)) {
+        throw new InvalidSaleItemException(
+          `Persisted discountTotal (${providedDiscountTotal}) does not reconcile with discount reduction (${expectedDiscountTotal}).`,
+        );
+      }
     }
 
     const providedTotal = props.total ?? props.lineTotal;
-    if (providedTotal && !providedTotal.equals(expectedTotal)) {
-      throw new InvalidSaleItemException(
-        `Persisted total (${providedTotal}) does not reconcile with subtotal - discountTotal (${expectedTotal}).`,
-      );
+    if (providedTotal) {
+      if (!(providedTotal instanceof Money)) {
+        throw new InvalidSaleItemException('Persisted total must be a valid Money instance.');
+      }
+      if (!providedTotal.equals(expectedTotal)) {
+        throw new InvalidSaleItemException(
+          `Persisted total (${providedTotal}) does not reconcile with subtotal - discountTotal (${expectedTotal}).`,
+        );
+      }
     }
 
     return new SaleItem({

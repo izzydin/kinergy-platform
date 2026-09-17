@@ -6,7 +6,7 @@ import { SaleItemId } from './value-objects/sale-item-id.vo';
 import { SourceReference } from './value-objects/source-reference.vo';
 import { Money } from './value-objects/money.vo';
 import { Discount } from './value-objects/discount.vo';
-import { SaleStatus } from './enums/sale-status.enum';
+import { SaleStatus, isValidSaleStatus } from './enums/sale-status.enum';
 import { SaleItem, CreateSaleItemProps } from './entities/sale-item.entity';
 import { EmptySaleException } from './exceptions/empty-sale.exception';
 import { SaleAlreadyFinalizedException } from './exceptions/sale-already-finalized.exception';
@@ -117,18 +117,52 @@ export class Sale implements AggregateRoot<SaleId> {
    * Factory method to create a new Sale aggregate root in DRAFT status.
    */
   public static create(props: CreateSaleProps, clock: Clock = new SystemClock()): Sale {
-    if (!props.source) {
-      throw new InvalidSaleStateException('SourceReference is required to create a Sale.');
+    if (!props) {
+      throw new InvalidSaleStateException('CreateSaleProps cannot be null or undefined.');
+    }
+    if (!props.source || !(props.source instanceof SourceReference)) {
+      throw new InvalidSaleStateException(
+        'SourceReference is required and must be a valid SourceReference instance.',
+      );
+    }
+    if (props.id !== undefined && !(props.id instanceof SaleId)) {
+      throw new InvalidSaleStateException('SaleId must be a valid SaleId instance.');
+    }
+
+    const tenantId = props.tenantId !== undefined ? props.tenantId.trim() : undefined;
+    if (props.tenantId !== undefined && tenantId === '') {
+      throw new InvalidSaleStateException('tenantId cannot be empty or whitespace.');
+    }
+
+    const clientId = props.clientId !== undefined ? props.clientId.trim() : undefined;
+    if (props.clientId !== undefined && clientId === '') {
+      throw new InvalidSaleStateException('clientId cannot be empty or whitespace.');
+    }
+
+    const rawCurrency = props.currency ?? 'USD';
+    if (typeof rawCurrency !== 'string') {
+      throw new InvalidSaleStateException('Currency must be a string.');
+    }
+    const currency = rawCurrency.trim().toUpperCase();
+    if (!/^[A-Z]{3}$/.test(currency)) {
+      throw new InvalidSaleStateException(`Invalid ISO-4217 currency code '${props.currency}'.`);
+    }
+
+    if (
+      props.orderDiscount !== undefined &&
+      props.orderDiscount !== null &&
+      !(props.orderDiscount instanceof Discount)
+    ) {
+      throw new InvalidSaleStateException('Order discount must be a valid Discount instance.');
     }
 
     const saleId = props.id ?? SaleId.create();
-    const currency = (props.currency ?? 'USD').trim().toUpperCase();
     const now = clock.now();
 
     const sale = new Sale({
       id: saleId,
-      tenantId: props.tenantId,
-      clientId: props.clientId,
+      tenantId,
+      clientId,
       status: SaleStatus.DRAFT,
       currency,
       source: props.source,
@@ -171,13 +205,179 @@ export class Sale implements AggregateRoot<SaleId> {
    * that persisted snapshot totals reconcile with the sum of item subtotals and discounts.
    */
   public static reconstitute(props: ReconstituteSaleProps): Sale {
-    let calculatedSubtotal = Money.zero(props.currency);
-    let calculatedLineDiscounts = Money.zero(props.currency);
+    if (!props) {
+      throw new InvalidSaleStateException('ReconstituteSaleProps cannot be null or undefined.');
+    }
+    if (!props.id || !(props.id instanceof SaleId)) {
+      throw new InvalidSaleStateException(
+        'SaleId is required and must be a valid SaleId instance.',
+      );
+    }
+    if (!props.source || !(props.source instanceof SourceReference)) {
+      throw new InvalidSaleStateException(
+        'SourceReference is required and must be a valid SourceReference instance.',
+      );
+    }
+    if (!props.status || !isValidSaleStatus(props.status)) {
+      throw new InvalidSaleStateException(`Invalid Sale status '${props.status}'.`);
+    }
+    if (
+      !props.currency ||
+      typeof props.currency !== 'string' ||
+      !/^[A-Z]{3}$/.test(props.currency.trim().toUpperCase())
+    ) {
+      throw new InvalidSaleStateException(
+        `Invalid currency '${props.currency}'. Must be 3-letter ISO code.`,
+      );
+    }
+    const currency = props.currency.trim().toUpperCase();
+
+    const tenantId = props.tenantId !== undefined ? props.tenantId.trim() : undefined;
+    if (props.tenantId !== undefined && tenantId === '') {
+      throw new InvalidSaleStateException('tenantId cannot be empty or whitespace.');
+    }
+
+    const clientId = props.clientId !== undefined ? props.clientId.trim() : undefined;
+    if (props.clientId !== undefined && clientId === '') {
+      throw new InvalidSaleStateException('clientId cannot be empty or whitespace.');
+    }
+
+    if (
+      typeof props.version !== 'number' ||
+      isNaN(props.version) ||
+      !Number.isInteger(props.version) ||
+      props.version < 1
+    ) {
+      throw new InvalidSaleStateException(
+        `Invalid version '${props.version}'. Version must be an integer >= 1.`,
+      );
+    }
+
+    if (
+      !props.createdAt ||
+      !(props.createdAt instanceof Date) ||
+      isNaN(props.createdAt.getTime())
+    ) {
+      throw new InvalidSaleStateException('createdAt must be a valid Date.');
+    }
+    if (
+      !props.updatedAt ||
+      !(props.updatedAt instanceof Date) ||
+      isNaN(props.updatedAt.getTime())
+    ) {
+      throw new InvalidSaleStateException('updatedAt must be a valid Date.');
+    }
+    if (props.updatedAt.getTime() < props.createdAt.getTime()) {
+      throw new InvalidSaleStateException('updatedAt cannot be earlier than createdAt.');
+    }
+
+    if (props.status === SaleStatus.CANCELLED) {
+      if (
+        !props.cancellationReason ||
+        typeof props.cancellationReason !== 'string' ||
+        !props.cancellationReason.trim()
+      ) {
+        throw new InvalidSaleStateException(
+          'Reconstituted CANCELLED sale must have a non-empty cancellationReason.',
+        );
+      }
+      if (
+        !props.cancelledAt ||
+        !(props.cancelledAt instanceof Date) ||
+        isNaN(props.cancelledAt.getTime())
+      ) {
+        throw new InvalidSaleStateException(
+          'Reconstituted CANCELLED sale must have a valid cancelledAt timestamp.',
+        );
+      }
+    }
+
+    if (props.status === SaleStatus.COMPLETED) {
+      if (
+        !props.completedAt ||
+        !(props.completedAt instanceof Date) ||
+        isNaN(props.completedAt.getTime())
+      ) {
+        throw new InvalidSaleStateException(
+          'Reconstituted COMPLETED sale must have a valid completedAt timestamp.',
+        );
+      }
+    }
+
+    if (props.status === SaleStatus.REFUNDED) {
+      if (
+        !props.refundedAt ||
+        !(props.refundedAt instanceof Date) ||
+        isNaN(props.refundedAt.getTime())
+      ) {
+        throw new InvalidSaleStateException(
+          'Reconstituted REFUNDED sale must have a valid refundedAt timestamp.',
+        );
+      }
+    }
+
+    if (props.status === SaleStatus.DRAFT) {
+      if (props.completedAt || props.cancelledAt || props.refundedAt) {
+        throw new InvalidSaleStateException(
+          'DRAFT sale cannot have completedAt, cancelledAt, or refundedAt timestamps.',
+        );
+      }
+    }
+
+    if (!Array.isArray(props.items)) {
+      throw new InvalidSaleStateException('Items must be an array.');
+    }
+
+    if (
+      props.orderDiscount !== undefined &&
+      props.orderDiscount !== null &&
+      !(props.orderDiscount instanceof Discount)
+    ) {
+      throw new InvalidSaleStateException('Order discount must be a valid Discount instance.');
+    }
+
+    if (!props.subtotal || !(props.subtotal instanceof Money)) {
+      throw new InvalidSaleStateException(
+        'Subtotal is required and must be a valid Money instance.',
+      );
+    }
+    if (!props.discountTotal || !(props.discountTotal instanceof Money)) {
+      throw new InvalidSaleStateException(
+        'DiscountTotal is required and must be a valid Money instance.',
+      );
+    }
+    if (!props.total || !(props.total instanceof Money)) {
+      throw new InvalidSaleStateException('Total is required and must be a valid Money instance.');
+    }
+
+    if (
+      props.subtotal.currency !== currency ||
+      props.discountTotal.currency !== currency ||
+      props.total.currency !== currency
+    ) {
+      throw new InvalidSaleStateException(
+        `Financial currency mismatch in persisted totals for Sale '${props.id.value}'.`,
+      );
+    }
+
+    const itemIds = new Set<string>();
+    let calculatedSubtotal = Money.zero(currency);
+    let calculatedLineDiscounts = Money.zero(currency);
 
     for (const item of props.items) {
-      if (item.unitPrice.currency !== props.currency) {
+      if (!item || !(item instanceof SaleItem)) {
+        throw new InvalidSaleStateException('All items must be valid SaleItem instances.');
+      }
+      if (itemIds.has(item.id.value)) {
         throw new InvalidSaleStateException(
-          `Item currency '${item.unitPrice.currency}' does not match Sale currency '${props.currency}'.`,
+          `Duplicate SaleItem ID '${item.id.value}' detected in Sale '${props.id.value}'.`,
+        );
+      }
+      itemIds.add(item.id.value);
+
+      if (item.unitPrice.currency !== currency) {
+        throw new InvalidSaleStateException(
+          `Item currency '${item.unitPrice.currency}' does not match Sale currency '${currency}'.`,
         );
       }
       calculatedSubtotal = calculatedSubtotal.add(item.subtotal);
@@ -187,7 +387,7 @@ export class Sale implements AggregateRoot<SaleId> {
     const netPreOrderDisc = calculatedSubtotal.subtract(calculatedLineDiscounts);
     const orderDiscountAmount = props.orderDiscount
       ? props.orderDiscount.calculateReduction(netPreOrderDisc)
-      : Money.zero(props.currency);
+      : Money.zero(currency);
 
     const calculatedDiscountTotal = calculatedLineDiscounts.add(orderDiscountAmount);
     const calculatedTotal = calculatedSubtotal.subtract(calculatedDiscountTotal);
@@ -210,7 +410,12 @@ export class Sale implements AggregateRoot<SaleId> {
       );
     }
 
-    return new Sale(props);
+    return new Sale({
+      ...props,
+      tenantId,
+      clientId,
+      currency,
+    });
   }
 
   // --- Getters ---
@@ -306,9 +511,20 @@ export class Sale implements AggregateRoot<SaleId> {
   public addItem(props: AddSaleItemProps, clock: Clock = new SystemClock()): SaleItem {
     this.assertDraftState();
 
+    if (!props) {
+      throw new InvalidSaleStateException('AddSaleItemProps cannot be null or undefined.');
+    }
+    if (!props.unitPrice || !(props.unitPrice instanceof Money)) {
+      throw new InvalidSaleStateException('SaleItem unitPrice must be a valid Money instance.');
+    }
     if (props.unitPrice.currency !== this._currency) {
       throw new InvalidSaleStateException(
         `Cannot add item with currency '${props.unitPrice.currency}' to a Sale with currency '${this._currency}'.`,
+      );
+    }
+    if (props.id && this._items.some((i) => i.id.equals(props.id!))) {
+      throw new InvalidSaleStateException(
+        `SaleItem with ID '${props.id.value}' already exists in Sale '${this._id.value}'.`,
       );
     }
 
@@ -350,7 +566,11 @@ export class Sale implements AggregateRoot<SaleId> {
   ): void {
     this.assertDraftState();
 
-    const idStr = typeof itemId === 'string' ? itemId : itemId.value;
+    const idStr = typeof itemId === 'string' ? itemId.trim() : (itemId?.value ?? '');
+    if (!idStr) {
+      throw new InvalidSaleStateException('SaleItemId is required.');
+    }
+
     const index = this._items.findIndex((item) => item.id.value === idStr);
     if (index === -1) {
       throw new InvalidSaleStateException(
@@ -373,11 +593,15 @@ export class Sale implements AggregateRoot<SaleId> {
     clock: Clock = new SystemClock(),
   ): void {
     this.assertDraftState();
-    if (!discount) {
-      throw new InvalidSaleStateException('Discount cannot be null or undefined.');
+
+    const idStr = typeof itemId === 'string' ? itemId.trim() : (itemId?.value ?? '');
+    if (!idStr) {
+      throw new InvalidSaleStateException('SaleItemId is required.');
+    }
+    if (!discount || !(discount instanceof Discount)) {
+      throw new InvalidSaleStateException('Item discount must be a valid Discount instance.');
     }
 
-    const idStr = typeof itemId === 'string' ? itemId : itemId.value;
     const index = this._items.findIndex((item) => item.id.value === idStr);
     if (index === -1) {
       throw new InvalidSaleStateException(
@@ -397,7 +621,11 @@ export class Sale implements AggregateRoot<SaleId> {
   public removeItemDiscount(itemId: SaleItemId | string, clock: Clock = new SystemClock()): void {
     this.assertDraftState();
 
-    const idStr = typeof itemId === 'string' ? itemId : itemId.value;
+    const idStr = typeof itemId === 'string' ? itemId.trim() : (itemId?.value ?? '');
+    if (!idStr) {
+      throw new InvalidSaleStateException('SaleItemId is required.');
+    }
+
     const index = this._items.findIndex((item) => item.id.value === idStr);
     if (index === -1) {
       throw new InvalidSaleStateException(
@@ -417,7 +645,11 @@ export class Sale implements AggregateRoot<SaleId> {
   public removeItem(itemId: SaleItemId | string, clock: Clock = new SystemClock()): void {
     this.assertDraftState();
 
-    const idStr = typeof itemId === 'string' ? itemId : itemId.value;
+    const idStr = typeof itemId === 'string' ? itemId.trim() : (itemId?.value ?? '');
+    if (!idStr) {
+      throw new InvalidSaleStateException('SaleItemId is required.');
+    }
+
     const index = this._items.findIndex((item) => item.id.value === idStr);
     if (index === -1) {
       throw new InvalidSaleStateException(
@@ -449,8 +681,8 @@ export class Sale implements AggregateRoot<SaleId> {
    */
   public applyOrderDiscount(discount: Discount, clock: Clock = new SystemClock()): void {
     this.assertDraftState();
-    if (!discount) {
-      throw new InvalidSaleStateException('Discount cannot be null or undefined.');
+    if (!discount || !(discount instanceof Discount)) {
+      throw new InvalidSaleStateException('Order discount must be a valid Discount instance.');
     }
     this._orderDiscount = discount;
     this.recalculateTotals();
@@ -616,6 +848,9 @@ export class Sale implements AggregateRoot<SaleId> {
         'Sale can only transition to REFUNDED from PAID or COMPLETED status.',
       );
     }
+    if (reason !== undefined && (typeof reason !== 'string' || !reason.trim())) {
+      throw new SaleDomainException('Refund reason, if provided, must be a non-empty string.');
+    }
 
     const now = clock.now();
     this._status = SaleStatus.REFUNDED;
@@ -643,7 +878,7 @@ export class Sale implements AggregateRoot<SaleId> {
    * Requires a non-empty cancellationReason (Rule SALE-09).
    */
   public cancel(reason: string, clock: Clock = new SystemClock()): void {
-    if (!reason || !reason.trim()) {
+    if (!reason || typeof reason !== 'string' || !reason.trim()) {
       throw new SaleDomainException('Cancellation reason is required to cancel a Sale.');
     }
 
