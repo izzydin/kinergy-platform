@@ -3,3 +3,7 @@ export * from './sale-finalized.event';
 export * from './sale-cancelled.event';
 export * from './sale-item-added.event';
 export * from './sale-item-removed.event';
+export * from './sale-partially-paid.event';
+export * from './sale-paid.event';
+export * from './sale-completed.event';
+export * from './sale-refunded.event';

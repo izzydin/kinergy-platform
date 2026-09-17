@@ -7,6 +7,7 @@ import { Discount } from '../value-objects/discount.vo';
 import { EmptySaleException } from '../exceptions/empty-sale.exception';
 import { SaleAlreadyFinalizedException } from '../exceptions/sale-already-finalized.exception';
 import { InvalidSaleStateException } from '../exceptions/invalid-sale-state.exception';
+import { InvalidSaleTransitionException } from '../exceptions/invalid-sale-transition.exception';
 import { Clock } from '../shared/clock';
 
 class MockClock implements Clock {
@@ -254,7 +255,7 @@ describe('Sale Aggregate Root', () => {
 
       expect(() => {
         sale.finalize();
-      }).toThrow(SaleAlreadyFinalizedException);
+      }).toThrow(InvalidSaleTransitionException);
     });
 
     it('transitions to PARTIALLY_PAID and then to PAID', () => {

@@ -11,12 +11,18 @@ import { SaleItem, CreateSaleItemProps } from './entities/sale-item.entity';
 import { EmptySaleException } from './exceptions/empty-sale.exception';
 import { SaleAlreadyFinalizedException } from './exceptions/sale-already-finalized.exception';
 import { InvalidSaleStateException } from './exceptions/invalid-sale-state.exception';
+import { InvalidSaleTransitionException } from './exceptions/invalid-sale-transition.exception';
+import { SaleDomainException } from './exceptions/sale-domain.exception';
 import {
   SaleCreatedEvent,
   SaleFinalizedEvent,
   SaleCancelledEvent,
   SaleItemAddedEvent,
   SaleItemRemovedEvent,
+  SalePartiallyPaidEvent,
+  SalePaidEvent,
+  SaleCompletedEvent,
+  SaleRefundedEvent,
 } from './events';
 
 export interface CreateSaleProps {
@@ -42,6 +48,10 @@ export interface ReconstituteSaleProps {
   discountTotal: Money;
   total: Money;
   version: number;
+  completedAt?: Date;
+  cancelledAt?: Date;
+  cancellationReason?: string;
+  refundedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -74,6 +84,10 @@ export class Sale implements AggregateRoot<SaleId> {
   private _discountTotal: Money;
   private _total: Money;
   private _version: number;
+  private _completedAt?: Date;
+  private _cancelledAt?: Date;
+  private _cancellationReason?: string;
+  private _refundedAt?: Date;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
   private _uncommittedEvents: DomainEvent[] = [];
@@ -91,6 +105,10 @@ export class Sale implements AggregateRoot<SaleId> {
     this._discountTotal = props.discountTotal;
     this._total = props.total;
     this._version = props.version;
+    this._completedAt = props.completedAt ? new Date(props.completedAt.getTime()) : undefined;
+    this._cancelledAt = props.cancelledAt ? new Date(props.cancelledAt.getTime()) : undefined;
+    this._cancellationReason = props.cancellationReason;
+    this._refundedAt = props.refundedAt ? new Date(props.refundedAt.getTime()) : undefined;
     this._createdAt = new Date(props.createdAt.getTime());
     this._updatedAt = new Date(props.updatedAt.getTime());
   }
@@ -243,6 +261,22 @@ export class Sale implements AggregateRoot<SaleId> {
 
   public get version(): number {
     return this._version;
+  }
+
+  public get completedAt(): Date | undefined {
+    return this._completedAt ? new Date(this._completedAt.getTime()) : undefined;
+  }
+
+  public get cancelledAt(): Date | undefined {
+    return this._cancelledAt ? new Date(this._cancelledAt.getTime()) : undefined;
+  }
+
+  public get cancellationReason(): string | undefined {
+    return this._cancellationReason;
+  }
+
+  public get refundedAt(): Date | undefined {
+    return this._refundedAt ? new Date(this._refundedAt.getTime()) : undefined;
   }
 
   public get createdAt(): Date {
@@ -434,11 +468,18 @@ export class Sale implements AggregateRoot<SaleId> {
   }
 
   /**
-   * Finalizes the order, transitioning from DRAFT to PENDING_PAYMENT.
+   * Finalizes the commercial agreement, transitioning from DRAFT to PENDING_PAYMENT.
    * Freezes commercial terms permanently against further item and discount adjustments.
+   * Invariant: Requires at least one line item (SALE-05).
    */
   public finalize(clock: Clock = new SystemClock()): void {
-    this.assertDraftState();
+    if (this._status !== SaleStatus.DRAFT) {
+      throw new InvalidSaleTransitionException(
+        this._status,
+        SaleStatus.PENDING_PAYMENT,
+        'Sale can only be finalized from DRAFT status.',
+      );
+    }
 
     if (this._items.length === 0) {
       throw new EmptySaleException(
@@ -467,28 +508,15 @@ export class Sale implements AggregateRoot<SaleId> {
   }
 
   /**
-   * Transitions status to PAID upon full settlement confirmation.
-   */
-  public markPaid(clock: Clock = new SystemClock()): void {
-    if (this._status !== SaleStatus.PENDING_PAYMENT && this._status !== SaleStatus.PARTIALLY_PAID) {
-      throw new InvalidSaleStateException(
-        `Sale cannot transition to PAID from current state '${this._status}'. Must be PENDING_PAYMENT or PARTIALLY_PAID.`,
-      );
-    }
-
-    const now = clock.now();
-    this._status = SaleStatus.PAID;
-    this._version++;
-    this._updatedAt = now;
-  }
-
-  /**
    * Transitions status to PARTIALLY_PAID upon receiving a partial payment tender.
+   * Permitted only from PENDING_PAYMENT.
    */
   public markPartiallyPaid(clock: Clock = new SystemClock()): void {
     if (this._status !== SaleStatus.PENDING_PAYMENT) {
-      throw new InvalidSaleStateException(
-        `Sale cannot transition to PARTIALLY_PAID from current state '${this._status}'. Must be PENDING_PAYMENT.`,
+      throw new InvalidSaleTransitionException(
+        this._status,
+        SaleStatus.PARTIALLY_PAID,
+        'Sale can only transition to PARTIALLY_PAID from PENDING_PAYMENT.',
       );
     }
 
@@ -496,20 +524,145 @@ export class Sale implements AggregateRoot<SaleId> {
     this._status = SaleStatus.PARTIALLY_PAID;
     this._version++;
     this._updatedAt = now;
+
+    this.recordEvent(
+      new SalePartiallyPaidEvent(
+        this._id.value,
+        this._version,
+        {
+          saleId: this._id.value,
+          totalAmount: this._total.amount,
+          currency: this._currency,
+        },
+        now,
+      ),
+    );
   }
 
   /**
-   * Cancels the Sale transaction. Permitted only from DRAFT or PENDING_PAYMENT.
+   * Transitions status to PAID upon full settlement confirmation.
+   * Permitted from PENDING_PAYMENT or PARTIALLY_PAID.
    */
-  public cancel(reason?: string, clock: Clock = new SystemClock()): void {
-    if (this._status !== SaleStatus.DRAFT && this._status !== SaleStatus.PENDING_PAYMENT) {
-      throw new InvalidSaleStateException(
-        `Sale in status '${this._status}' cannot be cancelled. Only DRAFT or PENDING_PAYMENT can be cancelled.`,
+  public markPaid(clock: Clock = new SystemClock()): void {
+    if (this._status !== SaleStatus.PENDING_PAYMENT && this._status !== SaleStatus.PARTIALLY_PAID) {
+      throw new InvalidSaleTransitionException(
+        this._status,
+        SaleStatus.PAID,
+        'Sale can only transition to PAID from PENDING_PAYMENT or PARTIALLY_PAID.',
+      );
+    }
+
+    const now = clock.now();
+    this._status = SaleStatus.PAID;
+    this._version++;
+    this._updatedAt = now;
+
+    this.recordEvent(
+      new SalePaidEvent(
+        this._id.value,
+        this._version,
+        {
+          saleId: this._id.value,
+          totalAmount: this._total.amount,
+          currency: this._currency,
+        },
+        now,
+      ),
+    );
+  }
+
+  /**
+   * Transitions status to COMPLETED upon fulfillment confirmation of all physical items and service memberships.
+   * Permitted only from PAID.
+   */
+  public markCompleted(clock: Clock = new SystemClock()): void {
+    if (this._status !== SaleStatus.PAID) {
+      throw new InvalidSaleTransitionException(
+        this._status,
+        SaleStatus.COMPLETED,
+        'Sale can only transition to COMPLETED from PAID status upon fulfillment confirmation.',
+      );
+    }
+
+    const now = clock.now();
+    this._status = SaleStatus.COMPLETED;
+    this._completedAt = now;
+    this._version++;
+    this._updatedAt = now;
+
+    this.recordEvent(
+      new SaleCompletedEvent(
+        this._id.value,
+        this._version,
+        {
+          saleId: this._id.value,
+          totalAmount: this._total.amount,
+          currency: this._currency,
+        },
+        now,
+      ),
+    );
+  }
+
+  /**
+   * Transitions status to REFUNDED upon execution of a full compensating refund.
+   * Permitted from PAID or COMPLETED.
+   */
+  public markRefunded(reason?: string, clock: Clock = new SystemClock()): void {
+    if (this._status !== SaleStatus.PAID && this._status !== SaleStatus.COMPLETED) {
+      throw new InvalidSaleTransitionException(
+        this._status,
+        SaleStatus.REFUNDED,
+        'Sale can only transition to REFUNDED from PAID or COMPLETED status.',
+      );
+    }
+
+    const now = clock.now();
+    this._status = SaleStatus.REFUNDED;
+    this._refundedAt = now;
+    this._version++;
+    this._updatedAt = now;
+
+    this.recordEvent(
+      new SaleRefundedEvent(
+        this._id.value,
+        this._version,
+        {
+          saleId: this._id.value,
+          totalAmount: this._total.amount,
+          currency: this._currency,
+          reason: reason ? reason.trim() : undefined,
+        },
+        now,
+      ),
+    );
+  }
+
+  /**
+   * Cancels the Sale transaction. Permitted from DRAFT, PENDING_PAYMENT, or PARTIALLY_PAID.
+   * Requires a non-empty cancellationReason (Rule SALE-09).
+   */
+  public cancel(reason: string, clock: Clock = new SystemClock()): void {
+    if (!reason || !reason.trim()) {
+      throw new SaleDomainException('Cancellation reason is required to cancel a Sale.');
+    }
+
+    if (
+      this._status !== SaleStatus.DRAFT &&
+      this._status !== SaleStatus.PENDING_PAYMENT &&
+      this._status !== SaleStatus.PARTIALLY_PAID
+    ) {
+      throw new InvalidSaleTransitionException(
+        this._status,
+        SaleStatus.CANCELLED,
+        `Sale in status '${this._status}' cannot be cancelled. Only DRAFT, PENDING_PAYMENT, or PARTIALLY_PAID sales can be cancelled.`,
       );
     }
 
     const now = clock.now();
     this._status = SaleStatus.CANCELLED;
+    this._cancelledAt = now;
+    this._cancellationReason = reason.trim();
     this._version++;
     this._updatedAt = now;
 
@@ -519,7 +672,7 @@ export class Sale implements AggregateRoot<SaleId> {
         this._version,
         {
           saleId: this._id.value,
-          reason: reason ? reason.trim() : undefined,
+          reason: this._cancellationReason,
         },
         now,
       ),
