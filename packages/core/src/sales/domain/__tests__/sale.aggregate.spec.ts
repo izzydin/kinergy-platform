@@ -339,4 +339,129 @@ describe('Sale Aggregate Root', () => {
       expect(sale.getUncommittedEvents().length).toBe(0);
     });
   });
+
+  describe('Item-Level Discounts Governed by Sale', () => {
+    it('applies and removes line-item discount through Sale aggregate and recalculates totals', () => {
+      const sale = Sale.create({ source: defaultSource }, clock);
+      const item = sale.addItem({
+        source: defaultSource,
+        description: 'Yoga Mat',
+        quantity: 1,
+        unitPrice: Money.create(40.0, 'USD'),
+      });
+
+      expect(sale.total.amount).toBe(40.0);
+
+      sale.applyItemDiscount(item.id, Discount.fixedAmount(10.0, 'Mat Discount'));
+      expect(sale.discountTotal.amount).toBe(10.0);
+      expect(sale.total.amount).toBe(30.0);
+
+      sale.removeItemDiscount(item.id);
+      expect(sale.discountTotal.amount).toBe(0.0);
+      expect(sale.total.amount).toBe(40.0);
+    });
+
+    it('rejects applying item discount after finalization', () => {
+      const sale = Sale.create({ source: defaultSource }, clock);
+      const item = sale.addItem({
+        source: defaultSource,
+        description: 'T-Shirt',
+        quantity: 1,
+        unitPrice: Money.create(25.0, 'USD'),
+      });
+      sale.finalize(clock);
+
+      expect(() => {
+        sale.applyItemDiscount(item.id, Discount.percentage(10, 'Late Discount'));
+      }).toThrow(SaleAlreadyFinalizedException);
+    });
+  });
+
+  describe('Reconstitution and Critical Reconciliation Invariant', () => {
+    it('reconstitutes an existing Sale when persisted snapshot totals reconcile exactly', () => {
+      const sale = Sale.create({ source: defaultSource }, clock);
+      sale.addItem({
+        source: defaultSource,
+        description: 'Protein Shake',
+        quantity: 2,
+        unitPrice: Money.create(5.0, 'USD'),
+        discount: Discount.percentage(10, '10% line discount'),
+      });
+      sale.applyOrderDiscount(Discount.fixedAmount(1.0, 'Order Coupon'));
+      sale.finalize(clock);
+
+      // Subtotal: 10.00, Line discount: 1.00, Pre-order net: 9.00, Order discount: 1.00, Total discount: 2.00, Total: 8.00
+      const reconstituted = Sale.reconstitute({
+        id: sale.id,
+        status: sale.status,
+        currency: sale.currency,
+        source: sale.source,
+        items: [...sale.items],
+        orderDiscount: sale.orderDiscount,
+        subtotal: sale.subtotal,
+        discountTotal: sale.discountTotal,
+        total: sale.total,
+        version: sale.version,
+        createdAt: sale.createdAt,
+        updatedAt: sale.updatedAt,
+      });
+
+      expect(reconstituted.id.equals(sale.id)).toBe(true);
+      expect(reconstituted.subtotal.amount).toBe(10.0);
+      expect(reconstituted.discountTotal.amount).toBe(2.0);
+      expect(reconstituted.total.amount).toBe(8.0);
+    });
+
+    it('throws InvalidSaleStateException when persisted subtotal does not equal sum of item subtotals', () => {
+      const sale = Sale.create({ source: defaultSource }, clock);
+      sale.addItem({
+        source: defaultSource,
+        description: 'Protein Bar',
+        quantity: 1,
+        unitPrice: Money.create(5.0, 'USD'),
+      });
+
+      expect(() => {
+        Sale.reconstitute({
+          id: sale.id,
+          status: SaleStatus.DRAFT,
+          currency: 'USD',
+          source: sale.source,
+          items: [...sale.items],
+          subtotal: Money.create(999.0, 'USD'), // Tampered subtotal (expected 5.00)
+          discountTotal: Money.zero('USD'),
+          total: Money.create(999.0, 'USD'),
+          version: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }).toThrow(InvalidSaleStateException);
+    });
+
+    it('throws InvalidSaleStateException when persisted total does not equal subtotal - discountTotal', () => {
+      const sale = Sale.create({ source: defaultSource }, clock);
+      sale.addItem({
+        source: defaultSource,
+        description: 'Protein Bar',
+        quantity: 1,
+        unitPrice: Money.create(10.0, 'USD'),
+      });
+
+      expect(() => {
+        Sale.reconstitute({
+          id: sale.id,
+          status: SaleStatus.DRAFT,
+          currency: 'USD',
+          source: sale.source,
+          items: [...sale.items],
+          subtotal: Money.create(10.0, 'USD'),
+          discountTotal: Money.zero('USD'),
+          total: Money.create(5.0, 'USD'), // Tampered total (expected 10.00)
+          version: 1,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }).toThrow(InvalidSaleStateException);
+    });
+  });
 });

@@ -22,40 +22,60 @@ export interface ReconstituteSaleItemProps {
   quantity: number;
   unitPrice: Money;
   discount?: Discount | null;
-  lineSubtotal: Money;
-  lineDiscountTotal: Money;
-  lineTotal: Money;
+  subtotal?: Money;
+  discountTotal?: Money;
+  total?: Money;
+  lineSubtotal?: Money;
+  lineDiscountTotal?: Money;
+  lineTotal?: Money;
 }
 
 /**
- * SaleItem is an internal entity owned exclusively by the Sale aggregate root.
- * Snapshots commercial terms (description, code, price, discount) at the moment of sale.
+ * SaleItem is an immutable child entity exclusively owned and governed by the Sale aggregate root.
+ * Permanently snapshots commercial information (description, SKU/code, unit price, quantity, discount)
+ * at the moment of checkout, ensuring historical financial transactions remain unaffected by subsequent
+ * source catalog modifications.
  */
 export class SaleItem {
   private readonly _id: SaleItemId;
   private readonly _source: SourceReference;
   private readonly _description: string;
   private readonly _skuOrCode: string | null;
-  private _quantity: number;
-  private _unitPrice: Money;
-  private _discount: Discount | null;
-  private _lineSubtotal: Money;
-  private _lineDiscountTotal: Money;
-  private _lineTotal: Money;
+  private readonly _quantity: number;
+  private readonly _unitPrice: Money;
+  private readonly _discount: Discount | null;
+  private readonly _subtotal: Money;
+  private readonly _discountTotal: Money;
+  private readonly _total: Money;
 
-  private constructor(props: ReconstituteSaleItemProps) {
+  private constructor(props: {
+    id: SaleItemId;
+    source: SourceReference;
+    description: string;
+    skuOrCode: string | null;
+    quantity: number;
+    unitPrice: Money;
+    discount: Discount | null;
+    subtotal: Money;
+    discountTotal: Money;
+    total: Money;
+  }) {
     this._id = props.id;
     this._source = props.source;
     this._description = props.description;
-    this._skuOrCode = props.skuOrCode ?? null;
+    this._skuOrCode = props.skuOrCode;
     this._quantity = props.quantity;
     this._unitPrice = props.unitPrice;
-    this._discount = props.discount ?? null;
-    this._lineSubtotal = props.lineSubtotal;
-    this._lineDiscountTotal = props.lineDiscountTotal;
-    this._lineTotal = props.lineTotal;
+    this._discount = props.discount;
+    this._subtotal = props.subtotal;
+    this._discountTotal = props.discountTotal;
+    this._total = props.total;
+    Object.freeze(this);
   }
 
+  /**
+   * Factory to create a new SaleItem with full domain invariant enforcement.
+   */
   public static create(props: CreateSaleItemProps): SaleItem {
     if (!props.source) {
       throw new InvalidSaleItemException('SourceReference is required for SaleItem.');
@@ -68,41 +88,115 @@ export class SaleItem {
       throw new InvalidSaleItemException('SaleItem description cannot be empty.');
     }
     SaleItem.assertValidQuantity(props.quantity);
-    if (!props.unitPrice || !(props.unitPrice instanceof Money)) {
-      throw new InvalidSaleItemException('SaleItem unitPrice must be a valid Money instance.');
+    SaleItem.assertValidUnitPrice(props.unitPrice);
+
+    if (
+      props.discount !== undefined &&
+      props.discount !== null &&
+      !(props.discount instanceof Discount)
+    ) {
+      throw new InvalidSaleItemException('SaleItem discount must be a valid Discount instance.');
     }
 
     const id = props.id ?? SaleItemId.create();
     const currency = props.unitPrice.currency;
-    const lineSubtotal = props.unitPrice.multiply(props.quantity);
-    const lineDiscountTotal = props.discount
-      ? props.discount.calculateReduction(lineSubtotal)
+    const normalizedQuantity = Math.round((props.quantity + Number.EPSILON) * 1000) / 1000;
+    const subtotal = props.unitPrice.multiply(normalizedQuantity);
+    const discountTotal = props.discount
+      ? props.discount.calculateReduction(subtotal)
       : Money.zero(currency);
-    const lineTotal = lineSubtotal.subtract(lineDiscountTotal);
+    const total = subtotal.subtract(discountTotal);
 
     return new SaleItem({
       id,
       source: props.source,
       description: props.description.trim(),
       skuOrCode: props.skuOrCode ? props.skuOrCode.trim() : null,
-      quantity: props.quantity,
+      quantity: normalizedQuantity,
       unitPrice: props.unitPrice,
       discount: props.discount ?? null,
-      lineSubtotal,
-      lineDiscountTotal,
-      lineTotal,
+      subtotal,
+      discountTotal,
+      total,
     });
   }
 
+  /**
+   * Reconstitutes an existing SaleItem from persistence, asserting exact mathematical reconciliation.
+   */
   public static reconstitute(props: ReconstituteSaleItemProps): SaleItem {
-    return new SaleItem(props);
+    if (!props.id) {
+      throw new InvalidSaleItemException('SaleItemId is required to reconstitute SaleItem.');
+    }
+    if (!props.source) {
+      throw new InvalidSaleItemException('SourceReference is required to reconstitute SaleItem.');
+    }
+    if (
+      !props.description ||
+      typeof props.description !== 'string' ||
+      props.description.trim().length === 0
+    ) {
+      throw new InvalidSaleItemException(
+        'Description cannot be empty when reconstituting SaleItem.',
+      );
+    }
+    SaleItem.assertValidQuantity(props.quantity);
+    SaleItem.assertValidUnitPrice(props.unitPrice);
+
+    const normalizedQuantity = Math.round((props.quantity + Number.EPSILON) * 1000) / 1000;
+    const currency = props.unitPrice.currency;
+    const expectedSubtotal = props.unitPrice.multiply(normalizedQuantity);
+    const expectedDiscountTotal = props.discount
+      ? props.discount.calculateReduction(expectedSubtotal)
+      : Money.zero(currency);
+    const expectedTotal = expectedSubtotal.subtract(expectedDiscountTotal);
+
+    const providedSubtotal = props.subtotal ?? props.lineSubtotal;
+    if (providedSubtotal && !providedSubtotal.equals(expectedSubtotal)) {
+      throw new InvalidSaleItemException(
+        `Persisted subtotal (${providedSubtotal}) does not reconcile with unitPrice * quantity (${expectedSubtotal}).`,
+      );
+    }
+
+    const providedDiscountTotal = props.discountTotal ?? props.lineDiscountTotal;
+    if (providedDiscountTotal && !providedDiscountTotal.equals(expectedDiscountTotal)) {
+      throw new InvalidSaleItemException(
+        `Persisted discountTotal (${providedDiscountTotal}) does not reconcile with discount reduction (${expectedDiscountTotal}).`,
+      );
+    }
+
+    const providedTotal = props.total ?? props.lineTotal;
+    if (providedTotal && !providedTotal.equals(expectedTotal)) {
+      throw new InvalidSaleItemException(
+        `Persisted total (${providedTotal}) does not reconcile with subtotal - discountTotal (${expectedTotal}).`,
+      );
+    }
+
+    return new SaleItem({
+      id: props.id,
+      source: props.source,
+      description: props.description.trim(),
+      skuOrCode: props.skuOrCode ? props.skuOrCode.trim() : null,
+      quantity: normalizedQuantity,
+      unitPrice: props.unitPrice,
+      discount: props.discount ?? null,
+      subtotal: expectedSubtotal,
+      discountTotal: expectedDiscountTotal,
+      total: expectedTotal,
+    });
   }
+
+  // --- Getters ---
 
   public get id(): SaleItemId {
     return this._id;
   }
 
   public get source(): SourceReference {
+    return this._source;
+  }
+
+  public get sourceReference(): SourceReference {
     return this._source;
   }
 
@@ -126,49 +220,107 @@ export class SaleItem {
     return this._discount;
   }
 
+  public get subtotal(): Money {
+    return this._subtotal;
+  }
+
+  public get discountTotal(): Money {
+    return this._discountTotal;
+  }
+
+  public get total(): Money {
+    return this._total;
+  }
+
+  // Compatibility aliases
   public get lineSubtotal(): Money {
-    return this._lineSubtotal;
+    return this._subtotal;
   }
 
   public get lineDiscountTotal(): Money {
-    return this._lineDiscountTotal;
+    return this._discountTotal;
   }
 
   public get lineTotal(): Money {
-    return this._lineTotal;
+    return this._total;
   }
 
-  public updateQuantity(newQuantity: number): void {
+  // --- Immutable Mutation Helpers ---
+
+  /**
+   * Returns a new SaleItem with updated quantity, preserving entity identity.
+   */
+  public withQuantity(newQuantity: number): SaleItem {
     SaleItem.assertValidQuantity(newQuantity);
-    this._quantity = newQuantity;
-    this.recalculateLineTotals();
+    return SaleItem.create({
+      id: this._id,
+      source: this._source,
+      description: this._description,
+      skuOrCode: this._skuOrCode,
+      quantity: newQuantity,
+      unitPrice: this._unitPrice,
+      discount: this._discount,
+    });
   }
 
-  public applyDiscount(discount: Discount): void {
-    if (!discount) {
-      throw new InvalidSaleItemException('Discount cannot be null or undefined.');
-    }
-    this._discount = discount;
-    this.recalculateLineTotals();
+  /**
+   * Returns a new SaleItem with updated line discount, preserving entity identity.
+   */
+  public withDiscount(discount: Discount | null): SaleItem {
+    return SaleItem.create({
+      id: this._id,
+      source: this._source,
+      description: this._description,
+      skuOrCode: this._skuOrCode,
+      quantity: this._quantity,
+      unitPrice: this._unitPrice,
+      discount,
+    });
   }
 
-  public removeDiscount(): void {
-    this._discount = null;
-    this.recalculateLineTotals();
+  /**
+   * @internal Convenience alias returning a new SaleItem with updated quantity.
+   */
+  public updateQuantity(newQuantity: number): SaleItem {
+    return this.withQuantity(newQuantity);
   }
 
-  private recalculateLineTotals(): void {
-    this._lineSubtotal = this._unitPrice.multiply(this._quantity);
-    this._lineDiscountTotal = this._discount
-      ? this._discount.calculateReduction(this._lineSubtotal)
-      : Money.zero(this._unitPrice.currency);
-    this._lineTotal = this._lineSubtotal.subtract(this._lineDiscountTotal);
+  /**
+   * @internal Convenience alias returning a new SaleItem with updated discount.
+   */
+  public applyDiscount(discount: Discount): SaleItem {
+    return this.withDiscount(discount);
   }
+
+  /**
+   * @internal Convenience alias returning a new SaleItem with discount removed.
+   */
+  public removeDiscount(): SaleItem {
+    return this.withDiscount(null);
+  }
+
+  // --- Invariant Validation Helpers ---
 
   private static assertValidQuantity(quantity: number): void {
-    if (typeof quantity !== 'number' || isNaN(quantity) || !isFinite(quantity) || quantity <= 0) {
+    if (typeof quantity !== 'number' || isNaN(quantity) || !isFinite(quantity)) {
       throw new InvalidSaleItemException(
-        `Quantity must be a finite positive number (> 0), got: ${quantity}.`,
+        `Quantity must be a valid finite number, got: ${quantity}.`,
+      );
+    }
+    if (quantity <= 0) {
+      throw new InvalidSaleItemException(
+        `Quantity must be strictly positive (> 0), got: ${quantity}.`,
+      );
+    }
+  }
+
+  private static assertValidUnitPrice(unitPrice: Money): void {
+    if (!unitPrice || !(unitPrice instanceof Money)) {
+      throw new InvalidSaleItemException('SaleItem unitPrice must be a valid Money instance.');
+    }
+    if (unitPrice.amount < 0) {
+      throw new InvalidSaleItemException(
+        `SaleItem unitPrice cannot be negative, got: ${unitPrice.amount}.`,
       );
     }
   }

@@ -149,9 +149,49 @@ export class Sale implements AggregateRoot<SaleId> {
   }
 
   /**
-   * Reconstitutes an existing Sale aggregate from persistence without emitting domain events.
+   * Reconstitutes an existing Sale aggregate from persistence, strictly guaranteeing
+   * that persisted snapshot totals reconcile with the sum of item subtotals and discounts.
    */
   public static reconstitute(props: ReconstituteSaleProps): Sale {
+    let calculatedSubtotal = Money.zero(props.currency);
+    let calculatedLineDiscounts = Money.zero(props.currency);
+
+    for (const item of props.items) {
+      if (item.unitPrice.currency !== props.currency) {
+        throw new InvalidSaleStateException(
+          `Item currency '${item.unitPrice.currency}' does not match Sale currency '${props.currency}'.`,
+        );
+      }
+      calculatedSubtotal = calculatedSubtotal.add(item.subtotal);
+      calculatedLineDiscounts = calculatedLineDiscounts.add(item.discountTotal);
+    }
+
+    const netPreOrderDisc = calculatedSubtotal.subtract(calculatedLineDiscounts);
+    const orderDiscountAmount = props.orderDiscount
+      ? props.orderDiscount.calculateReduction(netPreOrderDisc)
+      : Money.zero(props.currency);
+
+    const calculatedDiscountTotal = calculatedLineDiscounts.add(orderDiscountAmount);
+    const calculatedTotal = calculatedSubtotal.subtract(calculatedDiscountTotal);
+
+    if (!props.subtotal.equals(calculatedSubtotal)) {
+      throw new InvalidSaleStateException(
+        `Persisted subtotal (${props.subtotal}) does not reconcile with sum of item subtotals (${calculatedSubtotal}). Invariant violated.`,
+      );
+    }
+
+    if (!props.discountTotal.equals(calculatedDiscountTotal)) {
+      throw new InvalidSaleStateException(
+        `Persisted discountTotal (${props.discountTotal}) does not reconcile with calculated discount total (${calculatedDiscountTotal}). Invariant violated.`,
+      );
+    }
+
+    if (!props.total.equals(calculatedTotal)) {
+      throw new InvalidSaleStateException(
+        `Persisted total (${props.total}) does not reconcile with subtotal - discountTotal (${calculatedTotal}). Invariant violated.`,
+      );
+    }
+
     return new Sale(props);
   }
 
@@ -276,8 +316,63 @@ export class Sale implements AggregateRoot<SaleId> {
   ): void {
     this.assertDraftState();
 
-    const item = this.findItemOrThrow(itemId);
-    item.updateQuantity(newQuantity);
+    const idStr = typeof itemId === 'string' ? itemId : itemId.value;
+    const index = this._items.findIndex((item) => item.id.value === idStr);
+    if (index === -1) {
+      throw new InvalidSaleStateException(
+        `SaleItem with ID '${idStr}' not found in Sale '${this._id.value}'.`,
+      );
+    }
+
+    const currentItem = this._items[index]!;
+    this._items[index] = currentItem.withQuantity(newQuantity);
+    this.recalculateTotals();
+    this._updatedAt = clock.now();
+  }
+
+  /**
+   * Applies a line-item discount to a specific item. Permitted only while in DRAFT status.
+   */
+  public applyItemDiscount(
+    itemId: SaleItemId | string,
+    discount: Discount,
+    clock: Clock = new SystemClock(),
+  ): void {
+    this.assertDraftState();
+    if (!discount) {
+      throw new InvalidSaleStateException('Discount cannot be null or undefined.');
+    }
+
+    const idStr = typeof itemId === 'string' ? itemId : itemId.value;
+    const index = this._items.findIndex((item) => item.id.value === idStr);
+    if (index === -1) {
+      throw new InvalidSaleStateException(
+        `SaleItem with ID '${idStr}' not found in Sale '${this._id.value}'.`,
+      );
+    }
+
+    const currentItem = this._items[index]!;
+    this._items[index] = currentItem.withDiscount(discount);
+    this.recalculateTotals();
+    this._updatedAt = clock.now();
+  }
+
+  /**
+   * Removes a line-item discount from a specific item. Permitted only while in DRAFT status.
+   */
+  public removeItemDiscount(itemId: SaleItemId | string, clock: Clock = new SystemClock()): void {
+    this.assertDraftState();
+
+    const idStr = typeof itemId === 'string' ? itemId : itemId.value;
+    const index = this._items.findIndex((item) => item.id.value === idStr);
+    if (index === -1) {
+      throw new InvalidSaleStateException(
+        `SaleItem with ID '${idStr}' not found in Sale '${this._id.value}'.`,
+      );
+    }
+
+    const currentItem = this._items[index]!;
+    this._items[index] = currentItem.withDiscount(null);
     this.recalculateTotals();
     this._updatedAt = clock.now();
   }
@@ -441,17 +536,6 @@ export class Sale implements AggregateRoot<SaleId> {
     }
   }
 
-  private findItemOrThrow(itemId: SaleItemId | string): SaleItem {
-    const idStr = typeof itemId === 'string' ? itemId : itemId.value;
-    const item = this._items.find((i) => i.id.value === idStr);
-    if (!item) {
-      throw new InvalidSaleStateException(
-        `SaleItem with ID '${idStr}' not found in Sale '${this._id.value}'.`,
-      );
-    }
-    return item;
-  }
-
   /**
    * Recalculates all order totals according to the 13 exact reconciliation formulas:
    * 1. Subtotal = sum of lineSubtotals
@@ -466,8 +550,8 @@ export class Sale implements AggregateRoot<SaleId> {
     let totalLineDiscounts = Money.zero(this._currency);
 
     for (const item of this._items) {
-      subtotal = subtotal.add(item.lineSubtotal);
-      totalLineDiscounts = totalLineDiscounts.add(item.lineDiscountTotal);
+      subtotal = subtotal.add(item.subtotal);
+      totalLineDiscounts = totalLineDiscounts.add(item.discountTotal);
     }
 
     const netPreOrderDisc = subtotal.subtract(totalLineDiscounts);
