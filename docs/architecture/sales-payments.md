@@ -513,64 +513,86 @@ sequenceDiagram
 
 ## 8. Authorization & Security Boundary
 
-Authorization in Sales & Payments follows the established platform multi-layer security architecture:
+### 8.1 Authorization Architecture & Canonical Permissions
 
-```mermaid
-flowchart LR
-    REQ["HTTP Request"] --> AUTH_G["AuthenticationGuard<br/>(Validates JWT Bearer)"]
-    AUTH_G --> AUTHZ_G["AuthorizationGuard<br/>(Checks Permissions & Roles)"]
-    AUTHZ_G --> TENANT_G["TenantContextEnforcer<br/>(Injects tenantId)"]
-    TENANT_G --> CTRL["Sales & Payments Controller"]
-```
+In accordance with Phase 1 IAM architecture and ADR-0111, Sales & Payments defines fine-grained permissions using canonical dot-notation (`<resource>.<action>`):
 
-### 8.1 Alignment with Phase 1 Permission Catalog
+| Permission Code       | Classification            | Operational Capabilities                                                                                           | Minimum Role                                           |
+| :-------------------- | :------------------------ | :----------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------- |
+| **`sales.read`**      | **Read-Only**             | Query and view sales orders, cart items, order status, customer purchase histories.                                | `Receptionist`, `Trainer`, `Kitchen Staff`, `Owner`    |
+| **`sales.create`**    | **Transactional**         | Initiate checkout sessions, add/remove items to draft orders, apply standard promotional discounts within limits.  | `Receptionist`, `Kitchen Staff`, `Owner`               |
+| **`sales.manage`**    | **Financially Sensitive** | Apply discretionary discounts exceeding cashier thresholds (e.g. $> 15\%$), override prices, modify sale metadata. | `Manager`, `Owner`                                     |
+| **`sales.cancel`**    | **Destructive**           | Cancel or void a draft or finalized sale prior to fulfillment; record mandatory cancellation reason.               | `Receptionist` (drafts), `Manager`/`Owner` (finalized) |
+| **`payments.read`**   | **Read-Only**             | View payment transaction histories, tender methods, settlement timestamps, and payment statuses.                   | `Receptionist`, `Owner`                                |
+| **`payments.create`** | **Transactional**         | Record cash collection, trigger card terminal pre-authorization, capture electronic tender.                        | `Receptionist`, `Kitchen Staff` (POS), `Owner`         |
+| **`payments.manage`** | **Financially Sensitive** | Authorize compensating refunds, settle manual payment exceptions, process chargeback adjustments.                  | `Manager`, `Owner`                                     |
+| **`receipts.read`**   | **Read-Only**             | View and download customer receipt vouchers for settled transactions.                                              | `Receptionist`, `Trainer`, `Client` (own), `Owner`     |
+| **`receipts.manage`** | **Financially Sensitive** | Authorize receipt reprints, issue duplicate vouchers, generate fiscal credit notes.                                | `Receptionist` (standard reprint), `Owner`             |
 
-The platform IAM catalog (`prisma/seeds/identity.seed.ts`) already reserves the `Billing` domain namespace. Phase 7 maps directly to these established permissions and introduces fine-grained operational permissions:
+#### Backward Compatibility Mapping
 
-| Permission Code     | Description                                                      | Role Assignments                     |
-| :------------------ | :--------------------------------------------------------------- | :----------------------------------- |
-| **`billing.read`**  | View sales orders, checkout history, payments, and receipts      | `Owner`, `Receptionist`, `Manager`   |
-| **`billing.write`** | Create sales orders, add items, process tenders, issue receipts  | `Owner`, `Receptionist`              |
-| **`sales.refund`**  | Authorize and execute transaction refunds or order cancellations | `Owner` (Restricted least-privilege) |
-| **`reports.read`**  | View aggregate commercial revenue and daily register totals      | `Owner`, `Manager`                   |
+- `billing.read` implies `sales.read`, `payments.read`, and `receipts.read`.
+- `billing.write` implies `sales.create` and `payments.create`.
 
-### 8.2 Object-Level & Commercial Masking Policies
+### 8.2 Multi-Tenant Organization Isolation Guards
 
-In accordance with Kinergy's least-privilege principles (established in ADR-0074):
+To guarantee absolute isolation between organizations:
 
-1. **Clinical Staff Masking**: Kinesiologists and fitness trainers do not have access to point-of-sale checkout screens, daily cash register totals, or payment transaction histories.
-2. **Payment Instrument Masking**: Cardholder payment details (credit/debit card numbers) are **never** stored in Kinergy database tables. Only non-sensitive payment metadata (card brand, last 4 digits, gateway reference ID) may be persisted.
+1. **Cross-Tenant Sale Access Guard**: Repository queries enforce `where: { id, tenantId }`. Domain handlers assert `sale.tenantId === context.tenantId`.
+2. **Cross-Tenant Payment Access Guard**: Settle and capture commands verify `payment.tenantId === context.tenantId` AND `sale.tenantId === payment.tenantId`.
+3. **Cross-Tenant Receipt Access Guard**: Receipts are partitioned by `tenantId`. Sequential receipt numbers (`REC-2026-XXXX`) advance monotonically within each tenant's namespace.
+4. **Cross-Tenant SourceReference Guard**: Capability query ports resolving catalog items (`INVENTORY_ITEM`, `MEMBERSHIP_PLAN`, `TREATMENT_SESSION`) assert `sourceItem.tenantId === context.tenantId`. Cross-tenant checkout attempts are rejected with `TenantMismatchException`.
+
+### 8.3 Zero Client Trust & Actor Propagation
+
+- Transport controllers **never accept** `actorId`, `userId`, or `tenantId` in request bodies.
+- Actor identities are extracted from verified JWT tokens (`@CurrentUser()`) and injected directly into CQRS commands.
 
 ---
 
-## 9. Audit & Financial History Boundary
+## 9. Audit & Telemetry Architecture
 
-Sales & Payments must enforce a rigorous separation between three distinct categories of logging:
+Sales & Payments strictly segregates events across three logging tiers to prevent audit bloat while maintaining immutable financial accountability:
 
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
-│                        AUDIT TAXONOMY IN SALES                         │
+│                        THREE-TIER LOGGING TAXONOMY                     │
 │                                                                        │
-│  1. COMMERCIAL BUSINESS HISTORY (Sale Lifecycle)                       │
-│  - When was the order created? By which cashier?                       │
-│  - Which items were added, modified, or removed in DRAFT state?        │
-│  - What discounts were applied and what was the recorded justification?│
-│  - When was the order finalized or cancelled?                          │
+│  1. BUSINESS AUDIT (Append-Only Event Store / Compliance)              │
+│     "What financially meaningful action occurred?"                     │
+│     • Sale Finalized       • Payment Settled     • Receipt Issued      │
+│     • Sale Cancelled       • Refund Executed     • Discount Override   │
 │                                                                        │
-│  2. FINANCIAL SETTLEMENT AUDIT (Payment Ledger)                        │
-│  - Immutable append-only log of every payment attempt.                 │
-│  - Method, amount, currency, gateway authorization code.               │
-│  - Timestamp, cashier identity, terminal/register identifier.          │
-│  - Refund events with cross-reference to original payment.             │
+│  2. APPLICATION LOGGING (Pino / CloudWatch / Datadog)                  │
+│     "What did the software do?"                                        │
+│     • Draft item added     • Cache hit/miss      • HTTP 200 response   │
+│     • Draft quantity edit  • DB query duration   • Gateway timeout     │
 │                                                                        │
-│  3. TECHNICAL & SECURITY TELEMETRY (Platform Infrastructure)           │
-│  - Gateway API request/response latencies and error codes.             │
-│  - Security events: Unauthorized refund attempts, rate limit breaches. │
-│  - Sensitive PAN/CVV data strictly sanitized/omitted per PCI-DSS.      │
+│  3. SECURITY LOGGING (SIEM / Security Event Publisher)                 │
+│     "Who attempted a protected or suspicious action?"                  │
+│     • Access Denied (403)  • Cross-tenant probe  • Unauthenticated     │
+│     • Token Replay         • Excess failed PIN   • Webhook signature   │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-### Invariant: Financial Ledgers are Append-Only
+### 9.1 Evaluated Events & Audit Classification
+
+- **Draft Cart Churn (`SaleItemAddedToDraft`, `SaleItemQuantityChangedInDraft`)**: Application log only. Pre-finalization cart updates carry zero financial commitment. Logging draft churn pollutes the permanent audit ledger.
+- **Order Finalization (`SaleFinalized`)**: **Business Audit**. Permanently locks commercial items, prices, discounts, and order totals.
+- **Settlement (`PaymentSettled`)**: **Business Audit**. Records funds captured, tender type, and cashier/terminal attribution.
+- **Exceptions (`SaleCancelled`, `PaymentRefunded`)**: **Business Audit**. Records mandatory justification and authorizing manager ID.
+- **Failures (`PaymentFailed`)**: **Security & Operational Log**. Preserves gateway decline reason code for fraud monitoring.
+
+### 9.2 Sensitive Payment Information Protection (PCI-DSS)
+
+1. **Never Logged, Never Stored**:
+   - Primary Account Numbers (PAN / full 16 digits).
+   - Sensitive Authentication Data (SAD): CVV/CVC, expiration dates, terminal PINs.
+   - Provider secrets: Gateway API keys, webhook signing secrets.
+2. **Permitted Cardholder Data**: Last 4 digits (`**** 4242`), card brand (`VISA`), and gateway transaction reference ID.
+3. **Transport Masking**: All logging interceptors sanitize request and audit payloads with regex pattern matching.
+
+### 9.3 Invariant: Financial Ledgers are Append-Only
 
 Under no circumstances may a `Payment` record or `Receipt` record be deleted (`DELETE`) or retroactively altered (`UPDATE`) in the database. Correction of an erroneously recorded payment must be executed via an explicit compensating transaction (`VOID` or `REFUND`).
 

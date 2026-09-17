@@ -526,7 +526,90 @@ stateDiagram-v2
 
 ---
 
-## 6. Non-Negotiable Domain Invariants & Cross-Domain Contract
+## 6. Authorization & Access Control Architecture
+
+In accordance with Phase 1 IAM standards and ADR-0111, Sales & Payments enforces fine-grained role-based permissions using canonical dot-notation:
+
+### 6.1 Permission Catalog & Action Classification
+
+| Permission Code       | Classification            | Operational Capabilities                                                                                           | Minimum Role                                           |
+| :-------------------- | :------------------------ | :----------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------- |
+| **`sales.read`**      | **Read-Only**             | Query and view sales orders, cart items, order status, customer purchase histories.                                | `Receptionist`, `Trainer`, `Kitchen Staff`, `Owner`    |
+| **`sales.create`**    | **Transactional**         | Initiate checkout sessions, add/remove items to draft orders, apply standard promotional discounts within limits.  | `Receptionist`, `Kitchen Staff`, `Owner`               |
+| **`sales.manage`**    | **Financially Sensitive** | Apply discretionary discounts exceeding cashier thresholds (e.g. $> 15\%$), override prices, modify sale metadata. | `Manager`, `Owner`                                     |
+| **`sales.cancel`**    | **Destructive**           | Cancel or void a draft or finalized sale prior to fulfillment; record mandatory cancellation reason.               | `Receptionist` (drafts), `Manager`/`Owner` (finalized) |
+| **`payments.read`**   | **Read-Only**             | View payment transaction histories, tender methods, settlement timestamps, and payment statuses.                   | `Receptionist`, `Owner`                                |
+| **`payments.create`** | **Transactional**         | Record cash collection, trigger card terminal pre-authorization, capture electronic tender.                        | `Receptionist`, `Kitchen Staff` (POS), `Owner`         |
+| **`payments.manage`** | **Financially Sensitive** | Authorize compensating refunds, settle manual payment exceptions, process chargeback adjustments.                  | `Manager`, `Owner`                                     |
+| **`receipts.read`**   | **Read-Only**             | View and download customer receipt vouchers for settled transactions.                                              | `Receptionist`, `Trainer`, `Client` (own), `Owner`     |
+| **`receipts.manage`** | **Financially Sensitive** | Authorize receipt reprints, issue duplicate vouchers, generate fiscal credit notes.                                | `Receptionist` (standard reprint), `Owner`             |
+
+#### Backward Compatibility
+
+- `billing.read` implies `sales.read`, `payments.read`, and `receipts.read`.
+- `billing.write` implies `sales.create` and `payments.create`.
+
+### 6.2 Multi-Tenant Organization Isolation Guards
+
+To guarantee absolute isolation between organizations:
+
+1. **Cross-Tenant Sale Access Guard**: Repository queries enforce `where: { id, tenantId }`. Domain handlers assert `sale.tenantId === context.tenantId`.
+2. **Cross-Tenant Payment Access Guard**: Settle and capture commands verify `payment.tenantId === context.tenantId` AND `sale.tenantId === payment.tenantId`.
+3. **Cross-Tenant Receipt Access Guard**: Receipts are partitioned by `tenantId`. Sequential receipt numbers (`REC-2026-XXXX`) advance monotonically within each tenant's namespace.
+4. **Cross-Tenant SourceReference Guard**: Capability query ports resolving catalog items (`INVENTORY_ITEM`, `MEMBERSHIP_PLAN`, `TREATMENT_SESSION`) assert `sourceItem.tenantId === context.tenantId`. Cross-tenant checkout attempts are rejected with `TenantMismatchException`.
+
+### 6.3 Zero Client Trust & Actor Propagation
+
+- Transport controllers **never accept** `actorId`, `userId`, or `tenantId` in request bodies.
+- Actor identities are extracted from verified JWT tokens (`@CurrentUser()`) and injected directly into CQRS commands.
+
+---
+
+## 7. Audit Boundaries & Sensitive Information Protection
+
+Sales & Payments strictly segregates events across three logging tiers to prevent audit bloat while maintaining immutable financial accountability:
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│                        THREE-TIER LOGGING TAXONOMY                     │
+│                                                                        │
+│  1. BUSINESS AUDIT (Append-Only Event Store / Compliance)              │
+│     "What financially meaningful action occurred?"                     │
+│     • Sale Finalized       • Payment Settled     • Receipt Issued      │
+│     • Sale Cancelled       • Refund Executed     • Discount Override   │
+│                                                                        │
+│  2. APPLICATION LOGGING (Pino / CloudWatch / Datadog)                  │
+│     "What did the software do?"                                        │
+│     • Draft item added     • Cache hit/miss      • HTTP 200 response   │
+│     • Draft quantity edit  • DB query duration   • Gateway timeout     │
+│                                                                        │
+│  3. SECURITY LOGGING (SIEM / Security Event Publisher)                 │
+│     "Who attempted a protected or suspicious action?"                  │
+│     • Access Denied (403)  • Cross-tenant probe  • Unauthenticated     │
+│     • Token Replay         • Excess failed PIN   • Webhook signature   │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+### 7.1 Evaluated Events & Audit Classification
+
+- **Draft Cart Churn (`SaleItemAddedToDraft`, `SaleItemQuantityChangedInDraft`)**: Application log only. Pre-finalization cart updates carry zero financial commitment. Logging draft churn pollutes the permanent audit ledger.
+- **Order Finalization (`SaleFinalized`)**: **Business Audit**. Permanently locks commercial items, prices, discounts, and order totals.
+- **Settlement (`PaymentSettled`)**: **Business Audit**. Records funds captured, tender type, and cashier/terminal attribution.
+- **Exceptions (`SaleCancelled`, `PaymentRefunded`)**: **Business Audit**. Records mandatory justification and authorizing manager ID.
+- **Failures (`PaymentFailed`)**: **Security & Operational Log**. Preserves gateway decline reason code for fraud monitoring.
+
+### 7.2 Sensitive Payment Information Protection (PCI-DSS)
+
+1. **Never Logged, Never Stored**:
+   - Primary Account Numbers (PAN / full 16 digits).
+   - Sensitive Authentication Data (SAD): CVV/CVC, expiration dates, terminal PINs.
+   - Provider secrets: Gateway API keys, webhook signing secrets.
+2. **Permitted Cardholder Data**: Last 4 digits (`**** 4242`), card brand (`VISA`), and gateway transaction reference ID.
+3. **Transport Masking**: All logging interceptors sanitize request and audit payloads with regex pattern matching.
+
+---
+
+## 8. Non-Negotiable Domain Invariants & Cross-Domain Contract
 
 The following invariants are fundamental business laws of Kinergy. Any proposed code change that violates these rules must be rejected by architecture and automated domain tests:
 
@@ -590,7 +673,7 @@ The following invariants are fundamental business laws of Kinergy. Any proposed 
 
 ---
 
-## 7. Business Traceability Matrix
+## 9. Business Traceability Matrix
 
 This matrix maps high-level business requirements to conceptual domain rules and anticipated application use cases:
 
@@ -611,7 +694,7 @@ This matrix maps high-level business requirements to conceptual domain rules and
 
 ---
 
-## 8. Explicit Non-Goals for Phase 7.0
+## 10. Explicit Non-Goals for Phase 7.0
 
 To maintain laser focus on domain modeling, the following areas are strictly **OUT OF SCOPE** for this milestone:
 
