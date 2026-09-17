@@ -2,7 +2,7 @@
 
 - **Document**: `docs/domain/sales-payments.md`
 - **Status**: Authoritative Domain Source of Truth
-- **Milestone**: Phase 7.0 — Domain Modeling & Invariant Specification
+- **Milestone**: Phase 7.1 — Sale Domain Implementation & Invariant Synchronization
 - **Role**: Principal Domain Designer / Staff Platform Architect
 - **Date**: 2026-09-17
 
@@ -67,34 +67,45 @@ This specification defines the ubiquitous domain language, aggregate boundaries,
 
 #### Identity & Multi-Tenancy
 
-- **`id: SaleId`**: Canonical UUID uniquely identifying the sale within the platform.
-- **`tenantId: TenantId`**: Strict organization boundary. A sale belongs to exactly one tenant; cross-tenant operations are strictly forbidden.
-- **`branchId?: BranchId`**: Optional facility/branch identifier for multi-location operations.
-- **`clientId?: ClientId`**: Optional reference to a registered Client (Phase 2). If omitted, the sale represents an anonymous front-desk walk-in customer.
-- **`cashierId: UserId`**: Reference to the authenticated IAM user who initiated and managed the sale.
+- **`id: SaleId`**: Canonical Value Object uniquely identifying the sale within the platform (`SaleId.create()` or `SaleId.fromString()`).
+- **`tenantId?: string`**: Organization boundary. An unconstrained scalar string identifying the tenant; cross-tenant operations are strictly forbidden. Optional during domain instantiation, strictly enforced at application/repository boundaries.
+- **`clientId?: string`**: Optional reference to a registered Client (Phase 2). Omitting `clientId` models an anonymous front-desk walk-in retail purchase without CRM pollution.
+- **`currency: string`**: Normalized 3-letter uppercase ISO-4217 standard currency code (e.g. `"USD"`, `"CAD"`).
+- **`source: SourceReference`**: Value Object establishing the loose commercial origin (`sourceType`, `sourceId`, `sourceCode?`).
+- **`status: SaleStatus`**: 7 canonical lifecycle states (`DRAFT`, `PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, `CANCELLED`, `REFUNDED`).
+- **`version: number`**: Integer counter ($\ge 1$) for Optimistic Concurrency Control (OCC), incremented on every lifecycle transition.
+- **Actor Attribution**: Note that authenticated staff attribution (`cashierId`) is supplied to application command handlers and captured in domain events (`SaleCreatedEvent`, etc.) rather than stored as an internal state field of the aggregate root itself.
 
-#### Aggregate Root Responsibility
+#### Aggregate Root Responsibility & Encapsulation
 
-`Sale` is the **sole gateway** for mutating order state. External consumers cannot manipulate `SaleItem` entities directly; all line item additions, quantity adjustments, and discount evaluations must execute through methods on `Sale` (`addItem()`, `updateItemQuantity()`, `removeItem()`, `applyOrderDiscount()`).
+`Sale` is the **sole gateway** for mutating order state. External consumers cannot manipulate `SaleItem` entities directly; all line item additions, quantity adjustments, and discount evaluations must execute through methods on `Sale`:
+
+- **Line Item Mutations**: `addItem(props, clock?)`, `updateItemQuantity(itemId, qty, clock?)`, `removeItem(itemId, clock?)`
+- **Discounts**: `applyItemDiscount(itemId, discount, clock?)`, `removeItemDiscount(itemId, clock?)`, `applyOrderDiscount(discount, clock?)`, `removeOrderDiscount(clock?)`
+- **Lifecycle Transitions**: `finalize(clock?)`, `markPartiallyPaid(clock?)`, `markPaid(clock?)`, `markCompleted(clock?)`, `markRefunded(reason?, clock?)`, `cancel(reason, clock?)`
+- **Event Sourcing / Outbox**: `getUncommittedEvents()`, `clearEvents()`
+- **Collection Safety & Defensive Copies**: The `items` getter returns `ReadonlyArray<SaleItem>` backed by `Object.freeze([...this._items])`. Mutating the returned array fails at runtime without affecting the aggregate's internal state. Date getters return defensive clones (`new Date(time)`).
 
 #### Invariants Enforced by `Sale`
 
-1. **Empty Order Prohibition**: A sale cannot transition out of `DRAFT` to `PENDING_PAYMENT` or `PAID` with zero items.
-2. **Monetary Non-Negativity**: The net total payable amount ($\text{total}$) must be $\ge 0$. Under no circumstances may discounts or promotions produce a negative sale total.
-3. **Currency Homogeneity**: Every `SaleItem`, order discount, and tax calculation within a `Sale` must share the identical ISO-4217 currency.
-4. **Commercial Locking**: Once a `Sale` transitions into `PAID`, `PARTIALLY_PAID`, `COMPLETED`, `CANCELLED`, or `REFUNDED`, line items cannot be added, modified, or removed.
-5. **Reconciliation Invariant**:
-   $$\text{Subtotal} = \sum (\text{SaleItem.lineSubtotal})$$
-   $$\text{TotalDiscount} = \sum (\text{SaleItem.discountAmount}) + \text{OrderDiscount.amount}$$
-   $$\text{TaxTotal} = \sum (\text{SaleItem.taxAmount})$$
-   $$\text{Total} = \max(0, \text{Subtotal} - \text{TotalDiscount} + \text{TaxTotal})$$
-   $$\text{BalanceRemaining} = \max(0, \text{Total} - \text{TotalSettledPayments})$$
+1. **Empty Order Prohibition**: A sale cannot transition out of `DRAFT` to `PENDING_PAYMENT` with zero items (`Sale.finalize()` throws `EmptySaleException` with code `'EMPTY_SALE'`).
+2. **Monetary Non-Negativity**: The net total payable amount (`total`) must always be $\ge 0.00$. Line and order discounts are capped at the corresponding subtotal.
+3. **Currency Homogeneity**: Every `SaleItem`, order discount, subtotal, and total within a `Sale` must share the identical ISO-4217 currency. Attempting to add an item with a mismatched currency throws `InvalidSaleStateException`.
+4. **Commercial Locking**: Once a `Sale` departs `DRAFT` (into `PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, `CANCELLED`, or `REFUNDED`), cart mutations (`addItem`, `removeItem`, `updateItemQuantity`, discounts) throw `SaleAlreadyFinalizedException` with code `'SALE_ALREADY_FINALIZED'`.
+5. **Deterministic Reconciliation Invariant**:
+   $$\text{Subtotal} = \sum (\text{SaleItem.subtotal})$$
+   $$\text{TotalLineDiscounts} = \sum (\text{SaleItem.discountTotal})$$
+   $$\text{NetPreOrderDiscount} = \text{Subtotal} - \text{TotalLineDiscounts}$$
+   $$\text{OrderDiscountAmount} = \min(\text{NetPreOrderDiscount}, \text{orderDiscount.calculateReduction}(\text{NetPreOrderDiscount}))$$
+   $$\text{DiscountTotal} = \text{TotalLineDiscounts} + \text{OrderDiscountAmount}$$
+   $$\text{Total} = \max(0, \text{Subtotal} - \text{DiscountTotal})$$
+6. **Cancellation Reason Invariant**: A sale can only be cancelled from `DRAFT`, `PENDING_PAYMENT`, or `PARTIALLY_PAID` and requires a non-empty `cancellationReason` string (`InvalidSaleStateException` with code `'INVALID_CANCELLATION_REASON'`).
 
 #### Field Mutability Classification
 
-- **Permanently Immutable (set at creation)**: `id`, `tenantId`, `createdAt`.
-- **Conditionally Mutable (only while `status == DRAFT`)**: `clientId`, `items`, `orderDiscount`, `notes`.
-- **Lifecycle Mutable (via explicit domain transitions)**: `status`, `completedAt`, `cancelledAt`, `cancellationReason`, `version`, `updatedAt`.
+- **Permanently Immutable (set at creation)**: `id`, `tenantId`, `currency`, `source`, `createdAt`.
+- **Conditionally Mutable (only while `status == DRAFT`)**: `clientId`, `items`, `orderDiscount`.
+- **Lifecycle Mutable (via explicit domain methods)**: `status`, `completedAt`, `cancelledAt`, `cancellationReason`, `refundedAt`, `version`, `updatedAt`.
 
 ---
 
@@ -102,16 +113,27 @@ This specification defines the ubiquitous domain language, aggregate boundaries,
 
 #### Ownership & Lifecycle
 
-`SaleItem` is an **internal entity** exclusively owned by the `Sale` aggregate. It has no independent global existence, no standalone repository, and cannot be accessed, queried, or updated outside of its parent `Sale`.
+`SaleItem` is an **internal child entity** exclusively owned by the `Sale` aggregate. It has no independent global existence, no standalone repository, and cannot be accessed, queried, or updated outside of its parent `Sale`.
 
 #### Quantities & Pricing
 
-- **`quantity: number`**: Finite positive decimal or integer ($> 0$). Supports fractional quantities for weighted consumables (e.g. bulk nutrition powders, grams) or integers for discrete items (bottles, memberships).
-- **`unitPrice: Money`**: The gross unit price agreed upon at checkout.
-- **`itemDiscount?: Discount`**: Optional line-item specific discount.
-- **`taxRate?: TaxRate`**: Applicable tax rate applied to this specific item.
-- **`lineSubtotal: Money`**: $\text{quantity} \times \text{unitPrice}$.
-- **`lineTotal: Money`**: $\max(0, \text{lineSubtotal} - \text{discountAmount}) + \text{taxAmount}$.
+- **`id: SaleItemId`**: Canonical Value Object uniquely identifying the line item within the sale.
+- **`source: SourceReference`**: Value Object capturing origin entity (`sourceType`, `sourceId`, `sourceCode?`). Also accessible via alias `sourceReference`.
+- **`description: string`**: Non-empty trimmed text snapshot of the purchased good or service.
+- **`skuOrCode: string | null`**: Snapshot of the catalog SKU, plan code, or billing code.
+- **`quantity: number`**: Finite positive decimal or integer ($> 0$), normalized to 3 decimal places (`Math.round((quantity + Number.EPSILON) * 1000) / 1000`). Quantities rounding to $\le 0$ throw `InvalidSaleItemException`.
+- **`unitPrice: Money`**: Non-negative gross unit price snapshot agreed upon at checkout.
+- **`discount: Discount | null`**: Optional line-item specific discount Value Object.
+- **`subtotal: Money`** (alias: `lineSubtotal`): $\text{unitPrice.multiply(quantity)}$.
+- **`discountTotal: Money`** (alias: `lineDiscountTotal`): $\min(\text{subtotal}, \text{discount.calculateReduction(subtotal)})$.
+- **`total: Money`** (alias: `lineTotal`): $\text{subtotal.subtract(discountTotal)}$.
+
+#### Immutability & Safe Updating
+
+`SaleItem` instances are deeply frozen at construction (`Object.freeze(this)`). Updates are purely functional, returning new `SaleItem` instances preserving entity identity:
+
+- `withQuantity(newQuantity)`: Returns a new `SaleItem` with updated quantity, recalculating line subtotal, discount, and total.
+- `withDiscount(newDiscount)`: Returns a new `SaleItem` with updated discount, recalculating line discount and total.
 
 #### The Permanent Snapshotting Requirement
 
@@ -135,7 +157,8 @@ This specification defines the ubiquitous domain language, aggregate boundaries,
 > - `description`: Exact text label (e.g., `"1-Month Standard Membership Plan"`, `"Optimum Whey Protein 2lb"`).
 > - `skuOrCode`: Source SKU or business code at the moment of sale (e.g., `"PLAN-MTH-STD"`, `"PROT-WHEY-01"`).
 > - `unitPrice`: Exact price snapshot.
-> - `taxRate`: Exact tax percentage snapshot.
+> - `quantity`: Exact quantity purchased.
+> - `discount`: Line discount snapshot.
 
 ---
 
@@ -418,40 +441,67 @@ The `Sale` lifecycle governs the **commercial contract and fulfillment status** 
 
 ```mermaid
 stateDiagram-v2
-    [*] --> DRAFT : createSale()
+    [*] --> DRAFT : create()
 
-    DRAFT --> DRAFT : addItem() / removeItem() / applyDiscount()
+    DRAFT --> DRAFT : addItem() / removeItem() / updateItemQuantity() / applyDiscount()
     DRAFT --> CANCELLED : cancel(reason)
-    DRAFT --> PENDING_PAYMENT : finalizeOrder()
+    DRAFT --> PENDING_PAYMENT : finalize() [items.length >= 1]
 
-    PENDING_PAYMENT --> PAID : recordPayment() [Balance == 0]
-    PENDING_PAYMENT --> PARTIALLY_PAID : recordPayment() [Balance > 0]
+    PENDING_PAYMENT --> PARTIALLY_PAID : markPartiallyPaid()
+    PENDING_PAYMENT --> PAID : markPaid()
     PENDING_PAYMENT --> CANCELLED : cancel(reason)
 
-    PARTIALLY_PAID --> PAID : recordPayment() [Balance == 0]
-    PARTIALLY_PAID --> CANCELLED : cancelWithRefund()
+    PARTIALLY_PAID --> PAID : markPaid()
+    PARTIALLY_PAID --> CANCELLED : cancel(reason)
 
-    PAID --> COMPLETED : fulfillAllItems()
-    PAID --> REFUNDED : refund(full)
-    PAID --> PARTIALLY_REFUNDED : refund(partial)
+    PAID --> COMPLETED : markCompleted()
+    PAID --> REFUNDED : markRefunded(reason?)
 
-    COMPLETED --> REFUNDED : refund(full)
-    COMPLETED --> PARTIALLY_REFUNDED : refund(partial)
+    COMPLETED --> REFUNDED : markRefunded(reason?)
 
     CANCELLED --> [*]
     REFUNDED --> [*]
-    COMPLETED --> [*]
 ```
 
-#### Sale Lifecycle States Defined
+#### Sale Lifecycle States Defined (7 Canonical States)
 
-- **`DRAFT`**: Active checkout session. Cashiers may add, remove, or modify items, adjust quantities, and apply discretionary discounts. No customer payment obligation exists.
-- **`PENDING_PAYMENT` (Finalized / Unpaid)**: The cashier has finalized the order. All commercial line items, prices, discounts, and order totals are **permanently frozen**. The customer is presented with the final net payable balance. If payment terms apply (e.g. corporate invoicing), this represents an uncollected balance.
-- **`PARTIALLY_PAID`**: At least one payment has settled ($> 0$), but $\text{balanceRemaining} > 0$. Goods or service fulfillment may be held or restricted depending on business line policy.
-- **`PAID`**: All outstanding balances are settled ($\text{balanceRemaining} == 0$). Legal receipt generation is triggered.
-- **`COMPLETED`**: The sale is both fully paid AND all physical inventory has been decremented and service memberships activated.
-- **`CANCELLED`**: The order was voided prior to payment, or abandoned. No further operations permitted.
-- **`REFUNDED` / `PARTIALLY_REFUNDED`**: Post-settlement compensating transactions have reversed part or all of the collected funds.
+Phase 7.1 strictly implements 7 canonical lifecycle states via `SaleStatus`:
+
+- **`DRAFT`**: Active checkout session. Cashiers may add, remove, or modify items, adjust quantities, and apply discretionary line/order discounts. No customer payment obligation exists.
+- **`PENDING_PAYMENT` (Finalized / Unpaid)**: The cashier has finalized the order via `finalize()`. All commercial line items, quantities, prices, discounts, and order totals are **permanently frozen**. The customer is presented with the final net payable total.
+- **`PARTIALLY_PAID`**: At least one payment tender has settled ($> 0$), but outstanding balance remains. Fulfillment of physical items or gym memberships is withheld pending full settlement.
+- **`PAID`**: All outstanding commercial balance is fully settled. Legal customer receipt voucher issuance is unlocked.
+- **`COMPLETED`**: Commercial agreement is settled AND all physical goods have been decremented and service memberships activated via `markCompleted()`. Sets `completedAt`.
+- **`CANCELLED`**: Commercial transaction voided or abandoned via `cancel(reason)`. Allowed only from `DRAFT`, `PENDING_PAYMENT`, or `PARTIALLY_PAID`. Sets `cancelledAt` and `cancellationReason`. Strictly terminal.
+- **`REFUNDED`**: Full compensating reversal executed via `markRefunded(reason?)`. Allowed from `PAID` or `COMPLETED`. Sets `refundedAt`. Strictly terminal.
+
+#### Formal Sale State Transition Matrix
+
+The table below exhaustively defines every permitted and forbidden state transition for `Sale`:
+
+| Source State      | Target State      | Trigger Method              | Allowed? | Invariants & Preconditions                                                          | Rejection Error Code          |
+| :---------------- | :---------------- | :-------------------------- | :------: | :---------------------------------------------------------------------------------- | :---------------------------- |
+| `[*]`             | `DRAFT`           | `Sale.create()`             | **YES**  | Valid `SourceReference`, valid ISO currency, optional `clientId` and `tenantId`.    | `INVALID_SALE_STATE`          |
+| `DRAFT`           | `PENDING_PAYMENT` | `sale.finalize()`           | **YES**  | Requires $\ge 1$ line item (`items.length > 0`). Commercial terms permanently lock. | `EMPTY_SALE`                  |
+| `DRAFT`           | `CANCELLED`       | `sale.cancel(reason)`       | **YES**  | Requires non-empty string `reason`.                                                 | `INVALID_CANCELLATION_REASON` |
+| `DRAFT`           | `PAID`            | `sale.markPaid()`           |  **NO**  | Order must be finalized prior to payment settlement.                                | `INVALID_SALE_TRANSITION`     |
+| `DRAFT`           | `COMPLETED`       | `sale.markCompleted()`      |  **NO**  | Must be finalized and paid first.                                                   | `INVALID_SALE_TRANSITION`     |
+| `PENDING_PAYMENT` | `PARTIALLY_PAID`  | `sale.markPartiallyPaid()`  | **YES**  | Triggered upon partial payment tender settlement.                                   | `INVALID_SALE_TRANSITION`     |
+| `PENDING_PAYMENT` | `PAID`            | `sale.markPaid()`           | **YES**  | Triggered upon full payment tender settlement.                                      | `INVALID_SALE_TRANSITION`     |
+| `PENDING_PAYMENT` | `CANCELLED`       | `sale.cancel(reason)`       | **YES**  | Requires non-empty `reason`. Voids order before payment capture.                    | `INVALID_CANCELLATION_REASON` |
+| `PENDING_PAYMENT` | `DRAFT`           | —                           |  **NO**  | Commercial terms cannot be un-finalized.                                            | `INVALID_SALE_TRANSITION`     |
+| `PARTIALLY_PAID`  | `PAID`            | `sale.markPaid()`           | **YES**  | Triggered when remaining balance is settled.                                        | `INVALID_SALE_TRANSITION`     |
+| `PARTIALLY_PAID`  | `CANCELLED`       | `sale.cancel(reason)`       | **YES**  | Requires non-empty `reason`. Application layer coordinates tender refund.           | `INVALID_CANCELLATION_REASON` |
+| `PARTIALLY_PAID`  | `DRAFT`           | —                           |  **NO**  | Cannot revert partially paid commercial order.                                      | `INVALID_SALE_TRANSITION`     |
+| `PAID`            | `COMPLETED`       | `sale.markCompleted()`      | **YES**  | Outbound fulfillment ports confirm stock deduction and membership activation.       | `INVALID_SALE_TRANSITION`     |
+| `PAID`            | `REFUNDED`        | `sale.markRefunded(reason)` | **YES**  | Full compensating refund processed. Sets `refundedAt`.                              | `INVALID_REFUND_REASON`       |
+| `PAID`            | `CANCELLED`       | `sale.cancel(reason)`       |  **NO**  | Paid sales must be refunded, not cancelled.                                         | `INVALID_SALE_TRANSITION`     |
+| `COMPLETED`       | `REFUNDED`        | `sale.markRefunded(reason)` | **YES**  | Compensating reversal after order completion. Sets `refundedAt`.                    | `INVALID_REFUND_REASON`       |
+| `COMPLETED`       | `*` (Other)       | Any                         |  **NO**  | Terminal state except for compensating refund.                                      | `INVALID_SALE_TRANSITION`     |
+| `CANCELLED`       | `*` (Any)         | Any                         |  **NO**  | Strictly terminal. Zero transitions permitted.                                      | `INVALID_SALE_TRANSITION`     |
+| `REFUNDED`        | `*` (Any)         | Any                         |  **NO**  | Strictly terminal. Zero transitions permitted.                                      | `INVALID_SALE_TRANSITION`     |
+
+---
 
 #### Separation of Concerns: Sale Lifecycle vs. Payment Lifecycle
 
@@ -523,6 +573,75 @@ stateDiagram-v2
 | :--------------------- | :----------- | :------------ | :------------------------------------------ | :--------------------------------------------------------------- |
 | `[*] `                 | `ISSUED`     | System        | Sale reaches `PAID` (or qualifying deposit) | Monotonic receipt sequence assigned. Data permanently frozen.    |
 | `ISSUED` / `REPRINTED` | `REPRINTED`  | Cashier       | Customer requests duplicate printout        | Receipt data unchanged. Increments reprint counter in audit log. |
+
+---
+
+### 5.4 Domain Exception Hierarchy & Error Behavior
+
+To ensure deterministic, machine-readable error handling without leaking framework exceptions into the core domain, Phase 7.1 establishes a strongly typed exception hierarchy rooted in `SaleDomainException`:
+
+```mermaid
+classDiagram
+    class Error {
+        <<JavaScript Built-in>>
+    }
+    class SaleDomainException {
+        +string code
+        +string message
+    }
+    class EmptySaleException {
+        +code: "EMPTY_SALE"
+    }
+    class SaleAlreadyFinalizedException {
+        +code: "SALE_ALREADY_FINALIZED"
+    }
+    class InvalidSaleStateException {
+        +code: "INVALID_SALE_STATE" | "INVALID_CANCELLATION_REASON" | "INVALID_REFUND_REASON"
+    }
+    class InvalidSaleTransitionException {
+        +code: "INVALID_SALE_TRANSITION"
+        +string currentState
+        +string targetState
+        +string? reason
+    }
+    class InvalidSaleItemException {
+        +code: "INVALID_SALE_ITEM"
+    }
+    class InvalidDiscountException {
+        +code: "INVALID_DISCOUNT"
+    }
+
+    Error <|-- SaleDomainException
+    SaleDomainException <|-- EmptySaleException
+    SaleDomainException <|-- SaleAlreadyFinalizedException
+    SaleDomainException <|-- InvalidSaleStateException
+    InvalidSaleStateException <|-- InvalidSaleTransitionException
+    SaleDomainException <|-- InvalidSaleItemException
+    SaleDomainException <|-- InvalidDiscountException
+```
+
+#### Exception Taxonomy & Error Codes
+
+| Exception Class                      | Machine-Readable `code`         | Trigger Scenario / Invariant Violated                                                                 |
+| :----------------------------------- | :------------------------------ | :---------------------------------------------------------------------------------------------------- |
+| **`SaleDomainException`**            | `'SALE_DOMAIN_ERROR'`           | Base class for all domain errors within Sales & Payments. Never thrown raw in production.             |
+| **`EmptySaleException`**             | `'EMPTY_SALE'`                  | Attempting to finalize a `Sale` with zero items (`items.length === 0`).                               |
+| **`SaleAlreadyFinalizedException`**  | `'SALE_ALREADY_FINALIZED'`      | Attempting to add/remove/edit items or apply discounts on a Sale departing `DRAFT` status.            |
+| **`InvalidSaleTransitionException`** | `'INVALID_SALE_TRANSITION'`     | Attempting an illegal lifecycle transition (e.g. `DRAFT` $\rightarrow$ `PAID`, `CANCELLED` mutation). |
+| **`InvalidSaleStateException`**      | `'INVALID_SALE_STATE'`          | Structural state violations, invalid currencies, negative amounts, or corrupt reconstitution totals.  |
+| **`InvalidSaleStateException`**      | `'INVALID_CANCELLATION_REASON'` | Attempting to cancel a Sale with an empty or whitespace cancellation reason string.                   |
+| **`InvalidSaleStateException`**      | `'INVALID_REFUND_REASON'`       | Providing an invalid/whitespace refund reason during refund transition.                               |
+| **`InvalidSaleItemException`**       | `'INVALID_SALE_ITEM'`           | Non-positive quantity, empty description, or invalid unit price in `SaleItem`.                        |
+| **`InvalidDiscountException`**       | `'INVALID_DISCOUNT'`            | Percentage $> 100\%$, negative value, empty justification reason, or invalid override credentials.    |
+
+#### Failure Atomicity Guarantee
+
+The `Sale` aggregate guarantees **strict failure atomicity** across all operations:
+
+- When an invariant assertion or transition rule fails, the domain exception is thrown **immediately** before any aggregate state changes occur.
+- No partial mutations are committed to `_items`, `_status`, or calculated totals.
+- No uncommitted domain events are staged to `_uncommittedEvents`.
+- The aggregate root remains in its clean, valid pre-call state.
 
 ---
 
@@ -675,30 +794,50 @@ The following invariants are fundamental business laws of Kinergy. Any proposed 
 
 ## 9. Business Traceability Matrix
 
-This matrix maps high-level business requirements to conceptual domain rules and anticipated application use cases:
+This matrix establishes the complete traceable chain from Business Requirements down to Domain Tests for Phase 7.1:
 
-| Business Requirement               | Conceptual Domain Rule                                                                                 | Anticipated Application Use Case                        |
-| :--------------------------------- | :----------------------------------------------------------------------------------------------------- | :------------------------------------------------------ |
-| **Unified Point of Sale**          | `Sale` accepts heterogeneous items via `SourceReference` without coupling to source tables.            | `CreateSaleUseCase`, `AddSaleItemUseCase`               |
-| **Permanent Accounting Integrity** | `SaleItem` permanently snapshots price, name, SKU, and tax at checkout.                                | `AddSaleItemUseCase`                                    |
-| **Split-Tender Payment**           | `Payment` is an autonomous aggregate linked via `saleId`; multiple payments can settle one sale.       | `RecordPaymentUseCase`                                  |
-| **Walk-in Customer Checkout**      | `clientId` is optional on `Sale`, allowing anonymous retail sales.                                     | `CreateSaleUseCase`                                     |
-| **Non-Negative Cashier Guard**     | `Sale.total` cannot be negative; discounts exceeding order value are capped at order total.            | `ApplyOrderDiscountUseCase`                             |
-| **Cashier Discretion Controls**    | Discretionary discounts require a mandatory `reason` string and threshold validation.                  | `ApplyOrderDiscountUseCase`, `ApplyItemDiscountUseCase` |
-| **Inventory Stock Protection**     | Sales delegates stock deduction to `InventoryStockDecrementPort`; respects OCC and non-negative stock. | `FulfillSaleUseCase`                                    |
-| **Gym Membership Activation**      | Sales delegates subscription activation to `GymMembershipActivationPort` upon payment settlement.      | `FulfillSaleUseCase`                                    |
-| **Clinical Session Billing**       | Sales flags treatment session as billed via `TreatmentBillingPort` without exposing medical notes.     | `FulfillSaleUseCase`                                    |
-| **Tamper-Evident Receipts**        | `Receipt` is write-once, sequentially numbered, and permanently frozen upon issuance.                  | `IssueReceiptUseCase`, `GetReceiptByIdQuery`            |
-| **Transaction Audit Trail**        | Commercial transitions and financial tenders write append-only audit events with actor attribution.    | All Command Handlers                                    |
-| **Customer Refund Processing**     | Refunds create explicit refund payment records linked to the original sale and payment.                | `RefundSaleUseCase`                                     |
+```text
+Business Requirement
+        ↓
+Business Rule
+        ↓
+Sale Domain Rule
+        ↓
+Sale Aggregate Behavior
+        ↓
+Domain Test
+```
+
+| Business Requirement             | Business Rule (Ref)    | Sale Domain Rule                                                                                                 | Sale Aggregate Behavior                                                                            | Domain Test Suite (`packages/core/src/sales/domain/__tests__/`)                                                           |
+| :------------------------------- | :--------------------- | :--------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------ |
+| **Unified Point of Sale**        | `SALE-01`, `SALE-05`   | Accepts heterogeneous items via unconstrained `SourceReference` without upstream coupling.                       | `Sale.create()`, `Sale.addItem()`, `Sale.finalize()`                                               | [`sale.aggregate.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale.aggregate.spec.ts)                       |
+| **Price & Catalog Decoupling**   | `ITEM-04`, `ITEM-09`   | `SaleItem` permanently freezes description, SKU, unit price, and discount at checkout.                           | `SaleItem.create()`, `SaleItem.reconstitute()`                                                     | [`sale-item.entity.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-item.entity.spec.ts)                   |
+| **Exact Cent Reconciliation**    | `MNY-01`, `SALE-07`    | All financial math operates on integer cents with half-up rounding and $\ge 0.00$ guard.                         | `recalculateTotals()`, `Money.add()`, `Money.subtract()`                                           | [`sale.aggregate.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale.aggregate.spec.ts)                       |
+| **Commercial Immutability**      | `SALE-08`, `ITEM-09`   | Once departing `DRAFT`, commercial line items and discounts cannot be added, edited, or cut.                     | `assertDraftState()` throws `SaleAlreadyFinalizedException` (`SALE_ALREADY_FINALIZED`)             | [`sale-hardening.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-hardening.spec.ts)                       |
+| **7-State Commercial Lifecycle** | `SALE-04`, `SALE-09`   | 7 canonical states (`DRAFT`, `PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, `CANCELLED`, `REFUNDED`). | `finalize()`, `markPartiallyPaid()`, `markPaid()`, `markCompleted()`, `markRefunded()`, `cancel()` | [`sale-lifecycle.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-lifecycle.spec.ts)                       |
+| **Deterministic Domain Errors**  | `SALE-05`, `SALE-08`   | All invariant violations throw typed exceptions with machine-readable `code` properties.                         | `EmptySaleException`, `InvalidSaleTransitionException`, `InvalidSaleStateException`                | [`sale-deterministic-errors.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-deterministic-errors.spec.ts) |
+| **Failure Atomicity**            | `SALE-01` to `SALE-09` | Invalid operations abort prior to state mutation; zero uncommitted events staged on error.                       | Clean pre-call state preserved on rejected operations                                              | [`sale-deterministic-errors.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-deterministic-errors.spec.ts) |
+| **Defensive Encapsulation**      | `ITEM-01`, `SALE-08`   | Collections exposed as frozen views; items immutable via `withQuantity()` and `withDiscount()`.                  | `Object.freeze([...items])`, `Object.freeze(item)`                                                 | [`sale-hardening.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-hardening.spec.ts)                       |
+| **Walk-in Customer Support**     | `SALE-03`              | `clientId` remains optional (`clientId?: string`) to support guest retail transactions.                          | Optional scalar string handling in `Sale.create()`                                                 | [`sale.aggregate.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale.aggregate.spec.ts)                       |
 
 ---
 
-## 10. Explicit Non-Goals for Phase 7.0
+## 10. Scope & Delivery Guarantees for Phase 7.1
 
-To maintain laser focus on domain modeling, the following areas are strictly **OUT OF SCOPE** for this milestone:
+### 10.1 What Phase 7.1 Guarantees (Delivered in Code)
 
-1. **No Code Implementation**: No TypeScript classes, NestJS controllers, Prisma entities, or React components are created in Milestone 7.0.
-2. **No Hardware Driver Specifications**: Low-level thermal printer ESC/POS bytes, magnetic stripe readers, or physical cash drawer relays are out of scope.
-3. **No Direct Gateway API Bindings**: Concrete Stripe, MercadoPago, or bank API payloads are out of scope; all external interactions are abstracted behind conceptual ports.
-4. **No Double-Entry General Ledger**: Balance sheets, asset depreciation schedules, and corporate tax return filings belong to a future accounting context.
+1. **Pure TypeScript Domain Core**: `packages/core/src/sales/domain/` with zero framework dependencies (`@nestjs/*`, `@prisma/*`).
+2. **Sale Aggregate Root (`Sale`)**: Full transactional ownership of order state, line items, versioning, progressive immutability, and domain events.
+3. **Internal Child Entity (`SaleItem`)**: Child entity lifetime bound to `Sale`, snapshotting description, SKU, unit price, quantity, discount, subtotal, and total.
+4. **Value Objects**: `SaleId`, `SaleItemId`, `SourceReference`, `Discount`, `Money` (cent-guarded arithmetic).
+5. **State Machine**: 7 canonical states with strict transition validation and timestamp attribution (`completedAt`, `cancelledAt`, `refundedAt`).
+6. **Deterministic Financial Math**: 13 exact reconciliation formulas operating in integer minor units.
+7. **Strongly Typed Exception Hierarchy**: Base `SaleDomainException` and 6 specialized exception classes exposing machine-readable `code` properties.
+8. **Comprehensive Behavioral Test Suite**: 8 co-located test suites validating all domain rules and invariants with 100% pass rate.
+
+### 10.2 Explicit Non-Goals for Phase 7.1 (Deferred to Future Milestones)
+
+1. **Payment Aggregate Implementation**: Concrete `Payment` entity, payment methods, transaction settlement, and gateway drivers remain conceptual until Phase 7.2.
+2. **Receipt Generation & Fiscal Printing**: Legal receipt vouchers, sequential counters, and hardware thermal printing drivers remain conceptual until Phase 7.3.
+3. **Application & Infrastructure Layers**: NestJS modules, controllers, CQRS command handlers, Prisma repositories, and database migrations are deferred to Phase 7.x application milestones.
+4. **Double-Entry General Ledger**: General ledger accounting, chart of accounts, and corporate fiscal tax filings belong to a future accounting context.

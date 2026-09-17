@@ -135,35 +135,57 @@ The conceptual domain model consists of the following foundational concepts:
 classDiagram
     class Sale {
         +SaleId id
-        +TenantId tenantId
-        +ClientId? clientId
-        +UserId cashierId
+        +string? tenantId
+        +string? clientId
         +SaleStatus status
+        +string currency
+        +SourceReference source
+        +ReadonlyArray~SaleItem~ items
+        +Discount? orderDiscount
         +Money subtotal
         +Money discountTotal
-        +Money taxTotal
         +Money total
-        +SaleItem[] items
-        +addItem()
-        +removeItem()
-        +applyDiscount()
-        +confirm()
-        +cancel()
-        +markPaid()
-        +refund()
+        +number version
+        +Date createdAt
+        +Date updatedAt
+        +Date? completedAt
+        +Date? cancelledAt
+        +string? cancellationReason
+        +Date? refundedAt
+        +create(props, clock) Sale$
+        +reconstitute(props) Sale$
+        +addItem(props, clock) SaleItem
+        +updateItemQuantity(itemId, quantity, clock) void
+        +removeItem(itemId, clock) void
+        +applyItemDiscount(itemId, discount, clock) void
+        +removeItemDiscount(itemId, clock) void
+        +applyOrderDiscount(discount, clock) void
+        +removeOrderDiscount(clock) void
+        +finalize(clock) void
+        +markPartiallyPaid(clock) void
+        +markPaid(clock) void
+        +markCompleted(clock) void
+        +markRefunded(reason, clock) void
+        +cancel(reason, clock) void
+        +getUncommittedEvents() ReadonlyArray~DomainEvent~
+        +clearEvents() void
     }
 
     class SaleItem {
         +SaleItemId id
-        +SourceReference sourceRef
+        +SourceReference source
         +string description
         +string? skuOrCode
         +number quantity
         +Money unitPrice
-        +Money lineSubtotal
-        +Discount? itemDiscount
-        +TaxRate? taxRate
-        +Money lineTotal
+        +Discount? discount
+        +Money subtotal
+        +Money discountTotal
+        +Money total
+        +create(props) SaleItem$
+        +reconstitute(props) SaleItem$
+        +withQuantity(newQuantity) SaleItem
+        +withDiscount(newDiscount) SaleItem
     }
 
     class Payment {
@@ -202,9 +224,11 @@ classDiagram
         <<ValueObject>>
         +number amount
         +string currency
-        +add(Money)
-        +subtract(Money)
-        +multiply(number)
+        +add(Money) Money
+        +subtract(Money) Money
+        +multiply(number) Money
+        +equals(Money) boolean
+        +greaterThan(Money) boolean
     }
 
     class Discount {
@@ -212,12 +236,13 @@ classDiagram
         +DiscountType type
         +number value
         +string reason
-        +Money calculateReduction(Money)
+        +string? authorizedByUserId
+        +calculateReduction(Money) Money
     }
 
-    Sale "1" *-- "1..*" SaleItem : owns
-    Sale "1" -- "0..*" Payment : settled by
-    Sale "1" -- "0..1" Receipt : evidenced by
+    Sale "1" *-- "0..*" SaleItem : owns exclusively
+    Sale "1" -- "0..*" Payment : settled by scalar saleId
+    Sale "1" -- "0..1" Receipt : evidenced by scalar saleId
     SaleItem "1" *-- "1" SourceReference : references
     SaleItem "1" *-- "0..1" Discount : applies
     SaleItem "1" *-- "1" Money : priced in
@@ -253,50 +278,73 @@ classDiagram
 │                                                                        │
 │  [Sale Root Entity]                                                    │
 │  - id: SaleId                                                          │
-│  - tenantId: TenantId                                                  │
-│  - status: SaleStatus (DRAFT | PENDING_PAYMENT | PAID | CANCELLED...) │
-│  - version: number (Optimistic Concurrency Control)                    │
-│  - orderDiscount: Discount?                                            │
+│  - tenantId?: string (Organization boundary)                           │
+│  - clientId?: string (Optional walk-in client reference)               │
+│  - status: SaleStatus (7 Canonical States)                             │
+│  - currency: string (Normalized ISO-4217 standard)                     │
+│  - source: SourceReference (Commercial origin reference)               │
+│  - version: number (Optimistic Concurrency Control counter >= 1)       │
+│  - orderDiscount: Discount? (Order-level reduction)                    │
+│  - subtotal: Money (Sum of line subtotals)                             │
+│  - discountTotal: Money (Line discounts + order discount)              │
+│  - total: Money (Subtotal - discountTotal, guaranteed >= 0.00)         │
+│  - timestamps: createdAt, updatedAt, completedAt?, cancelledAt?,       │
+│                refundedAt?, cancellationReason?                        │
 │                                                                        │
 │  [Internal Owned Entities]                                             │
-│  - items: SaleItem[]                                                   │
+│  - items: ReadonlyArray<SaleItem> (Deeply encapsulated)                │
 │    ├── id: SaleItemId                                                  │
-│    ├── sourceRef: SourceReference (Value Object)                       │
-│    ├── unitPrice: Money (Snapshot)                                     │
-│    ├── quantity: number (Positive integer or decimal)                  │
-│    └── itemDiscount: Discount?                                         │
+│    ├── source: SourceReference (Value Object)                          │
+│    ├── description: string (Checkout snapshot)                         │
+│    ├── skuOrCode: string? (Checkout snapshot)                          │
+│    ├── quantity: number (Positive decimal/integer, 3 decimal scale)    │
+│    ├── unitPrice: Money (Gross unit price snapshot)                    │
+│    ├── discount: Discount? (Line-item discount)                        │
+│    ├── subtotal: Money (quantity * unitPrice)                          │
+│    ├── discountTotal: Money (min(subtotal, discountReduction))         │
+│    └── total: Money (subtotal - discountTotal)                         │
 │                                                                        │
 │  TRANSACTIONAL INVARIANTS:                                             │
-│  1. An item cannot be added or modified unless status == DRAFT.        │
-│  2. Total = Sum(LineTotals) - OrderDiscount. Total cannot be negative. │
-│  3. Currencies of all items, discounts, and totals must be identical.  │
-│  4. Modifying Sale and its items commits in a single DB transaction.   │
+│  1. An item cannot be added/modified/removed unless status == DRAFT.   │
+│  2. Finalization requires >= 1 line item (throws EmptySaleException).  │
+│  3. Total = Subtotal - DiscountTotal. Total payable cannot be negative.│
+│  4. Currencies of all items, discounts, and totals must be identical.  │
+│  5. Cancellation requires non-empty reason; allowed only from DRAFT,   │
+│     PENDING_PAYMENT, or PARTIALLY_PAID.                                │
+│  6. Aggregate operations guarantee strict failure atomicity.           │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
 #### Invariants & Rules
 
-1. **Commercial Immutability**: Once a `Sale` transitions out of `DRAFT` (e.g. into `PAID` or `PARTIALLY_PAID`), line items cannot be added, edited, or deleted. The commercial terms are locked.
-2. **Currency Consistency**: All items, discounts, taxes, and totals within a `Sale` must share the identical ISO-4217 currency code. Mixed-currency sales are strictly rejected.
-3. **Non-Negative Valuation**: Line items and net order totals must never be negative. Promotional discounts exceeding the order total are capped at the order value (total payable $\ge 0$).
-4. **Optimistic Concurrency Control (OCC)**: The `Sale` aggregate root maintains an integer `version` field incremented on every state change to prevent lost updates during concurrent cashier operations.
+1. **Commercial Immutability**: Once a `Sale` transitions out of `DRAFT` (into `PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, `CANCELLED`, or `REFUNDED`), line items and discounts cannot be added, edited, or deleted (`SaleAlreadyFinalizedException` with code `'SALE_ALREADY_FINALIZED'`).
+2. **Currency Consistency**: All items, discounts, and totals within a `Sale` must share the identical ISO-4217 currency code. Mixed-currency sales are strictly rejected (`InvalidSaleStateException`).
+3. **Non-Negative Valuation**: Line items and net order totals must never be negative. Promotional discounts exceeding the order total are capped at the order value (total payable $\ge 0.00$).
+4. **Optimistic Concurrency Control (OCC)**: The `Sale` aggregate root maintains an integer `version` field incremented on every lifecycle transition to prevent lost updates during concurrent operations.
+5. **Failure Atomicity**: Any operation failing an invariant assertion aborts immediately before modifying state, staging zero uncommitted events.
 
-#### Lifecycle State Machine
+#### Lifecycle State Machine (7 Canonical States)
 
 ```mermaid
 stateDiagram-v2
-    [*] --> DRAFT: createSale()
-    DRAFT --> DRAFT: addItem() / removeItem() / applyDiscount()
-    DRAFT --> CANCELLED: cancel()
-    DRAFT --> PENDING_PAYMENT: finalizeOrder()
-    PENDING_PAYMENT --> PAID: recordFullPayment()
-    PENDING_PAYMENT --> PARTIALLY_PAID: recordPartialPayment()
-    PARTIALLY_PAID --> PAID: recordRemainingPayment()
-    PENDING_PAYMENT --> CANCELLED: cancel()
-    PAID --> COMPLETED: fulfillAllItems()
-    PAID --> REFUNDED: processFullRefund()
-    COMPLETED --> PARTIALLY_REFUNDED: processPartialRefund()
-    COMPLETED --> REFUNDED: processFullRefund()
+    [*] --> DRAFT : create()
+
+    DRAFT --> DRAFT : addItem() / removeItem() / updateItemQuantity() / applyDiscount()
+    DRAFT --> CANCELLED : cancel(reason)
+    DRAFT --> PENDING_PAYMENT : finalize() [items.length >= 1]
+
+    PENDING_PAYMENT --> PARTIALLY_PAID : markPartiallyPaid()
+    PENDING_PAYMENT --> PAID : markPaid()
+    PENDING_PAYMENT --> CANCELLED : cancel(reason)
+
+    PARTIALLY_PAID --> PAID : markPaid()
+    PARTIALLY_PAID --> CANCELLED : cancel(reason)
+
+    PAID --> COMPLETED : markCompleted()
+    PAID --> REFUNDED : markRefunded(reason?)
+
+    COMPLETED --> REFUNDED : markRefunded(reason?)
+
     CANCELLED --> [*]
     REFUNDED --> [*]
 ```
@@ -626,14 +674,25 @@ The Sales & Payments architecture is intentionally designed to scale gracefully 
 
 ---
 
-## 12. Explicit Non-Goals for Phase 7.0
+## 12. Scope & Delivery Guarantees for Phase 7.1
 
-To prevent scope creep and maintain architectural purity, the following areas are explicitly declared **OUT OF SCOPE** for Phase 7.0:
+### 12.1 Phase 7.1 Guarantees (Delivered in Core Domain)
 
-1. **General Ledger (GL) Accounting**: Double-entry accounting, balance sheets, chart of accounts, and fiscal depreciation are deferred to a dedicated future corporate accounting module.
-2. **Fiscal Electronic Invoicing Integrations**: Integration with national government tax agencies (e.g. SII, AFIP, SAT, IRS electronic invoice signing) is deferred to future regional localization modules.
-3. **Proprietary Hardware Drivers**: Direct USB/Bluetooth serial ESC/POS thermal printer drivers or cash drawer kick cables are handled by client-side browser/terminal bridges, not by backend domain code.
-4. **Production Code in Milestone 7.0**: Milestone 7.0 establishes the architectural specification only. No Prisma models, controllers, services, DTOs, or frontend components are created in this milestone.
+1. **Pure TypeScript Domain Core (`packages/core/src/sales/domain/`)**: Fully decoupled from frameworks (`@nestjs/*`, `@prisma/*`), libraries, or databases.
+2. **Sale Aggregate Root (`Sale`)**: Governs commercial checkout agreement, progressive immutability, 7-state commercial lifecycle, optimistic concurrency control (`version`), and domain events.
+3. **Internal Entity Ownership (`SaleItem`)**: Owned exclusively by `Sale`, permanently snapshotting description, SKU, unit price, quantity, and discount.
+4. **Shared Value Objects**: Cent-guarded `Money`, `Discount`, `SourceReference`, `SaleId`, `SaleItemId`.
+5. **Deterministic Arithmetic**: 13 exact formulas calculating subtotals, item discounts, order discount, and total payable $\ge 0.00$.
+6. **Strongly Typed Exceptions**: Hierarchical `SaleDomainException` tree exposing machine-readable `code` properties and enforcing failure atomicity.
+7. **Zero-Mock Domain Tests**: Authoritative test suites covering construction, snapshotting, lifecycle transitions, hardening, and deterministic error codes with 100% pass rate.
+
+### 12.2 Explicit Non-Goals for Phase 7.1 (Deferred Milestones)
+
+1. **Payment Aggregate Implementation**: Autonomous `Payment` aggregate root, payment methods, transaction settlement, and gateway drivers remain conceptual until Phase 7.2.
+2. **Receipt Generation & Printing**: Legal receipt vouchers, sequential counters, and thermal printer drivers are deferred to Phase 7.3.
+3. **Application & Infrastructure Layers**: NestJS modules, controllers, CQRS command handlers, Prisma repositories, and database migrations are deferred to Phase 7.x application milestones.
+4. **General Ledger (GL) Accounting**: Double-entry accounting, balance sheets, chart of accounts, and corporate tax returns belong to a future accounting context.
+5. **Fiscal Electronic Invoicing**: Government tax agency integrations (SII, AFIP, SAT, IRS) belong to future regional localization modules.
 
 ---
 
