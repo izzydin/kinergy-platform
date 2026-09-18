@@ -318,11 +318,15 @@ classDiagram
 
 #### Invariants & Rules
 
+> **There is exactly one canonical monetary policy for Sales.**
+>
+> Established under [ADR-0108](../adr/0108-money-representation.md) and formalized in [ADR-0114](../adr/0114-canonical-monetary-policy-and-sale-totals.md), all monetary values, arithmetic operations, precision boundaries, and persistence mappings within the Sales bounded context must follow this single unified standard. Binary floating-point arithmetic (IEEE 754), `parseFloat()`, `Number()`, and `toFixed()` are strictly prohibited for financial calculations.
+
 1. **Commercial Immutability**: Once a `Sale` transitions out of `DRAFT` (into `PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, `CANCELLED`, or `REFUNDED`), line items and discounts cannot be added, edited, or deleted (`SaleAlreadyFinalizedException` with code `'SALE_ALREADY_FINALIZED'`).
 2. **Currency Consistency**: All items, discounts, and totals within a `Sale` must share the identical ISO-4217 currency code. Mixed-currency sales are strictly rejected (`InvalidSaleStateException`).
-3. **Non-Negative Valuation & Invariant Reconciliation**: Line items and net order totals must never be negative. Fixed discounts exceeding line subtotal are strictly rejected with `InvalidDiscountException` (no silent clamping). Subtotal and discount totals reconcile deterministically:
+3. **Non-Negative Valuation & Invariant Reconciliation**: Line items and net order totals must never be negative. Fixed discounts exceeding line subtotal are strictly rejected with `InvalidDiscountException` (no silent clamping). Subtotal and discount totals reconcile deterministically in integer minor units (cents):
    $$\text{Sale.subtotal} = \sum \text{SaleItem.subtotal}$$
-   $$\text{Sale.discountTotal} = \sum \text{SaleItem.discountAmount}$$
+   $$\text{Sale.discountTotal} = \sum \text{SaleItem.discountTotal}$$
    $$\text{Sale.total} = \text{Sale.subtotal} - \text{Sale.discountTotal} \ge \$0.00$$
 4. **Optimistic Concurrency Control (OCC)**: The `Sale` aggregate root maintains an integer `version` field incremented on every lifecycle transition to prevent lost updates during concurrent operations.
 5. **Failure Atomicity**: Any operation failing an invariant assertion aborts immediately before modifying state, staging zero uncommitted events.

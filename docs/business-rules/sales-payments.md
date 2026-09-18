@@ -9,6 +9,8 @@
   - [ADR-0110: Sale Transaction Ownership and Source Bounded-Context Integrity](../adr/0110-sale-ownership.md)
   - [ADR-0111: Sales & Payments Authorization, Organization Isolation, and Audit Boundaries](../adr/0111-sales-payments-authorization-and-audit.md)
   - [ADR-0112: Sales & Payments Bounded Context Establishment](../adr/0112-sales-bounded-context.md)
+  - [ADR-0113: Item-Level Discount Domain Model, Deterministic Calculation, and Invariant Enforcement](../adr/0113-item-level-discounts.md)
+  - [ADR-0114: Canonical Monetary Policy, Deterministic Arithmetic, and Sale Totals Invariant Enforcement](../adr/0114-canonical-monetary-policy-and-sale-totals.md)
 
 ---
 
@@ -146,38 +148,42 @@ Executable Test Suites:
 
 ## 6. Deterministic Money & Arithmetic Rules
 
-In accordance with ADR-0108, binary floating-point calculations (IEEE 754) are strictly prohibited. The domain enforces the following **13 exact reconciliation formulas**, executing in integer cents (`Math.round(amount * 100)`):
+> **There is exactly one canonical monetary policy for Sales.**
+>
+> In accordance with [ADR-0108](../adr/0108-money-representation.md) and [ADR-0114](../adr/0114-canonical-monetary-policy-and-sale-totals.md), all monetary calculations, conversions, persistence mappings, and API serializations in Phase 7 must strictly execute through this unified policy. Binary floating-point arithmetic (IEEE 754), `parseFloat()`, `Number()`, and `toFixed()` are strictly prohibited as calculation mechanisms.
 
-```
-1.  Line Subtotal:
-    lineSubtotal = round(quantity * unitPrice.amount * 100) / 100
+The domain enforces the following **canonical reconciliation formulas**, executing in integer cents (`Math.round((amount + Number.EPSILON) * 100)`):
 
-2.  Line Discount (Phase 7.3 Item-Level Discount):
-    eligibleAmount = lineSubtotal
-    lineDiscount = discount ? discount.calculate(eligibleAmount) : Money.zero(currency)
-    (Fixed discount > eligibleAmount is strictly rejected; percentage 0 <= p <= 100)
-    (Guaranteeing lineDiscount <= lineSubtotal)
+```text
+1. Line Subtotal:
+   lineSubtotal = round(round(unitPrice.amount * 100 + Number.EPSILON) * quantity + Number.EPSILON) / 100
 
-3.  Line Net Amount (Pre-Tax):
-    lineNet = lineSubtotal - lineDiscount
+2. Line Discount (Phase 7.3 Item-Level Discount):
+   eligibleAmount = lineSubtotal
+   lineDiscount = discount ? discount.calculate(eligibleAmount) : Money.zero(currency)
+   (Fixed discount > eligibleAmount is strictly rejected; percentage 0 <= p <= 100)
+   (Guaranteeing lineDiscount <= lineSubtotal and lineNet >= 0.00)
 
-4.  Line Tax:
-    lineTax = round(lineNet * taxRate * 100) / 100
+3. Line Net Amount (Pre-Tax):
+   lineNet = lineSubtotal - lineDiscount
 
-5.  Line Total:
-    lineTotal = lineNet + lineTax
+4. Line Tax:
+   lineTax = round(lineNet * taxRate * 100) / 100  (Deferred to Tax Milestone)
 
-6.  Sale Gross Subtotal:
-    saleSubtotal = Sum(lineSubtotal[i])
+5. Line Total:
+   lineTotal = lineNet + lineTax
 
-7.  Sale Total Line Discounts:
-    saleDiscountTotal = Sum(lineDiscount[i])
+6. Sale Gross Subtotal:
+   saleSubtotal = Sum(lineSubtotal[i])
 
-8.  Sale Net (Pre-Tax, Pre-Order Discount):
-    saleNet = saleSubtotal - saleDiscountTotal
+7. Sale Total Line Discounts:
+   saleDiscountTotal = Sum(lineDiscount[i])
 
-9.  Order-Level Discount:
-    (Deferred / Out-of-Scope for Phase 7.3; orderDiscount = null)
+8. Sale Net (Pre-Tax, Pre-Order Discount):
+   saleNet = saleSubtotal - saleDiscountTotal
+
+9. Order-Level Discount:
+   (Deferred / Out-of-Scope for Phase 7.3 & 7.4; orderDiscount = null)
 
 10. Total Discounts:
     totalDiscounts = saleDiscountTotal
@@ -195,13 +201,18 @@ In accordance with ADR-0108, binary floating-point calculations (IEEE 754) are s
 
 ### Money Representation & Precision Rules
 
-| Rule ID      | Rule Statement                                                                                                                                                                             | Architectural Tier | Enforcement Mechanism                           |
-| :----------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------- | :---------------------------------------------- |
-| **`MNY-01`** | **Integer Minor-Unit Math**: All intermediate addition, subtraction, and multiplications must operate on 64-bit safe integer minor units (cents) via `Math.round(amount * 100)`.           | `DOMAIN INVARIANT` | `Money` Value Object                            |
-| **`MNY-02`** | **Half-Up Cent Rounding**: Fractional cent calculations must round half-up at the 2nd decimal place: $$\text{cents} = \text{round}((\text{rawUnits} + \text{Number.EPSILON}) \times 100)$$ | `DOMAIN INVARIANT` | `Money.round()`                                 |
-| **`MNY-03`** | **Database Scale & Precision**: Persisted in PostgreSQL as fixed-point decimal `@db.Decimal(12, 2)` (supporting amounts up to $\$9,999,999,999.99$).                                       | `PERSISTENCE`      | `schema.prisma`                                 |
-| **`MNY-04`** | **Structured API Serialization**: Emitted over REST JSON as `{ "amount": 49.99, "currency": "USD" }`. Never serialized as unformatted raw floats.                                          | `TRANSPORT`        | `MoneyDTO` serializer                           |
-| **`MNY-05`** | **Non-Negative Guard**: Prices, subtotals, totals, payments, and discounts must be $\ge 0.00$. Negative values are rejected by constructor assertion.                                      | `DOMAIN INVARIANT` | `Money.create()` throws `InvalidMoneyException` |
+| Rule ID      | Rule Statement                                                                                                                                                                                                                                        | Architectural Tier | Enforcement Mechanism                               |
+| :----------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------- | :-------------------------------------------------- |
+| **`MNY-01`** | **Integer Minor-Unit Math**: All intermediate addition, subtraction, and multiplications must operate on 64-bit safe integer minor units (cents) via `Math.round((amount + Number.EPSILON) * 100)`. Float arithmetic is banned.                       | `DOMAIN INVARIANT` | `Money` Value Object                                |
+| **`MNY-02`** | **Commercial Half-Up Cent Rounding**: Fractional cent calculations must round half-up at the 2nd decimal place: $$\text{cents} = \text{round}((\text{rawUnits} + \text{Number.EPSILON}) \times 100)$$ Half-way values ($0.005$) round away from zero. | `DOMAIN INVARIANT` | `Money.round()`, `Discount.calculate()`             |
+| **`MNY-03`** | **Database Scale & Precision**: Persisted in PostgreSQL as fixed-point decimal `@db.Decimal(12, 2)` (supporting amounts up to $\$9,999,999,999.99$).                                                                                                  | `PERSISTENCE`      | `schema.prisma`                                     |
+| **`MNY-04`** | **Structured API Serialization**: Emitted over REST JSON as `{ "amount": 49.99, "currency": "USD" }`. Flat summaries emit precision-guaranteed numbers or strings. Never serialized as unformatted raw floats.                                        | `TRANSPORT`        | `MoneyDTO` serializer                               |
+| **`MNY-05`** | **Non-Negative Guard**: Prices, subtotals, totals, payments, and discounts must be $\ge 0.00$. Negative values are rejected by constructor assertion.                                                                                                 | `DOMAIN INVARIANT` | `Money.create()` throws `InvalidMoneyException`     |
+| **`MNY-06`** | **Prohibited Calculation Mechanism**: Using `0.1 + 0.2`, `parseFloat()`, `Number()`, or `toFixed()` as domain calculation mechanisms is strictly prohibited.                                                                                          | `DOMAIN & CI`      | Lint rules & domain invariant tests                 |
+| **`MNY-07`** | **Discrete Rounding Timing**: Rounding occurs immediately at discrete commercial snapshot boundaries (`SaleItem.create`, `discount.calculate`). Line items are already cent-exact; summing items introduces zero drift.                               | `DOMAIN INVARIANT` | `SaleItem.create()`, `Sale.recalculateTotals()`     |
+| **`MNY-08`** | **Quantity Precision**: Quantity supports up to 3 decimal places ($0.001$), normalized via `Math.round((q + Number.EPSILON) * 1000) / 1000`. Range: $0.001 \le q \le 999,999$.                                                                        | `DOMAIN INVARIANT` | `SaleItem.assertValidQuantity()`                    |
+| **`MNY-09`** | **Currency Homogeneity**: Every line item, discount, subtotal, and total within a `Sale` must match the parent Sale's 3-letter ISO-4217 currency code.                                                                                                | `DOMAIN INVARIANT` | `Sale.addItem()` throws `InvalidSaleStateException` |
+| **`MNY-10`** | **Reconstitution Verification**: Aggregate reconstitution must recalculate all line subtotals and discounts from scratch. Any mismatch against persisted totals strictly throws `InvalidSaleStateException`.                                          | `DOMAIN INVARIANT` | `Sale.reconstitute()`, `SaleItem.reconstitute()`    |
 
 ---
 

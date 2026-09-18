@@ -292,19 +292,23 @@ SourceReference
 
 ---
 
-### 3.6 `Money` (Canonical Shared Kernel Value Object)
+### 3.6 `Money` (Canonical Value Object & Monetary Policy)
 
-In accordance with Phase 6 architectural standards, ADR-0098, and ADR-0108:
+> **There is exactly one canonical monetary policy for Sales.**
+>
+> In accordance with [ADR-0108](../adr/0108-money-representation.md) and [ADR-0114](../adr/0114-canonical-monetary-policy-and-sale-totals.md), all financial calculations across commercial checkout, line items, discounts, persistence mappings, and API serializations must execute exclusively through this policy.
 
-- **Mathematical Determinism**: Binary floating-point arithmetic (IEEE 754 `number`) is strictly prohibited for monetary calculations.
+- **Mathematical Determinism**: Binary floating-point arithmetic (IEEE 754 `number`), `parseFloat()`, `Number()`, and `toFixed()` are strictly prohibited as calculation mechanisms.
 - **`amount: number`**: Represents major currency units (e.g. `$49.99`). Must be a finite, non-negative number ($0 \le \text{amount} < \infty$).
-- **Precision & Scale**: Fixed scale of **2 decimal places** (integer cents / hundredths). Precision is enforced at instantiation:
-  $$\text{amount} = \frac{\text{round}(\text{amount} \times 100)}{100}$$
-- **`currency: string`**: Normalized 3-letter uppercase ISO-4217 standard currency code (e.g., `USD`, `CAD`, `EUR`). Default: `USD`.
+- **Precision Hierarchy**:
+  - **Calculation Precision**: 64-bit safe integer minor units (cents) with `Number.EPSILON` Half-Up rounding guard. Intermediate math operates in integer cents before dividing by 100.
+  - **Persistence Precision**: PostgreSQL `@db.Decimal(12, 2)` (scale 2, precision 12), capacity up to $\$9,999,999,999.99$.
+  - **Display Precision**: Fixed 2 decimal places with currency (e.g. `"$49.99 USD"`).
+- **`currency: string`**: Normalized 3-letter uppercase ISO-4217 standard currency code (e.g. `"USD"`, `"CAD"`, `"EUR"`). Default: `"USD"`.
 - **Arithmetic Rules (Guaranteed Cent-Integer Math)**:
-  - `add(other: Money)`: Requires identical currencies; computes $\frac{\text{round}(a \times 100) + \text{round}(b \times 100)}{100}$. Returns new `Money`.
-  - `subtract(other: Money)`: Requires identical currencies; computes $\frac{\text{round}(a \times 100) - \text{round}(b \times 100)}{100}$. Throws `InvalidMoneyException` if result $< 0$.
-  - `multiply(factor: number)`: Factor must be finite and $\ge 0$; computes $\frac{\text{round}(a \times 100 \times \text{factor})}{100}$. Returns new `Money`.
+  - `add(other: Money)`: Requires identical currencies; computes $\frac{\text{round}((a + \epsilon) \times 100) + \text{round}((b + \epsilon) \times 100)}{100}$. Returns new `Money`.
+  - `subtract(other: Money)`: Requires identical currencies; computes $\frac{\text{round}((a + \epsilon) \times 100) - \text{round}((b + \epsilon) \times 100)}{100}$. Throws `InvalidMoneyException` if result $< 0$.
+  - `multiply(factor: number)`: Factor must be finite and $\ge 0$; computes $\frac{\text{round}(\text{round}((a + \epsilon) \times 100) \times \text{factor} + \epsilon)}{100}$. Returns new `Money`.
   - `isZero()`: Returns `true` if $\text{amount} === 0$.
 - **Comparison Methods**:
   - `equals(other: Money)`: `this.currency === other.currency && this.amount === other.amount`.
@@ -318,12 +322,12 @@ In accordance with Phase 6 architectural standards, ADR-0098, and ADR-0108:
 - **Persistence Representation (PostgreSQL / Prisma)**:
   - Stored as `Decimal @db.Decimal(12, 2)` alongside `currency String @db.VarChar(3)`.
   - Supports balances up to `$9,999,999,999.99` with zero decimal drift.
-  - Repositories map bidirectional: `Money.create(Number(raw.amount), raw.currency)` and `new Prisma.Decimal(money.amount)`.
+  - Repositories map bidirectional: `Money.create(raw.amount.toNumber(), raw.currency)` and `new Prisma.Decimal(money.amount)`.
 - **API Representation**:
   - Serialized as structured JSON object: `{ "amount": 49.99, "currency": "USD" }`.
 - **Payment Gateway Conversion**:
   - External adapters convert deterministically:
-    $$\text{amountInCents} = \text{round}(\text{money.amount} \times 100)$$
+    $$\text{amountInCents} = \text{round}((\text{money.amount} + \text{Number.EPSILON}) \times 100)$$
     $$\text{money} = \text{Money.create}\left(\frac{\text{cents}}{100}, \text{currency}\right)$$
 
 ---
