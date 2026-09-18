@@ -1,8 +1,9 @@
 /**
- * Discount calculation mechanisms applicable to line items or entire orders.
+ * Discount calculation mechanisms applicable to line items.
  */
 export enum DiscountType {
   PERCENTAGE = 'PERCENTAGE',
+  FIXED = 'FIXED',
   FIXED_AMOUNT = 'FIXED_AMOUNT',
 }
 

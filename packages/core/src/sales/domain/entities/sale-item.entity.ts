@@ -45,7 +45,7 @@ export interface SaleItemSnapshot {
   quantity: number;
   unitPrice: number;
   currency: string;
-  discount: { type: string; value: number; reason: string } | null;
+  discount: { type: string; value: number; reason?: string | null } | null;
   subtotal: number;
   discountTotal: number;
   total: number;
