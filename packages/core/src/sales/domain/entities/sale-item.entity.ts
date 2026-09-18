@@ -321,6 +321,10 @@ export class SaleItem implements Entity<SaleItemId> {
     return this._total;
   }
 
+  public get currency(): string {
+    return this._unitPrice.currency;
+  }
+
   // Compatibility aliases
   public get lineSubtotal(): Money {
     return this._subtotal;

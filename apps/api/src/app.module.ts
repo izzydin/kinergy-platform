@@ -7,6 +7,7 @@ import { PlatformModule } from './platform';
 import { SchedulingModule } from './scheduling';
 import { GymModule } from './gym';
 import { ResourcesModule } from './resources';
+import { SalesModule } from './sales';
 import { GlobalSanitizationValidationPipe } from './common/pipes';
 
 @Module({
@@ -20,6 +21,7 @@ import { GlobalSanitizationValidationPipe } from './common/pipes';
     SchedulingModule,
     GymModule,
     ResourcesModule,
+    SalesModule,
   ],
   controllers: [AppController],
   providers: [
