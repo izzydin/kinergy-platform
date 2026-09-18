@@ -673,4 +673,77 @@ model AssetMaintenanceRecord {
   @@map("asset_maintenance_records")
 }
 
+// ============================================================================
+// PHASE 7: SALES & PAYMENTS
+// ============================================================================
+
+enum SaleStatus {
+  DRAFT
+  PENDING_PAYMENT
+  PARTIALLY_PAID
+  PAID
+  COMPLETED
+  CANCELLED
+  REFUNDED
+}
+
+model Sale {
+  id                  String      @id @default(uuid())
+  tenantId            String?     @map("tenant_id")
+  clientId            String?     @map("client_id")
+  status              SaleStatus  @default(DRAFT)
+  currency            String      @default("USD") @db.VarChar(3)
+  sourceType          String      @map("source_type")
+  sourceId            String      @map("source_id")
+  sourceCode          String?     @map("source_code")
+  subtotalAmount      Decimal     @db.Decimal(12, 2) @map("subtotal_amount")
+  discountTotalAmount Decimal     @db.Decimal(12, 2) @map("discount_total_amount")
+  totalAmount         Decimal     @db.Decimal(12, 2) @map("total_amount")
+  orderDiscountType   String?     @map("order_discount_type")
+  orderDiscountValue  Decimal?    @db.Decimal(10, 2) @map("order_discount_value")
+  orderDiscountReason String?     @map("order_discount_reason")
+  cancellationReason  String?     @map("cancellation_reason")
+  cancelledAt         DateTime?   @map("cancelled_at")
+  completedAt         DateTime?   @map("completed_at")
+  refundedAt          DateTime?   @map("refunded_at")
+  version             Int         @default(1)
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  items               SaleItem[]  @relation("SaleToSaleItems")
+
+  @@index([tenantId])
+  @@index([clientId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("sales")
+}
+
+model SaleItem {
+  id                  String   @id @default(uuid())
+  saleId              String   @map("sale_id")
+  sourceType          String   @map("source_type")
+  sourceId            String   @map("source_id")
+  sourceCode          String?  @map("source_code")
+  description         String
+  skuOrCode           String?  @map("sku_or_code")
+  quantity            Decimal  @db.Decimal(10, 3)
+  unitPriceAmount     Decimal  @db.Decimal(12, 2) @map("unit_price_amount")
+  unitPriceCurrency   String   @default("USD") @db.VarChar(3) @map("unit_price_currency")
+  subtotalAmount      Decimal  @db.Decimal(12, 2) @map("subtotal_amount")
+  discountTotalAmount Decimal  @db.Decimal(12, 2) @map("discount_total_amount")
+  totalAmount         Decimal  @db.Decimal(12, 2) @map("total_amount")
+  discountType        String?  @map("discount_type")
+  discountValue       Decimal? @db.Decimal(10, 2) @map("discount_value")
+  discountReason      String?  @map("discount_reason")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  sale                Sale     @relation("SaleToSaleItems", fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
+  @@index([skuOrCode])
+  @@map("sale_items")
+}
+
 
