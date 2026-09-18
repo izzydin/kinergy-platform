@@ -141,7 +141,7 @@ export class SaleItem implements Entity<SaleItemId> {
     const currency = props.unitPrice.currency;
     const subtotal = props.unitPrice.multiply(normalizedQuantity);
     const discountTotal = props.discount
-      ? props.discount.calculateReduction(subtotal)
+      ? props.discount.calculate(subtotal)
       : Money.zero(currency);
     const total = subtotal.subtract(discountTotal);
 
@@ -214,7 +214,7 @@ export class SaleItem implements Entity<SaleItemId> {
     const currency = props.unitPrice.currency;
     const expectedSubtotal = props.unitPrice.multiply(normalizedQuantity);
     const expectedDiscountTotal = props.discount
-      ? props.discount.calculateReduction(expectedSubtotal)
+      ? props.discount.calculate(expectedSubtotal)
       : Money.zero(currency);
     const expectedTotal = expectedSubtotal.subtract(expectedDiscountTotal);
 

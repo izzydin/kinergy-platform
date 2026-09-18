@@ -10,6 +10,7 @@ import { SaleAlreadyFinalizedException } from '../exceptions/sale-already-finali
 import { SaleItem } from '../entities/sale-item.entity';
 import { InvalidSaleStateException } from '../exceptions/invalid-sale-state.exception';
 import { InvalidSaleItemException } from '../exceptions/invalid-sale-item.exception';
+import { InvalidDiscountException } from '../exceptions/invalid-discount.exception';
 import { SaleDomainException } from '../exceptions/sale-domain.exception';
 import { Clock } from '../shared/clock';
 
@@ -272,7 +273,23 @@ describe('Sale Aggregate Root — Production Financial Hardening & Anti-Tamperin
   });
 
   describe('4. Financial Invariants: Non-Negative Guard and Capping Under Pressure', () => {
-    it('guarantees total does not drop below 0 when fixed line discount exceeds unit price * quantity', () => {
+    it('guarantees fixed line discount exceeding subtotal is rejected by domain invariant', () => {
+      const sale = Sale.create({ source: validSource }, clock);
+      expect(() => {
+        sale.addItem(
+          {
+            source: validSource,
+            description: 'Small Item',
+            quantity: 1,
+            unitPrice: Money.create(10.0, 'USD'),
+            discount: Discount.fixedAmount(50.0, 'Huge Coupon'), // Exceeds line subtotal
+          },
+          clock,
+        );
+      }).toThrow(InvalidDiscountException);
+    });
+
+    it('guarantees fixed line discount equal to unit price * quantity results in $0.00 line total', () => {
       const sale = Sale.create({ source: validSource }, clock);
       sale.addItem(
         {
@@ -280,13 +297,13 @@ describe('Sale Aggregate Root — Production Financial Hardening & Anti-Tamperin
           description: 'Small Item',
           quantity: 1,
           unitPrice: Money.create(10.0, 'USD'),
-          discount: Discount.fixedAmount(50.0, 'Huge Coupon'), // Exceeds line subtotal
+          discount: Discount.fixedAmount(10.0, 'Exact Coupon'), // Equal to line subtotal
         },
         clock,
       );
 
       expect(sale.subtotal.amount).toBe(10.0);
-      expect(sale.discountTotal.amount).toBe(10.0); // Capped at $10
+      expect(sale.discountTotal.amount).toBe(10.0);
       expect(sale.total.amount).toBe(0.0); // Total is $0.00, non-negative
     });
 
@@ -310,7 +327,7 @@ describe('Sale Aggregate Root — Production Financial Hardening & Anti-Tamperin
       expect(sale.total.amount).toBe(0.0);
     });
 
-    it('dynamically adapts line discount and order discount when quantity decreases', () => {
+    it('rejects decreasing quantity when fixed line discount would exceed new subtotal (failure atomicity)', () => {
       const sale = Sale.create({ source: validSource }, clock);
       const item = sale.addItem(
         {
@@ -323,17 +340,42 @@ describe('Sale Aggregate Root — Production Financial Hardening & Anti-Tamperin
         clock,
       );
 
+      // Decreasing quantity from 5 to 2 drops subtotal to $20, which is less than fixed discount $30.
+      // Must be rejected by domain invariant rather than silently clamping.
+      expect(() => {
+        sale.updateItemQuantity(item.id, 2, clock);
+      }).toThrow(InvalidDiscountException);
+
+      // Failure atomicity: Sale remains at 5 items ($50 subtotal, $30 discount, $20 total)
+      expect(sale.subtotal.amount).toBe(50.0);
+      expect(sale.discountTotal.amount).toBe(30.0);
+      expect(sale.total.amount).toBe(20.0);
+    });
+
+    it('dynamically adapts line percentage discount and order discount when quantity decreases', () => {
+      const sale = Sale.create({ source: validSource }, clock);
+      const item = sale.addItem(
+        {
+          source: validSource,
+          description: 'Bulk Towels',
+          quantity: 5,
+          unitPrice: Money.create(10.0, 'USD'), // Subtotal $50
+          discount: Discount.percentage(40, 'Bulk 40% Discount'), // Disc = $20
+        },
+        clock,
+      );
+
       sale.applyOrderDiscount(Discount.fixedAmount(15.0, 'Order Bonus'), clock);
 
-      // Subtotal $50, Line Disc $30 -> Net $20 -> Order Disc $15 -> Disc Total $45, Total $5
+      // Subtotal $50, Line Disc $20 -> Net $30 -> Order Disc $15 -> Disc Total $35, Total $15
       expect(sale.subtotal.amount).toBe(50.0);
-      expect(sale.discountTotal.amount).toBe(45.0);
-      expect(sale.total.amount).toBe(5.0);
+      expect(sale.discountTotal.amount).toBe(35.0);
+      expect(sale.total.amount).toBe(15.0);
 
-      // Decrease quantity from 5 to 2 (Subtotal drops to $20)
+      // Decrease quantity from 5 to 2 (Subtotal drops to $20, 40% Line Disc adapts to $8.00)
       sale.updateItemQuantity(item.id, 2, clock);
 
-      // Now: Subtotal $20. Line Disc was $30, now capped at $20! Net pre-order is $0. Order Disc drops to $0.
+      // Subtotal $20. Line Disc $8 -> Net pre-order $12. Order Disc $15 capped at $12 -> Disc Total $20, Total $0
       expect(sale.subtotal.amount).toBe(20.0);
       expect(sale.discountTotal.amount).toBe(20.0);
       expect(sale.total.amount).toBe(0.0);

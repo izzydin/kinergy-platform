@@ -40,6 +40,7 @@ import {
   InvalidSaleStateException,
   InvalidSaleTransitionException,
   InvalidSaleItemException,
+  InvalidDiscountException,
 } from '../exceptions';
 import { SaleCreatedEvent } from '../events';
 
@@ -337,7 +338,21 @@ describe('Sale Aggregate Root Behavioral Test Suite', () => {
       }).toThrow();
     });
 
-    it('caps line-item discount at item gross subtotal (ITEM-07)', () => {
+    it('rejects adding line-item whose fixed discount exceeds gross subtotal (ITEM-07)', () => {
+      const sale = Sale.create({ source: validSessionSource }, clock);
+
+      expect(() => {
+        sale.addItem({
+          source: validInventorySource,
+          description: 'Single Protein Bar',
+          quantity: 1,
+          unitPrice: Money.create(3.0, 'USD'),
+          discount: Discount.fixedAmount(10.0, 'Voucher exceeding price'),
+        });
+      }).toThrow(InvalidDiscountException);
+    });
+
+    it('allows line-item fixed discount equal to gross subtotal leaving $0.00 line total (ITEM-07)', () => {
       const sale = Sale.create({ source: validSessionSource }, clock);
 
       const item = sale.addItem({
@@ -345,10 +360,9 @@ describe('Sale Aggregate Root Behavioral Test Suite', () => {
         description: 'Single Protein Bar',
         quantity: 1,
         unitPrice: Money.create(3.0, 'USD'),
-        discount: Discount.fixedAmount(10.0, 'Voucher exceeding price'),
+        discount: Discount.fixedAmount(3.0, 'Full Item Voucher'),
       });
 
-      // Reduction is capped at subtotal $3.00, total is $0.00 (not -$7.00)
       expect(item.subtotal.amount).toBe(3.0);
       expect(item.discountTotal.amount).toBe(3.0);
       expect(item.total.amount).toBe(0.0);

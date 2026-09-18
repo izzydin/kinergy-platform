@@ -6,6 +6,7 @@ import { SourceType } from '../enums/source-type.enum';
 import { Money } from '../value-objects/money.vo';
 import { Discount } from '../value-objects/discount.vo';
 import { InvalidSaleItemException } from '../exceptions/invalid-sale-item.exception';
+import { InvalidDiscountException } from '../exceptions/invalid-discount.exception';
 
 describe('SaleItem Entity', () => {
   const defaultSource = SourceReference.create({
@@ -87,8 +88,21 @@ describe('SaleItem Entity', () => {
       expect(item.total.amount).toBe(24.5);
     });
 
-    it('caps fixed discount at subtotal so item total never drops below zero', () => {
+    it('rejects fixed discount exceeding subtotal with InvalidDiscountException', () => {
       const discount = Discount.fixedAmount(100.0, 'Huge Coupon');
+      expect(() => {
+        SaleItem.create({
+          source: defaultSource,
+          description: 'Water Bottle',
+          quantity: 1,
+          unitPrice: Money.create(15.0, 'USD'),
+          discount,
+        });
+      }).toThrow(InvalidDiscountException);
+    });
+
+    it('allows fixed discount exactly equal to subtotal resulting in zero total', () => {
+      const discount = Discount.fixedAmount(15.0, 'Full Price Voucher');
       const item = SaleItem.create({
         source: defaultSource,
         description: 'Water Bottle',
@@ -590,17 +604,16 @@ describe('SaleItem Entity', () => {
         expect(item.total.amount).toBe(0.0);
       });
 
-      it('caps fixed discount exactly at subtotal when discount exceeds subtotal', () => {
-        const item = SaleItem.create({
-          source: defaultSource,
-          description: 'Gift Card Exceeding Item Price',
-          quantity: 1,
-          unitPrice: Money.create(30.0, 'USD'),
-          discount: Discount.fixedAmount(50.0, '$50 Gift Card'),
-        });
-        expect(item.subtotal.amount).toBe(30.0);
-        expect(item.discountTotal.amount).toBe(30.0);
-        expect(item.total.amount).toBe(0.0);
+      it('rejects fixed discount exceeding subtotal rather than silently capping', () => {
+        expect(() => {
+          SaleItem.create({
+            source: defaultSource,
+            description: 'Gift Card Exceeding Item Price',
+            quantity: 1,
+            unitPrice: Money.create(30.0, 'USD'),
+            discount: Discount.fixedAmount(50.0, '$50 Gift Card'),
+          });
+        }).toThrow(InvalidDiscountException);
       });
 
       it('rejects invalid discount parameters (negative, > 100%, empty reason)', () => {
@@ -681,6 +694,48 @@ describe('SaleItem Entity', () => {
           });
         }).toThrow(InvalidSaleItemException);
       });
+    });
+  });
+
+  describe('Historical Commercial Stability (Prompt 7.3.4)', () => {
+    it('preserves historical unitPrice, discount, and total even if original source changes later', () => {
+      // Original product: Green Smoothie, unitPrice = 20, discount = 10%
+      const sourceRef = SourceReference.create({
+        sourceType: SourceType.INVENTORY_ITEM,
+        sourceId: 'inv-smoothie-001',
+        sourceCode: 'SMOOTH-01',
+      });
+      const historicalItem = SaleItem.create({
+        source: sourceRef,
+        description: 'Green Smoothie',
+        quantity: 1,
+        unitPrice: Money.create(20.0, 'USD'),
+        discount: Discount.percentage(10, 'Seasonal 10% Off'),
+      });
+
+      expect(historicalItem.unitPrice.amount).toBe(20.0);
+      expect(historicalItem.discount?.value).toBe(10);
+      expect(historicalItem.subtotal.amount).toBe(20.0);
+      expect(historicalItem.discountTotal.amount).toBe(2.0);
+      expect(historicalItem.total.amount).toBe(18.0);
+
+      // Simulated external change: current product later changes to unitPrice = 30, discount = 20%
+      const currentExternalCatalogState = {
+        unitPrice: Money.create(30.0, 'USD'),
+        discount: Discount.percentage(20, 'New Promotion'),
+      };
+
+      // Existing historical SaleItem remains completely unchanged
+      expect(historicalItem.unitPrice.amount).toBe(20.0);
+      expect(historicalItem.discount?.value).toBe(10);
+      expect(historicalItem.subtotal.amount).toBe(20.0);
+      expect(historicalItem.discountTotal.amount).toBe(2.0);
+      expect(historicalItem.total.amount).toBe(18.0);
+      expect(historicalItem.unitPrice.amount).not.toBe(
+        currentExternalCatalogState.unitPrice.amount,
+      );
+      expect(historicalItem.discount?.value).not.toBe(currentExternalCatalogState.discount.value);
+      expect(Object.isFrozen(historicalItem)).toBe(true);
     });
   });
 });
