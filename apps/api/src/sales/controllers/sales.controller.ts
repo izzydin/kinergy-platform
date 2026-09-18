@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Inject,
   NotFoundException,
+  Optional,
   Param,
   Post,
   UseFilters,
@@ -14,13 +15,17 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
-  Sale,
-  Money,
-  Discount,
-  SourceReference,
   SourceType,
-  SaleMapper,
   SaleRepositoryInterface,
+  CreateSaleHandler,
+  GetSaleByIdHandler,
+  AddSaleItemHandler,
+  FinalizeSaleHandler,
+  CreateSaleCommand,
+  GetSaleByIdQuery,
+  AddSaleItemCommand,
+  FinalizeSaleCommand,
+  SalesApplicationResult,
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
@@ -41,10 +46,32 @@ export const SALE_REPOSITORY_TOKEN = 'SaleRepositoryInterface';
 @UseFilters(SalesExceptionFilter)
 @Controller('api/v1/sales')
 export class SalesController {
+  private readonly _createSaleHandler: CreateSaleHandler;
+  private readonly _getSaleByIdHandler: GetSaleByIdHandler;
+  private readonly _addSaleItemHandler: AddSaleItemHandler;
+  private readonly _finalizeSaleHandler: FinalizeSaleHandler;
+
   constructor(
     @Inject(SALE_REPOSITORY_TOKEN)
-    private readonly saleRepository: SaleRepositoryInterface,
-  ) {}
+    saleRepository: SaleRepositoryInterface,
+    @Optional()
+    @Inject(CreateSaleHandler)
+    createSaleHandler?: CreateSaleHandler,
+    @Optional()
+    @Inject(GetSaleByIdHandler)
+    getSaleByIdHandler?: GetSaleByIdHandler,
+    @Optional()
+    @Inject(AddSaleItemHandler)
+    addSaleItemHandler?: AddSaleItemHandler,
+    @Optional()
+    @Inject(FinalizeSaleHandler)
+    finalizeSaleHandler?: FinalizeSaleHandler,
+  ) {
+    this._createSaleHandler = createSaleHandler ?? new CreateSaleHandler(saleRepository);
+    this._getSaleByIdHandler = getSaleByIdHandler ?? new GetSaleByIdHandler(saleRepository);
+    this._addSaleItemHandler = addSaleItemHandler ?? new AddSaleItemHandler(saleRepository);
+    this._finalizeSaleHandler = finalizeSaleHandler ?? new FinalizeSaleHandler(saleRepository);
+  }
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -65,28 +92,24 @@ export class SalesController {
     description: 'Validation failed or invalid currency code',
   })
   public async createSale(@Body() dto: CreateSaleRequestDto): Promise<SaleResponseDto> {
-    const currency = dto.currency ? dto.currency.trim().toUpperCase() : 'USD';
-
-    const source = dto.source
-      ? SourceReference.create({
-          sourceType: dto.source.sourceType,
-          sourceId: dto.source.sourceId,
-          sourceCode: dto.source.sourceCode ?? null,
-        })
-      : SourceReference.create({
-          sourceType: SourceType.CUSTOM_SERVICE,
-          sourceId: 'pos_checkout_terminal',
-          sourceCode: 'POS_REGISTER',
-        });
-
-    const sale = Sale.create({
-      currency,
+    const command = new CreateSaleCommand({
+      currency: dto.currency,
       clientId: dto.clientId,
-      source,
+      source: dto.source
+        ? {
+            sourceType: dto.source.sourceType,
+            sourceId: dto.source.sourceId,
+            sourceCode: dto.source.sourceCode,
+          }
+        : {
+            sourceType: SourceType.CUSTOM_SERVICE,
+            sourceId: 'pos_checkout_terminal',
+            sourceCode: 'POS_REGISTER',
+          },
     });
 
-    await this.saleRepository.save(sale);
-    return SaleMapper.toDTO(sale) as SaleResponseDto;
+    const result = await this._createSaleHandler.execute(command);
+    return this.handleResult(result) as SaleResponseDto;
   }
 
   @Get(':id')
@@ -109,12 +132,9 @@ export class SalesController {
     description: 'Sale order not found',
   })
   public async getSale(@Param('id') id: string): Promise<SaleResponseDto> {
-    const sale = await this.saleRepository.findById(id);
-    if (!sale) {
-      throw new NotFoundException(`Sale order '${id}' was not found.`);
-    }
-
-    return SaleMapper.toDTO(sale) as SaleResponseDto;
+    const query = new GetSaleByIdQuery({ saleId: id });
+    const result = await this._getSaleByIdHandler.execute(query);
+    return this.handleResult(result) as SaleResponseDto;
   }
 
   @Post(':id/items')
@@ -144,42 +164,28 @@ export class SalesController {
     @Param('id') id: string,
     @Body() dto: AddSaleItemRequestDto,
   ): Promise<SaleResponseDto> {
-    const sale = await this.saleRepository.findById(id);
-    if (!sale) {
-      throw new NotFoundException(`Sale order '${id}' was not found.`);
-    }
-
-    const source = SourceReference.create({
-      sourceType: dto.source.sourceType,
-      sourceId: dto.source.sourceId,
-      sourceCode: dto.source.sourceCode ?? null,
-    });
-
-    const unitPrice = Money.create(dto.unitPriceAmount, sale.currency);
-
-    let discount: Discount | undefined;
-    if (dto.discount) {
-      const typeStr = dto.discount.type.toUpperCase();
-      if (typeStr === 'PERCENTAGE') {
-        discount = Discount.percentage(dto.discount.value, dto.discount.reason);
-      } else if (typeStr === 'FIXED' || typeStr === 'FIXED_AMOUNT') {
-        discount = Discount.fixed(dto.discount.value, dto.discount.reason);
-      } else {
-        throw new BadRequestException(`Unsupported discount type: '${dto.discount.type}'.`);
-      }
-    }
-
-    sale.addItem({
-      source,
+    const command = new AddSaleItemCommand({
+      saleId: id,
+      source: {
+        sourceType: dto.source.sourceType,
+        sourceId: dto.source.sourceId,
+        sourceCode: dto.source.sourceCode,
+      },
       description: dto.description,
-      skuOrCode: dto.skuOrCode ?? null,
+      skuOrCode: dto.skuOrCode,
       quantity: dto.quantity,
-      unitPrice,
-      discount: discount ?? null,
+      unitPriceAmount: dto.unitPriceAmount,
+      discount: dto.discount
+        ? {
+            type: dto.discount.type,
+            value: dto.discount.value,
+            reason: dto.discount.reason,
+          }
+        : undefined,
     });
 
-    await this.saleRepository.save(sale);
-    return SaleMapper.toDTO(sale) as SaleResponseDto;
+    const result = await this._addSaleItemHandler.execute(command);
+    return this.handleResult(result) as SaleResponseDto;
   }
 
   @Post(':id/finalize')
@@ -205,13 +211,26 @@ export class SalesController {
     @Param('id') id: string,
     @Body() _dto: FinalizeSaleRequestDto,
   ): Promise<SaleResponseDto> {
-    const sale = await this.saleRepository.findById(id);
-    if (!sale) {
-      throw new NotFoundException(`Sale order '${id}' was not found.`);
-    }
+    const command = new FinalizeSaleCommand({ saleId: id });
+    const result = await this._finalizeSaleHandler.execute(command);
+    return this.handleResult(result) as SaleResponseDto;
+  }
 
-    sale.finalize();
-    await this.saleRepository.save(sale);
-    return SaleMapper.toDTO(sale) as SaleResponseDto;
+  private handleResult<T>(result: SalesApplicationResult<T, Error | string>): T {
+    if (result.isFailure) {
+      const error = result.getError();
+      if (error instanceof Error) {
+        if (error.message.includes('not found') || error.message.includes('was not found')) {
+          throw new NotFoundException(error.message);
+        }
+        throw error;
+      }
+      const message = String(error);
+      if (message.includes('not found') || message.includes('was not found')) {
+        throw new NotFoundException(message);
+      }
+      throw new BadRequestException(message);
+    }
+    return result.getValue();
   }
 }
