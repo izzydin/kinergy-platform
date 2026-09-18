@@ -133,8 +133,10 @@ export class Discount implements ValueObject<DiscountProps> {
   public calculate(eligibleAmount: Money | number, currency = 'USD'): Money {
     let amount: number;
     let curr: string;
+    let eligibleInCents: number;
 
     if (eligibleAmount instanceof Money) {
+      eligibleInCents = eligibleAmount.cents;
       amount = eligibleAmount.amount;
       curr = eligibleAmount.currency;
     } else if (typeof eligibleAmount === 'number') {
@@ -149,6 +151,7 @@ export class Discount implements ValueObject<DiscountProps> {
         );
       }
       amount = Math.round((eligibleAmount + Number.EPSILON) * 100) / 100;
+      eligibleInCents = Math.round(amount * 100);
       curr = currency;
     } else {
       throw new InvalidDiscountException(
@@ -156,11 +159,9 @@ export class Discount implements ValueObject<DiscountProps> {
       );
     }
 
-    if (amount < 0) {
+    if (amount < 0 || eligibleInCents < 0) {
       throw new InvalidDiscountException(`Eligible amount cannot be negative, got: ${amount}.`);
     }
-
-    const eligibleInCents = Math.round(amount * 100);
 
     if (this.isFixed()) {
       const discountInCents = Math.round(this._value * 100);
@@ -169,7 +170,7 @@ export class Discount implements ValueObject<DiscountProps> {
           `Fixed discount (${this._value}) cannot exceed eligible amount (${amount}).`,
         );
       }
-      return Money.create(discountInCents / 100, curr);
+      return Money.fromCents(discountInCents, curr);
     }
 
     // Percentage discount
@@ -177,9 +178,9 @@ export class Discount implements ValueObject<DiscountProps> {
       return Money.zero(curr);
     }
 
-    const discountInCents = Math.round((eligibleInCents * this._value) / 100);
+    const discountInCents = Math.round((eligibleInCents * this._value) / 100 + 1e-8);
     const guardedDiscountInCents = Math.min(eligibleInCents, Math.max(0, discountInCents));
-    return Money.create(guardedDiscountInCents / 100, curr);
+    return Money.fromCents(guardedDiscountInCents, curr);
   }
 
   /**
@@ -194,12 +195,12 @@ export class Discount implements ValueObject<DiscountProps> {
       return Money.zero(subtotal.currency);
     }
 
-    const subtotalInCents = Math.round(subtotal.amount * 100);
+    const subtotalInCents = subtotal.cents;
     let calculatedReductionInCents: number;
 
     if (this.isPercentage()) {
       // Scale percentage to integer cents using Commercial Half-Up rounding
-      calculatedReductionInCents = Math.round((subtotalInCents * this._value) / 100);
+      calculatedReductionInCents = Math.round((subtotalInCents * this._value) / 100 + 1e-8);
     } else {
       calculatedReductionInCents = Math.round(this._value * 100);
     }
@@ -210,7 +211,7 @@ export class Discount implements ValueObject<DiscountProps> {
       Math.max(0, calculatedReductionInCents),
     );
 
-    return Money.create(cappedReductionInCents / 100, subtotal.currency);
+    return Money.fromCents(cappedReductionInCents, subtotal.currency);
   }
 
   public getValue(): DiscountProps {
