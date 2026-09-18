@@ -237,9 +237,8 @@ classDiagram
         <<ValueObject>>
         +DiscountType type
         +number value
-        +string reason
-        +string? authorizedByUserId
-        +calculateReduction(Money) Money
+        +string? reason
+        +calculate(Money) Money
     }
 
     Sale "1" *-- "0..*" SaleItem : owns exclusively
@@ -266,7 +265,7 @@ classDiagram
 6. **`Money`**:
    The canonical platform Value Object (shared kernel) encapsulating an exact non-negative amount (fixed 2 decimal places / integer cents) and ISO-4217 currency code.
 7. **`Discount`**:
-   An immutable Value Object representing a fixed-amount or percentage reduction applied at either the line-item level or order level, with a mandatory business explanation.
+   An immutable Value Object in the Sales bounded context representing a fixed-amount (`FIXED`) or percentage (`PERCENTAGE`) reduction applied strictly at the line-item level (`SaleItem.discount`), evaluated deterministically via integer cent Half-Up arithmetic (`calculate(eligibleAmount)`).
 
 ---
 
@@ -286,9 +285,9 @@ classDiagram
 │  - currency: string (Normalized ISO-4217 standard)                     │
 │  - source: SourceReference (Commercial origin reference)               │
 │  - version: number (Optimistic Concurrency Control counter >= 1)       │
-│  - orderDiscount: Discount? (Order-level reduction)                    │
+│  - orderDiscount: Discount? (Order-level reduction, deferred)          │
 │  - subtotal: Money (Sum of line subtotals)                             │
-│  - discountTotal: Money (Line discounts + order discount)              │
+│  - discountTotal: Money (Sum of line item discounts)                  │
 │  - total: Money (Subtotal - discountTotal, guaranteed >= 0.00)         │
 │  - timestamps: createdAt, updatedAt, completedAt?, cancelledAt?,       │
 │                refundedAt?, cancellationReason?                        │
@@ -303,7 +302,7 @@ classDiagram
 │    ├── unitPrice: Money (Gross unit price snapshot)                    │
 │    ├── discount: Discount? (Line-item discount)                        │
 │    ├── subtotal: Money (quantity * unitPrice)                          │
-│    ├── discountTotal: Money (min(subtotal, discountReduction))         │
+│    ├── discountTotal: Money (discount.calculate(subtotal))             │
 │    └── total: Money (subtotal - discountTotal)                         │
 │                                                                        │
 │  TRANSACTIONAL INVARIANTS:                                             │
@@ -321,7 +320,10 @@ classDiagram
 
 1. **Commercial Immutability**: Once a `Sale` transitions out of `DRAFT` (into `PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, `CANCELLED`, or `REFUNDED`), line items and discounts cannot be added, edited, or deleted (`SaleAlreadyFinalizedException` with code `'SALE_ALREADY_FINALIZED'`).
 2. **Currency Consistency**: All items, discounts, and totals within a `Sale` must share the identical ISO-4217 currency code. Mixed-currency sales are strictly rejected (`InvalidSaleStateException`).
-3. **Non-Negative Valuation**: Line items and net order totals must never be negative. Promotional discounts exceeding the order total are capped at the order value (total payable $\ge 0.00$).
+3. **Non-Negative Valuation & Invariant Reconciliation**: Line items and net order totals must never be negative. Fixed discounts exceeding line subtotal are strictly rejected with `InvalidDiscountException` (no silent clamping). Subtotal and discount totals reconcile deterministically:
+   $$\text{Sale.subtotal} = \sum \text{SaleItem.subtotal}$$
+   $$\text{Sale.discountTotal} = \sum \text{SaleItem.discountAmount}$$
+   $$\text{Sale.total} = \text{Sale.subtotal} - \text{Sale.discountTotal} \ge \$0.00$$
 4. **Optimistic Concurrency Control (OCC)**: The `Sale` aggregate root maintains an integer `version` field incremented on every lifecycle transition to prevent lost updates during concurrent operations.
 5. **Failure Atomicity**: Any operation failing an invariant assertion aborts immediately before modifying state, staging zero uncommitted events.
 

@@ -92,13 +92,12 @@ This specification defines the ubiquitous domain language, aggregate boundaries,
 2. **Monetary Non-Negativity**: The net total payable amount (`total`) must always be $\ge 0.00$. Line and order discounts are capped at the corresponding subtotal.
 3. **Currency Homogeneity**: Every `SaleItem`, order discount, subtotal, and total within a `Sale` must share the identical ISO-4217 currency. Attempting to add an item with a mismatched currency throws `InvalidSaleStateException`.
 4. **Commercial Locking**: Once a `Sale` departs `DRAFT` (into `PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, `CANCELLED`, or `REFUNDED`), cart mutations (`addItem`, `removeItem`, `updateItemQuantity`, discounts) throw `SaleAlreadyFinalizedException` with code `'SALE_ALREADY_FINALIZED'`.
-5. **Deterministic Reconciliation Invariant**:
+5. **Deterministic Reconciliation Invariant (Phase 7.3 Item-Level Discount Scope)**:
    $$\text{Subtotal} = \sum (\text{SaleItem.subtotal})$$
-   $$\text{TotalLineDiscounts} = \sum (\text{SaleItem.discountTotal})$$
-   $$\text{NetPreOrderDiscount} = \text{Subtotal} - \text{TotalLineDiscounts}$$
-   $$\text{OrderDiscountAmount} = \min(\text{NetPreOrderDiscount}, \text{orderDiscount.calculateReduction}(\text{NetPreOrderDiscount}))$$
-   $$\text{DiscountTotal} = \text{TotalLineDiscounts} + \text{OrderDiscountAmount}$$
-   $$\text{Total} = \max(0, \text{Subtotal} - \text{DiscountTotal})$$
+   $$\text{DiscountTotal} = \sum (\text{SaleItem.discountTotal})$$
+   $$\text{Total} = \text{Subtotal} - \text{DiscountTotal}$$
+   $$\text{Total} \ge \$0.00$$
+   (Phase 7.3 supports item-level discounts exclusively; order-level discount allocation is deferred).
 6. **Cancellation Reason Invariant**: A sale can only be cancelled from `DRAFT`, `PENDING_PAYMENT`, or `PARTIALLY_PAID` and requires a non-empty `cancellationReason` string (`InvalidSaleStateException` with code `'INVALID_CANCELLATION_REASON'`).
 
 #### Field Mutability Classification
@@ -149,14 +148,15 @@ If a catalog product is repriced, renamed, discontinued, or archived, historical
   - **Negative Values**: Strictly rejected by `Money` and `SaleItem` invariants.
   - **No Dynamic Recalculation**: Once established, unit price is never refreshed from the source catalog.
 - **`discount: Discount | null`**: Canonical `Discount` Value Object representing line-item reductions:
-  - **Allowed Types**: `PERCENTAGE` ($0\%$ to $100\%$) or `FIXED_AMOUNT` ($\ge \$0.00$).
-  - **Mandatory Audit Reason**: Non-empty trimmed string explaining the commercial justification.
-  - **Cent Rounding**: Commercial Half-Up rounding in integer minor units.
-  - **Ceiling / Cap**: Capped at line subtotal ($\min(\text{subtotal}, \text{calcReduction})$), guaranteeing that line net total is always $\ge \$0.00$.
+  - **Allowed Types**: `FIXED` (with `FIXED_AMOUNT` alias) or `PERCENTAGE`.
+  - **Audit Reason**: Optional trimmed string (`reason?: string | null`) capturing commercial justification.
+  - **Cent Rounding**: Commercial Half-Up rounding in integer minor units. Zero floating-point arithmetic.
+  - **Eligible Amount**: Gross line subtotal ($\text{eligibleAmount} = \text{lineSubtotal}$).
+  - **Strict Non-Exceeding Guard**: A fixed discount cannot exceed the line subtotal ($\text{fixed} \le \text{subtotal}$). Attempting to apply $\text{fixed} > \text{subtotal}$ is strictly rejected with `InvalidDiscountException` (no silent clamping).
   - **Zero Behavior**: $0\%$ or $\$0.00$ produces $\$0.00$ reduction and leaves net total identical to subtotal.
-  - **Rejections**: Negative discounts, percentages $> 100\%$, and blank reason strings are rejected.
+  - **Rejections**: Negative discounts, percentages $> 100\%$, and fixed discounts exceeding subtotal are rejected.
 - **`subtotal: Money`** (alias: `lineSubtotal`): $\text{unitPrice.multiply(normalizedQuantity)}$, calculated via canonical `Money` with Half-Up cent rounding.
-- **`discountTotal: Money`** (alias: `lineDiscountTotal`): $\min(\text{subtotal}, \text{discount.calculateReduction(subtotal)})$.
+- **`discountTotal: Money`** (alias: `lineDiscountTotal` / `discountAmount`): $\text{discount ? discount.calculate(subtotal) : Money.zero(currency)}$.
 - **`total: Money`** (alias: `lineTotal`): $\text{subtotal.subtract(discountTotal)}$, guaranteed $\ge \$0.00$.
 
 #### Immutability Milestones
@@ -330,47 +330,55 @@ In accordance with Phase 6 architectural standards, ADR-0098, and ADR-0108:
 
 ### 3.7 `Discount` (Value Object)
 
-#### Semantics & Types
+#### Bounded-Context Ownership & Structure
 
-```
+`Discount` is a pure Value Object belonging exclusively to the **Sales & Payments** bounded context (`packages/core/src/sales/domain/value-objects/discount.vo.ts`). It has zero external dependencies on NestJS, Prisma, HTTP layers, or external pricing services.
+
+```text
 Discount
-├── type: DiscountType (FIXED_AMOUNT | PERCENTAGE)
-├── value: number (Finite positive number)
-├── reason: string (Mandatory business justification)
-└── authorizedByUserId?: string (Required for overrides)
+├── type: DiscountType (FIXED | PERCENTAGE)
+├── value: number (Non-negative, normalized to 2 decimal places)
+└── reason?: string | null (Optional audit justification)
 ```
 
-#### Deterministic Invariants & Rules
+#### Deterministic Invariants & Business Rules
 
-1. **Percentage Boundaries**: If `type == PERCENTAGE`, $0 < \text{value} \le 100$ with scale up to 2 decimal places (e.g. `12.5%`). A 100% discount reduces the balance to zero (complimentary item/service).
-2. **Fixed Amount Boundaries**: If `type == FIXED_AMOUNT`, value must be $> 0$ in the sale's functional currency.
-3. **Cap at Subtotal (Non-Negative Guard)**:
-   - A discount can **never exceed the subtotal** to which it applies.
-   - If a fixed discount of $50.00 is applied to a $35.00 item, the reduction is capped at $35.00. The net line total is $0.00; it never becomes negative.
-4. **Rounding Policy**:
-   - Percentage discounts round half-up at the cent boundary:
-     $$\text{reductionAmount} = \frac{\text{round}\left(\text{subtotal} \times \frac{\text{percentage}}{100} \times 100\right)}{100}$$
-5. **Hierarchy & Precedence**:
-   - **Level 1 (Item-Level Discounts)**: Evaluated first against individual line item gross subtotals ($\text{quantity} \times \text{unitPrice}$).
-   - **Level 2 (Order-Level Discount)**: Evaluated second against the net sum of all discounted line items.
-6. **Mandatory Justification**:
-   - Every discount requires a non-empty `reason` string (e.g., `"Seasonal Clinic Promo"`, `"Damaged outer seal"`, `"VIP Staff Benefit"`). Discretionary discounts without justification are rejected by domain validation.
-7. **Authorization Overrides**:
-   - Cashiers have discretionary discount authority up to a configured threshold (e.g., up to 15% or $20.00).
-   - Discounts exceeding this threshold require `authorizedByUserId` linking to an IAM user with `Owner` or `Manager` role.
+1. **Type Taxonomy**: Supported types are `PERCENTAGE` and `FIXED` (with `FIXED_AMOUNT` maintained as a canonical alias for backward compatibility).
+2. **Percentage Range**: If `type == PERCENTAGE`, $0 \le \text{value} \le 100$ (supporting up to 2 decimal places, e.g. `12.5%`). A 100% discount reduces the item net balance to `$0.00` (representing a fully promotional/complimentary item). Values $< 0$ or $> 100$ throw `InvalidDiscountException`.
+3. **Fixed Amount Range**: If `type == FIXED` (or `FIXED_AMOUNT`), `value` must be $\ge 0.00$ in the operating sale currency. Negative values throw `InvalidDiscountException`.
+4. **Scope (Phase 7.3 Item-Level Only)**:
+   - **Supported**: Applied at the `SaleItem` level (`SaleItem.discount`).
+   - **Deferred**: `Sale`-level order discounts are deferred until cross-line multi-item promotion algorithms are architected.
+5. **Eligible Amount**:
+   The discount calculation strictly evaluates against the **SaleItem gross subtotal**:
+   $$\text{eligibleAmount} = \text{SaleItem.subtotal} = \text{unitPrice} \times \text{normalizedQuantity}$$
+6. **Financial Constraint & Strict Rejection (Non-Exceeding Guard)**:
+   $$\text{discountAmount} \le \text{eligibleAmount}$$
+   For fixed discounts, if $\text{value} > \text{eligibleAmount.amount}$, the calculation **strictly fails** and throws `InvalidDiscountException`. The system does **not** silently reduce or clamp the discount to the eligible amount.
+7. **Deterministic Minor-Unit Rounding (Commercial Half-Up)**:
+   Calculations execute via `discount.calculate(eligibleAmount: Money): Money` strictly in integer cents (referencing ADR-0108). JavaScript floating-point arithmetic is never leaked into financial results:
+   $$\text{subtotalCents} = \text{round}(\text{eligibleAmount.amount} \times 100)$$
+   $$\text{discountCents} = \text{round}\left(\frac{\text{subtotalCents} \times \text{percentage}}{100}\right)$$
+   $$\text{discountAmount} = \text{Money.create}(\text{discountCents} / 100, \text{eligibleAmount.currency})$$
+8. **Historical Commercial Stability**:
+   `SaleItem` captures the discount calculation at checkout. It is **never** dynamically recalculated from current catalog, membership, or promotional entities when querying historical records.
+9. **Audit Justification**:
+   An optional `reason?: string | null` captures cashier rationale (e.g. `"VIP Member Discount"`, `"Packaging Blemish"`). If supplied, it is stored trimmed.
 
 ---
 
 ### 3.8 Deterministic Sale Totals & Reconciliation Formulas
 
-To guarantee that corporate balance sheets, receipts, and payment transactions reconcile to the exact cent without penny discrepancies, the domain enforces the following 13 deterministic formulas:
+To guarantee that corporate balance sheets, customer receipts, and payment settlements reconcile to the exact cent without penny discrepancies, the domain enforces the following deterministic formulas:
 
-```
+```text
 1.  Line Subtotal:
     lineSubtotal = round(quantity * unitPrice.amount * 100) / 100
 
-2.  Line Discount:
-    lineDiscount = min(lineSubtotal, calculatedLineReduction)
+2.  Line Discount (Phase 7.3 Item-Level Discount):
+    eligibleAmount = lineSubtotal
+    lineDiscount = discount ? discount.calculate(eligibleAmount) : Money.zero(currency)
+    (Asserting discountAmount <= eligibleAmount; fixed discount exceeding subtotal throws InvalidDiscountException)
 
 3.  Line Net Amount (Pre-Tax):
     lineNet = lineSubtotal - lineDiscount
@@ -384,23 +392,24 @@ To guarantee that corporate balance sheets, receipts, and payment transactions r
 6.  Sale Gross Subtotal:
     saleSubtotal = Sum(lineSubtotal[i])
 
-7.  Total Line Discounts:
-    totalLineDiscounts = Sum(lineDiscount[i])
+7.  Sale Total Line Discounts:
+    saleDiscountTotal = Sum(lineDiscount[i])
 
-8.  Sale Net (Pre-Order Discount):
-    saleNetPreOrderDisc = Sum(lineNet[i])
+8.  Sale Net (Pre-Tax, Pre-Order Discount):
+    saleNet = saleSubtotal - saleDiscountTotal
 
 9.  Order-Level Discount:
-    orderDiscountAmount = min(saleNetPreOrderDisc, orderDiscount.calculateReduction(saleNetPreOrderDisc))
+    (Deferred / Out-of-Scope for Phase 7.3; orderDiscount = null)
 
-10. Total All Discounts:
-    totalDiscounts = totalLineDiscounts + orderDiscountAmount
+10. Total Discounts:
+    totalDiscounts = saleDiscountTotal
 
 11. Total Sale Tax:
     saleTaxTotal = Sum(lineTax[i])
 
 12. Sale Total (Final Net Payable):
-    saleTotal = max(0, saleSubtotal - totalDiscounts + saleTaxTotal)
+    saleTotal = saleSubtotal - saleDiscountTotal + saleTaxTotal
+    (Guaranteed >= 0.00 since each lineDiscount <= lineSubtotal)
 
 13. Balance Remaining:
     balanceRemaining = max(0, saleTotal - Sum(SettledPayments.amount))
