@@ -312,4 +312,211 @@ describe('Discount Value Object', () => {
       }).toThrow(TypeError);
     });
   });
+
+  describe('Deterministic Discount Calculation (calculate API — Prompt 7.3.3)', () => {
+    describe('Fixed Discounts', () => {
+      it('calculates zero fixed discount correctly', () => {
+        const discount = Discount.fixed(0);
+        expect(discount.calculate(Money.create(100, 'USD')).amount).toBe(0);
+        expect(discount.calculate(Money.create(0, 'USD')).amount).toBe(0);
+        expect(discount.calculate(100).amount).toBe(0);
+      });
+
+      it('calculates valid fixed discount (eligible = 100, discount = 20 -> 20)', () => {
+        const discount = Discount.fixed(20);
+        const result = discount.calculate(Money.create(100, 'USD'));
+
+        expect(result.amount).toBe(20);
+        expect(result.currency).toBe('USD');
+      });
+
+      it('calculates fixed discount equal to eligible amount (eligible = 20, discount = 20 -> 20)', () => {
+        const discount = Discount.fixed(20);
+        const result = discount.calculate(Money.create(20, 'USD'));
+
+        expect(result.amount).toBe(20);
+      });
+
+      it('rejects fixed discount greater than eligible amount (eligible = 10, discount = 20)', () => {
+        const discount = Discount.fixed(20);
+
+        expect(() => {
+          discount.calculate(Money.create(10, 'USD'));
+        }).toThrow(InvalidDiscountException);
+
+        expect(() => {
+          discount.calculate(10);
+        }).toThrow(InvalidDiscountException);
+      });
+
+      it('rejects negative fixed discount at construction', () => {
+        expect(() => {
+          Discount.fixed(-20);
+        }).toThrow(InvalidDiscountException);
+      });
+    });
+
+    describe('Percentage Discounts', () => {
+      it('calculates zero percentage discount correctly', () => {
+        const discount = Discount.percentage(0);
+        const result = discount.calculate(Money.create(100, 'USD'));
+        expect(result.amount).toBe(0);
+        expect(result.isZero()).toBe(true);
+      });
+
+      it('calculates valid percentage discount (eligible = 100, discount = 20% -> 20)', () => {
+        const discount = Discount.percentage(20);
+        const result = discount.calculate(Money.create(100, 'USD'));
+
+        expect(result.amount).toBe(20);
+        expect(result.currency).toBe('USD');
+      });
+
+      it('calculates percentage equal to 100% (eligible = 100, discount = 100% -> 100)', () => {
+        const discount = Discount.percentage(100);
+        const result = discount.calculate(Money.create(100, 'USD'));
+
+        expect(result.amount).toBe(100);
+      });
+
+      it('rejects percentage greater than 100 at construction without silently clamping', () => {
+        expect(() => {
+          Discount.percentage(100.01);
+        }).toThrow(InvalidDiscountException);
+
+        expect(() => {
+          Discount.percentage(120);
+        }).toThrow(InvalidDiscountException);
+      });
+
+      it('rejects negative percentage at construction', () => {
+        expect(() => {
+          Discount.percentage(-10);
+        }).toThrow(InvalidDiscountException);
+      });
+
+      it('performs deterministic Commercial Half-Up rounding for fractional cents', () => {
+        const discount15 = Discount.percentage(15);
+        // 49.99 * 0.15 = 7.4985 -> 749.85 cents -> rounds to 750 cents = $7.50
+        expect(discount15.calculate(Money.create(49.99, 'USD')).amount).toBe(7.5);
+
+        const discount10 = Discount.percentage(10);
+        // 33.33 * 0.10 = 3.333 -> 333.3 cents -> rounds to 333 cents = $3.33
+        expect(discount10.calculate(Money.create(33.33, 'USD')).amount).toBe(3.33);
+
+        // 33.33 * 0.15 = 4.9995 -> 499.95 cents -> rounds to 500 cents = $5.00
+        expect(discount15.calculate(Money.create(33.33, 'USD')).amount).toBe(5.0);
+      });
+
+      it('handles very small monetary values correctly', () => {
+        const discount10 = Discount.percentage(10);
+        // 0.01 * 0.10 = 0.001 -> 0.1 cents -> rounds to 0 cents = $0.00
+        expect(discount10.calculate(Money.create(0.01, 'USD')).amount).toBe(0);
+
+        const discount50 = Discount.percentage(50);
+        // 0.01 * 0.50 = 0.005 -> 0.5 cents -> Half-Up rounds to 1 cent = $0.01
+        expect(discount50.calculate(Money.create(0.01, 'USD')).amount).toBe(0.01);
+
+        // 0.05 * 0.10 = 0.005 -> 0.5 cents -> Half-Up rounds to 1 cent = $0.01
+        expect(discount10.calculate(Money.create(0.05, 'USD')).amount).toBe(0.01);
+      });
+
+      it('handles large monetary values without floating-point overflow or drift', () => {
+        const discount = Discount.percentage(12.5);
+        const largeAmount = Money.create(1_000_000.0, 'USD');
+
+        // 1,000,000.00 * 0.125 = 125,000.00
+        const result = discount.calculate(largeAmount);
+        expect(result.amount).toBe(125000.0);
+
+        const maxScaleAmount = Money.create(9_999_999.99, 'USD');
+        const discount10 = Discount.percentage(10);
+        // 9,999,999.99 * 0.10 = 999,999.999 -> rounds to 1,000,000.00
+        expect(discount10.calculate(maxScaleAmount).amount).toBe(1000000.0);
+      });
+    });
+
+    describe('General Calculation Rules & Invariants', () => {
+      it('guarantees discountAmount >= 0 and discountAmount <= eligibleAmount', () => {
+        const pctDiscount = Discount.percentage(25);
+        const fixedDiscount = Discount.fixed(15);
+        const eligible = Money.create(50, 'USD');
+
+        const pctResult = pctDiscount.calculate(eligible);
+        expect(pctResult.amount).toBeGreaterThanOrEqual(0);
+        expect(pctResult.amount).toBeLessThanOrEqual(eligible.amount);
+
+        const fixedResult = fixedDiscount.calculate(eligible);
+        expect(fixedResult.amount).toBeGreaterThanOrEqual(0);
+        expect(fixedResult.amount).toBeLessThanOrEqual(eligible.amount);
+      });
+
+      it('is completely deterministic across repeated executions', () => {
+        const discount = Discount.percentage(17.5);
+        const eligible = Money.create(137.49, 'USD');
+
+        const r1 = discount.calculate(eligible);
+        const r2 = discount.calculate(eligible);
+        const r3 = discount.calculate(eligible);
+
+        expect(r1.amount).toBe(r2.amount);
+        expect(r2.amount).toBe(r3.amount);
+        expect(r1.equals(r2)).toBe(true);
+      });
+
+      it('handles zero eligible amount correctly', () => {
+        const pct = Discount.percentage(15);
+        expect(pct.calculate(Money.zero('USD')).amount).toBe(0);
+
+        const zeroFixed = Discount.fixed(0);
+        expect(zeroFixed.calculate(Money.zero('USD')).amount).toBe(0);
+
+        const positiveFixed = Discount.fixed(10);
+        expect(() => {
+          positiveFixed.calculate(Money.zero('USD'));
+        }).toThrow(InvalidDiscountException);
+      });
+
+      it('rejects negative, NaN, or invalid eligible amounts', () => {
+        const discount = Discount.percentage(10);
+
+        expect(() => {
+          discount.calculate(-10);
+        }).toThrow(InvalidDiscountException);
+
+        expect(() => {
+          discount.calculate(NaN);
+        }).toThrow(InvalidDiscountException);
+
+        expect(() => {
+          discount.calculate(Infinity);
+        }).toThrow(InvalidDiscountException);
+
+        expect(() => {
+          discount.calculate('100' as unknown as number);
+        }).toThrow(InvalidDiscountException);
+      });
+
+      it('preserves discount immutability across calculations', () => {
+        const discount = Discount.fixed(25, 'Unchanged Reason');
+        const beforeSnapshot = discount.getValue();
+
+        discount.calculate(Money.create(100, 'USD'));
+        discount.calculate(Money.create(50, 'USD'));
+
+        expect(discount.getValue()).toEqual(beforeSnapshot);
+        expect(Object.isFrozen(discount)).toBe(true);
+      });
+
+      it('eliminates floating-point drift in cent arithmetic', () => {
+        // In IEEE 754: 0.1 * 0.2 === 0.020000000000000004
+        // Discount calculation must return exact 0.02
+        const discount = Discount.percentage(10);
+        const smallSubtotal = Money.create(0.2, 'USD');
+
+        const result = discount.calculate(smallSubtotal);
+        expect(result.amount).toBe(0.02);
+      });
+    });
+  });
 });

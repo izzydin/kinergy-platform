@@ -119,6 +119,70 @@ export class Discount implements ValueObject<DiscountProps> {
   }
 
   /**
+   * Calculates the deterministic discount amount for an eligible monetary amount.
+   *
+   * Invariants:
+   * - discountAmount >= 0
+   * - discountAmount <= eligibleAmount
+   * - For FIXED discounts: if discount > eligibleAmount, throws InvalidDiscountException.
+   * - For PERCENTAGE discounts: calculates reduction using Commercial Half-Up rounding in integer cents.
+   * - Rejects negative, NaN, or non-finite eligible amounts.
+   */
+  public calculate(eligibleAmount: Money): Money;
+  public calculate(eligibleAmount: number, currency?: string): Money;
+  public calculate(eligibleAmount: Money | number, currency = 'USD'): Money {
+    let amount: number;
+    let curr: string;
+
+    if (eligibleAmount instanceof Money) {
+      amount = eligibleAmount.amount;
+      curr = eligibleAmount.currency;
+    } else if (typeof eligibleAmount === 'number') {
+      if (isNaN(eligibleAmount) || !isFinite(eligibleAmount)) {
+        throw new InvalidDiscountException(
+          `Eligible amount must be a finite number, got: ${eligibleAmount}.`,
+        );
+      }
+      if (eligibleAmount < 0) {
+        throw new InvalidDiscountException(
+          `Eligible amount cannot be negative, got: ${eligibleAmount}.`,
+        );
+      }
+      amount = Math.round((eligibleAmount + Number.EPSILON) * 100) / 100;
+      curr = currency;
+    } else {
+      throw new InvalidDiscountException(
+        'Eligible amount must be a valid Money instance or non-negative number.',
+      );
+    }
+
+    if (amount < 0) {
+      throw new InvalidDiscountException(`Eligible amount cannot be negative, got: ${amount}.`);
+    }
+
+    const eligibleInCents = Math.round(amount * 100);
+
+    if (this.isFixed()) {
+      const discountInCents = Math.round(this._value * 100);
+      if (discountInCents > eligibleInCents) {
+        throw new InvalidDiscountException(
+          `Fixed discount (${this._value}) cannot exceed eligible amount (${amount}).`,
+        );
+      }
+      return Money.create(discountInCents / 100, curr);
+    }
+
+    // Percentage discount
+    if (eligibleInCents === 0) {
+      return Money.zero(curr);
+    }
+
+    const discountInCents = Math.round((eligibleInCents * this._value) / 100);
+    const guardedDiscountInCents = Math.min(eligibleInCents, Math.max(0, discountInCents));
+    return Money.create(guardedDiscountInCents / 100, curr);
+  }
+
+  /**
    * Calculates the exact monetary reduction against a given subtotal in integer cents,
    * guaranteeing that reduction does not exceed the subtotal and operates without floating-point drift.
    */
