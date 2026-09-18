@@ -5,6 +5,7 @@ import { InvalidSaleStateException } from './invalid-sale-state.exception';
 import { InvalidSaleTransitionException } from './invalid-sale-transition.exception';
 import { InvalidSaleItemException } from './invalid-sale-item.exception';
 import { InvalidDiscountException } from './invalid-discount.exception';
+import { InvalidMoneyException } from './invalid-money.exception';
 
 describe('Sales Domain Exceptions Hierarchy', () => {
   it('SaleDomainException should inherit from Error and expose default code', () => {
@@ -77,5 +78,13 @@ describe('Sales Domain Exceptions Hierarchy', () => {
     expect(error).toBeInstanceOf(Error);
     expect(error.code).toBe('INVALID_DISCOUNT');
     expect(error.name).toBe('InvalidDiscountException');
+  });
+
+  it('InvalidMoneyException should inherit from SaleDomainException and set INVALID_MONEY code', () => {
+    const error = new InvalidMoneyException('Unsupported precision');
+    expect(error).toBeInstanceOf(SaleDomainException);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.code).toBe('INVALID_MONEY');
+    expect(error.name).toBe('InvalidMoneyException');
   });
 });

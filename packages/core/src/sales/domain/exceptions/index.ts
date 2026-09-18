@@ -5,3 +5,4 @@ export * from './invalid-sale-state.exception';
 export * from './invalid-sale-item.exception';
 export * from './invalid-discount.exception';
 export * from './invalid-sale-transition.exception';
+export * from './invalid-money.exception';
