@@ -126,7 +126,7 @@ describe('Track B — Milestone B1.1: AuthProvider Contract', () => {
   // ─── 1. Initial Bootstrapping State ────────────────────────────────────────
 
   describe('1. Initial Bootstrapping State', () => {
-    it('starts in BOOTSTRAPPING status before async operations complete', () => {
+    it('starts in BOOTSTRAPPING status before async operations complete', async () => {
       // Prevent the bootstrap from resolving during this test
       let resolveRefresh!: (res: Response) => void;
       const pendingRefresh = new Promise<Response>((res) => {
@@ -155,13 +155,14 @@ describe('Track B — Milestone B1.1: AuthProvider Contract', () => {
       expect(screen.getByTestId('is-bootstrapping')).toHaveTextContent('true');
       expect(screen.getByTestId('current-user')).toHaveTextContent('null');
 
-      // Clean up — resolve the pending fetch to avoid open handles
-      act(() => {
-        resolveRefresh(createMockResponse({ accessToken: 'cleanup-token' }, 200));
+      // Clean up — resolve the pending fetch and wait for the transition to settle deterministically
+      resolveRefresh(createMockResponse({ accessToken: 'cleanup-token' }, 200));
+      await waitFor(() => {
+        expect(screen.getByTestId('status')).toHaveTextContent('AUTHENTICATED');
       });
     });
 
-    it('isBootstrapping is true and isAuthenticated/isUnauthenticated are false during bootstrap', () => {
+    it('isBootstrapping is true and isAuthenticated/isUnauthenticated are false during bootstrap', async () => {
       let resolveRefresh!: (res: Response) => void;
       const pendingRefresh = new Promise<Response>((res) => {
         resolveRefresh = res;
@@ -189,8 +190,9 @@ describe('Track B — Milestone B1.1: AuthProvider Contract', () => {
       expect(screen.getByTestId('is-authenticated')).toHaveTextContent('false');
       expect(screen.getByTestId('is-unauthenticated')).toHaveTextContent('false');
 
-      act(() => {
-        resolveRefresh(createMockResponse({ accessToken: 'cleanup-token' }, 200));
+      resolveRefresh(createMockResponse({ accessToken: 'cleanup-token' }, 200));
+      await waitFor(() => {
+        expect(screen.getByTestId('is-bootstrapping')).toHaveTextContent('false');
       });
     });
   });
