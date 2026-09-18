@@ -92,12 +92,12 @@ This specification defines the ubiquitous domain language, aggregate boundaries,
 2. **Monetary Non-Negativity**: The net total payable amount (`total`) must always be $\ge 0.00$. Line and order discounts are capped at the corresponding subtotal.
 3. **Currency Homogeneity**: Every `SaleItem`, order discount, subtotal, and total within a `Sale` must share the identical ISO-4217 currency. Attempting to add an item with a mismatched currency throws `InvalidSaleStateException`.
 4. **Commercial Locking**: Once a `Sale` departs `DRAFT` (into `PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, `CANCELLED`, or `REFUNDED`), cart mutations (`addItem`, `removeItem`, `updateItemQuantity`, discounts) throw `SaleAlreadyFinalizedException` with code `'SALE_ALREADY_FINALIZED'`.
-5. **Deterministic Reconciliation Invariant (Phase 7.3 Item-Level Discount Scope)**:
+5. **Deterministic Reconciliation Invariant (Phase 7.4 Scope - ADR-0114)**:
    $$\text{Subtotal} = \sum (\text{SaleItem.subtotal})$$
    $$\text{DiscountTotal} = \sum (\text{SaleItem.discountTotal})$$
    $$\text{Total} = \text{Subtotal} - \text{DiscountTotal}$$
    $$\text{Total} \ge \$0.00$$
-   (Phase 7.3 supports item-level discounts exclusively; order-level discount allocation is deferred).
+   (Phase 7.4 enforces deterministic integer-cent arithmetic with Commercial Half-Up rounding; see [`docs/domain/sale-totals-implementation.md`](sale-totals-implementation.md)).
 6. **Cancellation Reason Invariant**: A sale can only be cancelled from `DRAFT`, `PENDING_PAYMENT`, or `PARTIALLY_PAID` and requires a non-empty `cancellationReason` string (`InvalidSaleStateException` with code `'INVALID_CANCELLATION_REASON'`).
 
 #### Field Mutability Classification

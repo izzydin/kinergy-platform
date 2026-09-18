@@ -244,6 +244,35 @@ describe('Authentication Subsystem (E2E Test)', () => {
 
 ---
 
+### 3.4 Monetary Precision & Financial Safety Net Testing (Milestone 7.4)
+
+Financial calculations in Kinergy require **100% deterministic arithmetic** and complete absence of binary floating-point drift (IEEE 754). The platform enforces a specialized two-tier safety net:
+
+#### 1. Precision & Rounding Verification (`monetary-precision-safety-net.spec.ts`)
+
+- **IEEE-754 Pitfall Proofs**: Proves that known binary float pitfalls evaluate without error:
+  - `0.1 + 0.2 === $0.30` (not `0.30000000000000004`)
+  - `0.7 + 0.1 === $0.80` (not `0.7999999999999999`)
+  - `1.00 - 0.90 === $0.10` (not `0.09999999999999998`)
+  - `0.29 * 100 === 2900` cents (not `28.999999999999996`)
+- **Commercial Half-Up Rounding Boundary Proofs**: Asserts midpoint rounding behavior:
+  - `$0.005 -> $0.01` (rounds up)
+  - `$0.0049 -> $0.00` (rounds down)
+  - `$0.0051 -> $0.01` (rounds up)
+- **Mathematical Determinism**: Executes 1,000 repeated calculations over heterogeneous item baskets, verifying bit-for-bit identical cent values and formatted strings across all iterations.
+- **Reconstitution Integrity Law**: Rehydrates sales with deliberately corrupted totals (1 cent off), proving that `Sale.reconstitute()` strictly throws `InvalidSaleStateException`.
+
+#### 2. Static Anti-Pattern Tests (`sales-monetary-anti-patterns.spec.ts`)
+
+Automated source-code AST inspection enforcing architectural non-negotiables:
+
+- **Domain Purity**: Asserts that `packages/core/src/sales/domain` contains zero imports of `@prisma/client`, `@nestjs/*`, or database infrastructure.
+- **Prohibition of Float Conversions**: Verifies that domain files never invoke `.toNumber()` or `Number(money)`.
+- **Integer Cent Division Restrictions**: Confirms that `Math.floor` or division is strictly constrained to cent conversions (`cents / 100`).
+- **Currency Isolation**: Asserts that cross-currency arithmetic throws `InvalidMoneyException`.
+
+---
+
 ## 4. Test Execution & Quality Gate Pipeline
 
 Run all test suites using workspace commands:

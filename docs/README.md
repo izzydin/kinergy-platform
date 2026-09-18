@@ -17,7 +17,7 @@ docs/
 ├── testing/              ◄── Quality Gates, Harnesses, Unit, Integration & E2E Testing
 ├── configuration/        ◄── Centralized Zod Environment Variables & Secrets Reference
 ├── api/                  ◄── OpenAPI / Swagger Docs, Envelope Schemas & Routes
-├── adr/                  ◄── Architectural Decision Records (0001 - 0107)
+├── adr/                  ◄── Architectural Decision Records (0001 - 0114)
 └── glossary.md           ◄── Ubiquitous Language, Security Acronyms & Terminology
 ```
 
@@ -110,7 +110,27 @@ Architecture  ──►  Domain  ──►  Business Rules  ──►  API  ─�
 - **[Recurring Appointments Architecture](file:///c:/Projects/kinergy-platform/docs/scheduling/recurring-appointments-flow.md)**: Rolling generation horizon, idempotency keys, single-occurrence detachments, and DST clamping.
 - **[Scheduling API Documentation](file:///c:/Projects/kinergy-platform/docs/scheduling/api-documentation.md)**: CQRS command/query contracts and REST endpoints for `/api/v1/scheduling/rooms` and `/api/v1/scheduling/recurring`.
 
-### 9. Architectural Decision Records (ADRs)
+### 9. Phase 7: Sales & Payments (Point-of-Sale & Financial Engine)
 
-- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 44+ Architectural Decision Records documenting all major platform design choices.
+The **Sales & Payments Bounded Context** is the authoritative commercial engine responsible for customer checkout sessions, commercial terms snapshotting, item-level discounts, deterministic monetary totals, and financial settlement.
+
+- **[Sales Architecture Hub](file:///c:/Projects/kinergy-platform/docs/architecture/sales-payments.md)**: Authoritative architecture, aggregate boundaries, "References Over Ownership" law, and checkout flows.
+- **[Sale Totals & Canonical Money Rules Architecture](file:///c:/Projects/kinergy-platform/docs/architecture/sale-totals-and-money-rules.md)**: Milestone 7.4 architectural specification for deterministic integer-cent arithmetic, Commercial Half-Up rounding, and boundary mappings.
+- **[Sale Totals Implementation Specification](file:///c:/Projects/kinergy-platform/docs/domain/sale-totals-implementation.md)**: Authoritative implemented domain specification for Sale totals, non-negative invariants, and discount calculation.
+- **[Milestone 7.4 Final Acceptance Certification](file:///c:/Projects/kinergy-platform/docs/architecture/sale-totals-acceptance.md)**: Complete certification of domain, persistence, API, and automated safety net quality gates.
+- **[Sales Domain Model Specification](file:///c:/Projects/kinergy-platform/docs/domain/sales-payments.md)**: Conceptual domain models, aggregate roots (`Sale`, `Payment`), value objects (`Money`, `Discount`, `SourceReference`), and state machines.
+- **[Sales Business Rules & Invariants](file:///c:/Projects/kinergy-platform/docs/business-rules/sales-payments.md)**: Complete inventory of commercial rules, 13 canonical formulas, and milestone statuses.
+- **[Sales API Reference](file:///c:/Projects/kinergy-platform/docs/api/README.md#34-sales--payments-module-apiv1sales)**: REST endpoints (`/api/v1/sales`), `MoneyResponseDto` contract, and JSON payloads.
+
+### 10. Architectural Decision Records (ADRs)
+
+- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 50+ Architectural Decision Records documenting all major platform design choices (0001 through 0114).
 - **[Phase 6 ADR Index (ADR-0081–0107)](file:///c:/Projects/kinergy-platform/docs/architecture/resources/README.md#6-architectural-decision-records-adr-index)**: Detailed index of all 27 Phase 6 Resources Management Architectural Decision Records.
+- **Phase 7 ADRs**:
+  - [ADR-0108: Deterministic Financial Representation and Currency Modeling](file:///c:/Projects/kinergy-platform/docs/adr/0108-money-representation.md)
+  - [ADR-0109: Payment Lifecycle, Multi-Tender Settlement, and Financial Immutability](file:///c:/Projects/kinergy-platform/docs/adr/0109-payment-lifecycle.md)
+  - [ADR-0110: Sale Transaction Ownership and Source Bounded-Context Integrity](file:///c:/Projects/kinergy-platform/docs/adr/0110-sale-ownership.md)
+  - [ADR-0111: Sales & Payments Authorization, Organization Isolation, and Audit Boundaries](file:///c:/Projects/kinergy-platform/docs/adr/0111-sales-payments-authorization-and-audit.md)
+  - [ADR-0112: Sales & Payments Bounded Context Establishment](file:///c:/Projects/kinergy-platform/docs/adr/0112-sales-bounded-context.md)
+  - [ADR-0113: Item-Level Discount Domain Model, Deterministic Calculation, and Invariant Enforcement](file:///c:/Projects/kinergy-platform/docs/adr/0113-item-level-discounts.md)
+  - [ADR-0114: Canonical Monetary Policy, Deterministic Arithmetic, and Sale Totals Invariant Enforcement](file:///c:/Projects/kinergy-platform/docs/adr/0114-canonical-monetary-policy-and-sale-totals.md)

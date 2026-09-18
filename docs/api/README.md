@@ -132,6 +132,91 @@ Triggered by `@nestjs/throttler` custom guards when rate limits are exceeded:
 | `POST`      | `/users/:id/deactivate` | `AuthenticationGuard`, `AuthorizationGuard` | `users.delete`      | **Deactivate User Account**: Executes state transition to `DEACTIVATED` status, invalidating all refresh tokens.                                  | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                       |
 | `DELETE`    | `/users/:id`            | `AuthenticationGuard`, `AuthorizationGuard` | `users.delete`      | **Soft Delete User**: Soft deletes user record (`status = DELETED`, sets `deletedAt`), invalidating token version.                                | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                       |
 
+### 3.4 Sales & Payments Module (`/api/v1/sales`)
+
+The Sales API provides deterministic point-of-sale checkout sessions, item snapshots, item-level discounts, and finalized commercial totals. All monetary values are serialized according to the **Milestone 7.4 Monetary Policy** ([ADR-0114](file:///c:/Projects/kinergy-platform/docs/adr/0114-canonical-monetary-policy-and-sale-totals.md)), guaranteeing zero floating-point drift.
+
+| HTTP Method | Route                        | Protection                                  | Permission Required | Summary & Description                                                                                                                                            | Expected Status Codes                                                                              |
+| :---------- | :--------------------------- | :------------------------------------------ | :------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------- |
+| `POST`      | `/api/v1/sales`              | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`      | **Create Sale**: Initializes a new commercial checkout session in `DRAFT` status with exact zero totals (`$0.00`).                                               | `201 Created`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`                     |
+| `GET`       | `/api/v1/sales/:id`          | `AuthenticationGuard`, `AuthorizationGuard` | `sales.read`        | **Get Sale by ID**: Returns complete sale aggregate representation with line items, structured `MoneyResponseDto` totals, and flat summary projections.          | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                            |
+| `POST`      | `/api/v1/sales/:id/items`    | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`      | **Add Sale Item**: Adds a line item with optional fixed or percentage discount. Recomputes order subtotal, discountTotal, and total deterministically in domain. | `201 Created`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found` |
+| `POST`      | `/api/v1/sales/:id/finalize` | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`      | **Finalize Sale**: Permanently freezes commercial terms and transitions status from `DRAFT` to `PENDING_PAYMENT`. Rejects empty sales (`EMPTY_SALE`).            | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`      |
+
+#### Monetary API Response Structure (`MoneyResponseDto`)
+
+All monetary totals (`subtotal`, `discountTotal`, `total`) and item pricing (`unitPrice`, `subtotal`, `discountTotal`, `total`) serialize as structured `MoneyResponseDto` objects alongside flat read properties:
+
+```json
+{
+  "id": "sale_01j9876543210abcdef",
+  "currency": "USD",
+  "status": "DRAFT",
+  "subtotal": {
+    "amount": 99.98,
+    "currency": "USD",
+    "formatted": "99.98",
+    "cents": 9998
+  },
+  "discountTotal": {
+    "amount": 15.0,
+    "currency": "USD",
+    "formatted": "15.00",
+    "cents": 1500
+  },
+  "total": {
+    "amount": 84.98,
+    "currency": "USD",
+    "formatted": "84.98",
+    "cents": 8498
+  },
+  "subtotalAmount": 99.98,
+  "discountTotalAmount": 15.0,
+  "totalAmount": 84.98,
+  "itemCount": 1,
+  "items": [
+    {
+      "id": "item_01j9877890123abcdef",
+      "description": "Premium Whey Protein Isolate (1.5 kg)",
+      "skuOrCode": "RET-PROT-001",
+      "quantity": 2,
+      "unitPrice": {
+        "amount": 49.99,
+        "currency": "USD",
+        "formatted": "49.99",
+        "cents": 4999
+      },
+      "subtotal": {
+        "amount": 99.98,
+        "currency": "USD",
+        "formatted": "99.98",
+        "cents": 9998
+      },
+      "discountTotal": {
+        "amount": 15.0,
+        "currency": "USD",
+        "formatted": "15.00",
+        "cents": 1500
+      },
+      "total": {
+        "amount": 84.98,
+        "currency": "USD",
+        "formatted": "84.98",
+        "cents": 8498
+      },
+      "discount": {
+        "type": "PERCENTAGE",
+        "value": 15,
+        "reason": "VIP Member 15% Promotion"
+      }
+    }
+  ],
+  "version": 2,
+  "createdAt": "2026-09-18T16:00:00.000Z",
+  "updatedAt": "2026-09-18T16:05:00.000Z"
+}
+```
+
 ---
 
 ## 4. HTTP Status Code Reference

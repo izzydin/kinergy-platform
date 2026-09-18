@@ -1,346 +1,447 @@
-# Phase 7: Sales & Payments — Milestone 7.4: Sale Totals & Money Rules Discovery & Architecture Proposal
+# Phase 7: Sales & Payments — Milestone 7.4: Sale Totals & Canonical Money Rules Architecture Specification
 
 - **Document**: `docs/architecture/sale-totals-and-money-rules.md`
 - **Milestone**: 7.4 (Sale Totals & Money Rules)
-- **Status**: Discovery & Proposal Complete (APPROVED FOR IMPLEMENTATION PLANNING)
-- **Role**: Senior Financial Domain Architect
+- **Status**: **Certified Implemented Architecture Specification**
+- **Role**: Senior Financial Domain Architect / Lead Platform Engineer
 - **Date**: 2026-09-18
 - **Governing ADRs**:
   - [ADR-0108: Deterministic Financial Representation and Currency Modeling](../adr/0108-money-representation.md)
   - [ADR-0110: Sale Transaction Ownership and Source Bounded-Context Integrity](../adr/0110-sale-ownership.md)
   - [ADR-0112: Sales & Payments Bounded Context Establishment](../adr/0112-sales-bounded-context.md)
   - [ADR-0113: Item-Level Discount Domain Model, Deterministic Calculation, and Invariant Enforcement](../adr/0113-item-level-discounts.md)
+  - [ADR-0114: Canonical Monetary Policy, Deterministic Arithmetic, and Sale Totals Invariant Enforcement](../adr/0114-canonical-monetary-policy-and-sale-totals.md)
+- **Related Documents**:
+  - [`docs/domain/sale-totals-implementation.md`](../domain/sale-totals-implementation.md)
+  - [`docs/architecture/sale-totals-acceptance.md`](sale-totals-acceptance.md)
+  - [`docs/business-rules/sales-payments.md`](../business-rules/sales-payments.md)
+  - [`docs/domain/sales-payments.md`](../domain/sales-payments.md)
+  - [`docs/api/README.md`](../api/README.md)
+  - [`docs/testing/README.md`](../testing/README.md)
 
 ---
 
 ## 1. Executive Summary
 
-This architecture proposal establishes the exact integration points, domain representations, calculation ownership, and validation rules for **Milestone 7.4: Sale Totals & Money Rules** in the Kinergy Platform.
+This document establishes the authoritative architectural contract, mathematical specifications, persistence mapping, API transport representations, and verification criteria for **Milestone 7.4: Sale Totals & Canonical Money Rules** in the Kinergy Platform.
 
-In accordance with the Milestone 7.4 mandate, **this step does NOT implement monetary calculations yet**. It provides an exhaustive reconnaissance of the existing repository, catalogs all current monetary representations and risks, determines PostgreSQL persistence characteristics, formalizes discount integration semantics, and specifies the target deterministic architecture.
+Milestone 7.4 delivers a completely deterministic, zero-drift financial calculation engine across the pure domain model, application use cases, relational persistence mappers, and REST API controllers. It eliminates all binary floating-point rounding hazards across multi-service therapy checkouts, bulk retail consumables, and membership plan purchases.
 
-### Target Financial Model for Milestone 7.4
+### Canonical Mathematical Model
 
-$$\text{subtotal} = \sum_{i} (\text{item}_{i}.\text{quantity} \times \text{item}_{i}.\text{unitPrice})$$
+$$\text{subtotal} = \sum_{i=1}^{n} (\text{item}_{i}.\text{quantity} \times \text{item}_{i}.\text{unitPrice})$$
 
-$$\text{discountTotal} = \sum_{i} (\text{valid discounts}_{i})$$
+$$\text{discountTotal} = \sum_{i=1}^{n} (\text{valid discounts}_{i})$$
 
 $$\text{total} = \text{subtotal} - \text{discountTotal}$$
 
-Subject to strict non-negative invariants:
+Subject to non-negotiable financial invariants:
 
 $$\text{subtotal} \ge \$0.00, \quad \text{discountTotal} \ge \$0.00, \quad \text{total} \ge \$0.00$$
 
----
-
-## 2. Exact Files Inspected
-
-### 2.1 Sales Bounded Context (`packages/core/src/sales/`)
-
-- `packages/core/src/sales/index.ts`
-- `packages/core/src/sales/domain/index.ts`
-- `packages/core/src/sales/domain/sale.aggregate.ts`
-- `packages/core/src/sales/domain/entities/sale-item.entity.ts`
-- `packages/core/src/sales/domain/entities/index.ts`
-- `packages/core/src/sales/domain/value-objects/money.vo.ts`
-- `packages/core/src/sales/domain/value-objects/discount.vo.ts`
-- `packages/core/src/sales/domain/value-objects/sale-id.vo.ts`
-- `packages/core/src/sales/domain/value-objects/sale-item-id.vo.ts`
-- `packages/core/src/sales/domain/value-objects/source-reference.vo.ts`
-- `packages/core/src/sales/domain/value-objects/index.ts`
-- `packages/core/src/sales/domain/enums/sale-status.enum.ts`
-- `packages/core/src/sales/domain/enums/source-type.enum.ts`
-- `packages/core/src/sales/domain/enums/discount-type.enum.ts`
-- `packages/core/src/sales/domain/enums/index.ts`
-- `packages/core/src/sales/domain/events/index.ts`
-- `packages/core/src/sales/domain/exceptions/index.ts`
-- `packages/core/src/sales/domain/shared/aggregate-root.ts`
-- `packages/core/src/sales/domain/shared/entity.ts`
-- `packages/core/src/sales/domain/shared/value-object.ts`
-- `packages/core/src/sales/domain/shared/clock.ts`
-
-### 2.2 Sales Domain Test Suites (`packages/core/src/sales/domain/__tests__/`)
-
-- `packages/core/src/sales/domain/__tests__/phase-7-3-discount-test-matrix.spec.ts`
-- `packages/core/src/sales/domain/__tests__/sale-discount-invariants.spec.ts`
-- `packages/core/src/sales/domain/__tests__/sale.aggregate.spec.ts`
-- `packages/core/src/sales/domain/__tests__/sale-item.entity.spec.ts`
-- `packages/core/src/sales/domain/__tests__/discount.vo.spec.ts`
-- `packages/core/src/sales/domain/__tests__/sale-deterministic-errors.spec.ts`
-- `packages/core/src/sales/domain/__tests__/sale-hardening.spec.ts`
-- `packages/core/src/sales/domain/__tests__/sale-item-historical-snapshot.spec.ts`
-- `packages/core/src/sales/domain/__tests__/sale-item-integration.spec.ts`
-- `packages/core/src/sales/domain/__tests__/sale-lifecycle.spec.ts`
-- `packages/core/src/sales/domain/__tests__/source-reference.vo.spec.ts`
-
-### 2.3 Peer Context Monetary & Pricing Implementations
-
-- `packages/core/src/resources/domain/shared/value-objects/money.vo.ts` (Phase 6 canonical VO)
-- `packages/core/src/resources/domain/shared/exceptions/invalid-money.exception.ts`
-- `packages/core/src/resources/infrastructure/persistence/prisma/mappers/prisma-inventory-item.mapper.ts`
-- `packages/core/src/resources/infrastructure/persistence/prisma/mappers/prisma-fixed-asset.mapper.ts`
-- `packages/core/src/gym/domain/plan/plan-price.vo.ts` (Phase 5 ad-hoc price VO)
-
-### 2.4 Persistence & Schema
-
-- `prisma/schema.prisma`
-- `prisma/migrations/20260826000000_add_resources_management/migration.sql`
-
-### 2.5 API Layer & DTOs
-
-- `apps/api/src/resources/dto/inventory.dto.ts`
-- `apps/api/src/resources/dto/fixed-assets.dto.ts`
-- `apps/api/src/resources/dto/resource-valuation.dto.ts`
-- `apps/api/src/app.module.ts`
-
-### 2.6 Architecture & Business Rules Documentation
-
-- `docs/adr/0108-money-representation.md`
-- `docs/adr/0109-payment-lifecycle.md`
-- `docs/adr/0110-sale-ownership.md`
-- `docs/adr/0111-sales-payments-authorization-and-audit.md`
-- `docs/adr/0112-sales-bounded-context.md`
-- `docs/adr/0113-item-level-discounts.md`
-- `docs/business-rules/sales-payments.md`
-- `docs/domain/sales-payments.md`
-- `docs/domain/discount-implementation.md`
-- `docs/architecture/sales-payments.md`
-- `docs/architecture/discount-domain-acceptance.md`
-- `docs/architecture/discount-domain-review.md`
-- `docs/architecture/sale-item-acceptance.md`
-- `docs/architecture/sales-foundation-acceptance.md`
+$$0.00 \le \text{discountTotal} \le \text{subtotal}$$
 
 ---
 
-## 3. Existing Patterns Discovered
+## 2. Canonical Monetary Representation & Conversion Boundaries
 
-1. **Pure Domain Value Object Pattern**:
-   - `Money` and `Discount` are implemented as pure TypeScript Value Objects.
-   - Deeply immutable (`Object.freeze(this)`).
-   - Zero framework dependencies (`@nestjs/*`, `@prisma/*`, HTTP decorators).
-   - Co-located domain tests assert isolation from external infrastructure.
-
-2. **Re-Export / Anti-Duplication Pattern**:
-   - `packages/core/src/sales/domain/value-objects/money.vo.ts` re-exports `Money` from `packages/core/src/resources/domain/shared/value-objects/money.vo.ts`.
-   - Prevents code duplication between Phase 6 (Resources) and Phase 7 (Sales).
-
-3. **Reconstitution Invariant Enforcement**:
-   - Both `SaleItem.reconstitute()` and `Sale.reconstitute()` recalculate mathematical totals from granular line items and assert equality with persisted values using `equals()`.
-   - Any persisted mismatch throws `InvalidSaleStateException` or `InvalidSaleItemException`.
-
-4. **Progressive Immutability Lifecycle**:
-   - Mutations (`addItem`, `updateItemQuantity`, `applyItemDiscount`, `removeItemDiscount`, `removeItem`) are permitted strictly in `DRAFT` status (`assertDraftState()`).
-   - Calling `sale.finalize()` transitions to `PENDING_PAYMENT` and permanently locks commercial terms (`SaleAlreadyFinalizedException`).
-
-5. **Prisma Decimal Mapping**:
-   - Repositories map domain `Money` to `new Prisma.Decimal(money.amount)` on write.
-   - Mappers convert `raw.amount.toNumber()` or `Number(raw.amount)` into domain `Money.create(...)` on read.
-
----
-
-## 4. Current Monetary Representation & Discovered Risks
-
-### 4.1 Taxonomy of Current Representations
-
-| Layer / Component       | Current Representation                                       | Exact File Location                                                   | Evaluation                                                                      |
-| :---------------------- | :----------------------------------------------------------- | :-------------------------------------------------------------------- | :------------------------------------------------------------------------------ |
-| **Sales Domain VO**     | `Money` wrapping `_amount: number` & `_currency: string`     | `packages/core/src/sales/domain/value-objects/money.vo.ts`            | **Good baseline**, but internal arithmetic carries float drift risks (see 4.2). |
-| **Resources Domain VO** | `Money` wrapping `_amount: number` & `_currency: string`     | `packages/core/src/resources/domain/shared/value-objects/money.vo.ts` | Source definition re-exported by Sales.                                         |
-| **Gym Domain VO**       | `PlanPrice` wrapping `_amount: number` & `_currency: string` | `packages/core/src/gym/domain/plan/plan-price.vo.ts`                  | **Isolated ad-hoc VO** earmarked for deprecation in ADR-0108.                   |
-| **Discount VO**         | `_value: number` (fixed currency amount or percentage)       | `packages/core/src/sales/domain/value-objects/discount.vo.ts`         | Validated $0 \le \text{pct} \le 100$ or $\text{amt} \ge 0$.                     |
-| **Domain Events**       | `unitPrice: number`, `totalAmount: number`                   | `packages/core/src/sales/domain/events/`                              | Flat numbers in event payloads.                                                 |
-| **Snapshots**           | `unitPrice: number`, `subtotal: number`, `total: number`     | `packages/core/src/sales/domain/entities/sale-item.entity.ts`         | Flat numbers in read projection snapshot.                                       |
-| **Prisma Schema**       | `Decimal(10, 2)`                                             | `prisma/schema.prisma` (Resources models)                             | Currently only in Resources; Sales models not yet created.                      |
-| **API DTOs**            | `number` with `@IsNumber()`, `@Min(0)`                       | `apps/api/src/resources/dto/`                                         | Flat JSON numbers representing major units.                                     |
-
-### 4.2 Monetary Risks Discovered
-
-1. **Float Addition/Subtraction Before Cent Conversion in `Money`**:
-   - In `packages/core/src/resources/domain/shared/value-objects/money.vo.ts`:
-     ```ts
-     // Line 65:
-     return new Money(Math.round((this._amount + other.amount) * 100) / 100, this._currency);
-     // Line 74:
-     const result = Math.round((this._amount - other.amount) * 100) / 100;
-     ```
-   - **Risk**: Adding or subtracting two IEEE-754 floats before converting to integer cents can suffer precision drop. For example, `1.005 - 1.000` evaluates in binary floating-point to `0.004999999999999893`. Multiplying by 100 yields `0.4999999999999893`, which `Math.round()` truncates to `0` instead of rounding half-up to `1` cent!
-   - **Remedy**: Convert each operand to integer cents first:
-     ```ts
-     const centsA = Math.round((this._amount + Number.EPSILON) * 100);
-     const centsB = Math.round((other.amount + Number.EPSILON) * 100);
-     return Money.create((centsA + centsB) / 100, this._currency);
-     ```
-
-2. **Inconsistent `Number.EPSILON` Rounding Guard**:
-   - `Discount.ts` uses `Math.round((props.value + Number.EPSILON) * 100) / 100` in its constructor.
-   - `Money.ts` omits `Number.EPSILON` in `constructor`, `add`, `subtract`, and `multiply`.
-   - **Risk**: Values at exact midpoint boundaries (e.g. `0.285 * 100 = 28.499999999999996`) round downward in standard JavaScript without the epsilon guard.
-
-3. **Cross-Bounded-Context Direct Import**:
-   - `packages/core/src/sales/domain/value-objects/money.vo.ts` imports from `packages/core/src/resources/...`.
-   - **Risk**: Coupling Sales to Resources violates DDD independent context boundaries. ADR-0108 Section 8.1 mandates elevating `Money` to a shared kernel (`packages/core/src/shared/kernel/value-objects/money.vo.ts`).
-
-4. **Dead Code / Speculative Order-Level Discount in `Sale`**:
-   - `Sale.aggregate.ts` includes `_orderDiscount: Discount | null`, `applyOrderDiscount()`, and `removeOrderDiscount()`.
-   - Milestone 7.3 explicitly established that **discounts are item-level only** (`SaleItem.discount`). Order-level discounts are deferred to avoid cross-line apportionment complexity.
-   - **Risk**: Leaving speculative order discount logic in `Sale.#recalculateTotals()` creates ambiguity over whether order discounts are active.
-
----
-
-## 5. Current PostgreSQL & Prisma Representation
-
-- **Database Provider**: PostgreSQL (`provider = "postgresql"` in `prisma/schema.prisma`).
-- **Current Monetary Columns**:
-  - `inventory_items.purchase_cost_amount`: `Decimal(10, 2)`
-  - `inventory_items.selling_price_amount`: `Decimal(10, 2)`
-  - `stock_movements.unit_cost_amount`: `Decimal(10, 2)`
-  - `fixed_assets.purchase_value_amount`: `Decimal(10, 2)`
-  - `fixed_assets.current_estimated_value_amount`: `Decimal(10, 2)`
-  - `asset_maintenance_records.cost_amount`: `Decimal(10, 2)`
-- **Precision / Scale Decision for Sales**:
-  - Resources uses `Decimal(10, 2)` (up to $99,999,999.99).
-  - Per **ADR-0108 Section 8.2**, Sales tables must use `Decimal(12, 2)` (up to $9,999,999,999.99) to accommodate cumulative order totals, annual revenue reporting, and high-volume multi-year transactions.
-- **Migration Conventions**:
-  - SQL migrations live in `prisma/migrations/` with timestamped folders (`YYYYMMDDHHMMSS_name/migration.sql`).
-  - No migration is required for Milestone 7.4. Sales persistence models will be created in the dedicated persistence milestone.
-
----
-
-## 6. Discount Semantics (From Milestone 7.3)
-
-1. **Supported Types**:
-   - `PERCENTAGE`: Relative reduction, $0 \le \text{percentage} \le 100$.
-   - `FIXED`: Absolute currency reduction, $\text{value} \ge 0.00$ (with `FIXED_AMOUNT` compatibility alias).
-
-2. **Attachment & Scope**:
-   - Attached strictly to `SaleItem` (`SaleItem.discount`).
-   - Scope is item-level only. No order-level discounts in Phase 7.3 / 7.4.
-
-3. **Eligible Amount & Financial Boundary**:
-   - Eligible amount is strictly the item gross subtotal:
-     $$\text{eligibleAmount} = \text{SaleItem.subtotal} = \text{unitPrice} \times \text{normalizedQuantity}$$
-   - **Strict Rejection Rule**: If $\text{fixedDiscount.value} > \text{eligibleAmount}$, `discount.calculate()` strictly throws `InvalidDiscountException`. It is **NEVER** silently clamped.
-   - Total line discount cannot exceed gross subtotal: $\text{lineTotal} \ge \$0.00$.
-
-4. **Calculation Method**:
-   - `discount.calculate(eligibleAmount: Money): Money` executes strictly in integer cents using Commercial Half-Up rounding.
-   - Percentage formula:
-     $$\text{cents} = \text{Math.round}\left(\frac{\text{subtotalCents} \times \text{percentage}}{100}\right)$$
-
-5. **Lifecycle Mutability**:
-   - Mutable only in `DRAFT` status via `sale.applyItemDiscount()` and `sale.removeItemDiscount()`.
-   - Permanently locked once `Sale` transitions to `PENDING_PAYMENT` or beyond.
-
----
-
-## 7. Recommended Architecture Decision Proposal
+The platform operates across four architectural boundaries. Each boundary enforces a dedicated representation designed for its specific context, isolated through explicit bidirectional mappers:
 
 ```
-┌──────────────────────────────────────────────────────────────────────────────────┐
-│                   DETERMINISTIC FINANCIAL TIERS FOR MILESTONE 7.4                │
-│                                                                                  │
-│  DOMAIN LAYER                                                                    │
-│  - Value Object: Money (Shared Kernel elevation or canonical Sales VO)           │
-│  - Storage: _amount (number, 2 decimal places), _currency (string, ISO-4217)     │
-│  - Arithmetic: Pure integer-cents arithmetic with Number.EPSILON Half-Up guard   │
-│    add(a, b)      = (round(a*100 + eps) + round(b*100 + eps)) / 100             │
-│    subtract(a, b) = (round(a*100 + eps) - round(b*100 + eps)) / 100             │
-│    multiply(a, q) = round(round(a*100 + eps) * q + eps) / 100                   │
-│                                                                                  │
-│  CALCULATION OWNERSHIP                                                           │
-│  - SaleItem.subtotal      = unitPrice.multiply(quantity)                         │
-│  - SaleItem.discountTotal = discount ? discount.calculate(subtotal) : zero       │
-│  - SaleItem.total         = subtotal.subtract(discountTotal)                     │
-│  - Sale.subtotal          = Σ(item.subtotal)                                     │
-│  - Sale.discountTotal     = Σ(item.discountTotal)                                │
-│  - Sale.total             = subtotal.subtract(discountTotal)                     │
-│                                                                                  │
-│  PERSISTENCE LAYER (Deferred to Persistence Milestone)                           │
-│  - Column Definition: Decimal(12, 2) on Sale & SaleItem                          │
-│  - Mappers: Prisma.Decimal <-> Money conversion with round-trip reconciliation   │
-│                                                                                  │
-│  API LAYER (Deferred to API Milestone)                                           │
-│  - DTO Contract: { amount: 49.99, currency: "USD" }                              │
-└──────────────────────────────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────────────┐
+│                        CANONICAL FINANCIAL FLOW                        │
+│                                                                        │
+│  DOMAIN LAYER: Pure Money Value Object                                 │
+│  - Immutable: amount: number (2 decimals), currency: string (ISO-4217) │
+│  - Arithmetic: Operated entirely in integer cents                      │
+│    add(a, b)      = (round(a*100 + eps) + round(b*100 + eps)) / 100    │
+│    subtract(a, b) = (round(a*100 + eps) - round(b*100 + eps)) / 100    │
+│    multiply(a, q) = round(round(a*100 + eps) * q + eps) / 100          │
+│                                                                        │
+│  APPLICATION LAYER: Command & Query Orchestration                      │
+│  - Operates purely on Money instances and scalar DTOs                  │
+│                                                                        │
+│  MAPPER LAYER (Infrastructure): Bidirectional Anti-Corruption          │
+│  - To Persistence: new Prisma.Decimal(money.amount)                    │
+│  - To Domain:      Money.create(raw.amount.toNumber(), raw.currency)   │
+│                                                                        │
+│  PERSISTENCE LAYER: Relational Database                                │
+│  - PostgreSQL Column: DECIMAL(12, 2) NOT NULL                          │
+│                                                                        │
+│  API TRANSPORT LAYER: Structured DTO Serialization                     │
+│  - JSON Schema: { "amount": 49.99, "currency": "USD",                  │
+│                   "formatted": "49.99", "cents": 4999 }                │
+│                                                                        │
+│  EXTERNAL GATEWAY ADAPTER (Stripe / POS Terminal):                     │
+│  - amountInCents = money.cents                                         │
+└────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 7.1 Key Decisions
+### 2.1 Canonical Domain Representation (`Money` Value Object)
 
-1. **Money Domain Representation**:
-   - Retain `Money` as an immutable Value Object storing `amount` as a 2-decimal JavaScript number and `currency` as an ISO-4217 string.
-   - Refactor internal arithmetic in `Money` to convert both operands to integer cents with `Number.EPSILON` **before** executing `+` or `-`, completely eliminating float subtraction drift.
+- **Class**: `packages/core/src/sales/domain/value-objects/money.vo.ts`
+- **Internal State**:
+  - `_amount: number`: Validated finite, non-negative JavaScript number constrained to 2 decimal places ($0.01$).
+  - `_currency: string`: Normalized 3-letter uppercase ISO-4217 code (e.g. `'USD'`).
+- **Encapsulation & Immutability**: All fields are `private readonly`; instances are frozen with `Object.freeze(this)`.
+- **Arithmetic Foundation**: Arithmetic operators (`+`, `-`, `*`) are prohibited directly on major units. Operations execute in integer minor units (cents) via `Math.round((amount + Number.EPSILON) * 100)`.
 
-2. **Persistence Representation**:
-   - PostgreSQL `Decimal(12, 2)` via Prisma `Decimal`.
-   - Scale: 2 decimal places. Precision: 12 digits (capacity: $9,999,999,999.99).
+### 2.2 Persistence Representation (PostgreSQL & Prisma)
 
-3. **API Representation**:
-   - Inbound: `@IsNumber() @Min(0)` for amounts, `@IsString() @Length(3, 3)` for currency.
-   - Outbound: Structured `{ amount: number, currency: string }` or snapshot values.
+- **PostgreSQL Column Type**: `DECIMAL(12, 2)` / `NUMERIC(12, 2)`.
+- **Prisma Client Type**: `Prisma.Decimal` (from `@prisma/client/runtime/library`).
+- **Isolation Rule**: `Prisma.Decimal` must **NEVER** enter the pure domain layer. The domain has zero imports from `@prisma/client`.
+- **Mapper Contract** (`packages/core/src/sales/infrastructure/persistence/prisma/mappers/prisma-sale.mapper.ts`):
+  - **Domain $\to$ Prisma**: `new Prisma.Decimal(money.amount)`
+  - **Prisma $\to$ Domain**: `Money.create(raw.amount.toNumber(), raw.currency)`
 
-4. **Conversion Boundaries**:
-   - Domain to Persistence: `new Prisma.Decimal(money.amount)`.
-   - Persistence to Domain: `Money.create(raw.amount.toNumber(), raw.currency)`.
-   - Domain to External Gateway (e.g. Stripe): `Math.round((money.amount + Number.EPSILON) * 100)`.
+### 2.3 API Transport Representation (`MoneyResponseDto`)
 
-5. **Calculation Ownership**:
-   - Line items: `SaleItem` owns `subtotal`, `discountTotal`, and `total`.
-   - Order totals: `Sale` aggregate root owns `subtotal`, `discountTotal`, and `total`.
-   - Controllers and repositories contain zero financial math.
+- **Class**: `apps/api/src/sales/dto/money-response.dto.ts`
+- **Dual-Mode Structure**:
+  1. **Structured Object (`MoneyResponseDto`)**:
+     ```json
+     {
+       "amount": 49.99,
+       "currency": "USD",
+       "formatted": "49.99",
+       "cents": 4999
+     }
+     ```
+  2. **Flat Read Projections**:
+     - `subtotalAmount: number` (e.g. `49.99`)
+     - `discountTotalAmount: number` (e.g. `10.00`)
+     - `totalAmount: number` (e.g. `39.99`)
+     - `currency: string` (e.g. `"USD"`)
 
-6. **Rounding Ownership**:
-   - Commercial Half-Up rounding is exclusively owned by `Money` and `Discount` Value Objects at the 1-cent boundary.
+### 2.4 External Payment Gateway Boundary
 
-7. **Discount Application Point**:
-   - Solely on `SaleItem` (`item.discount`).
-   - Order-level discount remains deferred.
-
-8. **Invariants**:
-   - $\text{subtotal} \ge \$0.00$
-   - $\text{discountTotal} \ge \$0.00$
-   - $\text{total} \ge \$0.00$
-   - $\text{total} = \text{subtotal} - \text{discountTotal}$
-   - Currency homogeneity across all items and order totals.
-
-9. **Required Prisma Changes**:
-   - None in Milestone 7.4.
-
-10. **Required Tests**:
-    - Cent-guarded arithmetic precision tests (midpoints, epsilon drift).
-    - Fractional quantity calculations (e.g. 1.25 kg @ $24.50).
-    - Aggregate reconciliation tests for multi-item baskets with mixed discounts.
-    - Zero-amount and full 100% discount tests.
-    - Currency mismatch rejection tests.
-    - Reconstitution reconciliation assertion tests.
+- External payment processors (Stripe, card terminals, ACH settlement) accept raw integer cents:
+  ```ts
+  const gatewayChargeCents = sale.total.cents; // e.g., 3999
+  ```
+- Guaranteed zero-loss, zero-fraction conversion.
 
 ---
 
-## 8. Unresolved Decisions
+## 3. Canonical Currency Policy
 
-1. **Elevation of `Money` to Shared Kernel vs. Canonical Sales VO**:
-   - _Option A_: Move `Money` to `packages/core/src/shared/kernel/value-objects/money.vo.ts` and update Resources, Gym, and Sales imports.
-   - _Option B_: Enhance `packages/core/src/sales/domain/value-objects/money.vo.ts` as an autonomous, hardened implementation within the Sales bounded context, leaving Resources untouched until the platform-wide shared kernel migration.
-   - _Recommendation_: **Option B** for Milestone 7.4 to respect the constraint "Do not modify unrelated bounded contexts", followed by platform-wide consolidation in the Shared Kernel milestone.
-
-2. **Order-Level Discount Deprecation in `Sale` Aggregate**:
-   - _Option A_: Retain `orderDiscount` in `Sale` aggregate with a no-op / warning.
-   - _Option B_: Formally remove or disable `orderDiscount` from `CreateSaleProps`, `ReconstituteSaleProps`, and `Sale` aggregate methods so that `discountTotal` strictly equals $\sum \text{SaleItem.discountTotal}$ in Milestone 7.4.
-   - _Recommendation_: **Option B** — align `Sale` aggregate directly with Milestone 7.3 acceptance and the target financial model $\text{discountTotal} = \sum \text{valid line discounts}$.
+1. **Standardization**: Currency codes must be valid 3-letter uppercase strings conforming to ISO-4217 (`USD`, `CAD`, `EUR`, `GBP`, `AUD`).
+2. **Mono-Currency per Transaction**:
+   - Each tenant checkout session operates in exactly one functional currency (default: `"USD"`).
+   - Every `SaleItem` added to a `Sale` must match the `Sale` currency.
+   - Any attempt to add an item with a mismatched currency throws `InvalidSaleStateException` (`MISMATCHED_CURRENCY`).
+3. **Domain Currency Guard**:
+   - Arithmetic operations (`add`, `subtract`, comparisons) between `Money` instances of different currencies immediately throw `InvalidMoneyException` (`CURRENCY_MISMATCH`).
+   - Equality comparison (`a.equals(b)`) returns `false` if currencies differ.
 
 ---
 
-## 9. Exact Files Expected to Change in Milestone 7.4 Implementation
+## 4. Precision Hierarchy & Database Scale
 
-When proceeding to the implementation phase of Milestone 7.4:
+| Precision Tier            | Scale & Precision                    | Backing Implementation                           | Capacity / Range                                |
+| :------------------------ | :----------------------------------- | :----------------------------------------------- | :---------------------------------------------- |
+| **Calculation Precision** | Integer minor units (cents, $0.01$)  | `Math.round((units + Number.EPSILON) * 100)`     | Up to safe JavaScript integer limit ($10^{15}$) |
+| **Persistence Precision** | Fixed-point `DECIMAL(12, 2)`         | PostgreSQL `@db.Decimal(12, 2)` / Prisma Decimal | $\pm \$9,999,999,999.99$                        |
+| **Display / API Scale**   | Fixed 2 decimal places + cents       | Number `49.99`, String `"49.99"`, Int `4999`     | Exact two-decimal string format                 |
+| **Quantity Precision**    | 3 decimal places (scale: 3, $0.001$) | Normalized via `(q + Number.EPSILON) * 1000`     | $0.001 \le \text{quantity} \le 999,999$         |
 
-1. **`packages/core/src/sales/domain/value-objects/money.vo.ts`**:
-   - Transition from pass-through re-export to autonomous, cent-guarded Value Object with `Number.EPSILON` precision arithmetic and integer-cent addition/subtraction.
-2. **`packages/core/src/sales/domain/sale.aggregate.ts`**:
-   - Hardened deterministic reconciliation formulas in `recalculateTotals()` and `reconstitute()`.
-   - Clarify / streamline discount aggregation strictly to item discounts.
-3. **`packages/core/src/sales/domain/entities/sale-item.entity.ts`**:
-   - Verify deterministic `subtotal`, `discountTotal`, and `total` calculation alignment.
-4. **`packages/core/src/sales/domain/__tests__/sale-totals-and-money-rules.spec.ts`** (NEW):
-   - Comprehensive test suite specifically verifying the Milestone 7.4 test matrix.
-5. **Documentation**:
-   - `docs/business-rules/sales-payments.md` and `docs/domain/sales-payments.md` (record Milestone 7.4 certifications).
+---
+
+## 5. Rounding Rules & Execution Timing
+
+### 5.1 Rounding Mode: Commercial Half-Up
+
+The platform exclusively enforces **Commercial Half-Up Rounding** (`round-half-up`), where halfway values (e.g. $\$0.005$) consistently round away from zero to $\$0.01$.
+
+To eliminate IEEE-754 floating-point midpoint drift (such as `0.285 * 100 = 28.499999999999996` which native `Math.round` would erroneously truncate down to 28 cents), every calculation applies `Number.EPSILON`:
+
+```ts
+const cents = Math.round((amount + Number.EPSILON) * 100);
+```
+
+### 5.2 Timing of Rounding Events
+
+Rounding occurs **immediately at calculation boundaries**, preventing the propagation of fractional cents:
+
+1. **Line Subtotal**:
+   $$\text{itemSubtotalCents} = \text{Math.round}\left(\text{unitPriceCents} \times \text{quantity} + \text{Number.EPSILON}\right)$$
+   $$\text{SaleItem.subtotal} = \text{Money.create}(\text{itemSubtotalCents} / 100, \text{currency})$$
+2. **Percentage Discount**:
+   $$\text{discountCents} = \text{Math.round}\left(\frac{\text{itemSubtotalCents} \times \text{percentage}}{100} + \text{Number.EPSILON}\right)$$
+   $$\text{SaleItem.discountTotal} = \text{Money.create}(\text{discountCents} / 100, \text{currency})$$
+3. **Line Net Total**:
+   $$\text{lineTotalCents} = \text{itemSubtotalCents} - \text{discountCents}$$
+   $$\text{SaleItem.total} = \text{Money.create}(\text{lineTotalCents} / 100, \text{currency})$$
+4. **Final Sale Aggregation**:
+   $$\text{Sale.subtotal} = \sum_{i=1}^n \text{SaleItem}_{i}.\text{subtotal}$$
+   $$\text{Sale.discountTotal} = \sum_{i=1}^n \text{SaleItem}_{i}.\text{discountTotal}$$
+   $$\text{Sale.total} = \text{Sale.subtotal} - \text{Sale.discountTotal}$$
+   Because line subtotals and line discounts are already exact integer cents, order aggregation is a pure integer sum and difference. **Zero repeated rounding, zero fractional leakage, and zero cumulative drift.**
+
+---
+
+## 6. Financial Formulas & Calculations
+
+### Formula 1: Gross Subtotal
+
+$$\text{subtotal} = \sum_{i=1}^{n} (\text{item}_{i}.\text{quantity} \times \text{item}_{i}.\text{unitPrice})$$
+
+### Formula 2: Discount Total
+
+$$\text{discountTotal} = \sum_{i=1}^{n} (\text{valid line discounts}_{i})$$
+
+### Formula 3: Net Payable Total
+
+$$\text{total} = \text{subtotal} - \text{discountTotal}$$
+
+---
+
+## 7. Strict Financial Invariants
+
+1. **Monetary Non-Negativity**:
+   $$\text{subtotal} \ge \$0.00$$
+   $$\text{discountTotal} \ge \$0.00$$
+   $$\text{total} \ge \$0.00$$
+2. **Discount Ceiling**:
+   $$\text{discountTotal} \le \text{subtotal}$$
+   A discount cannot reduce a line item or a sale below $\$0.00$.
+3. **Currency Homogeneity**:
+   All items, discounts, and aggregate totals in a `Sale` must share the same ISO-4217 currency.
+4. **Reconstitution Integrity Law**:
+   When rehydrating a `Sale` or `SaleItem` from persistence:
+   - Line subtotals and discounts are recomputed from raw inputs (`quantity`, `unitPrice`, `discount`).
+   - Recomputed values must match persisted snapshot values to the exact cent via `equals()`.
+   - Any persisted mismatch of even 1 cent ($0.01$) throws `InvalidSaleStateException` or `InvalidSaleItemException`.
+5. **Commercial Immutability**:
+   Once a `Sale` departs `DRAFT` status (`PENDING_PAYMENT`, `PAID`, `COMPLETED`, `CANCELLED`, `REFUNDED`), commercial terms freeze permanently. Any mutation throws `SaleAlreadyFinalizedException`.
+
+---
+
+## 8. Discount Behavior Specifications
+
+| Discount Type              | Evaluation Rule                                               | Bounds / Validation                                                       | Behavior on Excessive Value                                                              |
+| :------------------------- | :------------------------------------------------------------ | :------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------- |
+| **Fixed (`FIXED`)**        | Absolute currency reduction subtracted from line subtotal     | $0.00 \le \text{value} \le \text{lineSubtotal}$; Currency must match item | Throws `InvalidDiscountException` (`FIXED_DISCOUNT_EXCEEDS_AMOUNT`). No silent clamping! |
+| **Percentage (`PERCENT`)** | Relative percentage reduction evaluated against line subtotal | $0.00 \le \text{percentage} \le 100.00$; Rounded half-up to cent          | Values $< 0$ or $> 100$ throw `InvalidDiscountException` (`INVALID_PERCENTAGE`).         |
+| **Zero Discount**          | Permitted; results in $\$0.00$ reduction                      | $0\%$ or $\$0.00$ fixed                                                   | Evaluates cleanly to $\$0.00$ without error.                                             |
+| **Full 100% Discount**     | Permitted (promotional/complimentary)                         | $100\%$ or fixed equal to subtotal                                        | Line total evaluates to exactly $\$0.00$. Total invariant $\ge \$0.00$ holds.            |
+| **Multiple Discounts**     | Evaluated per line item (`SaleItem.discount`) and aggregated  | Summed deterministically to `Sale.discountTotal`                          | Order-level discounts remain deferred to Phase 7.5.                                      |
+
+---
+
+## 9. Security & Data Integrity Rationale
+
+### Why Floating-Point Arithmetic is Strictly Prohibited
+
+Computers using IEEE-754 binary floating-point representation cannot natively represent decimal fractions whose denominators are not powers of two. In binary:
+
+- `0.1` is a repeating fraction: `0.0001100110011...`
+- `0.2` is a repeating fraction: `0.0011001100110...`
+- `0.1 + 0.2` evaluates to `0.30000000000000004`
+- `1.00 - 0.90` evaluates to `0.09999999999999998`
+- `0.29 * 100` evaluates to `28.999999999999996`
+
+In an enterprise healthcare, wellness, and fitness billing platform:
+
+1. **Cashier Till Discrepancies**: Truncating `0.09999999999999998` to 9 cents creates phantom 1-cent shortages across daily register audits.
+2. **Tax Non-Compliance**: Accumulated sub-cent floating-point errors create tax reporting discrepancies between line items and invoice summaries, failing fiscal audits.
+3. **Gateway Authorization Failures**: Passing `28.999999999999996` to payment gateways can cause payment intent rejections or mismatched settlement amounts.
+4. **Fraud & Exploitation**: Precision truncation can be exploited through split-transaction penny skimming.
+
+By enforcing integer minor units with `Number.EPSILON` Commercial Half-Up rounding, Kinergy achieves 100% mathematical determinism.
+
+---
+
+## 10. API Specification & JSON Examples
+
+### 10.1 Create Sale Session (`POST /api/v1/sales`)
+
+**Request:**
+
+```http
+POST /api/v1/sales HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer <JWT>
+
+{
+  "currency": "USD",
+  "clientId": "client_8b39c01",
+  "source": {
+    "sourceType": "RETAIL",
+    "sourceId": "terminal_frontdesk_01"
+  }
+}
+```
+
+**Response (`201 Created`):**
+
+```json
+{
+  "id": "sale_01j9876543210abcdef",
+  "clientId": "client_8b39c01",
+  "currency": "USD",
+  "status": "DRAFT",
+  "subtotal": {
+    "amount": 0,
+    "currency": "USD",
+    "formatted": "0.00",
+    "cents": 0
+  },
+  "discountTotal": {
+    "amount": 0,
+    "currency": "USD",
+    "formatted": "0.00",
+    "cents": 0
+  },
+  "total": {
+    "amount": 0,
+    "currency": "USD",
+    "formatted": "0.00",
+    "cents": 0
+  },
+  "subtotalAmount": 0,
+  "discountTotalAmount": 0,
+  "totalAmount": 0,
+  "itemCount": 0,
+  "items": [],
+  "version": 1,
+  "createdAt": "2026-09-18T16:00:00.000Z",
+  "updatedAt": "2026-09-18T16:00:00.000Z"
+}
+```
+
+### 10.2 Add Item with Percentage Discount (`POST /api/v1/sales/:id/items`)
+
+**Request:**
+
+```http
+POST /api/v1/sales/sale_01j9876543210abcdef/items HTTP/1.1
+Content-Type: application/json
+Authorization: Bearer <JWT>
+
+{
+  "description": "Premium Whey Protein Isolate (1.5 kg)",
+  "skuOrCode": "RET-PROT-001",
+  "unitPrice": {
+    "amount": 49.99,
+    "currency": "USD"
+  },
+  "quantity": 2,
+  "discount": {
+    "type": "PERCENTAGE",
+    "value": 15,
+    "reason": "VIP Member 15% Promotion"
+  },
+  "source": {
+    "sourceType": "INVENTORY",
+    "sourceId": "inv_item_9921"
+  }
+}
+```
+
+**Response (`201 Created`):**
+
+```json
+{
+  "id": "sale_01j9876543210abcdef",
+  "currency": "USD",
+  "status": "DRAFT",
+  "subtotal": {
+    "amount": 99.98,
+    "currency": "USD",
+    "formatted": "99.98",
+    "cents": 9998
+  },
+  "discountTotal": {
+    "amount": 15.0,
+    "currency": "USD",
+    "formatted": "15.00",
+    "cents": 1500
+  },
+  "total": {
+    "amount": 84.98,
+    "currency": "USD",
+    "formatted": "84.98",
+    "cents": 8498
+  },
+  "subtotalAmount": 99.98,
+  "discountTotalAmount": 15.0,
+  "totalAmount": 84.98,
+  "itemCount": 1,
+  "items": [
+    {
+      "id": "item_01j9877890123abcdef",
+      "description": "Premium Whey Protein Isolate (1.5 kg)",
+      "skuOrCode": "RET-PROT-001",
+      "quantity": 2,
+      "unitPrice": {
+        "amount": 49.99,
+        "currency": "USD",
+        "formatted": "49.99",
+        "cents": 4999
+      },
+      "subtotal": {
+        "amount": 99.98,
+        "currency": "USD",
+        "formatted": "99.98",
+        "cents": 9998
+      },
+      "discountTotal": {
+        "amount": 15.0,
+        "currency": "USD",
+        "formatted": "15.00",
+        "cents": 1500
+      },
+      "total": {
+        "amount": 84.98,
+        "currency": "USD",
+        "formatted": "84.98",
+        "cents": 8498
+      },
+      "discount": {
+        "type": "PERCENTAGE",
+        "value": 15,
+        "reason": "VIP Member 15% Promotion"
+      }
+    }
+  ],
+  "version": 2,
+  "createdAt": "2026-09-18T16:00:00.000Z",
+  "updatedAt": "2026-09-18T16:05:00.000Z"
+}
+```
+
+---
+
+## 11. Complete Traceability Chain
+
+Every Milestone 7.4 requirement is traceable from Business Requirement through to Automated Tests:
+
+```text
+Requirement
+    ↓
+Domain Rule
+    ↓
+Use Case
+    ↓
+Persistence
+    ↓
+API
+    ↓
+Frontend Contract
+    ↓
+Test
+```
+
+| Requirement ID | Business & Domain Rule                                                                                                            | Application Use Case                                        | Persistence Mapper                 | API Transport & DTO                      | Frontend Contract                 | Automated Test Suite                                                               |
+| :------------- | :-------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------- | :--------------------------------- | :--------------------------------------- | :-------------------------------- | :--------------------------------------------------------------------------------- |
+| **REQ-7.4-01** | **Deterministic Totals Formula**<br/>$\text{subtotal} = \sum (q \times p)$<br/>$\text{total} = \text{subtotal} - \text{discount}$ | `AddSaleItemHandler`<br/>`CreateSaleHandler`                | `PrismaSaleMapper.toPersistence()` | `SaleResponseDto`<br/>`MoneyResponseDto` | `SaleSummary`<br/>`cart_subtotal` | `sale-application-totals.spec.ts`<br/>`sale.aggregate.spec.ts`                     |
+| **REQ-7.4-02** | **Zero Float Drift**<br/>Integer minor units with `Number.EPSILON`                                                                | `Money.add()`<br/>`Money.subtract()`<br/>`Money.multiply()` | PostgreSQL `DECIMAL(12, 2)`        | `amount`, `cents`, `formatted`           | `cents` integer parsing           | `monetary-precision-safety-net.spec.ts`<br/>`sales-monetary-anti-patterns.spec.ts` |
+| **REQ-7.4-03** | **Commercial Half-Up Rounding**<br/>$0.005 \to 0.01$, $0.0049 \to 0.00$                                                           | `Discount.calculate()`<br/>`SaleItem.create()`              | Fixed-point scale 2                | Fixed-point 2 decimals                   | Currency display formatter        | `monetary-precision-safety-net.spec.ts`<br/>`discount.vo.spec.ts`                  |
+| **REQ-7.4-04** | **Strict Non-Negative Invariants**<br/>$\text{subtotal} \ge 0$, $\text{discount} \ge 0$, $\text{total} \ge 0$                     | `Sale.addItem()`<br/>`Sale.recalculateTotals()`             | DB Check constraints               | Positive number validation               | UI total >= $0.00                 | `sale-discount-invariants.spec.ts`<br/>`monetary-precision-safety-net.spec.ts`     |
+| **REQ-7.4-05** | **Excessive Discount Rejection**<br/>$\text{fixed} > \text{subtotal}$ rejected                                                    | `SaleItem.create()`<br/>`Discount.calculate()`              | N/A (Transaction aborts)           | `400 Bad Request`<br/>`INVALID_DISCOUNT` | Form error alert                  | `phase-7-3-discount-test-matrix.spec.ts`<br/>`discount.vo.spec.ts`                 |
+| **REQ-7.4-06** | **Currency Homogeneity**<br/>Single currency per sale session                                                                     | `Sale.addItem()`<br/>`Sale.assertDraftState()`              | Single currency column             | ISO-4217 validation                      | Tenant default currency           | `sale-item-integration.spec.ts`<br/>`monetary-precision-safety-net.spec.ts`        |
+| **REQ-7.4-07** | **Domain Purity Boundary**<br/>Zero Prisma/NestJS imports in domain                                                               | Hexagonal Domain Kernel                                     | Explicit mapper layer              | DTO serialization layer                  | Decoupled client models           | `sales-monetary-anti-patterns.spec.ts`                                             |
+| **REQ-7.4-08** | **Reconstitution Integrity**<br/>Rejects 1-cent corrupted persistence                                                             | `Sale.reconstitute()`<br/>`SaleItem.reconstitute()`         | `PrismaSaleMapper.toDomain()`      | Error 500 on corrupted DB                | Data integrity alert              | `monetary-precision-safety-net.spec.ts`                                            |
+| **REQ-7.4-09** | **Commercial Immutability**<br/>Freeze terms on departure from `DRAFT`                                                            | `FinalizeSaleHandler`<br/>`Sale.finalize()`                 | Frozen records in DB               | Read-only order view                     | Disabled cart editing             | `sale-hardening.spec.ts`<br/>`monetary-precision-safety-net.spec.ts`               |
