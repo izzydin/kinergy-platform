@@ -17,7 +17,7 @@ docs/
 ├── testing/              ◄── Quality Gates, Harnesses, Unit, Integration & E2E Testing
 ├── configuration/        ◄── Centralized Zod Environment Variables & Secrets Reference
 ├── api/                  ◄── OpenAPI / Swagger Docs, Envelope Schemas & Routes
-├── adr/                  ◄── Architectural Decision Records (0001 - 0114)
+├── adr/                  ◄── Architectural Decision Records (0001 - 0115)
 └── glossary.md           ◄── Ubiquitous Language, Security Acronyms & Terminology
 ```
 
@@ -124,7 +124,7 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
 
 ### 10. Architectural Decision Records (ADRs)
 
-- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 50+ Architectural Decision Records documenting all major platform design choices (0001 through 0114).
+- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 50+ Architectural Decision Records documenting all major platform design choices (0001 through 0115).
 - **[Phase 6 ADR Index (ADR-0081–0107)](file:///c:/Projects/kinergy-platform/docs/architecture/resources/README.md#6-architectural-decision-records-adr-index)**: Detailed index of all 27 Phase 6 Resources Management Architectural Decision Records.
 - **Phase 7 ADRs**:
   - [ADR-0108: Deterministic Financial Representation and Currency Modeling](file:///c:/Projects/kinergy-platform/docs/adr/0108-money-representation.md)
@@ -134,3 +134,4 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
   - [ADR-0112: Sales & Payments Bounded Context Establishment](file:///c:/Projects/kinergy-platform/docs/adr/0112-sales-bounded-context.md)
   - [ADR-0113: Item-Level Discount Domain Model, Deterministic Calculation, and Invariant Enforcement](file:///c:/Projects/kinergy-platform/docs/adr/0113-item-level-discounts.md)
   - [ADR-0114: Canonical Monetary Policy, Deterministic Arithmetic, and Sale Totals Invariant Enforcement](file:///c:/Projects/kinergy-platform/docs/adr/0114-canonical-monetary-policy-and-sale-totals.md)
+  - [ADR-0115: Payment Domain Canonical Architecture, Aggregate Boundaries, and Tender Decoupling](file:///c:/Projects/kinergy-platform/docs/adr/0115-payment-domain-canonical-architecture.md)

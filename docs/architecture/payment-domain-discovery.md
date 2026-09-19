@@ -449,7 +449,7 @@ Reusing Phase 1 IAM and ADR-0111 without creating secondary authorization framew
 
 ## 14. Documentation & ADR Changes Required
 
-1. **New ADR**: Create `docs/adr/0115-payment-domain-and-multi-tender-settlement.md` formalizing the autonomous Payment aggregate, method constraints (`CASH`, `QR`), and balance reconciliation.
+1. **New ADR**: Formulate [ADR-0115: Payment Domain Canonical Architecture, Aggregate Boundaries, and Tender Decoupling](../adr/0115-payment-domain-canonical-architecture.md) formalizing the autonomous Payment aggregate, method constraints (`CASH`, `QR`), and balance reconciliation.
 2. **ADR Index**: Update `docs/adr/README.md` and `docs/README.md`.
 3. **Business Rules**: Update `docs/business-rules/sales-payments.md` promoting `PAY-01` through `PAY-08` from roadmap to implemented status.
 4. **API Guide**: Update `docs/api/README.md` adding the `/api/v1/sales/:saleId/payments` endpoint catalog.
