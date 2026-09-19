@@ -7,3 +7,8 @@ export * from './invalid-discount.exception';
 export * from './invalid-sale-transition.exception';
 export * from './invalid-money.exception';
 export * from './optimistic-lock.exception';
+export * from './payment-domain.exception';
+export * from './invalid-payment-method.exception';
+export * from './invalid-payment-status.exception';
+export * from './invalid-payment-reference.exception';
+export * from './invalid-payment-transition.exception';
