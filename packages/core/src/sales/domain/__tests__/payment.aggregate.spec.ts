@@ -560,5 +560,206 @@ describe('Payment Aggregate Root (Milestone 7.5)', () => {
         }),
       ).toThrow(/updatedAt cannot be earlier than createdAt/i);
     });
+    it('rejects reconstitution if FAILED payment has non-null paidAt', () => {
+      const paymentId = PaymentId.create();
+      expect(() =>
+        Payment.reconstitute({
+          id: paymentId,
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(10.0),
+          status: PaymentStatus.FAILED,
+          reference: null,
+          paidAt: t0, // Contradictory: FAILED with paidAt
+          createdAt: t0,
+          updatedAt: t0,
+          version: 1,
+        }),
+      ).toThrow(/non-settled payment in status 'FAILED' must have paidAt set to null/i);
+    });
+
+    it('rejects reconstitution if CANCELLED payment has non-null paidAt', () => {
+      const paymentId = PaymentId.create();
+      expect(() =>
+        Payment.reconstitute({
+          id: paymentId,
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(10.0),
+          status: PaymentStatus.CANCELLED,
+          reference: null,
+          paidAt: t0, // Contradictory: CANCELLED with paidAt
+          createdAt: t0,
+          updatedAt: t0,
+          version: 1,
+        }),
+      ).toThrow(/non-settled payment in status 'CANCELLED' must have paidAt set to null/i);
+    });
+  });
+
+  // ===========================================================================
+  // 7. Domain Method Aliases (markAsPaid, markAsFailed)
+  // ===========================================================================
+  describe('7. Domain Method Aliases (markAsPaid, markAsFailed)', () => {
+    it('markAsPaid() transitions PENDING to SETTLED and records PaymentSettledEvent', () => {
+      const payment = Payment.createPending(
+        {
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(85.0),
+        },
+        clock,
+      );
+
+      clock.advance(15000);
+      payment.markAsPaid(clock);
+
+      expect(payment.isSettled()).toBe(true);
+      expect(payment.paidAt).toEqual(new Date('2026-09-19T10:00:15.000Z'));
+      expect(payment.version).toBe(2);
+
+      const events = payment.getUncommittedEvents();
+      expect(events.length).toBe(1);
+      expect(events[0]?.eventType).toBe('PaymentSettled');
+    });
+
+    it('markAsFailed() transitions PENDING to FAILED and records PaymentFailedEvent', () => {
+      const payment = Payment.createPending(
+        {
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(85.0),
+        },
+        clock,
+      );
+
+      clock.advance(15000);
+      payment.markAsFailed('Insufficient funds', clock);
+
+      expect(payment.isFailed()).toBe(true);
+      expect(payment.paidAt).toBeNull();
+      expect(payment.version).toBe(2);
+
+      const events = payment.getUncommittedEvents();
+      expect(events.length).toBe(1);
+      expect(events[0]?.eventType).toBe('PaymentFailed');
+    });
+  });
+
+  // ===========================================================================
+  // 8. Entity Identity & Equality
+  // ===========================================================================
+  describe('8. Entity Identity & Equality', () => {
+    it('implements Entity<PaymentId> equals() correctly', () => {
+      const pId1 = PaymentId.create('pay_same_id');
+      const pId2 = PaymentId.create('pay_same_id');
+      const pId3 = PaymentId.create('pay_different_id');
+
+      const payment1 = Payment.createSettled({
+        id: pId1,
+        tenantId,
+        saleId,
+        method: PaymentMethod.CASH,
+        amount: Money.create(10.0),
+      });
+
+      const payment2 = Payment.reconstitute({
+        id: pId2,
+        tenantId,
+        saleId,
+        method: PaymentMethod.CASH,
+        amount: Money.create(10.0),
+        status: PaymentStatus.SETTLED,
+        reference: null,
+        paidAt: t0,
+        createdAt: t0,
+        updatedAt: t0,
+        version: 1,
+      });
+
+      const payment3 = Payment.createSettled({
+        id: pId3,
+        tenantId,
+        saleId,
+        method: PaymentMethod.CASH,
+        amount: Money.create(10.0),
+      });
+
+      expect(payment1.equals(payment2)).toBe(true);
+      expect(payment1.equals(payment3)).toBe(false);
+      expect(payment1.equals(null)).toBe(false);
+      expect(payment1.equals(undefined)).toBe(false);
+    });
+
+    it('accepts string saleId and validates format', () => {
+      const payment = Payment.createSettled({
+        tenantId,
+        saleId: 'sale_custom_123',
+        method: PaymentMethod.CASH,
+        amount: Money.create(10.0),
+      });
+
+      expect(payment.saleId).toBeInstanceOf(SaleId);
+      expect(payment.saleId.value).toBe('sale_custom_123');
+    });
+
+    it('rejects empty or whitespace saleId', () => {
+      expect(() =>
+        Payment.createSettled({
+          tenantId,
+          saleId: '',
+          method: PaymentMethod.CASH,
+          amount: Money.create(10.0),
+        }),
+      ).toThrow();
+    });
+  });
+
+  // ===========================================================================
+  // 9. AggregateRoot Protocol & Domain Events
+  // ===========================================================================
+  describe('9. AggregateRoot Protocol & Domain Events', () => {
+    it('records and clears domain events upon creation and lifecycle actions', () => {
+      const payment = Payment.createSettled(
+        {
+          tenantId,
+          saleId,
+          method: PaymentMethod.CASH,
+          amount: Money.create(40.0),
+          reference: 'DRAWER-1',
+        },
+        clock,
+      );
+
+      // createSettled records PaymentSettledEvent
+      const events = payment.getUncommittedEvents();
+      expect(events.length).toBe(1);
+      expect(events[0]?.eventType).toBe('PaymentSettled');
+      expect(events[0]?.aggregateId).toBe(payment.id.value);
+
+      payment.clearEvents();
+      expect(payment.getUncommittedEvents().length).toBe(0);
+    });
+
+    it('records PaymentCancelledEvent on cancel()', () => {
+      const payment = Payment.createPending(
+        {
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(50.0),
+        },
+        clock,
+      );
+
+      payment.cancel('Customer walked away', clock);
+      const events = payment.getUncommittedEvents();
+      expect(events.length).toBe(1);
+      expect(events[0]?.eventType).toBe('PaymentCancelled');
+    });
   });
 });

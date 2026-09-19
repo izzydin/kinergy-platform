@@ -7,3 +7,6 @@ export * from './sale-partially-paid.event';
 export * from './sale-paid.event';
 export * from './sale-completed.event';
 export * from './sale-refunded.event';
+export * from './payment-settled.event';
+export * from './payment-failed.event';
+export * from './payment-cancelled.event';

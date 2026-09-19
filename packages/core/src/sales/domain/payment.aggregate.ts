@@ -1,3 +1,6 @@
+import { Entity } from './shared/entity';
+import { AggregateRoot } from './shared/aggregate-root';
+import { DomainEvent } from './shared/domain-event';
 import { PaymentId } from './value-objects/payment-id.vo';
 import { SaleId } from './value-objects/sale-id.vo';
 import { Money } from './value-objects/money.vo';
@@ -11,20 +14,21 @@ import {
 import { PaymentDomainException } from './exceptions/payment-domain.exception';
 import { InvalidPaymentTransitionException } from './exceptions/invalid-payment-transition.exception';
 import { Clock, SystemClock } from './shared/clock';
+import { PaymentSettledEvent, PaymentFailedEvent, PaymentCancelledEvent } from './events';
 
 export interface CreateSettledPaymentParams {
-  id?: PaymentId;
-  tenantId: string;
-  saleId: SaleId;
+  id?: PaymentId | string;
+  tenantId?: string;
+  saleId: SaleId | string;
   method: PaymentMethod;
   amount: Money;
   reference?: string | PaymentReference | null;
 }
 
 export interface CreatePendingPaymentParams {
-  id?: PaymentId;
-  tenantId: string;
-  saleId: SaleId;
+  id?: PaymentId | string;
+  tenantId?: string;
+  saleId: SaleId | string;
   method: PaymentMethod;
   amount: Money;
   reference?: string | PaymentReference | null;
@@ -45,14 +49,15 @@ export interface PaymentReconstituteProps {
 }
 
 /**
- * Autonomous Payment Aggregate Root for the Sales & Payments Bounded Context.
+ * Autonomous Payment Aggregate Root and Entity for the Sales & Payments Bounded Context.
  * Conforms strictly to ADR-0115:
  * - Couples to Sale solely via scalar SaleId (identifier-based coupling).
  * - Reuses canonical Phase 7.4 Money VO for all monetary values.
  * - Does NOT calculate commercial subtotals, item discounts, or taxes.
  * - Enforces append-only progressive immutability once SETTLED.
+ * - Manages discrete domain events for lifecycle milestones.
  */
-export class Payment {
+export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
   private readonly _id: PaymentId;
   private readonly _tenantId: string;
   private readonly _saleId: SaleId;
@@ -64,6 +69,7 @@ export class Payment {
   private readonly _createdAt: Date;
   private _updatedAt: Date;
   private _version: number;
+  private readonly _uncommittedEvents: DomainEvent[] = [];
 
   private constructor(props: PaymentReconstituteProps) {
     Payment.validateProps(props);
@@ -157,6 +163,7 @@ export class Payment {
       );
     }
 
+    // Invariant: Status and paidAt alignment
     if (props.status === PaymentStatus.SETTLED) {
       if (!props.paidAt || !(props.paidAt instanceof Date) || isNaN(props.paidAt.getTime())) {
         throw new PaymentDomainException(
@@ -185,6 +192,10 @@ export class Payment {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Factory Methods
+  // ---------------------------------------------------------------------------
+
   /**
    * Factory method to create an immediately settled payment (e.g. physical CASH or confirmed counter QR).
    */
@@ -193,15 +204,24 @@ export class Payment {
     clock: Clock = new SystemClock(),
   ): Payment {
     const now = clock.now();
+    const id =
+      params.id instanceof PaymentId
+        ? params.id
+        : PaymentId.create(typeof params.id === 'string' ? params.id : undefined);
+
+    const saleId = params.saleId instanceof SaleId ? params.saleId : SaleId.create(params.saleId);
+
     const reference =
       params.reference instanceof PaymentReference
         ? params.reference
         : PaymentReference.from(params.reference);
 
-    return new Payment({
-      id: params.id ?? PaymentId.create(),
-      tenantId: params.tenantId,
-      saleId: params.saleId,
+    const tenantId = params.tenantId ? params.tenantId.trim() : 'default';
+
+    const payment = new Payment({
+      id,
+      tenantId,
+      saleId,
       method: params.method,
       amount: params.amount,
       status: PaymentStatus.SETTLED,
@@ -211,6 +231,27 @@ export class Payment {
       updatedAt: now,
       version: 1,
     });
+
+    payment.recordEvent(
+      new PaymentSettledEvent(
+        id.value,
+        1,
+        {
+          paymentId: id.value,
+          saleId: saleId.value,
+          tenantId,
+          method: params.method,
+          amount: params.amount.amount,
+          cents: params.amount.cents,
+          currency: params.amount.currency,
+          reference: reference ? reference.value : null,
+          paidAt: now,
+        },
+        now,
+      ),
+    );
+
+    return payment;
   }
 
   /**
@@ -221,15 +262,24 @@ export class Payment {
     clock: Clock = new SystemClock(),
   ): Payment {
     const now = clock.now();
+    const id =
+      params.id instanceof PaymentId
+        ? params.id
+        : PaymentId.create(typeof params.id === 'string' ? params.id : undefined);
+
+    const saleId = params.saleId instanceof SaleId ? params.saleId : SaleId.create(params.saleId);
+
     const reference =
       params.reference instanceof PaymentReference
         ? params.reference
         : PaymentReference.from(params.reference);
 
+    const tenantId = params.tenantId ? params.tenantId.trim() : 'default';
+
     return new Payment({
-      id: params.id ?? PaymentId.create(),
-      tenantId: params.tenantId,
-      saleId: params.saleId,
+      id,
+      tenantId,
+      saleId,
       method: params.method,
       amount: params.amount,
       status: PaymentStatus.PENDING,
@@ -249,7 +299,7 @@ export class Payment {
   }
 
   // ---------------------------------------------------------------------------
-  // Lifecycle Transitions
+  // Lifecycle Transitions (Domain-Driven Mutation Only)
   // ---------------------------------------------------------------------------
 
   /**
@@ -272,12 +322,38 @@ export class Payment {
     this._paidAt = new Date(now.getTime());
     this._updatedAt = new Date(now.getTime());
     this._version += 1;
+
+    this.recordEvent(
+      new PaymentSettledEvent(
+        this._id.value,
+        this._version,
+        {
+          paymentId: this._id.value,
+          saleId: this._saleId.value,
+          tenantId: this._tenantId,
+          method: this._method,
+          amount: this._amount.amount,
+          cents: this._amount.cents,
+          currency: this._amount.currency,
+          reference: this._reference ? this._reference.value : null,
+          paidAt: this._paidAt,
+        },
+        now,
+      ),
+    );
+  }
+
+  /**
+   * Domain method alias for settle(). Marks the payment as paid.
+   */
+  public markAsPaid(clock: Clock = new SystemClock()): void {
+    this.settle(clock);
   }
 
   /**
    * Transitions a PENDING payment to FAILED when the rail declines or times out.
    */
-  public fail(_reason?: string, clock: Clock = new SystemClock()): void {
+  public fail(reason?: string, clock: Clock = new SystemClock()): void {
     if (!canTransitionPaymentStatus(this._status, PaymentStatus.FAILED)) {
       throw new InvalidPaymentTransitionException(
         this._status,
@@ -292,12 +368,37 @@ export class Payment {
     this._status = PaymentStatus.FAILED;
     this._updatedAt = new Date(now.getTime());
     this._version += 1;
+
+    this.recordEvent(
+      new PaymentFailedEvent(
+        this._id.value,
+        this._version,
+        {
+          paymentId: this._id.value,
+          saleId: this._saleId.value,
+          tenantId: this._tenantId,
+          method: this._method,
+          amount: this._amount.amount,
+          cents: this._amount.cents,
+          currency: this._amount.currency,
+          reason,
+        },
+        now,
+      ),
+    );
+  }
+
+  /**
+   * Domain method alias for fail(). Marks the payment as failed.
+   */
+  public markAsFailed(reason?: string, clock: Clock = new SystemClock()): void {
+    this.fail(reason, clock);
   }
 
   /**
    * Transitions a PENDING payment to CANCELLED when aborted by the cashier or customer.
    */
-  public cancel(_reason?: string, clock: Clock = new SystemClock()): void {
+  public cancel(reason?: string, clock: Clock = new SystemClock()): void {
     if (!canTransitionPaymentStatus(this._status, PaymentStatus.CANCELLED)) {
       throw new InvalidPaymentTransitionException(
         this._status,
@@ -312,6 +413,47 @@ export class Payment {
     this._status = PaymentStatus.CANCELLED;
     this._updatedAt = new Date(now.getTime());
     this._version += 1;
+
+    this.recordEvent(
+      new PaymentCancelledEvent(
+        this._id.value,
+        this._version,
+        {
+          paymentId: this._id.value,
+          saleId: this._saleId.value,
+          tenantId: this._tenantId,
+          method: this._method,
+          amount: this._amount.amount,
+          cents: this._amount.cents,
+          currency: this._amount.currency,
+          reason,
+        },
+        now,
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // AggregateRoot Protocol & Entity Equality
+  // ---------------------------------------------------------------------------
+
+  public getUncommittedEvents(): ReadonlyArray<DomainEvent> {
+    return [...this._uncommittedEvents];
+  }
+
+  public clearEvents(): void {
+    this._uncommittedEvents.length = 0;
+  }
+
+  protected recordEvent(event: DomainEvent): void {
+    this._uncommittedEvents.push(event);
+  }
+
+  public equals(other: Entity<PaymentId> | undefined | null): boolean {
+    if (!other || !(other instanceof Payment)) {
+      return false;
+    }
+    return this._id.equals(other.id);
   }
 
   // ---------------------------------------------------------------------------
