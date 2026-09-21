@@ -34,6 +34,12 @@ export interface CreatePendingPaymentParams {
   reference?: string | PaymentReference | null;
 }
 
+export interface SettlePaymentOptions {
+  reference?: string | PaymentReference | null;
+  paidAt?: Date;
+  clock?: Clock;
+}
+
 export interface PaymentReconstituteProps {
   id: PaymentId;
   tenantId: string;
@@ -64,7 +70,7 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
   private readonly _method: PaymentMethod;
   private readonly _amount: Money;
   private _status: PaymentStatus;
-  private readonly _reference: PaymentReference | null;
+  private _reference: PaymentReference | null;
   private _paidAt: Date | null;
   private readonly _createdAt: Date;
   private _updatedAt: Date;
@@ -305,8 +311,11 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
   /**
    * Transitions a PENDING payment to SETTLED when customer funds are confirmed.
    * Settled payments are permanently immutable.
+   *
+   * @param optionsOrClock Optional settlement options ({ reference?, paidAt?, clock? }) or a Clock instance.
+   * @param fallbackClock Optional Clock instance if options object was provided without its own clock.
    */
-  public settle(clock: Clock = new SystemClock()): void {
+  public settle(optionsOrClock?: SettlePaymentOptions | Clock, fallbackClock?: Clock): void {
     if (!canTransitionPaymentStatus(this._status, PaymentStatus.SETTLED)) {
       throw new InvalidPaymentTransitionException(
         this._status,
@@ -317,9 +326,50 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
       );
     }
 
+    let clock: Clock;
+    let explicitPaidAt: Date | undefined;
+    let newReference: PaymentReference | null | undefined;
+
+    if (optionsOrClock && 'now' in optionsOrClock && typeof optionsOrClock.now === 'function') {
+      clock = optionsOrClock as Clock;
+    } else if (optionsOrClock && typeof optionsOrClock === 'object') {
+      const opts = optionsOrClock as SettlePaymentOptions;
+      clock = opts.clock ?? fallbackClock ?? new SystemClock();
+      if (opts.reference !== undefined) {
+        newReference =
+          opts.reference instanceof PaymentReference || opts.reference === null
+            ? opts.reference
+            : PaymentReference.from(opts.reference);
+      }
+      if (opts.paidAt !== undefined) {
+        if (!(opts.paidAt instanceof Date) || isNaN(opts.paidAt.getTime())) {
+          throw new PaymentDomainException(
+            'Explicit paidAt timestamp must be a valid Date.',
+            'INVALID_PAID_AT_TIMESTAMP',
+          );
+        }
+        explicitPaidAt = opts.paidAt;
+      }
+    } else {
+      clock = fallbackClock ?? new SystemClock();
+    }
+
     const now = clock.now();
+    const effectivePaidAt = explicitPaidAt ?? now;
+
+    if (effectivePaidAt.getTime() < this._createdAt.getTime()) {
+      throw new PaymentDomainException(
+        'Payment paidAt cannot be earlier than createdAt.',
+        'INVALID_TIMESTAMP_SEQUENCE',
+      );
+    }
+
+    if (newReference !== undefined) {
+      this._reference = newReference;
+    }
+
     this._status = PaymentStatus.SETTLED;
-    this._paidAt = new Date(now.getTime());
+    this._paidAt = new Date(effectivePaidAt.getTime());
     this._updatedAt = new Date(now.getTime());
     this._version += 1;
 
@@ -346,14 +396,32 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
   /**
    * Domain method alias for settle(). Marks the payment as paid.
    */
-  public markAsPaid(clock: Clock = new SystemClock()): void {
-    this.settle(clock);
+  public markAsPaid(optionsOrClock?: SettlePaymentOptions | Clock, fallbackClock?: Clock): void {
+    this.settle(optionsOrClock, fallbackClock);
+  }
+
+  /**
+   * Domain command alias for settle(). Marks the payment as paid.
+   */
+  public pay(optionsOrClock?: SettlePaymentOptions | Clock, fallbackClock?: Clock): void {
+    this.settle(optionsOrClock, fallbackClock);
   }
 
   /**
    * Transitions a PENDING payment to FAILED when the rail declines or times out.
    */
-  public fail(reason?: string, clock: Clock = new SystemClock()): void {
+  public fail(reasonOrClock?: string | Clock, maybeClock?: Clock): void {
+    let reason: string | undefined;
+    let clock: Clock;
+
+    if (reasonOrClock && typeof reasonOrClock === 'object' && 'now' in reasonOrClock) {
+      clock = reasonOrClock as Clock;
+      reason = undefined;
+    } else {
+      reason = typeof reasonOrClock === 'string' ? reasonOrClock : undefined;
+      clock = maybeClock ?? new SystemClock();
+    }
+
     if (!canTransitionPaymentStatus(this._status, PaymentStatus.FAILED)) {
       throw new InvalidPaymentTransitionException(
         this._status,
@@ -391,14 +459,25 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
   /**
    * Domain method alias for fail(). Marks the payment as failed.
    */
-  public markAsFailed(reason?: string, clock: Clock = new SystemClock()): void {
-    this.fail(reason, clock);
+  public markAsFailed(reasonOrClock?: string | Clock, maybeClock?: Clock): void {
+    this.fail(reasonOrClock, maybeClock);
   }
 
   /**
    * Transitions a PENDING payment to CANCELLED when aborted by the cashier or customer.
    */
-  public cancel(reason?: string, clock: Clock = new SystemClock()): void {
+  public cancel(reasonOrClock?: string | Clock, maybeClock?: Clock): void {
+    let reason: string | undefined;
+    let clock: Clock;
+
+    if (reasonOrClock && typeof reasonOrClock === 'object' && 'now' in reasonOrClock) {
+      clock = reasonOrClock as Clock;
+      reason = undefined;
+    } else {
+      reason = typeof reasonOrClock === 'string' ? reasonOrClock : undefined;
+      clock = maybeClock ?? new SystemClock();
+    }
+
     if (!canTransitionPaymentStatus(this._status, PaymentStatus.CANCELLED)) {
       throw new InvalidPaymentTransitionException(
         this._status,
