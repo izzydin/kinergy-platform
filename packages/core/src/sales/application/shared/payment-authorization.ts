@@ -8,7 +8,15 @@ import { RecordPaymentCurrentUser } from '../commands/record-payment.command';
 export function checkPaymentAuthorization(
   currentUser?: RecordPaymentCurrentUser,
   requiredPermissions: string[] = ['payments.create'],
-  allowedRoles: string[] = ['Owner', 'Manager', 'Receptionist', 'Kitchen Staff'],
+  allowedRoles: string[] = [
+    'Owner',
+    'Gym Owner',
+    'Manager',
+    'Gym Manager',
+    'Platform Admin',
+    'Receptionist',
+    'Kitchen Staff',
+  ],
 ): void {
   if (!currentUser) {
     // If no security context passed directly to domain application service, allow execution
@@ -28,7 +36,13 @@ export function checkPaymentAuthorization(
 
   // 1. Role validation: if allowedRoles specified, user must possess at least one allowed role
   if (allowedRoles.length > 0 && roles.length > 0) {
-    const hasRole = roles.some((r) => allowedRoles.includes(r) || r === 'Owner' || r === 'Manager');
+    const hasRole = roles.some(
+      (r) =>
+        allowedRoles.includes(r) ||
+        r.includes('Owner') ||
+        r.includes('Manager') ||
+        r === 'Platform Admin',
+    );
     if (!hasRole) {
       throw new PaymentUnauthorizedException(
         `User roles [${roles.join(', ')}] are not authorized for this payment action.`,

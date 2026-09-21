@@ -49,7 +49,7 @@ export class CancelPaymentHandler implements SalesCommandHandler<
       checkPaymentAuthorization(
         input.currentUser,
         ['payments.manage'],
-        ['Owner', 'Manager', 'Receptionist'],
+        ['Owner', 'Gym Owner', 'Manager', 'Gym Manager', 'Platform Admin', 'Receptionist'],
       );
 
       const paymentId = input.paymentId?.trim();
