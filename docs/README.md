@@ -117,10 +117,12 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
 - **[Sales Architecture Hub](file:///c:/Projects/kinergy-platform/docs/architecture/sales-payments.md)**: Authoritative architecture, aggregate boundaries, "References Over Ownership" law, and checkout flows.
 - **[Sale Totals & Canonical Money Rules Architecture](file:///c:/Projects/kinergy-platform/docs/architecture/sale-totals-and-money-rules.md)**: Milestone 7.4 architectural specification for deterministic integer-cent arithmetic, Commercial Half-Up rounding, and boundary mappings.
 - **[Sale Totals Implementation Specification](file:///c:/Projects/kinergy-platform/docs/domain/sale-totals-implementation.md)**: Authoritative implemented domain specification for Sale totals, non-negative invariants, and discount calculation.
-- **[Milestone 7.4 Final Acceptance Certification](file:///c:/Projects/kinergy-platform/docs/architecture/sale-totals-acceptance.md)**: Complete certification of domain, persistence, API, and automated safety net quality gates.
+- **[Payment Domain Implementation Specification](file:///c:/Projects/kinergy-platform/docs/domain/payment-domain-implementation.md)**: Authoritative implemented domain specification for Payment aggregate, multi-tender settlement, and persistence boundaries.
+- **[Milestone 7.4 Final Acceptance Certification](file:///c:/Projects/kinergy-platform/docs/architecture/sale-totals-acceptance.md)**: Complete certification of domain totals, persistence, API, and automated safety net quality gates.
+- **[Milestone 7.5 Final Acceptance Certification](file:///c:/Projects/kinergy-platform/docs/architecture/payment-domain-acceptance.md)**: Complete certification of Payment domain, multi-tender settlement, 52-test safety net, and HTTP API quality gates.
 - **[Sales Domain Model Specification](file:///c:/Projects/kinergy-platform/docs/domain/sales-payments.md)**: Conceptual domain models, aggregate roots (`Sale`, `Payment`), value objects (`Money`, `Discount`, `SourceReference`), and state machines.
 - **[Sales Business Rules & Invariants](file:///c:/Projects/kinergy-platform/docs/business-rules/sales-payments.md)**: Complete inventory of commercial rules, 13 canonical formulas, and milestone statuses.
-- **[Sales API Reference](file:///c:/Projects/kinergy-platform/docs/api/README.md#34-sales--payments-module-apiv1sales)**: REST endpoints (`/api/v1/sales`), `MoneyResponseDto` contract, and JSON payloads.
+- **[Sales & Payments API Reference](file:///c:/Projects/kinergy-platform/docs/api/README.md#34-sales--payments-module-apiv1sales)**: REST endpoints (`/api/v1/sales` & `/api/v1/sales/:saleId/payments`), DTO contracts, and JSON payloads.
 
 ### 10. Architectural Decision Records (ADRs)
 

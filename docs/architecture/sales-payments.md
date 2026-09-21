@@ -192,16 +192,21 @@ classDiagram
 
     class Payment {
         +PaymentId id
-        +TenantId tenantId
+        +string tenantId
         +SaleId saleId
         +PaymentMethod method
         +PaymentStatus status
         +Money amount
-        +string? externalTransactionId
-        +DateTime settledAt
-        +capture()
-        +fail()
-        +refund()
+        +string? reference
+        +DateTime? paidAt
+        +DateTime createdAt
+        +DateTime updatedAt
+        +number version
+        +createSettled(props)$ Payment
+        +createPending(props)$ Payment
+        +settle(clock)
+        +fail(reason, clock)
+        +cancel(reason, clock)
     }
 
     class Receipt {
@@ -257,7 +262,7 @@ classDiagram
 2. **`SaleItem`**:
    An entity within the `Sale` aggregate representing an individual line item. Stores a permanent commercial snapshot of the unit price, description, quantity, tax rate, and applied discount at the moment of sale.
 3. **`Payment`**:
-   An autonomous aggregate root representing a monetary settlement transaction. Captures tender method (`CASH`, `CREDIT_CARD`, `DEBIT_CARD`, `BANK_TRANSFER`, `DIGITAL_WALLET`), payment gateway transaction identifiers, status (`INITIATED`, `AUTHORIZED`, `SETTLED`, `FAILED`, `REFUNDED`), and timestamps.
+   An autonomous aggregate root representing a monetary settlement transaction. Captures tender method (currently `CASH`, `QR`; room intentionally left for `CARD`, `TRANSFER`, `ONLINE`), tender amount (`Money`), status (`PENDING`, `SETTLED`, `FAILED`, `CANCELLED`), optional audit `reference`, settlement timestamp `paidAt`, and immutable timestamps.
 4. **`Receipt`**:
    An autonomous, immutable legal document entity generated upon full or milestone payment. Contains a monotonically increasing receipt number (e.g. `REC-2026-000042`), timestamp, cashier attribution, and frozen summary JSON.
 5. **`SourceReference`**:
@@ -359,33 +364,122 @@ stateDiagram-v2
 
 ### 4.2 The `Payment` Aggregate Root
 
+#### Foundational Domain Distinction
+
+```text
+Sale = commercial transaction / amount owed
+
+Payment = money paid toward a Sale
+```
+
+> **Payment does not replace or recalculate Sale totals.**
+>
+> `Sale` alone calculates and maintains order totals (`subtotal`, `discountTotal`, `total`).
+> `Payment` records financial tender amounts collected toward satisfying that debt. Recording, settling, or voiding a payment never mutates `Sale` line items or recalculated totals.
+
 #### Architectural Decision: Why `Payment` is an Autonomous Aggregate
 
-Kinergy models `Payment` as an **autonomous aggregate root**, linked to `Sale` via scalar `saleId: string`, rather than an internal child entity of `Sale`.
+Kinergy models `Payment` as an **autonomous aggregate root**, linked to `Sale` via scalar `saleId: SaleId`, rather than an internal child entity of `Sale`.
 
 ```mermaid
 flowchart TD
     subgraph SaleAggregate["Sale Aggregate Root"]
-        S["Sale (id, status, total, balanceRemaining)"]
+        S["Sale (id, status, total: $50.00, balanceRemaining: $0.00)"]
     end
 
     subgraph PaymentAggregate["Payment Aggregate Root(s)"]
-        P1["Payment 1 (Amount: $30, Method: CASH, Status: SETTLED)"]
-        P2["Payment 2 (Amount: $20, Method: CREDIT_CARD, Status: SETTLED)"]
-        P3["Payment 3 (Amount: -$10, Method: CASH, Status: REFUNDED)"]
+        P1["Payment 1 (Amount: $30.00, Method: CASH, Status: SETTLED, paidAt: 2026-09-21)"]
+        P2["Payment 2 (Amount: $20.00, Method: QR, Status: SETTLED, paidAt: 2026-09-21)"]
     end
 
     P1 -.->|references saleId| S
     P2 -.->|references saleId| S
-    P3 -.->|references saleId| S
 ```
 
-#### Rationale
+#### Payment Domain Model
 
-1. **Split-Tender Payments**: Front-desk operations frequently require split tenders (e.g., $30 paid in cash, $20 paid via credit card). Modeling payments as distinct records allows multiple tenders to settle a single sale cleanly.
-2. **Asynchronous Gateway Latency**: Credit card terminal processing, online payment webhooks, and QR code transfers are asynchronous and prone to network retries. Autonomous payment aggregates allow the payment processing lifecycle (`INITIATED` $\rightarrow$ `AUTHORIZED` $\rightarrow$ `SETTLED`) to proceed without placing an exclusive database lock on the `Sale` aggregate.
-3. **Independent Financial Auditing**: Payments represent concrete money movement involving external institutions (acquirers, merchant accounts, bank statements). They require their own state machines, retry policies, failure codes, and transaction references.
-4. **Clean Refund Lineage**: A refund is a discrete financial movement. Modeling it as an autonomous payment transaction with negative or inverse tender links preserves an exact audit trail back to the original settlement.
+```text
+Payment
+├── id
+├── saleId
+├── method
+├── amount
+├── status
+├── reference?
+├── paidAt?
+└── createdAt
+```
+
+- **`id: PaymentId`**: Canonical UUID uniquely identifying the financial transaction.
+- **`tenantId: string`**: Tenant boundary for organization isolation.
+- **`saleId: SaleId`**: Unconstrained scalar reference to the `Sale` being settled.
+- **`method: PaymentMethod`**: The tender mechanism (`CASH`, `QR`).
+- **`amount: Money`**: Non-negative monetary amount ($> 0$).
+- **`status: PaymentStatus`**: Lifecycle state (`PENDING`, `SETTLED`, `FAILED`, `CANCELLED`).
+- **`reference?: string | null`**: External correlation trace or register tag (max 100 chars, no PAN).
+- **`paidAt?: Date | null`**: Settlement timestamp (UTC), set strictly upon entering `SETTLED`.
+- **`createdAt: Date`**: Immutable creation timestamp.
+- **`updatedAt: Date`**: Last state modification timestamp.
+- **`version: number`**: OCC version counter ($\ge 1$).
+
+#### Payment Methods
+
+- **Currently Supported**:
+  ```text
+  CASH
+  QR
+  ```
+- **Architectural Extensibility**: The architecture intentionally leaves room for:
+  ```text
+  CARD
+  TRANSFER
+  ONLINE
+  ```
+  without implementing them yet. Future methods are recognized in `isFuturePaymentMethod()` and will be backed by external gateway adapters without breaking core domain logic. Calling future methods prior to gateway implementation throws `InvalidPaymentMethodException`.
+
+#### State Transition Matrix
+
+Deterministic 4-state lifecycle (`PENDING`, `SETTLED`, `FAILED`, `CANCELLED`):
+
+| From Status | To Status   | Trigger Method               | Invariants & Preconditions                                                     |
+| :---------- | :---------- | :--------------------------- | :----------------------------------------------------------------------------- |
+| _Initial_   | `SETTLED`   | `Payment.createSettled(...)` | Direct cash or instant counter payment. `paidAt` set immediately.              |
+| _Initial_   | `PENDING`   | `Payment.createPending(...)` | Asynchronous tender (e.g. dynamic QR awaiting customer scan). `paidAt = null`. |
+| `PENDING`   | `SETTLED`   | `payment.settle(clock?)`     | Funds confirmed. `paidAt` populated. Permanent immutability commences.         |
+| `PENDING`   | `FAILED`    | `payment.fail(reason?)`      | Gateway decline or session expiration. Terminal state.                         |
+| `PENDING`   | `CANCELLED` | `payment.cancel(reason?)`    | Operator cancels pending tender before settlement. Terminal state.             |
+| `SETTLED`   | _Any_       | **PROHIBITED**               | **Illegal State Transition**. Settled records are permanently immutable.       |
+| `FAILED`    | _Any_       | **PROHIBITED**               | Terminal.                                                                      |
+| `CANCELLED` | _Any_       | **PROHIBITED**               | Terminal.                                                                      |
+
+#### Monetary Rules & Precision
+
+Referencing the **Phase 7.4 Monetary Policy** ([ADR-0108](../adr/0108-money-representation.md), [ADR-0114](../adr/0114-canonical-monetary-policy-and-sale-totals.md)):
+
+- `Payment.amount` uses the identical deterministic `Money` value object rules.
+- Floating-point calculations are strictly forbidden; all amounts operate on 64-bit integer minor units (cents).
+- Payments must be strictly positive ($\text{amount} > \$0.00$).
+
+#### Domain-to-Persistence Boundary
+
+```text
+Payment.amount
+      ↓
+Money (integer minor units in memory)
+      ↓
+Persistence mapper (PrismaPaymentMapper)
+      ↓
+Prisma Decimal (new Prisma.Decimal(amount.amount))
+      ↓
+PostgreSQL NUMERIC/DECIMAL (@db.Decimal(12, 2))
+```
+
+#### Rationale for Autonomous Payment Aggregate
+
+1. **Split-Tender Payments**: Front-desk operations frequently require split tenders (e.g., $30 paid in cash, $20 paid via QR). Modeling payments as distinct records allows multiple tenders to settle a single sale cleanly ($1 \text{ Sale} \to N \text{ Payments}$).
+2. **Asynchronous Gateway Latency**: QR code transfers and future card terminals are asynchronous and prone to network retries. Autonomous payment aggregates allow the payment processing lifecycle (`PENDING` $\rightarrow$ `SETTLED`) to proceed without placing an exclusive database lock on the `Sale` aggregate.
+3. **Independent Financial Auditing**: Payments represent concrete money movement involving external rails (cash drawer, banking gateway). They require their own state machines, retry policies, failure codes, and transaction references.
+4. **Clean Refund Lineage**: A refund is an autonomous compensating financial record referencing `originalPaymentId` and `saleId`, preserving an exact audit trail back to the original settlement.
 
 ### 4.3 `Receipt` Ownership & Immutability
 

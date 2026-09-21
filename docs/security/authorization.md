@@ -120,14 +120,32 @@ flowchart TD
 
 The platform defines system built-in roles (`Owner`, `Trainer`, `Kitchen Staff`, `Receptionist`) and supports dynamic tenant roles. For the full 22-permission mapping matrix, see [Role & Permission Matrix](file:///c:/Projects/kinergy-platform/docs/security/role-permission-matrix.md).
 
-| Role Code      | Type                    | Default Permissions Scope                        |
-| :------------- | :---------------------- | :----------------------------------------------- |
-| `OWNER`        | System Built-in         | Full platform wildcard control (`*`)             |
-| `ADMIN`        | Tenant Admin            | `users.*`, `roles.*`, `sustainability.*`         |
-| `OPERATOR`     | Facility Energy Manager | `assets.read`, `assets.update`, `telemetry.read` |
-| `TRAINER`      | Operational Field Staff | `appointments.read`, `clients.read`              |
-| `CLIENT`       | End Consumer            | `profile.me`, `telemetry.read_own`               |
-| `RECEPTIONIST` | Front Desk Support      | `appointments.*`, `clients.read`                 |
+| Role Code       | Type                    | Default Permissions Scope                                                                                                             |
+| :-------------- | :---------------------- | :------------------------------------------------------------------------------------------------------------------------------------ |
+| `OWNER`         | System Built-in         | Full platform wildcard control (`*`)                                                                                                  |
+| `ADMIN`         | Tenant Admin            | `users.*`, `roles.*`, `sustainability.*`                                                                                              |
+| `OPERATOR`      | Facility Energy Manager | `assets.read`, `assets.update`, `telemetry.read`                                                                                      |
+| `TRAINER`       | Operational Field Staff | `appointments.read`, `clients.read`                                                                                                   |
+| `RECEPTIONIST`  | Front Desk Support      | `appointments.*`, `clients.read`, `sales.read`, `sales.create`, `sales.cancel`, `payments.read`, `payments.create`, `payments.manage` |
+| `KITCHEN STAFF` | Kitchen Counter Staff   | `kitchen.*`, `inventory.*`, `sales.read`, `sales.create`, `payments.read`, `payments.create`                                          |
+
+### Sales & Payments Domain Permissions
+
+In Phase 7 (Sales & Payments), operations enforce fine-grained dot-notation permissions:
+
+- **`sales.create`**: Initialize checkout session, add line items, apply item discounts, finalize orders.
+- **`sales.read`**: Inspect checkout session, line item snapshots, totals.
+- **`sales.manage`**: Discretionary discount overrides above standard thresholds.
+- **`sales.cancel`**: Void or cancel draft and finalized orders.
+- **`payments.create`**: Record tender against a finalized sale (`POST /sales/:saleId/payments`).
+- **`payments.read`**: List payment history or inspect single payment transaction.
+- **`payments.manage`**: Confirm settlement (`POST /payments/:id/settle`) or void pending tender (`POST /payments/:id/cancel`).
+
+#### Backward Compatibility Rules
+
+- Tokens bearing `billing.read` automatically satisfy `payments.read` and `sales.read`.
+- Tokens bearing `billing.write` automatically satisfy `payments.create` and `sales.create`.
+- Tokens bearing `payments.manage` automatically satisfy `payments.create` and `payments.read`.
 
 ---
 

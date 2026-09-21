@@ -219,15 +219,108 @@ All monetary totals (`subtotal`, `discountTotal`, `total`) and item pricing (`un
 
 ---
 
+### 3.5 Payments Module (`/api/v1/sales/:saleId/payments` & `/api/v1/payments`)
+
+The Payments API provides autonomous financial settlement operations for commercial sale orders, supporting cash counter payments, asynchronous QR dynamic codes, multi-tender split settlement, and pending tender cancellation.
+
+All monetary amounts strictly adhere to the **Phase 7.4 Monetary Policy** ([ADR-0108](../adr/0108-money-representation.md), [ADR-0114](../adr/0114-canonical-monetary-policy-and-sale-totals.md), [ADR-0115](../adr/0115-payment-domain-canonical-architecture.md)).
+
+```text
+Sale = commercial transaction / amount owed
+
+Payment = money paid toward a Sale
+
+> Payment does not replace or recalculate Sale totals.
+```
+
+#### Endpoints Catalog
+
+| HTTP Method | Route                            | Protection                                  | Permission Required                  | Allowed Roles                                       | Summary & Description                                                                                                                   | Expected Status Codes                                                                                      |
+| :---------- | :------------------------------- | :------------------------------------------ | :----------------------------------- | :-------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------- |
+| `POST`      | `/api/v1/sales/:saleId/payments` | `AuthenticationGuard`, `AuthorizationGuard` | `payments.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | **Record Payment Tender**: Records cash or QR payment against a finalized sale order in `PENDING_PAYMENT` or `PARTIALLY_PAID` status.   | `201 Created`<br/>`400 Bad Request`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`422 Unprocessable Entity` |
+| `GET`       | `/api/v1/sales/:saleId/payments` | `AuthenticationGuard`, `AuthorizationGuard` | `payments.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | **List Sale Payments**: Returns chronological payment transactions settling a given sale.                                               | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                                    |
+| `GET`       | `/api/v1/payments/:paymentId`    | `AuthenticationGuard`, `AuthorizationGuard` | `payments.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | **Get Payment by ID**: Retrieves individual payment transaction details by unique payment ID.                                           | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                                    |
+| `POST`      | `/api/v1/payments/:id/settle`    | `AuthenticationGuard`, `AuthorizationGuard` | `payments.create`, `payments.manage` | `Owner`, `Manager`, `Receptionist`                  | **Confirm Settlement**: Transitions a `PENDING` payment to `SETTLED`, records definitive `paidAt` timestamp, and advances Sale balance. | `200 OK`<br/>`400 Bad Request`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`422 Unprocessable Entity`      |
+| `POST`      | `/api/v1/payments/:id/cancel`    | `AuthenticationGuard`, `AuthorizationGuard` | `payments.manage`                    | `Owner`, `Manager`, `Receptionist`                  | **Cancel Pending Tender**: Voids a `PENDING` payment transaction. Settled payments are permanently immutable and cannot be cancelled.   | `200 OK`<br/>`400 Bad Request`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`422 Unprocessable Entity`      |
+
+#### Request Schemas
+
+##### 1. `RecordPaymentRequestDto` (`POST /api/v1/sales/:saleId/payments`)
+
+```json
+{
+  "method": "CASH",
+  "amount": 49.99,
+  "currency": "USD",
+  "reference": "DRAWER-01-RECEIPT-99"
+}
+```
+
+- **`method`** (string, required): Supported tender method: `CASH` or `QR`.
+- **`amount`** (number, required): Major currency units ($> 0$, max 2 decimal places).
+- **`currency`** (string, optional): 3-letter uppercase ISO-4217 code (default `"USD"`). Must match parent `Sale` currency.
+- **`reference`** (string, optional): External correlation or cash drawer audit trace (max 100 characters; alphanumeric and `#-_/.: `; no credit card PANs).
+
+##### 2. `SettlePaymentRequestDto` (`POST /api/v1/payments/:id/settle`)
+
+```json
+{
+  "reference": "QR-CONFIRMED-TRACE-12345"
+}
+```
+
+- **`reference`** (string, optional): Provider settlement confirmation trace (max 100 characters).
+
+##### 3. `CancelPaymentRequestDto` (`POST /api/v1/payments/:id/cancel`)
+
+```json
+{
+  "reason": "Customer opted to tender cash instead"
+}
+```
+
+- **`reason`** (string, optional): Operator justification for voiding pending tender (max 255 characters).
+
+#### Response Schema (`PaymentResponseDto`)
+
+```json
+{
+  "id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
+  "saleId": "f5e4d3c2-b1a0-9f8e-7d6c-5b4a3f2e1d0c",
+  "method": "CASH",
+  "amount": {
+    "amount": 49.99,
+    "currency": "USD",
+    "formatted": "49.99",
+    "cents": 4999
+  },
+  "amountValue": 49.99,
+  "status": "SETTLED",
+  "reference": "DRAWER-01-RECEIPT-99",
+  "paidAt": "2026-09-21T10:00:00.000Z",
+  "createdAt": "2026-09-21T10:00:00.000Z",
+  "version": 1
+}
+```
+
+- **`method` values**: Supported: `CASH`, `QR`. (Room left for future `CARD`, `TRANSFER`, `ONLINE`).
+- **`status` values**: Exact 4 states: `PENDING`, `SETTLED`, `FAILED`, `CANCELLED`.
+- **`amount` structure**: Canonical `MoneyResponseDto` providing `amount` (float), `currency` (ISO-4217), `formatted` (2-decimal string), and `cents` (safe integer).
+- **`amountValue`**: Direct decimal scalar for simplified frontend binding.
+- **`paidAt`**: ISO-8601 UTC timestamp populated strictly when `status == SETTLED`, or `null` for unsettled states.
+
+---
+
 ## 4. HTTP Status Code Reference
 
-| Status Code             | Meaning           | System Trigger & Cause                                                   |
-| :---------------------- | :---------------- | :----------------------------------------------------------------------- |
-| `200 OK`                | Request Succeeded | Read or mutation operation completed cleanly.                            |
-| `201 Created`           | Resource Created  | New entity successfully persisted in database.                           |
-| `400 Bad Request`       | Validation Error  | Payload failed Zod or `GlobalSanitizationValidationPipe` rules.          |
-| `401 Unauthorized`      | AuthN Failure     | Missing/invalid Bearer token, expired JWT, or invalid login credentials. |
-| `403 Forbidden`         | AuthZ Failure     | Authenticated identity lacks required role or permission code.           |
-| `404 Not Found`         | Resource Missing  | Requested entity ID does not exist in target tenant scope.               |
-| `429 Too Many Requests` | Rate Limited      | Request count exceeded rate limit sliding window.                        |
-| `500 Internal Error`    | Server Failure    | Uncaught exception logged to platform telemetry.                         |
+| Status Code                | Meaning           | System Trigger & Cause                                                                       |
+| :------------------------- | :---------------- | :------------------------------------------------------------------------------------------- |
+| `200 OK`                   | Request Succeeded | Read or mutation operation completed cleanly.                                                |
+| `201 Created`              | Resource Created  | New entity successfully persisted in database.                                               |
+| `400 Bad Request`          | Validation Error  | Payload failed Zod or `GlobalSanitizationValidationPipe` rules, or invalid tender method.    |
+| `401 Unauthorized`         | AuthN Failure     | Missing/invalid Bearer token, expired JWT, or invalid login credentials.                     |
+| `403 Forbidden`            | AuthZ Failure     | Authenticated identity lacks required role or permission code, or cross-tenant access.       |
+| `404 Not Found`            | Resource Missing  | Requested entity ID (Sale or Payment) does not exist in target tenant scope.                 |
+| `422 Unprocessable Entity` | Domain Rule Error | Operation rejected by business rules (Sale not payable, payment overpayment, invalid state). |
+| `429 Too Many Requests`    | Rate Limited      | Request count exceeded rate limit sliding window.                                            |
+| `500 Internal Error`       | Server Failure    | Uncaught exception logged to platform telemetry.                                             |

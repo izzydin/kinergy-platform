@@ -50,8 +50,8 @@ This specification defines the ubiquitous domain language, aggregate boundaries,
 │                                                                              │
 │  TaxRate          A Value Object representing an applicable sales/VAT levy.  │
 │                                                                              │
-│  PaymentMethod    An enumeration of accepted tender mechanisms (CASH, CARD,  │
-│                   TRANSFER, WALLET, ACCOUNT_CREDIT).                         │
+│  PaymentMethod    An enumeration of accepted tender mechanisms (CASH, QR;    │
+│                   architecture leaves room for CARD, TRANSFER, ONLINE).      │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -204,45 +204,157 @@ Executable Test Suites:
 
 ### 3.3 `Payment` (Autonomous Aggregate Root)
 
-#### Identity & Multi-Tenancy
+#### Foundational Domain Distinction
 
-- **`id: PaymentId`**: Canonical UUID uniquely identifying the financial transaction.
-- **`tenantId: TenantId`**: Enforces organization-level isolation.
-- **`saleId: SaleId`**: Unconstrained scalar reference to the `Sale` being settled.
-- **`amount: Money`**: Monetary amount of this specific tender transaction ($> 0$).
-- **`method: PaymentMethod`**: The tender mechanism (`CASH`, `CARD`, `QR_CODE`, `BANK_TRANSFER`, `DIGITAL_WALLET`).
-- **`status: PaymentStatus`**: Lifecycle state (`PENDING`, `AUTHORIZED`, `SETTLED`, `FAILED`, `CANCELLED`).
-- **`externalProviderState?: ExternalProviderState`**: Isolated Value Object encapsulating raw third-party gateway identifiers and payloads.
-- **`cashierId: UserId`**: Identity of staff member recording or operating the tender.
-- **`initiatedAt: DateTime`**: Timestamp of payment initiation.
-- **`settledAt?: DateTime`**: Timestamp when funds were verified and permanently locked.
+A critical architectural tenet of the Kinergy platform is the absolute separation between the commercial contract and the financial tender:
 
-#### Decoupled Triad: Method vs. Status vs. External State
+```text
+Sale = commercial transaction / amount owed
 
-To prevent third-party gateway leakage, the domain strictly separates:
+Payment = money paid toward a Sale
+```
 
-1. **`PaymentMethod` (Domain Enum)**: The commercial classification of tender (`CASH`, `CARD`, `QR_CODE`, `BANK_TRANSFER`, `DIGITAL_WALLET`).
-2. **`PaymentStatus` (Internal State Machine)**: Internal business and accounting lifecycle (`PENDING`, `AUTHORIZED`, `SETTLED`, `FAILED`, `CANCELLED`).
-3. **`ExternalProviderState` (Isolated Value Object)**: Third-party processor attributes (`provider: 'STRIPE' | 'TERMINAL' | 'MANUAL'`, `externalTransactionId`, `rawGatewayStatus`, `authorizationCode`). The core domain never evaluates raw provider statuses directly; adapters translate them at boundary ports.
+> **Payment does not replace or recalculate Sale totals.**
+>
+> `Sale` is the sole source of truth for commercial order state: line items, item discounts, subtotals, and final totals owed.
+> `Payment` is an autonomous transaction representing monetary value tendered toward satisfying that commercial debt. Recording, settling, or cancelling a `Payment` never mutates or recalculates `Sale.subtotal`, `Sale.discountTotal`, or `Sale.total`.
 
-#### Multi-Tender & Partial Payment Settlement
+#### Payment Domain Model
 
-The domain explicitly supports **1-to-many payments per sale** (`Sale 1 -> 0..* Payment`):
+```text
+Payment
+├── id
+├── saleId
+├── method
+├── amount
+├── status
+├── reference?
+├── paidAt?
+└── createdAt
+```
 
-1. **Split Tenders**: A customer paying a $100 bill with $40 Cash and $60 Credit Card produces two distinct `Payment` aggregates linked to the same `saleId`.
-2. **Partial Deposits & Underpayment**:
-   - A customer placing a $30 deposit on a $100 treatment plan generates a $30 settled payment.
-   - `Sale.balanceRemaining` decrements to $70.00, placing the sale in `PARTIALLY_PAID`.
-   - **Fulfillment Guard**: Underpayment is allowed during checkout, but the `Sale` **CANNOT** transition to `PAID` or `COMPLETED` until $\text{balanceRemaining} == 0$.
-3. **Overpayment & Cash Change Handling**:
-   - **Electronic Tenders (Card, QR, Transfer)**: Overpayment is strictly forbidden. The system will reject any electronic payment where $\text{amount} > \text{Sale.balanceRemaining}$.
-   - **Cash Tenders**: If a customer pays with a larger denomination (e.g., $100 bill on a $75.50 balance), `Payment.amount` is recorded as the exact debt-settling amount ($75.50). The front-end POS records `tenderedAmount` ($100.00) and `changeGiven` ($24.50) for cash drawer balancing. The sale balance never drops below zero.
+Detailed aggregate properties:
 
-#### Refund Conceptual Architecture: Append-Only Compensating Records
+- **`id: PaymentId`**: Canonical UUID uniquely identifying the financial transaction (`PaymentId.create()` or `PaymentId.fromString()`).
+- **`tenantId: string`**: Organization boundary guaranteeing multi-tenant isolation.
+- **`saleId: SaleId`**: Unconstrained scalar reference to the `Sale` being settled. `Payment` holds no object reference to `Sale`.
+- **`method: PaymentMethod`**: The tender mechanism (`CASH`, `QR`).
+- **`amount: Money`**: Canonical `Money` value object representing the non-negative tender amount ($> 0$).
+- **`status: PaymentStatus`**: Exact 4-state lifecycle (`PENDING`, `SETTLED`, `FAILED`, `CANCELLED`).
+- **`reference: string | null`**: Optional, sanitized external correlation identifier (max 100 characters; register tag or gateway trace; no PAN).
+- **`paidAt: Date | null`**: UTC timestamp populated exclusively upon settlement (`SETTLED`), `null` otherwise.
+- **`createdAt: Date`**: Immutable creation timestamp.
+- **`updatedAt: Date`**: Timestamp of last lifecycle transition.
+- **`version: number`**: Integer counter ($\ge 1$) for Optimistic Concurrency Control (OCC).
 
-- **No In-Place Mutation**: Settled payments are **permanently immutable**. A settled payment record is never edited, deleted, or transitioned to `REFUNDED`. In-place mutations violate double-entry bookkeeping and corrupt historical cash drawer reconciliations.
-- **Compensating Transactions**: A refund is an autonomous compensating financial record (`PaymentRefund` or `Payment` with direction `REFUND`) referencing `originalPaymentId` and `saleId`, containing a positive scalar refund amount ($\le \text{originalPayment.amount}$), mandatory business justification, and `authorizedByUserId`.
-- **Phase 7 Scope**: Phase 7.0 establishes this append-only data contract. Full automated external gateway refund dispatch (e.g. Stripe refund API execution) is scheduled for Phase 7.x extension.
+#### Payment Methods
+
+Currently supported payment methods:
+
+```text
+CASH
+QR
+```
+
+- **`CASH`**: Physical in-person currency tendered at the reception or POS counter.
+- **`QR`**: Dynamic or static QR code payment generated for customer scanning via mobile banking or digital wallet.
+
+**Extensibility Design**: The architecture intentionally leaves room for:
+
+```text
+CARD
+TRANSFER
+ONLINE
+```
+
+without implementing them yet. Future methods are architecturally recognized in `isFuturePaymentMethod()` and will be introduced alongside gateway adapter ports without altering core aggregate boundaries or database schemas. Speculative runtime usage of these future methods throws `InvalidPaymentMethodException`.
+
+#### Payment Status & State Transition Matrix
+
+The Payment domain implements an exact, deterministic 4-state machine:
+
+```text
+┌────────────────────────────────────────────────────────────────────────┐
+│                        PAYMENT STATE MACHINE                           │
+│                                                                        │
+│                          ┌─────────────┐                               │
+│                          │  [Initial]  │                               │
+│                          └──────┬──────┘                               │
+│                                 │ createPending()                      │
+│                                 ▼                                      │
+│                          ┌─────────────┐                               │
+│                          │   PENDING   │                               │
+│                          └──┬───┬───┬──┘                               │
+│                             │   │   │                                  │
+│                 settle()    │   │   │  cancel()                        │
+│         ┌───────────────────┘   │   └────────────────────┐             │
+│         ▼                       ▼ fail()                 ▼             │
+│  ┌─────────────┐         ┌─────────────┐          ┌─────────────┐      │
+│  │   SETTLED   │         │   FAILED    │          │  CANCELLED  │      │
+│  └─────────────┘         └─────────────┘          └─────────────┘      │
+│    (Terminal &              (Terminal)               (Terminal)        │
+│     Immutable)                                                         │
+└────────────────────────────────────────────────────────────────────────┘
+```
+
+Exact transition matrix:
+
+| From Status | To Status   | Trigger Method               | Invariants & Preconditions                                                         |
+| :---------- | :---------- | :--------------------------- | :--------------------------------------------------------------------------------- |
+| _Initial_   | `SETTLED`   | `Payment.createSettled(...)` | Direct cash or instant counter payment. `paidAt` set immediately.                  |
+| _Initial_   | `PENDING`   | `Payment.createPending(...)` | Asynchronous tender (e.g., QR awaiting scan). `paidAt = null`.                     |
+| `PENDING`   | `SETTLED`   | `payment.settle(clock?)`     | Funds received and verified. `paidAt` populated. Permanent immutability commences. |
+| `PENDING`   | `FAILED`    | `payment.fail(reason?)`      | Rail timeout, expired session, or customer decline.                                |
+| `PENDING`   | `CANCELLED` | `payment.cancel(reason?)`    | Operator voids pending transaction before completion.                              |
+| `SETTLED`   | _Any_       | **PROHIBITED**               | **Illegal State Transition**. Settled records are permanently immutable.           |
+| `FAILED`    | _Any_       | **PROHIBITED**               | Terminal. No further transitions permitted.                                        |
+| `CANCELLED` | _Any_       | **PROHIBITED**               | Terminal. No further transitions permitted.                                        |
+
+_Note: No `AUTHORIZED` or intermediate hold state exists in the Phase 7.5 implementation._
+
+#### Money Policy Reference
+
+In accordance with [ADR-0108](../adr/0108-money-representation.md) and [ADR-0114](../adr/0114-canonical-monetary-policy-and-sale-totals.md):
+
+- `Payment.amount` strictly reuses the canonical `Money` value object (`packages/core/src/sales/domain/value-objects/money.vo.ts`).
+- `Payment.amount` uses the identical deterministic integer-cent arithmetic rules.
+- Floating-point arithmetic is strictly prohibited.
+- Payment amounts must be strictly positive ($\text{Payment.amount} > \$0.00$). Zero or negative values throw `InvalidPaymentAmountException`.
+- The payment currency must strictly match the parent `Sale` currency.
+
+#### Domain-to-Persistence Boundary
+
+The system enforces strict boundary mapping between pure domain value objects and physical database storage:
+
+```text
+Payment.amount
+      ↓
+Money (integer cents in memory)
+      ↓
+Persistence mapper (PrismaPaymentMapper)
+      ↓
+Prisma Decimal (new Prisma.Decimal(amount.amount))
+      ↓
+PostgreSQL NUMERIC/DECIMAL (@db.Decimal(12, 2))
+```
+
+- Domain code never references `Prisma.Decimal` or database types.
+- Relational mapping preserves exact scale 2 and precision 12, preventing round-trip drift.
+
+#### Multi-Tender & Balance Reconciliation
+
+1. **Multi-Tender Settlement**: Multiple payments can be linked to a single `Sale` ($1 \text{ Sale} \to N \text{ Payments}$), enabling split cash and QR tenders.
+2. **Balance Calculation**:
+   $$\text{SettledTotal} = \sum_{p \in \text{SettledPayments}} p.\text{amount}$$
+   $$\text{BalanceRemaining} = \max(0, \text{Sale}.\text{total} - \text{SettledTotal})$$
+3. **Overpayment Protection**:
+   - For electronic tenders (`QR`), attempting to charge $\text{amount} > \text{BalanceRemaining}$ throws `PaymentOverpaymentException`.
+   - For cash tenders, `Payment.amount` records the exact debt-satisfying amount, while the UI/POS layer captures `tenderedAmount` and `changeGiven` for physical drawer reconciliation.
+
+#### Immutability & Financial Audit Protection
+
+- **Write-Once Settlement**: Once a payment enters `SETTLED`, all fields are frozen. Updates and deletions are blocked by domain guards and persistence restrictions (`onDelete: Restrict`).
+- **Compensating Refunds**: Erroneous payments or returns are resolved through compensating transactions, never in-place mutations.
 
 ---
 
@@ -570,20 +682,16 @@ The table below exhaustively defines every permitted and forbidden state transit
 
 ### 5.2 `Payment` State Machine & Transition Rules
 
-The `Payment` state machine governs an autonomous monetary tender transaction:
+The `Payment` state machine governs an autonomous monetary tender transaction through an exact 4-state lifecycle (`PENDING`, `SETTLED`, `FAILED`, `CANCELLED`):
 
 ```mermaid
 stateDiagram-v2
-    [*] --> PENDING : initiatePayment()
+    [*] --> PENDING : createPending()
+    [*] --> SETTLED : createSettled() (instant cash)
 
-    PENDING --> AUTHORIZED : authorizeHold()
-    PENDING --> SETTLED : immediateCapture(cash/terminal)
-    PENDING --> FAILED : gatewayReject()
-    PENDING --> CANCELLED : abort()
-
-    AUTHORIZED --> SETTLED : capture()
-    AUTHORIZED --> FAILED : captureError()
-    AUTHORIZED --> CANCELLED : voidHold()
+    PENDING --> SETTLED : settle()
+    PENDING --> FAILED : fail()
+    PENDING --> CANCELLED : cancel()
 
     FAILED --> [*]
     CANCELLED --> [*]
@@ -594,20 +702,16 @@ stateDiagram-v2
 
 The table below exhaustively defines every permitted and forbidden state transition for `Payment`:
 
-| From         | To           | Allowed? | Reason                                                                          | Preconditions                                                                                  |
-| :----------- | :----------- | :------: | :------------------------------------------------------------------------------ | :--------------------------------------------------------------------------------------------- |
-| `[*]`        | `PENDING`    | **YES**  | Tender initiated at checkout.                                                   | Amount $> 0$, valid `tenantId`, `saleId`, and `PaymentMethod`.                                 |
-| `PENDING`    | `AUTHORIZED` | **YES**  | Pre-authorization credit hold confirmed by gateway.                             | Gateway authorization reference code received; hold expiration timestamp set.                  |
-| `PENDING`    | `SETTLED`    | **YES**  | Cash counted in drawer or instant electronic capture confirmed.                 | Full tender amount received; cashier or terminal confirmation logged.                          |
-| `PENDING`    | `FAILED`     | **YES**  | Card declined, terminal timeout, hardware error, insufficient funds.            | Provider error code and descriptive failure reason recorded.                                   |
-| `PENDING`    | `CANCELLED`  | **YES**  | Cashier aborts tender or customer switches to a different tender.               | No funds received or held; executed prior to gateway charge.                                   |
-| `AUTHORIZED` | `SETTLED`    | **YES**  | Pre-authorized hold successfully captured.                                      | Capture request accepted within authorization validity window.                                 |
-| `AUTHORIZED` | `CANCELLED`  | **YES**  | Cashier voids pre-authorization hold before capture.                            | Gateway void confirmed; hold released; no funds transferred.                                   |
-| `AUTHORIZED` | `FAILED`     | **YES**  | Capture request rejected or pre-authorization hold expired.                     | Gateway capture rejection code recorded.                                                       |
-| `AUTHORIZED` | `PENDING`    |  **NO**  | Cannot revert an active hold back to pending initiation.                        | —                                                                                              |
-| `SETTLED`    | `*` (Any)    |  **NO**  | **Settled payments are permanently immutable**. Zero state mutations permitted. | Financial records cannot be altered. Reversals require autonomous compensating refund records. |
-| `FAILED`     | `*` (Any)    |  **NO**  | Terminal state. Retry requires creating a new `Payment` aggregate.              | Failed attempts remain preserved for audit logging.                                            |
-| `CANCELLED`  | `*` (Any)    |  **NO**  | Terminal state. Tender was aborted without financial transfer.                  | Preserved for cashier audit history.                                                           |
+| From        | To          | Allowed? | Reason                                                                          | Preconditions                                                                                    |
+| :---------- | :---------- | :------: | :------------------------------------------------------------------------------ | :----------------------------------------------------------------------------------------------- |
+| `[*]`       | `SETTLED`   | **YES**  | Direct cash payment or instant counter tender.                                  | Amount $> 0$, valid `tenantId`, `saleId`, and `PaymentMethod.CASH`. `paidAt` set immediately.    |
+| `[*]`       | `PENDING`   | **YES**  | Asynchronous tender initiated at checkout (e.g. QR code awaiting scan).         | Amount $> 0$, valid `tenantId`, `saleId`, and `PaymentMethod.QR`. `paidAt = null`.               |
+| `PENDING`   | `SETTLED`   | **YES**  | Funds received and verified via provider rail or confirmation.                  | Full tender amount verified; immutable `paidAt` timestamp set. Permanent immutability commences. |
+| `PENDING`   | `FAILED`    | **YES**  | Provider timeout, session expiration, insufficient funds, or customer decline.  | Provider error code and descriptive failure reason recorded. Terminal state.                     |
+| `PENDING`   | `CANCELLED` | **YES**  | Cashier voids pending tender before settlement or customer switches method.     | No funds collected; executed strictly prior to settlement. Terminal state.                       |
+| `SETTLED`   | `*` (Any)   |  **NO**  | **Settled payments are permanently immutable**. Zero state mutations permitted. | Financial records cannot be altered. Reversals require autonomous compensating refund records.   |
+| `FAILED`    | `*` (Any)   |  **NO**  | Terminal state. Retry requires creating a new `Payment` aggregate.              | Failed attempts remain preserved for audit logging.                                              |
+| `CANCELLED` | `*` (Any)   |  **NO**  | Terminal state. Tender was aborted without financial transfer.                  | Preserved for cashier audit history.                                                             |
 
 ---
 

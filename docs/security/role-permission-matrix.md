@@ -37,64 +37,85 @@ $$\text{<module>}.\text{[resource]}.\text{<action>}$$
 
 The platform seeds **22 permissions** across **9 functional modules** into the PostgreSQL database (`permissions` table).
 
-| Module           | Permission Code             | Description                                  |
-| :--------------- | :-------------------------- | :------------------------------------------- |
-| **Users**        | `users.read`                | View user accounts                           |
-|                  | `users.write`               | Create and update user accounts              |
-|                  | `users.delete`              | Deactivate or remove user accounts           |
-| **Clients**      | `clients.read`              | View client profiles                         |
-|                  | `clients.write`             | Create and update client profiles            |
-|                  | `clients.delete`            | Delete client profiles                       |
-| **Appointments** | `appointments.read`         | View appointment schedules                   |
-|                  | `appointments.create`       | Schedule new appointments                    |
-|                  | `appointments.update`       | Modify existing appointments                 |
-|                  | `appointments.delete`       | Cancel or delete appointments                |
-| **Kitchen**      | `kitchen.read`              | View kitchen orders and menu items           |
-|                  | `kitchen.orders.manage`     | Update order status and manage kitchen queue |
-| **Inventory**    | `inventory.read`            | View stock levels and inventory items        |
-|                  | `inventory.write`           | Update stock levels and manage inventory     |
-| **Billing**      | `billing.read`              | View invoices and payment history            |
-|                  | `billing.write`             | Process payments and issue invoices          |
-| **Reports**      | `reports.read`              | View operational and business reports        |
-|                  | `reports.export`            | Export report data and analytics             |
-| **Settings**     | `settings.read`             | View system configuration settings           |
-|                  | `settings.write`            | Modify system configuration settings         |
-| **Identity**     | `identity.roles.read`       | View system roles and permissions            |
-|                  | `identity.roles.write`      | Manage system roles and permissions          |
-|                  | `identity.permissions.read` | View permission catalog                      |
+| Module           | Permission Code             | Description                                   |
+| :--------------- | :-------------------------- | :-------------------------------------------- |
+| **Users**        | `users.read`                | View user accounts                            |
+|                  | `users.write`               | Create and update user accounts               |
+|                  | `users.delete`              | Deactivate or remove user accounts            |
+| **Clients**      | `clients.read`              | View client profiles                          |
+|                  | `clients.write`             | Create and update client profiles             |
+|                  | `clients.delete`            | Delete client profiles                        |
+| **Appointments** | `appointments.read`         | View appointment schedules                    |
+|                  | `appointments.create`       | Schedule new appointments                     |
+|                  | `appointments.update`       | Modify existing appointments                  |
+|                  | `appointments.delete`       | Cancel or delete appointments                 |
+| **Kitchen**      | `kitchen.read`              | View kitchen orders and menu items            |
+|                  | `kitchen.orders.manage`     | Update order status and manage kitchen queue  |
+| **Inventory**    | `inventory.read`            | View stock levels and inventory items         |
+|                  | `inventory.write`           | Update stock levels and manage inventory      |
+| **Billing**      | `billing.read`              | View invoices and payment history (legacy)    |
+|                  | `billing.write`             | Process payments and issue invoices (legacy)  |
+| **Sales**        | `sales.read`                | View commercial sales orders and details      |
+|                  | `sales.create`              | Create sales checkout sessions and items      |
+|                  | `sales.manage`              | Discretionary discount overrides and control  |
+|                  | `sales.cancel`              | Cancel or void commercial sale orders         |
+| **Payments**     | `payments.read`             | View payment transaction history and records  |
+|                  | `payments.create`           | Record payment tender (Cash, QR) against sale |
+|                  | `payments.manage`           | Settle pending payments or void tender        |
+| **Reports**      | `reports.read`              | View operational and business reports         |
+| **Reports**      | `reports.export`            | Export report data and analytics              |
+| **Settings**     | `settings.read`             | View system configuration settings            |
+|                  | `settings.write`            | Modify system configuration settings          |
+| **Identity**     | `identity.roles.read`       | View system roles and permissions             |
+|                  | `identity.roles.write`      | Manage system roles and permissions           |
+|                  | `identity.permissions.read` | View permission catalog                       |
 
 ---
 
 ## 4. Role $\rightarrow$ Permission Assignment Matrix
 
-The following matrix documents the exact permissions assigned to each system role in the seeded database (`roles` and `role_permissions` tables).
+The following matrix documents the exact permissions assigned to each system role in the seeded database (`roles` and `role_permissions` tables) along with Phase 7 Sales & Payments authorization:
 
-| Permission Code                | Owner (System Super Admin) |  Trainer   | Kitchen Staff | Receptionist |
-| :----------------------------- | :------------------------: | :--------: | :-----------: | :----------: |
-| `users.read`                   |             ✅             |     ❌     |      ❌       |      ❌      |
-| `users.write`                  |             ✅             |     ❌     |      ❌       |      ❌      |
-| `users.delete`                 |             ✅             |     ❌     |      ❌       |      ❌      |
-| `clients.read`                 |             ✅             |     ✅     |      ❌       |      ✅      |
-| `clients.write`                |             ✅             |     ✅     |      ❌       |      ✅      |
-| `clients.delete`               |             ✅             |     ❌     |      ❌       |      ❌      |
-| `appointments.read`            |             ✅             |     ✅     |      ❌       |      ✅      |
-| `appointments.create`          |             ✅             |     ✅     |      ❌       |      ✅      |
-| `appointments.update`          |             ✅             |     ✅     |      ❌       |      ✅      |
-| `appointments.delete`          |             ✅             |     ❌     |      ❌       |      ✅      |
-| `kitchen.read`                 |             ✅             |     ❌     |      ✅       |      ❌      |
-| `kitchen.orders.manage`        |             ✅             |     ❌     |      ✅       |      ❌      |
-| `inventory.read`               |             ✅             |     ❌     |      ✅       |      ❌      |
-| `inventory.write`              |             ✅             |     ❌     |      ✅       |      ❌      |
-| `billing.read`                 |             ✅             |     ❌     |      ❌       |      ✅      |
-| `billing.write`                |             ✅             |     ❌     |      ❌       |      ✅      |
-| `reports.read`                 |             ✅             |     ✅     |      ❌       |      ❌      |
-| `reports.export`               |             ✅             |     ❌     |      ❌       |      ❌      |
-| `settings.read`                |             ✅             |     ❌     |      ❌       |      ❌      |
-| `settings.write`               |             ✅             |     ❌     |      ❌       |      ❌      |
-| `identity.roles.read`          |             ✅             |     ❌     |      ❌       |      ❌      |
-| `identity.roles.write`         |             ✅             |     ❌     |      ❌       |      ❌      |
-| `identity.permissions.read`    |             ✅             |     ❌     |      ❌       |      ❌      |
-| **Total Permissions Assigned** |        **22 / 22**         | **6 / 22** |  **4 / 22**   |  **8 / 22**  |
+| Permission Code             | Owner (System Super Admin) | Manager / Gym Manager | Trainer | Kitchen Staff | Receptionist |
+| :-------------------------- | :------------------------: | :-------------------: | :-----: | :-----------: | :----------: |
+| `users.read`                |             ✅             |          ✅           |   ❌    |      ❌       |      ❌      |
+| `users.write`               |             ✅             |          ✅           |   ❌    |      ❌       |      ❌      |
+| `users.delete`              |             ✅             |          ❌           |   ❌    |      ❌       |      ❌      |
+| `clients.read`              |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
+| `clients.write`             |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
+| `clients.delete`            |             ✅             |          ❌           |   ❌    |      ❌       |      ❌      |
+| `appointments.read`         |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
+| `appointments.create`       |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
+| `appointments.update`       |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
+| `appointments.delete`       |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
+| `kitchen.read`              |             ✅             |          ✅           |   ❌    |      ✅       |      ❌      |
+| `kitchen.orders.manage`     |             ✅             |          ✅           |   ❌    |      ✅       |      ❌      |
+| `inventory.read`            |             ✅             |          ✅           |   ❌    |      ✅       |      ❌      |
+| `inventory.write`           |             ✅             |          ✅           |   ❌    |      ✅       |      ❌      |
+| `billing.read` (legacy)     |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
+| `billing.write` (legacy)    |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
+| `sales.read`                |             ✅             |          ✅           |   ✅    |      ✅       |      ✅      |
+| `sales.create`              |             ✅             |          ✅           |   ❌    |      ✅       |      ✅      |
+| `sales.manage`              |             ✅             |          ✅           |   ❌    |      ❌       |      ❌      |
+| `sales.cancel`              |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
+| `payments.read`             |             ✅             |          ✅           |   ❌    |      ✅       |      ✅      |
+| `payments.create`           |             ✅             |          ✅           |   ❌    |      ✅       |      ✅      |
+| `payments.manage`           |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
+| `reports.read`              |             ✅             |          ✅           |   ✅    |      ❌       |      ❌      |
+| `reports.export`            |             ✅             |          ✅           |   ❌    |      ❌       |      ❌      |
+| `settings.read`             |             ✅             |          ✅           |   ❌    |      ❌       |      ❌      |
+| `settings.write`            |             ✅             |          ❌           |   ❌    |      ❌       |      ❌      |
+| `identity.roles.read`       |             ✅             |          ❌           |   ❌    |      ❌       |      ❌      |
+| `identity.roles.write`      |             ✅             |          ❌           |   ❌    |      ❌       |      ❌      |
+| `identity.permissions.read` |             ✅             |          ❌           |   ❌    |      ❌       |      ❌      |
+
+### Backward Compatibility Mapping
+
+For tokens issued during Phase 1:
+
+- `billing.read` automatically grants `payments.read` and `sales.read`.
+- `billing.write` automatically grants `payments.create` and `sales.create`.
+- `payments.manage` covers `payments.create` and `payments.read`.
 
 ---
 

@@ -122,24 +122,22 @@ $$\text{Architecture} \longrightarrow \text{Domain Model} \longrightarrow \text{
 ## 8. Payment State Machine Verification
 
 ```
-[Initial] ──► [PENDING] ────┬──► [AUTHORIZED] ────┬──► [SETTLED] (Terminal Immutable)
-                │           │       │             │
-                │           ▼       ▼             ▼
-                ├─────► [CANCELLED] ┴───────► [FAILED]
-                ▼
-            [SETTLED] (Immediate Cash/Debit)
+[Initial] ──► [PENDING] ────┬──► [SETTLED] (Terminal Immutable)
+                │           │
+                ▼           ▼
+            [CANCELLED]  [FAILED]
+[Initial] ──► [SETTLED] (Immediate Cash Counter Settlement)
 ```
 
 - **Transitions Verified**:
-  - `PENDING` $\rightarrow$ `AUTHORIZED` (Gateway credit hold)
-  - `PENDING` $\rightarrow$ `SETTLED` (Immediate cash in drawer or debit PIN)
-  - `PENDING` $\rightarrow$ `FAILED` (Card declined, terminal timeout)
-  - `PENDING` $\rightarrow$ `CANCELLED` (Tender aborted by cashier)
-  - `AUTHORIZED` $\rightarrow$ `SETTLED` (Hold captured)
-  - `AUTHORIZED` $\rightarrow$ `CANCELLED` (Hold voided)
-  - `AUTHORIZED` $\rightarrow$ `FAILED` (Capture rejected)
+  - `Initial` $\rightarrow$ `SETTLED` (Immediate cash tender or instant capture)
+  - `Initial` $\rightarrow$ `PENDING` (Asynchronous tender such as dynamic QR code)
+  - `PENDING` $\rightarrow$ `SETTLED` (Funds confirmed and verified)
+  - `PENDING` $\rightarrow$ `FAILED` (Gateway decline, terminal timeout, session expired)
+  - `PENDING` $\rightarrow$ `CANCELLED` (Tender aborted by cashier before settlement)
 - **Terminal Immutability**: `SETTLED`, `FAILED`, and `CANCELLED` permit zero outgoing transitions. Settled payments can never be edited or deleted.
 - **Compensating Refunds**: Refunds create autonomous compensating records referencing `originalPaymentId` and `saleId`; no in-place mutation occurs.
+- **Phase 7.5 Scope**: Pre-authorization hold states (`AUTHORIZED`) are deferred to future milestones when 2-step credit card terminal integrations are delivered.
 
 ---
 

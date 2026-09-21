@@ -273,6 +273,32 @@ Automated source-code AST inspection enforcing architectural non-negotiables:
 
 ---
 
+### 3.5 Payment Domain & Multi-Tender Safety Net Testing (Milestone 7.5)
+
+Phase 7.5 enforces financial correctness, state machine determinism, repository boundary isolation, and authorization hardening through a **52-test safety net across 11 key dimensions**:
+
+#### 1. Core Domain QA Safety Net (`phase-7-5-payment-qa-safety-net.spec.ts`)
+
+- **Dimension 1: Payment Creation & Invariant Validation**: Validates UUID formats, strictly positive amounts ($> 0$), non-negative amounts, rejection of negative/zero/NaN values, and instant settlement for `CASH` vs deferred pending for `QR`.
+- **Dimension 2: Complete State Machine & Transition Matrix**: Exhaustively verifies every valid transition (`PENDING` $\to$ `SETTLED`, `FAILED`, `CANCELLED`) and asserts that transitions from terminal states (`SETTLED`, `FAILED`, `CANCELLED`) strictly throw `InvalidPaymentTransitionException`.
+- **Dimension 3: Monetary Precision & Zero Float Drift**: Reuses Phase 7.4 `Money` value object; confirms exact cent precision across large-value tenders ($\$9,999,999.99$) and confirms zero IEEE-754 drift.
+- **Dimension 4: Independence from Sale Totals**: Confirms that `Payment` operations NEVER modify or recalculate `Sale.subtotal`, `Sale.discountTotal`, or `Sale.total`.
+- **Dimension 5: Repository Port Abstraction**: Asserts that domain and application layers depend strictly on `PaymentRepositoryPort` and `SaleRepositoryPort` abstractions, with zero direct Prisma coupling.
+- **Dimension 6: Multi-Tender & Split Settlement**: Verifies split payments ($1 \text{ Sale} \to N \text{ Payments}$) where partial tenders advance `Sale.status` from `PENDING_PAYMENT` $\to$ `PARTIALLY_PAID` $\to$ `PAID`.
+- **Dimension 7: Idempotency & Concurrency Defenses**: Proves that repeat settlement invocations fail gracefully and OCC version numbers advance monotonically.
+- **Dimension 8: RBAC & Permissions**: Asserts that users lacking `payments.create`, `payments.read`, or `payments.manage` are rejected with `PaymentUnauthorizedException`. Verifies backward compatibility with `billing.write` and `billing.read`.
+- **Dimension 9: Multi-Tenant Organization Isolation**: Validates cross-tenant boundaries; commands attempting to settle a Sale belonging to another tenant are strictly rejected.
+- **Dimension 10: Reference Sanitization & PCI Defenses**: Asserts that `PaymentReference` permits valid alphanumeric register tags and gateway traces while eagerly rejecting credit card Primary Account Numbers (PANs; 13–19 consecutive digits).
+- **Dimension 11: Failure Atomicity**: Verifies that failed payment attempts leave the target `Sale` completely unmutated.
+
+#### 2. Presentation & API Controller Safety Net (`payments-qa-safety-net.spec.ts`)
+
+- **Route Execution**: Verifies `POST /api/v1/sales/:saleId/payments`, `GET /api/v1/sales/:saleId/payments`, `GET /api/v1/payments/:id`, `POST /api/v1/payments/:id/settle`, and `POST /api/v1/payments/:id/cancel`.
+- **Monetary Serialization**: Asserts that API responses serialize `MoneyResponseDto` with exact `cents`, `formatted` strings, and ISO-4217 currency.
+- **Error Filter Mapping**: Verifies that `SalesExceptionFilter` maps domain exceptions to HTTP 400, 403, 404, and 422 cleanly.
+
+---
+
 ## 4. Test Execution & Quality Gate Pipeline
 
 Run all test suites using workspace commands:
