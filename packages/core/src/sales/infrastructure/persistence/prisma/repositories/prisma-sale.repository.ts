@@ -4,12 +4,11 @@ import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { SaleOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
 import { PrismaSaleMapper } from '../mappers/prisma-sale.mapper';
 
-export interface SaleRepositoryInterface {
-  findById(id: SaleId | string): Promise<Sale | null>;
-  save(sale: Sale): Promise<void>;
-}
+import { SaleRepositoryPort } from '../../../../application/ports/sale-repository.port';
 
-export class PrismaSaleRepository implements SaleRepositoryInterface {
+export type SaleRepositoryInterface = SaleRepositoryPort;
+
+export class PrismaSaleRepository implements SaleRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
 
   public async findById(id: SaleId | string): Promise<Sale | null> {

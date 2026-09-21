@@ -5,24 +5,23 @@ import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { SaleOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
 import { PrismaPaymentMapper } from '../mappers/prisma-payment.mapper';
 
-/**
- * Domain repository port contract for autonomous Payment Aggregate Roots.
- */
-export interface PaymentRepositoryInterface {
-  findById(id: PaymentId | string): Promise<Payment | null>;
-  findBySaleId(saleId: SaleId | string): Promise<Payment[]>;
-  save(payment: Payment): Promise<void>;
-}
+import { PaymentRepositoryPort } from '../../../../application/ports/payment-repository.port';
 
 /**
- * Prisma and PostgreSQL implementation of the PaymentRepositoryInterface.
+ * Domain repository port contract for autonomous Payment Aggregate Roots.
+ * Re-exported for backward compatibility.
+ */
+export type PaymentRepositoryInterface = PaymentRepositoryPort;
+
+/**
+ * Prisma and PostgreSQL implementation of the PaymentRepositoryPort.
  * Enforces:
  * - Isolation from Sale aggregate instances (scalar SaleId reference only).
  * - Exact PostgreSQL DECIMAL(12, 2) monetary storage via PrismaPaymentMapper.
  * - Optimistic Concurrency Control (OCC) against version collisions.
  * - Multi-payment retrieval per Sale (1 Sale -> N Payments).
  */
-export class PrismaPaymentRepository implements PaymentRepositoryInterface {
+export class PrismaPaymentRepository implements PaymentRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
 
   public async findById(id: PaymentId | string): Promise<Payment | null> {
