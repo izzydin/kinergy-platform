@@ -82,11 +82,12 @@ export class PaymentsController {
     this._getPaymentByIdHandler =
       getPaymentByIdHandler ?? new GetPaymentByIdHandler(paymentRepository);
     this._getPaymentsBySaleIdHandler =
-      getPaymentsBySaleIdHandler ?? new GetPaymentsBySaleIdHandler(paymentRepository);
+      getPaymentsBySaleIdHandler ??
+      new GetPaymentsBySaleIdHandler(paymentRepository, saleRepository);
     this._settlePaymentHandler =
       settlePaymentHandler ?? new SettlePaymentHandler(paymentRepository, saleRepository);
     this._cancelPaymentHandler =
-      cancelPaymentHandler ?? new CancelPaymentHandler(paymentRepository);
+      cancelPaymentHandler ?? new CancelPaymentHandler(paymentRepository, saleRepository);
   }
 
   @Post('sales/:saleId/payments')
@@ -218,7 +219,7 @@ export class PaymentsController {
   @Post('payments/:id/settle')
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist')
-  @Permissions('payments.create')
+  @Permissions('payments.create', 'payments.manage')
   @ApiOperation({
     summary: 'Confirm settlement of an unsettled pending payment transaction',
     description:
@@ -263,7 +264,7 @@ export class PaymentsController {
   @Post('payments/:id/cancel')
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist')
-  @Permissions('payments.create')
+  @Permissions('payments.manage')
   @ApiOperation({
     summary: 'Void or cancel an unsettled pending payment transaction',
     description:

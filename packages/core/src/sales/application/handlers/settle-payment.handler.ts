@@ -11,6 +11,7 @@ import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 import { PaymentNotFoundException } from '../exceptions/payment-not-found.exception';
+import { PaymentUnauthorizedException } from '../exceptions/payment-unauthorized.exception';
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 
 export class SettlePaymentHandler implements SalesCommandHandler<
@@ -29,7 +30,7 @@ export class SettlePaymentHandler implements SalesCommandHandler<
       const { input } = command;
 
       // 1. Authorization
-      checkPaymentAuthorization(input.currentUser, ['payments.create']);
+      checkPaymentAuthorization(input.currentUser, ['payments.create', 'payments.manage']);
 
       const paymentId = input.paymentId?.trim();
       if (!paymentId) {
@@ -44,18 +45,27 @@ export class SettlePaymentHandler implements SalesCommandHandler<
 
       enforceTenantIsolation(payment.tenantId, input.tenantId);
 
-      // 3. Domain State Transition
+      // 3. Sale Scoping Verification
+      if (input.saleId && payment.saleId.value !== input.saleId.trim()) {
+        return SalesApplicationResult.fail(
+          new PaymentUnauthorizedException('Payment does not belong to the specified Sale.'),
+        );
+      }
+
+      // 4. Domain State Transition
       payment.settle({
         reference: input.reference,
         clock: this.clock,
       });
 
-      // 4. Persistence
+      // 5. Persistence
       await this.paymentRepository.save(payment);
 
-      // 5. Update Associated Sale Status
+      // 6. Update Associated Sale Status
       const sale = await this.saleRepository.findById(payment.saleId);
       if (sale) {
+        enforceTenantIsolation(sale.tenantId, input.tenantId);
+        enforceTenantIsolation(sale.tenantId, payment.tenantId);
         const allPayments = await this.paymentRepository.findBySaleId(sale.id);
         const settledTotal = allPayments
           .filter((p) => p.status === PaymentStatus.SETTLED)

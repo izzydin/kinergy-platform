@@ -63,12 +63,41 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
   }
 
   private hasPermissionPattern(resolvedPermissions: string[], requiredPerm: string): boolean {
-    if (resolvedPermissions.includes('*') || resolvedPermissions.includes(requiredPerm)) {
+    if (
+      resolvedPermissions.includes('*') ||
+      resolvedPermissions.includes('*:*:*') ||
+      resolvedPermissions.includes(requiredPerm)
+    ) {
+      return true;
+    }
+
+    // ADR-0111 Backward Compatibility Mappings:
+    // billing.read implies sales.read, payments.read, receipts.read
+    if (
+      resolvedPermissions.includes('billing.read') &&
+      ['sales.read', 'payments.read', 'receipts.read'].includes(requiredPerm)
+    ) {
+      return true;
+    }
+
+    // billing.write implies sales.create, payments.create
+    if (
+      resolvedPermissions.includes('billing.write') &&
+      ['sales.create', 'payments.create'].includes(requiredPerm)
+    ) {
+      return true;
+    }
+
+    // payments.manage implies payments.create and payments.read
+    if (
+      resolvedPermissions.includes('payments.manage') &&
+      ['payments.create', 'payments.read'].includes(requiredPerm)
+    ) {
       return true;
     }
 
     return resolvedPermissions.some((perm) => {
-      if (perm.endsWith(':*')) {
+      if (perm.endsWith(':*') || perm.endsWith('.*')) {
         const prefix = perm.slice(0, -2);
         return requiredPerm.startsWith(prefix);
       }

@@ -81,6 +81,15 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
     tenantId,
   };
 
+  const managerUser: AuthenticatedUserPayload = {
+    id: 'user_manager_01',
+    email: 'manager@kinergy.com',
+    status: 'ACTIVE',
+    roles: ['Manager'],
+    permissions: ['payments.create', 'payments.read', 'payments.manage', 'sales.read'],
+    tenantId,
+  };
+
   let controller: PaymentsController;
   let paymentRepo: InMemoryPaymentRepository;
   let saleRepo: InMemorySaleRepository;
@@ -415,6 +424,32 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
         ),
       ).rejects.toThrow(PaymentUnauthorizedException);
     });
+
+    it('rejects payment cancellation when user lacks payments.manage permission', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+      const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
+      const createRes = await recordHandler.execute({
+        input: {
+          saleId: sale.id.value,
+          amount: 50.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+          currentUser: defaultUser,
+        },
+      });
+      const pendingPayment = createRes.getValue();
+
+      // defaultUser has payments.create and payments.read, but lacks payments.manage
+      await expect(
+        controller.cancelPayment(
+          pendingPayment.id,
+          { reason: 'Fraudulent voucher attempt' },
+          defaultUser,
+        ),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+    });
   });
 
   // 8. Lifecycle Transitions
@@ -472,7 +507,7 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
       const cancelDto: CancelPaymentRequestDto = {
         reason: 'Customer declined mobile wallet tender',
       };
-      const cancelled = await controller.cancelPayment(pendingDto.id, cancelDto, defaultUser);
+      const cancelled = await controller.cancelPayment(pendingDto.id, cancelDto, managerUser);
 
       expect(cancelled.status).toBe(PaymentStatus.CANCELLED);
     });
@@ -492,7 +527,7 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
       );
 
       // Cancel attempt
-      await expect(controller.cancelPayment(settled.id, {}, defaultUser)).rejects.toThrow(
+      await expect(controller.cancelPayment(settled.id, {}, managerUser)).rejects.toThrow(
         InvalidPaymentTransitionException,
       );
     });

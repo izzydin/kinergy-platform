@@ -4,13 +4,18 @@ import { GetPaymentsBySaleIdQuery } from '../queries/get-payments-by-sale-id.que
 import { PaymentDTO } from '../dtos/payment.dto';
 import { PaymentMapper } from '../mappers/payment.mapper';
 import { PaymentRepositoryPort } from '../ports/payment-repository.port';
-import { checkPaymentAuthorization } from '../shared/payment-authorization';
+import { SaleRepositoryPort } from '../ports/sale-repository.port';
+import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
+import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 
 export class GetPaymentsBySaleIdHandler implements SalesQueryHandler<
   GetPaymentsBySaleIdQuery,
   SalesApplicationResult<PaymentDTO[]>
 > {
-  constructor(private readonly paymentRepository: PaymentRepositoryPort) {}
+  constructor(
+    private readonly paymentRepository: PaymentRepositoryPort,
+    private readonly saleRepository?: SaleRepositoryPort,
+  ) {}
 
   public async execute(
     query: GetPaymentsBySaleIdQuery,
@@ -26,10 +31,19 @@ export class GetPaymentsBySaleIdHandler implements SalesQueryHandler<
         return SalesApplicationResult.fail(new Error('Sale ID cannot be empty.'));
       }
 
-      // 2. Resolve Payments by SaleId
+      // 2. Resolve Sale & Multi-Tenant Verification
+      if (this.saleRepository) {
+        const sale = await this.saleRepository.findById(saleId);
+        if (!sale) {
+          return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
+        }
+        enforceTenantIsolation(sale.tenantId, input.tenantId);
+      }
+
+      // 3. Resolve Payments by SaleId
       let payments = await this.paymentRepository.findBySaleId(saleId);
 
-      // 3. Multi-Tenant Filter if specified
+      // 4. Multi-Tenant Filter if specified
       if (input.tenantId) {
         const tenantId = input.tenantId.trim();
         payments = payments.filter((p) => p.tenantId === tenantId);

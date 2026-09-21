@@ -89,4 +89,46 @@ describe('DefaultAuthorizationEvaluator', () => {
 
     expect(decision.isAuthorized).toBe(true);
   });
+
+  it('should support dot-notation wildcard and backward-compatible permission mappings', async () => {
+    // payments.* wildcard
+    mockPermissionResolver.resolvePermissions.mockResolvedValueOnce(['payments.*']);
+    let decision = await evaluator.evaluate(
+      defaultUserContext,
+      new AuthorizationRequirements({
+        requiredPermissions: ['payments.create', 'payments.read'],
+      }),
+    );
+    expect(decision.isAuthorized).toBe(true);
+
+    // billing.read implies payments.read and sales.read
+    mockPermissionResolver.resolvePermissions.mockResolvedValueOnce(['billing.read']);
+    decision = await evaluator.evaluate(
+      defaultUserContext,
+      new AuthorizationRequirements({
+        requiredPermissions: ['payments.read', 'sales.read'],
+      }),
+    );
+    expect(decision.isAuthorized).toBe(true);
+
+    // billing.write implies payments.create and sales.create
+    mockPermissionResolver.resolvePermissions.mockResolvedValueOnce(['billing.write']);
+    decision = await evaluator.evaluate(
+      defaultUserContext,
+      new AuthorizationRequirements({
+        requiredPermissions: ['payments.create', 'sales.create'],
+      }),
+    );
+    expect(decision.isAuthorized).toBe(true);
+
+    // payments.manage implies payments.create and payments.read
+    mockPermissionResolver.resolvePermissions.mockResolvedValueOnce(['payments.manage']);
+    decision = await evaluator.evaluate(
+      defaultUserContext,
+      new AuthorizationRequirements({
+        requiredPermissions: ['payments.create', 'payments.read'],
+      }),
+    );
+    expect(decision.isAuthorized).toBe(true);
+  });
 });

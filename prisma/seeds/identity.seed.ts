@@ -45,6 +45,43 @@ export const PERMISSION_CATALOG: Record<string, PermissionDefinition[]> = {
     { code: 'billing.read', description: 'View invoices and payment history' },
     { code: 'billing.write', description: 'Process payments and issue invoices' },
   ],
+  Sales: [
+    {
+      code: 'sales.read',
+      description:
+        'Query and view sales orders, cart items, order status, and customer purchase histories',
+    },
+    {
+      code: 'sales.create',
+      description:
+        'Initiate checkout sessions, add/remove items to draft orders, apply standard promotional discounts',
+    },
+    {
+      code: 'sales.manage',
+      description: 'Apply discretionary discounts, override prices, modify sale metadata',
+    },
+    {
+      code: 'sales.cancel',
+      description: 'Cancel or void a draft or finalized sale prior to fulfillment',
+    },
+  ],
+  Payments: [
+    {
+      code: 'payments.read',
+      description:
+        'View payment transaction histories, tender methods, settlement timestamps, and payment statuses',
+    },
+    {
+      code: 'payments.create',
+      description:
+        'Record cash collection, trigger card terminal pre-authorization, capture electronic tender',
+    },
+    {
+      code: 'payments.manage',
+      description:
+        'Authorize compensating refunds, settle manual payment exceptions, process chargeback adjustments, void/cancel payment',
+    },
+  ],
   Reports: [
     { code: 'reports.read', description: 'View operational and business reports' },
     { code: 'reports.export', description: 'Export report data and analytics' },
@@ -90,7 +127,15 @@ export const SYSTEM_ROLE_DEFINITIONS = [
     name: 'Kitchen Staff',
     description: 'Kitchen operations staff managing orders and food inventory.',
     type: RoleType.SYSTEM,
-    permissionCodes: ['kitchen.read', 'kitchen.orders.manage', 'inventory.read', 'inventory.write'],
+    permissionCodes: [
+      'kitchen.read',
+      'kitchen.orders.manage',
+      'inventory.read',
+      'inventory.write',
+      'sales.read',
+      'sales.create',
+      'payments.create',
+    ],
   },
   {
     name: 'Receptionist',
@@ -105,6 +150,12 @@ export const SYSTEM_ROLE_DEFINITIONS = [
       'appointments.delete',
       'billing.read',
       'billing.write',
+      'sales.read',
+      'sales.create',
+      'sales.cancel',
+      'payments.read',
+      'payments.create',
+      'payments.manage',
     ],
   },
 ];
