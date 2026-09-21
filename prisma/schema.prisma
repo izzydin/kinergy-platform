@@ -297,16 +297,16 @@ model AppointmentNote {
 }
 
 model Room {
-  id                String              @id @default(uuid())
+  id                String       @id @default(uuid())
   name              String
-  capacity          Int                 @default(1)
-  status            RoomStatus          @default(AVAILABLE)
-  resourceType      ResourceType        @default(ROOM) @map("resource_type")
-  features          String[]            @default([])
-  maintenanceReason String?             @map("maintenance_reason")
-  version           Int                 @default(1)
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
+  capacity          Int          @default(1)
+  status            RoomStatus   @default(AVAILABLE)
+  resourceType      ResourceType @default(ROOM) @map("resource_type")
+  features          String[]     @default([])
+  maintenanceReason String?      @map("maintenance_reason")
+  version           Int          @default(1)
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
 
   maintenanceWindows MaintenanceWindow[] @relation("RoomToMaintenanceWindows")
 
@@ -408,20 +408,20 @@ enum AccessResult {
 }
 
 model MembershipPlan {
-  id            String         @id @default(uuid())
-  code          String         @unique
+  id            String     @id @default(uuid())
+  code          String     @unique
   name          String
   description   String?
-  durationDays  Int            @map("duration_days")
-  priceAmount   Decimal        @db.Decimal(10, 2) @map("price_amount")
-  priceCurrency String         @default("USD") @map("price_currency")
-  visitQuota    Int?           @map("visit_quota")
-  status        PlanStatus     @default(DRAFT)
-  version       Int            @default(1)
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
+  durationDays  Int        @map("duration_days")
+  priceAmount   Decimal    @map("price_amount") @db.Decimal(10, 2)
+  priceCurrency String     @default("USD") @map("price_currency")
+  visitQuota    Int?       @map("visit_quota")
+  status        PlanStatus @default(DRAFT)
+  version       Int        @default(1)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
 
-  memberships   Membership[]   @relation("PlanToMemberships")
+  memberships Membership[] @relation("PlanToMemberships")
 
   @@index([code])
   @@index([status])
@@ -429,22 +429,22 @@ model MembershipPlan {
 }
 
 model Membership {
-  id                 String             @id @default(uuid())
-  clientId           String             @map("client_id")
-  planId             String             @map("plan_id")
-  status             MembershipStatus   @default(ACTIVE)
-  startDate          DateTime           @map("start_date")
-  endDate            DateTime           @map("end_date")
-  assignedTrainerId  String?            @map("assigned_trainer_id")
-  freezeHistory      Json               @default("[]") @map("freeze_history")
-  cancellationReason String?            @map("cancellation_reason")
-  terminationReason  String?            @map("termination_reason")
-  version            Int                @default(1)
-  createdAt          DateTime           @default(now()) @map("created_at")
-  updatedAt          DateTime           @updatedAt @map("updated_at")
+  id                 String           @id @default(uuid())
+  clientId           String           @map("client_id")
+  planId             String           @map("plan_id")
+  status             MembershipStatus @default(ACTIVE)
+  startDate          DateTime         @map("start_date")
+  endDate            DateTime         @map("end_date")
+  assignedTrainerId  String?          @map("assigned_trainer_id")
+  freezeHistory      Json             @default("[]") @map("freeze_history")
+  cancellationReason String?          @map("cancellation_reason")
+  terminationReason  String?          @map("termination_reason")
+  version            Int              @default(1)
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
 
-  plan               MembershipPlan     @relation("PlanToMemberships", fields: [planId], references: [id], onDelete: Restrict)
-  attendanceRecords  AttendanceRecord[] @relation("MembershipToAttendance")
+  plan              MembershipPlan     @relation("PlanToMemberships", fields: [planId], references: [id], onDelete: Restrict)
+  attendanceRecords AttendanceRecord[] @relation("MembershipToAttendance")
 
   @@index([clientId, status])
   @@index([planId])
@@ -454,19 +454,19 @@ model Membership {
 }
 
 model AttendanceRecord {
-  id             String         @id @default(uuid())
-  clientId       String         @map("client_id")
-  membershipId   String?        @map("membership_id")
-  checkInTime    DateTime       @map("check_in_time")
-  gymDay         String         @map("gym_day")
+  id             String        @id @default(uuid())
+  clientId       String        @map("client_id")
+  membershipId   String?       @map("membership_id")
+  checkInTime    DateTime      @map("check_in_time")
+  gymDay         String        @map("gym_day")
   method         CheckInMethod
   result         AccessResult
-  gateId         String?        @map("gate_id")
-  receptionistId String?        @map("receptionist_id")
+  gateId         String?       @map("gate_id")
+  receptionistId String?       @map("receptionist_id")
   notes          String?
-  createdAt      DateTime       @default(now()) @map("created_at")
+  createdAt      DateTime      @default(now()) @map("created_at")
 
-  membership     Membership?    @relation("MembershipToAttendance", fields: [membershipId], references: [id], onDelete: SetNull)
+  membership Membership? @relation("MembershipToAttendance", fields: [membershipId], references: [id], onDelete: SetNull)
 
   @@index([clientId, checkInTime(sort: Desc)])
   @@index([gymDay])
@@ -523,11 +523,11 @@ model InventoryItem {
   description          String?
   category             InventoryCategory   @default(CLINICAL_SUPPLIES)
   unit                 UnitOfMeasure       @default(UNITS)
-  minimumStock         Decimal             @default(0) @db.Decimal(10, 2) @map("minimum_stock")
-  quantityOnHand       Decimal             @default(0) @db.Decimal(10, 2) @map("quantity_on_hand")
-  purchaseCostAmount   Decimal             @default(0) @db.Decimal(10, 2) @map("purchase_cost_amount")
+  minimumStock         Decimal             @default(0) @map("minimum_stock") @db.Decimal(10, 2)
+  quantityOnHand       Decimal             @default(0) @map("quantity_on_hand") @db.Decimal(10, 2)
+  purchaseCostAmount   Decimal             @default(0) @map("purchase_cost_amount") @db.Decimal(10, 2)
   purchaseCostCurrency String              @default("USD") @map("purchase_cost_currency")
-  sellingPriceAmount   Decimal             @default(0) @db.Decimal(10, 2) @map("selling_price_amount")
+  sellingPriceAmount   Decimal             @default(0) @map("selling_price_amount") @db.Decimal(10, 2)
   sellingPriceCurrency String              @default("USD") @map("selling_price_currency")
   status               InventoryItemStatus @default(ACTIVE)
   locationRef          Json?               @map("location_ref")
@@ -535,7 +535,7 @@ model InventoryItem {
   createdAt            DateTime            @default(now()) @map("created_at")
   updatedAt            DateTime            @updatedAt @map("updated_at")
 
-  movements            StockMovement[]     @relation("ItemToStockMovements")
+  movements StockMovement[] @relation("ItemToStockMovements")
 
   @@index([sku])
   @@index([tenantId])
@@ -547,19 +547,19 @@ model InventoryItem {
 }
 
 model StockMovement {
-  id                String            @id @default(uuid())
-  inventoryItemId   String            @map("inventory_item_id")
-  movementType      StockMovementType @map("movement_type")
-  quantityDelta     Decimal           @db.Decimal(10, 2) @map("quantity_delta")
-  balanceAfter      Decimal           @db.Decimal(10, 2) @map("balance_after")
-  unitCostAmount    Decimal           @default(0) @db.Decimal(10, 2) @map("unit_cost_amount")
-  unitCostCurrency  String            @default("USD") @map("unit_cost_currency")
-  reason            String
-  recordedByUserId  String            @map("recorded_by_user_id")
-  referenceId       String?           @map("reference_id")
-  recordedAt        DateTime          @default(now()) @map("recorded_at")
+  id               String            @id @default(uuid())
+  inventoryItemId  String            @map("inventory_item_id")
+  movementType     StockMovementType @map("movement_type")
+  quantityDelta    Decimal           @map("quantity_delta") @db.Decimal(10, 2)
+  balanceAfter     Decimal           @map("balance_after") @db.Decimal(10, 2)
+  unitCostAmount   Decimal           @default(0) @map("unit_cost_amount") @db.Decimal(10, 2)
+  unitCostCurrency String            @default("USD") @map("unit_cost_currency")
+  reason           String
+  recordedByUserId String            @map("recorded_by_user_id")
+  referenceId      String?           @map("reference_id")
+  recordedAt       DateTime          @default(now()) @map("recorded_at")
 
-  item              InventoryItem     @relation("ItemToStockMovements", fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  item InventoryItem @relation("ItemToStockMovements", fields: [inventoryItemId], references: [id], onDelete: Restrict)
 
   @@index([inventoryItemId, recordedAt(sort: Desc)])
   @@index([recordedByUserId])
@@ -606,27 +606,27 @@ enum AssetHistoryEventType {
 }
 
 model FixedAsset {
-  id                          String                   @id @default(uuid())
-  tenantId                    String?                  @map("tenant_id")
-  assetTag                    String                   @unique @map("asset_tag")
-  name                        String
-  description                 String?
-  category                    AssetCategory
-  purchaseDate                DateTime                 @map("purchase_date")
-  purchaseValueAmount         Decimal                  @db.Decimal(10, 2) @map("purchase_value_amount")
-  purchaseValueCurrency       String                   @default("USD") @map("purchase_value_currency")
-  currentEstimatedValueAmount Decimal                  @db.Decimal(10, 2) @map("current_estimated_value_amount")
-  currentEstimatedValueCurrency String                 @default("USD") @map("current_estimated_value_currency")
-  condition                   AssetCondition           @default(EXCELLENT)
-  status                      AssetStatus              @default(ACTIVE)
-  location                    Json                     @map("location")
-  notes                       String?
-  version                     Int                      @default(1)
-  createdAt                   DateTime                 @default(now()) @map("created_at")
-  updatedAt                   DateTime                 @updatedAt @map("updated_at")
+  id                            String         @id @default(uuid())
+  tenantId                      String?        @map("tenant_id")
+  assetTag                      String         @unique @map("asset_tag")
+  name                          String
+  description                   String?
+  category                      AssetCategory
+  purchaseDate                  DateTime       @map("purchase_date")
+  purchaseValueAmount           Decimal        @map("purchase_value_amount") @db.Decimal(10, 2)
+  purchaseValueCurrency         String         @default("USD") @map("purchase_value_currency")
+  currentEstimatedValueAmount   Decimal        @map("current_estimated_value_amount") @db.Decimal(10, 2)
+  currentEstimatedValueCurrency String         @default("USD") @map("current_estimated_value_currency")
+  condition                     AssetCondition @default(EXCELLENT)
+  status                        AssetStatus    @default(ACTIVE)
+  location                      Json           @map("location")
+  notes                         String?
+  version                       Int            @default(1)
+  createdAt                     DateTime       @default(now()) @map("created_at")
+  updatedAt                     DateTime       @updatedAt @map("updated_at")
 
-  historyEvents               AssetHistoryEvent[]      @relation("AssetToHistoryEvents")
-  maintenanceRecords          AssetMaintenanceRecord[] @relation("AssetToMaintenanceRecords")
+  historyEvents      AssetHistoryEvent[]      @relation("AssetToHistoryEvents")
+  maintenanceRecords AssetMaintenanceRecord[] @relation("AssetToMaintenanceRecords")
 
   @@index([assetTag])
   @@index([tenantId])
@@ -646,7 +646,7 @@ model AssetHistoryEvent {
   recordedByUserId String                @map("recorded_by_user_id")
   recordedAt       DateTime              @default(now()) @map("recorded_at")
 
-  asset            FixedAsset            @relation("AssetToHistoryEvents", fields: [assetId], references: [id], onDelete: Restrict)
+  asset FixedAsset @relation("AssetToHistoryEvents", fields: [assetId], references: [id], onDelete: Restrict)
 
   @@index([assetId, recordedAt(sort: Desc)])
   @@index([eventType])
@@ -655,18 +655,18 @@ model AssetHistoryEvent {
 }
 
 model AssetMaintenanceRecord {
-  id               String                @id @default(uuid())
-  assetId          String                @map("asset_id")
-  serviceDate      DateTime              @map("service_date")
+  id               String   @id @default(uuid())
+  assetId          String   @map("asset_id")
+  serviceDate      DateTime @map("service_date")
   description      String
-  costAmount       Decimal               @default(0) @db.Decimal(10, 2) @map("cost_amount")
-  costCurrency     String                @default("USD") @map("cost_currency")
-  performedBy      String                @map("performed_by")
+  costAmount       Decimal  @default(0) @map("cost_amount") @db.Decimal(10, 2)
+  costCurrency     String   @default("USD") @map("cost_currency")
+  performedBy      String   @map("performed_by")
   notes            String?
-  recordedByUserId String                @map("recorded_by_user_id")
-  createdAt        DateTime              @default(now()) @map("created_at")
+  recordedByUserId String   @map("recorded_by_user_id")
+  createdAt        DateTime @default(now()) @map("created_at")
 
-  asset            FixedAsset            @relation("AssetToMaintenanceRecords", fields: [assetId], references: [id], onDelete: Restrict)
+  asset FixedAsset @relation("AssetToMaintenanceRecords", fields: [assetId], references: [id], onDelete: Restrict)
 
   @@index([assetId, serviceDate(sort: Desc)])
   @@index([recordedByUserId])
@@ -688,29 +688,30 @@ enum SaleStatus {
 }
 
 model Sale {
-  id                  String      @id @default(uuid())
-  tenantId            String?     @map("tenant_id")
-  clientId            String?     @map("client_id")
-  status              SaleStatus  @default(DRAFT)
-  currency            String      @default("USD") @db.VarChar(3)
-  sourceType          String      @map("source_type")
-  sourceId            String      @map("source_id")
-  sourceCode          String?     @map("source_code")
-  subtotalAmount      Decimal     @db.Decimal(12, 2) @map("subtotal_amount")
-  discountTotalAmount Decimal     @db.Decimal(12, 2) @map("discount_total_amount")
-  totalAmount         Decimal     @db.Decimal(12, 2) @map("total_amount")
-  orderDiscountType   String?     @map("order_discount_type")
-  orderDiscountValue  Decimal?    @db.Decimal(10, 2) @map("order_discount_value")
-  orderDiscountReason String?     @map("order_discount_reason")
-  cancellationReason  String?     @map("cancellation_reason")
-  cancelledAt         DateTime?   @map("cancelled_at")
-  completedAt         DateTime?   @map("completed_at")
-  refundedAt          DateTime?   @map("refunded_at")
-  version             Int         @default(1)
-  createdAt           DateTime    @default(now()) @map("created_at")
-  updatedAt           DateTime    @updatedAt @map("updated_at")
+  id                  String     @id @default(uuid())
+  tenantId            String?    @map("tenant_id")
+  clientId            String?    @map("client_id")
+  status              SaleStatus @default(DRAFT)
+  currency            String     @default("USD") @db.VarChar(3)
+  sourceType          String     @map("source_type")
+  sourceId            String     @map("source_id")
+  sourceCode          String?    @map("source_code")
+  subtotalAmount      Decimal    @map("subtotal_amount") @db.Decimal(12, 2)
+  discountTotalAmount Decimal    @map("discount_total_amount") @db.Decimal(12, 2)
+  totalAmount         Decimal    @map("total_amount") @db.Decimal(12, 2)
+  orderDiscountType   String?    @map("order_discount_type")
+  orderDiscountValue  Decimal?   @map("order_discount_value") @db.Decimal(10, 2)
+  orderDiscountReason String?    @map("order_discount_reason")
+  cancellationReason  String?    @map("cancellation_reason")
+  cancelledAt         DateTime?  @map("cancelled_at")
+  completedAt         DateTime?  @map("completed_at")
+  refundedAt          DateTime?  @map("refunded_at")
+  version             Int        @default(1)
+  createdAt           DateTime   @default(now()) @map("created_at")
+  updatedAt           DateTime   @updatedAt @map("updated_at")
 
-  items               SaleItem[]  @relation("SaleToSaleItems")
+  items    SaleItem[] @relation("SaleToSaleItems")
+  payments Payment[]  @relation("SaleToPayments")
 
   @@index([tenantId])
   @@index([clientId])
@@ -728,22 +729,57 @@ model SaleItem {
   description         String
   skuOrCode           String?  @map("sku_or_code")
   quantity            Decimal  @db.Decimal(10, 3)
-  unitPriceAmount     Decimal  @db.Decimal(12, 2) @map("unit_price_amount")
-  unitPriceCurrency   String   @default("USD") @db.VarChar(3) @map("unit_price_currency")
-  subtotalAmount      Decimal  @db.Decimal(12, 2) @map("subtotal_amount")
-  discountTotalAmount Decimal  @db.Decimal(12, 2) @map("discount_total_amount")
-  totalAmount         Decimal  @db.Decimal(12, 2) @map("total_amount")
+  unitPriceAmount     Decimal  @map("unit_price_amount") @db.Decimal(12, 2)
+  unitPriceCurrency   String   @default("USD") @map("unit_price_currency") @db.VarChar(3)
+  subtotalAmount      Decimal  @map("subtotal_amount") @db.Decimal(12, 2)
+  discountTotalAmount Decimal  @map("discount_total_amount") @db.Decimal(12, 2)
+  totalAmount         Decimal  @map("total_amount") @db.Decimal(12, 2)
   discountType        String?  @map("discount_type")
-  discountValue       Decimal? @db.Decimal(10, 2) @map("discount_value")
+  discountValue       Decimal? @map("discount_value") @db.Decimal(10, 2)
   discountReason      String?  @map("discount_reason")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
-  sale                Sale     @relation("SaleToSaleItems", fields: [saleId], references: [id], onDelete: Cascade)
+  sale Sale @relation("SaleToSaleItems", fields: [saleId], references: [id], onDelete: Cascade)
 
   @@index([saleId])
   @@index([skuOrCode])
   @@map("sale_items")
 }
 
+enum PaymentMethod {
+  CASH
+  QR
+}
 
+enum PaymentStatus {
+  PENDING
+  SETTLED
+  FAILED
+  CANCELLED
+}
+
+model Payment {
+  id        String        @id @default(uuid())
+  tenantId  String?       @map("tenant_id")
+  saleId    String        @map("sale_id")
+  method    PaymentMethod
+  amount    Decimal       @db.Decimal(12, 2)
+  currency  String        @default("USD") @db.VarChar(3)
+  status    PaymentStatus @default(SETTLED)
+  reference String?       @db.VarChar(100)
+  paidAt    DateTime?     @map("paid_at")
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  version   Int           @default(1)
+
+  sale Sale @relation("SaleToPayments", fields: [saleId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId])
+  @@index([tenantId, saleId])
+  @@index([tenantId, status])
+  @@index([saleId])
+  @@index([status])
+  @@index([createdAt(sort: Desc)])
+  @@map("payments")
+}
