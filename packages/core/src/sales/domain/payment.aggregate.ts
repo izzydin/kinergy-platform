@@ -16,7 +16,7 @@ import { InvalidPaymentTransitionException } from './exceptions/invalid-payment-
 import { Clock, SystemClock } from './shared/clock';
 import { PaymentSettledEvent, PaymentFailedEvent, PaymentCancelledEvent } from './events';
 
-export interface CreateSettledPaymentParams {
+export interface CreateCompletedPaymentParams {
   id?: PaymentId | string;
   tenantId?: string;
   saleId: SaleId | string;
@@ -24,6 +24,8 @@ export interface CreateSettledPaymentParams {
   amount: Money;
   reference?: string | PaymentReference | null;
 }
+
+export type CreateSettledPaymentParams = CreateCompletedPaymentParams;
 
 export interface CreatePendingPaymentParams {
   id?: PaymentId | string;
@@ -34,11 +36,13 @@ export interface CreatePendingPaymentParams {
   reference?: string | PaymentReference | null;
 }
 
-export interface SettlePaymentOptions {
+export interface CompletePaymentOptions {
   reference?: string | PaymentReference | null;
   paidAt?: Date;
   clock?: Clock;
 }
+
+export type SettlePaymentOptions = CompletePaymentOptions;
 
 export interface PaymentReconstituteProps {
   id: PaymentId;
@@ -56,11 +60,11 @@ export interface PaymentReconstituteProps {
 
 /**
  * Autonomous Payment Aggregate Root and Entity for the Sales & Payments Bounded Context.
- * Conforms strictly to ADR-0115:
+ * Conforms strictly to ADR-0115 and ADR-0116:
  * - Couples to Sale solely via scalar SaleId (identifier-based coupling).
  * - Reuses canonical Phase 7.4 Money VO for all monetary values.
  * - Does NOT calculate commercial subtotals, item discounts, or taxes.
- * - Enforces append-only progressive immutability once SETTLED.
+ * - Enforces append-only progressive immutability once COMPLETED (settled).
  * - Manages discrete domain events for lifecycle milestones.
  */
 export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
@@ -170,18 +174,18 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
     }
 
     // Invariant: Status and paidAt alignment
-    if (props.status === PaymentStatus.SETTLED) {
+    if (props.status === PaymentStatus.COMPLETED) {
       if (!props.paidAt || !(props.paidAt instanceof Date) || isNaN(props.paidAt.getTime())) {
         throw new PaymentDomainException(
           'Settled payment must have a valid paidAt timestamp.',
-          'SETTLED_PAYMENT_MISSING_PAID_AT',
+          'COMPLETED_PAYMENT_MISSING_PAID_AT',
         );
       }
     } else {
       if (props.paidAt !== null) {
         throw new PaymentDomainException(
           `Non-settled payment in status '${props.status}' must have paidAt set to null.`,
-          'NON_SETTLED_PAYMENT_HAS_PAID_AT',
+          'NON_COMPLETED_PAYMENT_HAS_PAID_AT',
         );
       }
     }
@@ -203,10 +207,10 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
   // ---------------------------------------------------------------------------
 
   /**
-   * Factory method to create an immediately settled payment (e.g. physical CASH or confirmed counter QR).
+   * Factory method to create an immediately completed payment (e.g. physical CASH or confirmed counter QR).
    */
-  public static createSettled(
-    params: CreateSettledPaymentParams,
+  public static createCompleted(
+    params: CreateCompletedPaymentParams,
     clock: Clock = new SystemClock(),
   ): Payment {
     const now = clock.now();
@@ -230,7 +234,7 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
       saleId,
       method: params.method,
       amount: params.amount,
-      status: PaymentStatus.SETTLED,
+      status: PaymentStatus.COMPLETED,
       reference,
       paidAt: now,
       createdAt: now,
@@ -258,6 +262,16 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
     );
 
     return payment;
+  }
+
+  /**
+   * Factory method alias for createCompleted() to support legacy calls and settlement nomenclature.
+   */
+  public static createSettled(
+    params: CreateSettledPaymentParams,
+    clock: Clock = new SystemClock(),
+  ): Payment {
+    return Payment.createCompleted(params, clock);
   }
 
   /**
@@ -309,19 +323,19 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
   // ---------------------------------------------------------------------------
 
   /**
-   * Transitions a PENDING payment to SETTLED when customer funds are confirmed.
-   * Settled payments are permanently immutable.
+   * Transitions a PENDING payment to COMPLETED when customer funds are confirmed.
+   * Completed payments are permanently immutable.
    *
-   * @param optionsOrClock Optional settlement options ({ reference?, paidAt?, clock? }) or a Clock instance.
+   * @param optionsOrClock Optional completion options ({ reference?, paidAt?, clock? }) or a Clock instance.
    * @param fallbackClock Optional Clock instance if options object was provided without its own clock.
    */
-  public settle(optionsOrClock?: SettlePaymentOptions | Clock, fallbackClock?: Clock): void {
-    if (!canTransitionPaymentStatus(this._status, PaymentStatus.SETTLED)) {
+  public complete(optionsOrClock?: CompletePaymentOptions | Clock, fallbackClock?: Clock): void {
+    if (!canTransitionPaymentStatus(this._status, PaymentStatus.COMPLETED)) {
       throw new InvalidPaymentTransitionException(
         this._status,
-        PaymentStatus.SETTLED,
-        this._status === PaymentStatus.SETTLED
-          ? 'Settled payments are permanently immutable'
+        PaymentStatus.COMPLETED,
+        this._status === PaymentStatus.COMPLETED
+          ? 'Completed payments are permanently immutable'
           : `Cannot settle a payment that is ${this._status}`,
       );
     }
@@ -333,7 +347,7 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
     if (optionsOrClock && 'now' in optionsOrClock && typeof optionsOrClock.now === 'function') {
       clock = optionsOrClock as Clock;
     } else if (optionsOrClock && typeof optionsOrClock === 'object') {
-      const opts = optionsOrClock as SettlePaymentOptions;
+      const opts = optionsOrClock as CompletePaymentOptions;
       clock = opts.clock ?? fallbackClock ?? new SystemClock();
       if (opts.reference !== undefined) {
         newReference =
@@ -368,7 +382,7 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
       this._reference = newReference;
     }
 
-    this._status = PaymentStatus.SETTLED;
+    this._status = PaymentStatus.COMPLETED;
     this._paidAt = new Date(effectivePaidAt.getTime());
     this._updatedAt = new Date(now.getTime());
     this._version += 1;
@@ -394,17 +408,24 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
   }
 
   /**
-   * Domain method alias for settle(). Marks the payment as paid.
+   * Domain method alias for complete(). Marks the payment as paid/settled.
    */
-  public markAsPaid(optionsOrClock?: SettlePaymentOptions | Clock, fallbackClock?: Clock): void {
-    this.settle(optionsOrClock, fallbackClock);
+  public settle(optionsOrClock?: CompletePaymentOptions | Clock, fallbackClock?: Clock): void {
+    this.complete(optionsOrClock, fallbackClock);
   }
 
   /**
-   * Domain command alias for settle(). Marks the payment as paid.
+   * Domain method alias for complete(). Marks the payment as paid.
    */
-  public pay(optionsOrClock?: SettlePaymentOptions | Clock, fallbackClock?: Clock): void {
-    this.settle(optionsOrClock, fallbackClock);
+  public markAsPaid(optionsOrClock?: CompletePaymentOptions | Clock, fallbackClock?: Clock): void {
+    this.complete(optionsOrClock, fallbackClock);
+  }
+
+  /**
+   * Domain command alias for complete(). Marks the payment as paid.
+   */
+  public pay(optionsOrClock?: CompletePaymentOptions | Clock, fallbackClock?: Clock): void {
+    this.complete(optionsOrClock, fallbackClock);
   }
 
   /**
@@ -426,8 +447,8 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
       throw new InvalidPaymentTransitionException(
         this._status,
         PaymentStatus.FAILED,
-        this._status === PaymentStatus.SETTLED
-          ? 'Settled payments are permanently immutable'
+        this._status === PaymentStatus.COMPLETED
+          ? 'Completed payments are permanently immutable'
           : `Cannot fail a payment that is ${this._status}`,
       );
     }
@@ -482,8 +503,8 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
       throw new InvalidPaymentTransitionException(
         this._status,
         PaymentStatus.CANCELLED,
-        this._status === PaymentStatus.SETTLED
-          ? 'Settled payments are permanently immutable'
+        this._status === PaymentStatus.COMPLETED
+          ? 'Completed payments are permanently immutable'
           : `Cannot cancel a payment that is ${this._status}`,
       );
     }
@@ -583,8 +604,12 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
     return this._version;
   }
 
+  public isCompleted(): boolean {
+    return this._status === PaymentStatus.COMPLETED;
+  }
+
   public isSettled(): boolean {
-    return this._status === PaymentStatus.SETTLED;
+    return this.isCompleted();
   }
 
   public isPending(): boolean {

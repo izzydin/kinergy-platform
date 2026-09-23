@@ -167,7 +167,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
         expect(payment.method).toBe(PaymentMethod.CASH);
         expect(payment.amount.cents).toBe(12550);
         expect(payment.reference?.value).toBe('DRAWER-A-TX-100');
-        expect(payment.status).toBe(PaymentStatus.SETTLED);
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
         expect(payment.paidAt).toEqual(t0);
         expect(payment.createdAt).toEqual(t0);
         expect(payment.updatedAt).toEqual(t0);
@@ -304,7 +304,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
             method: PaymentMethod.CASH,
             amount: Money.create(50, 'USD'),
             reference: null,
-            status: PaymentStatus.SETTLED,
+            status: PaymentStatus.COMPLETED,
             paidAt: null, // Contradiction!
             createdAt: t0,
             updatedAt: t0,
@@ -349,7 +349,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
 
     it('identifies terminal states accurately', () => {
       expect(isTerminalPaymentStatus(PaymentStatus.PENDING)).toBe(false);
-      expect(isTerminalPaymentStatus(PaymentStatus.SETTLED)).toBe(true);
+      expect(isTerminalPaymentStatus(PaymentStatus.COMPLETED)).toBe(true);
       expect(isTerminalPaymentStatus(PaymentStatus.FAILED)).toBe(true);
       expect(isTerminalPaymentStatus(PaymentStatus.CANCELLED)).toBe(true);
     });
@@ -365,7 +365,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
         const settleTime = clock.now();
         payment.settle(clock);
 
-        expect(payment.status).toBe(PaymentStatus.SETTLED);
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
         expect(payment.paidAt).toEqual(settleTime);
         expect(payment.updatedAt).toEqual(settleTime);
         expect(payment.version).toBe(2);
@@ -448,7 +448,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
           InvalidPaymentTransitionException,
         );
 
-        expect(payment.status).toBe(PaymentStatus.SETTLED);
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
         expect(payment.paidAt).toEqual(originalPaidAt);
         expect(payment.version).toBe(originalVersion);
         expect(payment.getUncommittedEvents()).toHaveLength(0);
@@ -589,7 +589,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
       expect(reconstituted.amount.amount).toBe(49.99);
       expect(reconstituted.amount.currency).toBe('USD');
       expect(reconstituted.method).toBe(PaymentMethod.CASH);
-      expect(reconstituted.status).toBe(PaymentStatus.SETTLED);
+      expect(reconstituted.status).toBe(PaymentStatus.COMPLETED);
       expect(reconstituted.reference?.value).toBe('POS-REC-4999');
       expect(reconstituted.paidAt).toEqual(t0);
       expect(reconstituted.version).toBe(1);
@@ -687,7 +687,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
         amount: 50.0,
         currency: 'USD',
         reference: 'CASH-REGISTER-01',
-        status: PaymentStatus.SETTLED,
+        status: PaymentStatus.COMPLETED,
         tenantId,
         currentUser: { roles: ['Receptionist'], permissions: ['payments.create'] },
       });
@@ -700,7 +700,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
       expect(dto.saleId).toBe(saleId.value);
       expect(dto.method).toBe(PaymentMethod.CASH);
       expect(dto.amount.cents).toBe(5000);
-      expect(dto.status).toBe(PaymentStatus.SETTLED);
+      expect(dto.status).toBe(PaymentStatus.COMPLETED);
 
       expect(eventPublisher.publishedEvents.some((e) => e.eventType === 'PaymentSettled')).toBe(
         true,
@@ -777,7 +777,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
       expect(result.isSuccess).toBe(true);
       const dto = result.getValue();
 
-      expect(dto.status).toBe(PaymentStatus.SETTLED);
+      expect(dto.status).toBe(PaymentStatus.COMPLETED);
       expect(dto.reference).toBe('QR-SETTLED-REF');
     });
 
@@ -814,7 +814,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
         method: 'CASH',
         amount: 50.0,
         currency: 'USD',
-        status: PaymentStatus.SETTLED,
+        status: PaymentStatus.COMPLETED,
         tenantId,
         currentUser: { roles: ['Receptionist'], permissions: ['payments.create'] },
       });
@@ -1007,7 +1007,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
 
       // Assert independent statuses
       expect(allPayments.map((p) => p.status)).toEqual([
-        PaymentStatus.SETTLED,
+        PaymentStatus.COMPLETED,
         PaymentStatus.PENDING,
         PaymentStatus.CANCELLED,
       ]);
@@ -1064,7 +1064,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
           method: 'CASH',
           amount: 80.0,
           currency: 'USD',
-          status: PaymentStatus.SETTLED,
+          status: PaymentStatus.COMPLETED,
           tenantId,
           currentUser: { roles: ['Receptionist'], permissions: ['payments.create'] },
         }),
@@ -1078,7 +1078,7 @@ describe('Phase 7.5 Payment Complete Test Safety Net (Domain, Lifecycle, Money, 
           method: 'CASH',
           amount: 50.0,
           currency: 'USD',
-          status: PaymentStatus.SETTLED,
+          status: PaymentStatus.COMPLETED,
           tenantId,
           currentUser: { roles: ['Receptionist'], permissions: ['payments.create'] },
         }),

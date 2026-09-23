@@ -156,7 +156,7 @@ describe('Payment Application Layer Test Suite', () => {
 
       expect(result.isSuccess).toBe(true);
       const dto = result.getValue();
-      expect(dto.status).toBe(PaymentStatus.SETTLED);
+      expect(dto.status).toBe(PaymentStatus.COMPLETED);
       expect(dto.method).toBe(PaymentMethod.CASH);
       expect(dto.amount.formatted).toBe('100.00');
       expect(dto.amount.cents).toBe(10000);
@@ -482,7 +482,7 @@ describe('Payment Application Layer Test Suite', () => {
 
       expect(settleRes.isSuccess).toBe(true);
       const settledDto = settleRes.getValue();
-      expect(settledDto.status).toBe(PaymentStatus.SETTLED);
+      expect(settledDto.status).toBe(PaymentStatus.COMPLETED);
       expect(settledDto.paidAt).toBe(clock.now().toISOString());
       expect(settledDto.reference).toBe('QR-SETTLE-REF-100');
 

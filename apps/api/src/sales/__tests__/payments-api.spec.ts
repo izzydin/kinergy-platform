@@ -166,7 +166,7 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
       expect(response.id).toBeDefined();
       expect(response.saleId).toBe(sale.id.value);
       expect(response.method).toBe(PaymentMethod.CASH);
-      expect(response.status).toBe(PaymentStatus.SETTLED);
+      expect(response.status).toBe(PaymentStatus.COMPLETED);
       expect(response.reference).toBe('DRAWER-01-RECEIPT-99');
       expect(response.paidAt).toBeDefined();
       expect(response.createdAt).toBeDefined();
@@ -478,7 +478,7 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
       };
       const settled = await controller.settlePayment(pendingDto.id, settleDto, defaultUser);
 
-      expect(settled.status).toBe(PaymentStatus.SETTLED);
+      expect(settled.status).toBe(PaymentStatus.COMPLETED);
       expect(settled.paidAt).toBeDefined();
       expect(settled.reference).toBe('QR-TRACE-SETTLED-888');
 
@@ -627,7 +627,7 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
 
     it('translates InvalidPaymentTransitionException to 422 Unprocessable Entity', () => {
       const ex = new InvalidPaymentTransitionException(
-        PaymentStatus.SETTLED,
+        PaymentStatus.COMPLETED,
         PaymentStatus.CANCELLED,
       );
       exceptionFilter.catch(ex, mockHost);

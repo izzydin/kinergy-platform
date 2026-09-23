@@ -1,37 +1,17 @@
-import { DomainEvent } from '../shared/domain-event';
-import { PaymentMethod } from '../enums/payment-method.enum';
+import { PaymentCompletedEvent, PaymentCompletedPayload } from './payment-completed.event';
 
-export interface PaymentSettledPayload {
-  paymentId: string;
-  saleId: string;
-  tenantId: string;
-  method: PaymentMethod;
-  amount: number;
-  cents: number;
-  currency: string;
-  reference: string | null;
-  paidAt: Date;
-}
+export type PaymentSettledPayload = PaymentCompletedPayload;
 
-export class PaymentSettledEvent implements DomainEvent<PaymentSettledPayload> {
-  public readonly eventId: string;
-  public readonly eventType = 'PaymentSettled';
-  public readonly aggregateId: string;
-  public readonly aggregateVersion: number;
-  public readonly occurredAt: Date;
-  public readonly payload: PaymentSettledPayload;
-
+/**
+ * Domain event alias for PaymentCompletedEvent to maintain backward compatibility.
+ */
+export class PaymentSettledEvent extends PaymentCompletedEvent {
   constructor(
     aggregateId: string,
     aggregateVersion: number,
     payload: PaymentSettledPayload,
-    occurredAt: Date = new Date(),
+    occurredAt?: Date,
   ) {
-    this.eventId = `evt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    this.aggregateId = aggregateId;
-    this.aggregateVersion = aggregateVersion;
-    this.occurredAt = occurredAt;
-    this.payload = payload;
-    Object.freeze(this);
+    super(aggregateId, aggregateVersion, payload, occurredAt, 'PaymentSettled');
   }
 }

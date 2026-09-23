@@ -196,7 +196,7 @@ describe('Phase 7.5 Payment QA Safety Net: HTTP API & Security Spec (Sections 6 
         expect(result.id).toBeDefined();
         expect(result.saleId).toBe(sale.id.value);
         expect(result.method).toBe(PaymentMethod.CASH);
-        expect(result.status).toBe(PaymentStatus.SETTLED);
+        expect(result.status).toBe(PaymentStatus.COMPLETED);
 
         // Monetary serialization fidelity
         expect(result.amount.cents).toBe(5000);
@@ -257,7 +257,7 @@ describe('Phase 7.5 Payment QA Safety Net: HTTP API & Security Spec (Sections 6 
         expect(result.id).toBe('pay_lookup_01');
         expect(result.amount.cents).toBe(8000);
         expect(result.amount.formatted).toBe('80.00');
-        expect(result.status).toBe(PaymentStatus.SETTLED);
+        expect(result.status).toBe(PaymentStatus.COMPLETED);
       });
 
       it('POST /payments/:id/cancel: allows manager with payments.manage to cancel a pending payment', async () => {
@@ -359,7 +359,7 @@ describe('Phase 7.5 Payment QA Safety Net: HTTP API & Security Spec (Sections 6 
         const res = mockResponse();
         const host = mockHost(res);
         const exception = new InvalidPaymentTransitionException(
-          PaymentStatus.SETTLED,
+          PaymentStatus.COMPLETED,
           PaymentStatus.CANCELLED,
           'Cannot cancel an already settled payment.',
         );

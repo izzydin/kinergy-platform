@@ -8,7 +8,11 @@ import { PaymentId } from '../../../../domain/value-objects/payment-id.vo';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { PaymentReference } from '../../../../domain/value-objects/payment-reference.vo';
 import { PaymentMethod } from '../../../../domain/enums/payment-method.enum';
-import { PaymentStatus } from '../../../../domain/enums/payment-status.enum';
+import {
+  PaymentStatus,
+  assertValidPaymentStatus,
+} from '../../../../domain/enums/payment-status.enum';
+import { InvalidPaymentStatusException } from '../../../../domain/exceptions/invalid-payment-status.exception';
 import { PrismaMoneyMapper } from './prisma-money.mapper';
 
 /**
@@ -18,8 +22,51 @@ import { PrismaMoneyMapper } from './prisma-money.mapper';
  * - Operates entirely without IEEE-754 binary floating-point conversions.
  * - Does NOT calculate payment amounts, subtotals, or discounts.
  * - Reconstitutes pure domain value objects (PaymentId, SaleId, Money, PaymentReference).
+ * - Enforces explicit status conversion between Domain PaymentStatus (ADR-0116) and PrismaPaymentStatus.
  */
 export class PrismaPaymentMapper {
+  /**
+   * Converts a Prisma persistence payment status enum to the canonical Domain PaymentStatus.
+   * Maps Prisma SETTLED to domain COMPLETED.
+   */
+  public static toDomainStatus(rawStatus: PrismaPaymentStatus | string): PaymentStatus {
+    switch (rawStatus) {
+      case PrismaPaymentStatus.PENDING:
+      case 'PENDING':
+        return PaymentStatus.PENDING;
+      case PrismaPaymentStatus.SETTLED:
+      case 'COMPLETED':
+      case 'SETTLED':
+        return PaymentStatus.COMPLETED;
+      case PrismaPaymentStatus.FAILED:
+      case 'FAILED':
+        return PaymentStatus.FAILED;
+      case PrismaPaymentStatus.CANCELLED:
+      case 'CANCELLED':
+        return PaymentStatus.CANCELLED;
+      default:
+        throw new InvalidPaymentStatusException(rawStatus);
+    }
+  }
+
+  /**
+   * Converts a canonical Domain PaymentStatus to the Prisma persistence enum.
+   * Maps domain COMPLETED to Prisma SETTLED.
+   */
+  public static toPersistenceStatus(domainStatus: PaymentStatus): PrismaPaymentStatus {
+    assertValidPaymentStatus(domainStatus);
+    switch (domainStatus) {
+      case PaymentStatus.PENDING:
+        return PrismaPaymentStatus.PENDING;
+      case PaymentStatus.COMPLETED:
+        return PrismaPaymentStatus.SETTLED;
+      case PaymentStatus.FAILED:
+        return PrismaPaymentStatus.FAILED;
+      case PaymentStatus.CANCELLED:
+        return PrismaPaymentStatus.CANCELLED;
+    }
+  }
+
   /**
    * Reconstitutes a pure Domain Payment aggregate from a database Prisma record.
    */
@@ -27,6 +74,7 @@ export class PrismaPaymentMapper {
     const currency = raw.currency;
     const amount = PrismaMoneyMapper.toMoney(raw.amount, currency);
     const reference = raw.reference ? PaymentReference.create(raw.reference) : null;
+    const status = PrismaPaymentMapper.toDomainStatus(raw.status);
 
     return Payment.reconstitute({
       id: PaymentId.create(raw.id),
@@ -34,7 +82,7 @@ export class PrismaPaymentMapper {
       saleId: SaleId.create(raw.saleId),
       method: raw.method as unknown as PaymentMethod,
       amount,
-      status: raw.status as unknown as PaymentStatus,
+      status,
       reference,
       paidAt: raw.paidAt,
       createdAt: raw.createdAt,
@@ -57,7 +105,7 @@ export class PrismaPaymentMapper {
       method: payment.method as unknown as PrismaPaymentMethod,
       amount: PrismaMoneyMapper.toDecimal(payment.amount),
       currency: payment.amount.currency,
-      status: payment.status as unknown as PrismaPaymentStatus,
+      status: PrismaPaymentMapper.toPersistenceStatus(payment.status),
       reference: payment.reference ? payment.reference.value : null,
       paidAt: payment.paidAt,
       version: payment.version,

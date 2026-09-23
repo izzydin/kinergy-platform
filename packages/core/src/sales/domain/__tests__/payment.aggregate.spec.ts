@@ -55,7 +55,8 @@ describe('Payment Aggregate Root (Milestone 7.5)', () => {
         expect(payment.tenantId).toBe(tenantId);
         expect(payment.saleId.equals(saleId)).toBe(true);
         expect(payment.method).toBe(PaymentMethod.CASH);
-        expect(payment.status).toBe(PaymentStatus.SETTLED);
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
+        expect(payment.isCompleted()).toBe(true);
         expect(payment.isSettled()).toBe(true);
         expect(payment.isPending()).toBe(false);
 
@@ -91,7 +92,7 @@ describe('Payment Aggregate Root (Milestone 7.5)', () => {
         );
 
         expect(payment.method).toBe(PaymentMethod.QR);
-        expect(payment.status).toBe(PaymentStatus.SETTLED);
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
         expect(payment.reference).toBeNull();
         expect(payment.paidAt).toEqual(t0);
       });
@@ -281,7 +282,8 @@ describe('Payment Aggregate Root (Milestone 7.5)', () => {
       payment.settle(clock);
 
       expect(payment.isSettled()).toBe(true);
-      expect(payment.status).toBe(PaymentStatus.SETTLED);
+      expect(payment.isCompleted()).toBe(true);
+      expect(payment.status).toBe(PaymentStatus.COMPLETED);
       expect(payment.paidAt).toEqual(new Date('2026-09-19T10:00:30.000Z'));
       expect(payment.updatedAt).toEqual(new Date('2026-09-19T10:00:30.000Z'));
       expect(payment.version).toBe(2);
@@ -350,7 +352,7 @@ describe('Payment Aggregate Root (Milestone 7.5)', () => {
         expect(() => payment.cancel('void', clock)).toThrow(/permanently immutable/i);
 
         // Aggregate remains untouched
-        expect(payment.status).toBe(PaymentStatus.SETTLED);
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
         expect(payment.version).toBe(1);
       });
 
@@ -440,7 +442,7 @@ describe('Payment Aggregate Root (Milestone 7.5)', () => {
         saleId,
         method: PaymentMethod.QR,
         amount,
-        status: PaymentStatus.SETTLED,
+        status: PaymentStatus.COMPLETED,
         reference: ref,
         paidAt: t0,
         createdAt: t0,
@@ -451,6 +453,7 @@ describe('Payment Aggregate Root (Milestone 7.5)', () => {
       expect(payment.id.equals(paymentId)).toBe(true);
       expect(payment.version).toBe(3);
       expect(payment.isSettled()).toBe(true);
+      expect(payment.isCompleted()).toBe(true);
       expect(payment.paidAt).toEqual(t0);
     });
 
@@ -463,7 +466,7 @@ describe('Payment Aggregate Root (Milestone 7.5)', () => {
           saleId,
           method: PaymentMethod.CASH,
           amount: Money.create(10.0),
-          status: PaymentStatus.SETTLED,
+          status: PaymentStatus.COMPLETED,
           reference: null,
           paidAt: null, // Illegal for settled
           createdAt: t0,
@@ -479,7 +482,7 @@ describe('Payment Aggregate Root (Milestone 7.5)', () => {
           saleId,
           method: PaymentMethod.CASH,
           amount: Money.create(10.0),
-          status: PaymentStatus.SETTLED,
+          status: PaymentStatus.COMPLETED,
           reference: null,
           paidAt: null,
           createdAt: t0,
@@ -673,7 +676,7 @@ describe('Payment Aggregate Root (Milestone 7.5)', () => {
         saleId,
         method: PaymentMethod.CASH,
         amount: Money.create(10.0),
-        status: PaymentStatus.SETTLED,
+        status: PaymentStatus.COMPLETED,
         reference: null,
         paidAt: t0,
         createdAt: t0,

@@ -48,18 +48,18 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
 
     it('identifies terminal states correctly', () => {
       expect(isTerminalPaymentStatus(PaymentStatus.PENDING)).toBe(false);
-      expect(isTerminalPaymentStatus(PaymentStatus.SETTLED)).toBe(true);
+      expect(isTerminalPaymentStatus(PaymentStatus.COMPLETED)).toBe(true);
       expect(isTerminalPaymentStatus(PaymentStatus.FAILED)).toBe(true);
       expect(isTerminalPaymentStatus(PaymentStatus.CANCELLED)).toBe(true);
     });
 
     it('returns allowed transitions matching the ADR specification', () => {
       expect(getAllowedPaymentTransitions(PaymentStatus.PENDING)).toEqual([
-        PaymentStatus.SETTLED,
+        PaymentStatus.COMPLETED,
         PaymentStatus.FAILED,
         PaymentStatus.CANCELLED,
       ]);
-      expect(getAllowedPaymentTransitions(PaymentStatus.SETTLED)).toEqual([]);
+      expect(getAllowedPaymentTransitions(PaymentStatus.COMPLETED)).toEqual([]);
       expect(getAllowedPaymentTransitions(PaymentStatus.FAILED)).toEqual([]);
       expect(getAllowedPaymentTransitions(PaymentStatus.CANCELLED)).toEqual([]);
     });
@@ -68,21 +68,21 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
       expect(getProhibitedPaymentTransitions(PaymentStatus.PENDING)).toEqual([
         PaymentStatus.PENDING,
       ]);
-      expect(getProhibitedPaymentTransitions(PaymentStatus.SETTLED)).toEqual([
+      expect(getProhibitedPaymentTransitions(PaymentStatus.COMPLETED)).toEqual([
         PaymentStatus.PENDING,
-        PaymentStatus.SETTLED,
+        PaymentStatus.COMPLETED,
         PaymentStatus.FAILED,
         PaymentStatus.CANCELLED,
       ]);
       expect(getProhibitedPaymentTransitions(PaymentStatus.FAILED)).toEqual([
         PaymentStatus.PENDING,
-        PaymentStatus.SETTLED,
+        PaymentStatus.COMPLETED,
         PaymentStatus.FAILED,
         PaymentStatus.CANCELLED,
       ]);
       expect(getProhibitedPaymentTransitions(PaymentStatus.CANCELLED)).toEqual([
         PaymentStatus.PENDING,
-        PaymentStatus.SETTLED,
+        PaymentStatus.COMPLETED,
         PaymentStatus.FAILED,
         PaymentStatus.CANCELLED,
       ]);
@@ -105,8 +105,9 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
         clock,
       );
 
-      expect(payment.status).toBe(PaymentStatus.SETTLED);
+      expect(payment.status).toBe(PaymentStatus.COMPLETED);
       expect(payment.isSettled()).toBe(true);
+      expect(payment.isCompleted()).toBe(true);
       expect(payment.isPending()).toBe(false);
       expect(payment.isFailed()).toBe(false);
       expect(payment.isCancelled()).toBe(false);
@@ -168,8 +169,9 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
 
         payment.settle(clock);
 
-        expect(payment.status).toBe(PaymentStatus.SETTLED);
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
         expect(payment.isSettled()).toBe(true);
+        expect(payment.isCompleted()).toBe(true);
         expect(payment.paidAt).toEqual(settlementTime);
         expect(payment.updatedAt).toEqual(settlementTime);
         expect(payment.createdAt).toEqual(t0);
@@ -198,7 +200,7 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
         clock.advanceSeconds(20);
         payment.markAsPaid(clock);
 
-        expect(payment.status).toBe(PaymentStatus.SETTLED);
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
         expect(payment.paidAt).toEqual(new Date('2026-09-21T10:00:20.000Z'));
         expect(payment.version).toBe(2);
       });
@@ -217,7 +219,7 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
         clock.advanceSeconds(25);
         payment.pay(clock);
 
-        expect(payment.status).toBe(PaymentStatus.SETTLED);
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
         expect(payment.paidAt).toEqual(new Date('2026-09-21T10:00:25.000Z'));
         expect(payment.version).toBe(2);
       });
@@ -241,7 +243,7 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
           clock,
         });
 
-        expect(payment.status).toBe(PaymentStatus.SETTLED);
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
         expect(payment.reference?.value).toBe('GW-CONFIRM-TRACE-7788');
 
         const event = payment.getUncommittedEvents()[0] as PaymentSettledEvent;
@@ -505,14 +507,14 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
         settledPayment.clearEvents();
       });
 
-      it('prohibits SETTLED -> PENDING', () => {
-        expect(canTransitionPaymentStatus(PaymentStatus.SETTLED, PaymentStatus.PENDING)).toBe(
+      it('prohibits COMPLETED -> PENDING', () => {
+        expect(canTransitionPaymentStatus(PaymentStatus.COMPLETED, PaymentStatus.PENDING)).toBe(
           false,
         );
       });
 
-      it('prohibits SETTLED -> SETTLED (cannot re-settle settled payment)', () => {
-        expect(canTransitionPaymentStatus(PaymentStatus.SETTLED, PaymentStatus.SETTLED)).toBe(
+      it('prohibits COMPLETED -> COMPLETED (cannot re-settle settled payment)', () => {
+        expect(canTransitionPaymentStatus(PaymentStatus.COMPLETED, PaymentStatus.COMPLETED)).toBe(
           false,
         );
 
@@ -520,14 +522,16 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
         expect(() => settledPayment.settle(clock)).toThrow(/permanently immutable/i);
 
         // Verify aggregate remains untouched
-        expect(settledPayment.status).toBe(PaymentStatus.SETTLED);
+        expect(settledPayment.status).toBe(PaymentStatus.COMPLETED);
         expect(settledPayment.version).toBe(1);
         expect(settledPayment.paidAt).toEqual(t0);
         expect(settledPayment.getUncommittedEvents()).toHaveLength(0);
       });
 
-      it('prohibits SETTLED -> FAILED (settled payments cannot fail)', () => {
-        expect(canTransitionPaymentStatus(PaymentStatus.SETTLED, PaymentStatus.FAILED)).toBe(false);
+      it('prohibits COMPLETED -> FAILED (settled payments cannot fail)', () => {
+        expect(canTransitionPaymentStatus(PaymentStatus.COMPLETED, PaymentStatus.FAILED)).toBe(
+          false,
+        );
 
         expect(() => settledPayment.fail('declined retroactively', clock)).toThrow(
           InvalidPaymentTransitionException,
@@ -537,13 +541,13 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
         );
 
         // Verify aggregate remains untouched
-        expect(settledPayment.status).toBe(PaymentStatus.SETTLED);
+        expect(settledPayment.status).toBe(PaymentStatus.COMPLETED);
         expect(settledPayment.version).toBe(1);
         expect(settledPayment.getUncommittedEvents()).toHaveLength(0);
       });
 
-      it('prohibits SETTLED -> CANCELLED (settled payments cannot be cancelled; requires refund)', () => {
-        expect(canTransitionPaymentStatus(PaymentStatus.SETTLED, PaymentStatus.CANCELLED)).toBe(
+      it('prohibits COMPLETED -> CANCELLED (settled payments cannot be cancelled; requires refund)', () => {
+        expect(canTransitionPaymentStatus(PaymentStatus.COMPLETED, PaymentStatus.CANCELLED)).toBe(
           false,
         );
 
@@ -555,7 +559,7 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
         );
 
         // Verify aggregate remains untouched
-        expect(settledPayment.status).toBe(PaymentStatus.SETTLED);
+        expect(settledPayment.status).toBe(PaymentStatus.COMPLETED);
         expect(settledPayment.version).toBe(1);
         expect(settledPayment.getUncommittedEvents()).toHaveLength(0);
       });
@@ -582,8 +586,10 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
         expect(canTransitionPaymentStatus(PaymentStatus.FAILED, PaymentStatus.PENDING)).toBe(false);
       });
 
-      it('prohibits FAILED -> SETTLED', () => {
-        expect(canTransitionPaymentStatus(PaymentStatus.FAILED, PaymentStatus.SETTLED)).toBe(false);
+      it('prohibits FAILED -> COMPLETED', () => {
+        expect(canTransitionPaymentStatus(PaymentStatus.FAILED, PaymentStatus.COMPLETED)).toBe(
+          false,
+        );
 
         expect(() => failedPayment.settle(clock)).toThrow(InvalidPaymentTransitionException);
         expect(() => failedPayment.settle(clock)).toThrow(
@@ -646,8 +652,8 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
         );
       });
 
-      it('prohibits CANCELLED -> SETTLED', () => {
-        expect(canTransitionPaymentStatus(PaymentStatus.CANCELLED, PaymentStatus.SETTLED)).toBe(
+      it('prohibits CANCELLED -> COMPLETED', () => {
+        expect(canTransitionPaymentStatus(PaymentStatus.CANCELLED, PaymentStatus.COMPLETED)).toBe(
           false,
         );
 
@@ -751,7 +757,7 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
           saleId,
           method: PaymentMethod.CASH,
           amount,
-          status: PaymentStatus.SETTLED,
+          status: PaymentStatus.COMPLETED,
           reference: null,
           paidAt: null, // Contradictory: SETTLED must have paidAt
           createdAt: t0,
@@ -824,7 +830,7 @@ describe('Payment Lifecycle State Machine & Transition Matrix (ADR-0115 / ADR-01
           saleId,
           method: PaymentMethod.CASH,
           amount,
-          status: PaymentStatus.SETTLED,
+          status: PaymentStatus.COMPLETED,
           reference: null,
           paidAt: t0,
           createdAt: t0,

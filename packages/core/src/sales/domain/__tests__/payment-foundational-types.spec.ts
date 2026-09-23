@@ -85,10 +85,10 @@ describe('Payment Foundational Domain Types (Milestone 7.5)', () => {
   // 2. Payment Status Tests
   // ===========================================================================
   describe('2. PaymentStatus', () => {
-    it('recognizes every approved status (PENDING, SETTLED, FAILED, CANCELLED)', () => {
+    it('recognizes every approved status (PENDING, COMPLETED, FAILED, CANCELLED)', () => {
       const expectedStatuses = [
         PaymentStatus.PENDING,
-        PaymentStatus.SETTLED,
+        PaymentStatus.COMPLETED,
         PaymentStatus.FAILED,
         PaymentStatus.CANCELLED,
       ];
@@ -121,8 +121,10 @@ describe('Payment Foundational Domain Types (Milestone 7.5)', () => {
     });
 
     describe('Transition Matrix Invariants', () => {
-      it('allows valid transitions from PENDING to SETTLED, FAILED, or CANCELLED', () => {
-        expect(canTransitionPaymentStatus(PaymentStatus.PENDING, PaymentStatus.SETTLED)).toBe(true);
+      it('allows valid transitions from PENDING to COMPLETED, FAILED, or CANCELLED', () => {
+        expect(canTransitionPaymentStatus(PaymentStatus.PENDING, PaymentStatus.COMPLETED)).toBe(
+          true,
+        );
         expect(canTransitionPaymentStatus(PaymentStatus.PENDING, PaymentStatus.FAILED)).toBe(true);
         expect(canTransitionPaymentStatus(PaymentStatus.PENDING, PaymentStatus.CANCELLED)).toBe(
           true,
@@ -135,9 +137,9 @@ describe('Payment Foundational Domain Types (Milestone 7.5)', () => {
         );
       });
 
-      it('treats SETTLED as a terminal immutable state with zero allowed transitions', () => {
+      it('treats COMPLETED as a terminal immutable state with zero allowed transitions', () => {
         for (const target of SUPPORTED_PAYMENT_STATUSES) {
-          expect(canTransitionPaymentStatus(PaymentStatus.SETTLED, target)).toBe(false);
+          expect(canTransitionPaymentStatus(PaymentStatus.COMPLETED, target)).toBe(false);
         }
       });
 

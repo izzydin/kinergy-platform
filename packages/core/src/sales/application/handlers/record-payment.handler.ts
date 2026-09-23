@@ -74,7 +74,7 @@ export class RecordPaymentHandler implements SalesCommandHandler<
       // 7. Balance & Overpayment Verification
       const existingPayments = await this.paymentRepository.findBySaleId(sale.id);
       const settledTotal = existingPayments
-        .filter((p) => p.status === PaymentStatus.SETTLED)
+        .filter((p) => p.status === PaymentStatus.COMPLETED)
         .reduce((acc, p) => acc.add(p.amount), Money.zero(paymentCurrency));
 
       const remainingBalance = sale.total.subtract(settledTotal, { allowNegative: true });
@@ -90,7 +90,7 @@ export class RecordPaymentHandler implements SalesCommandHandler<
       }
 
       // 8. Lifecycle Target State
-      let targetStatus: PaymentStatus = PaymentStatus.SETTLED;
+      let targetStatus: PaymentStatus = PaymentStatus.COMPLETED;
       if (input.status) {
         if (!isValidPaymentStatus(input.status)) {
           throw new InvalidPaymentStatusException(input.status);
@@ -98,16 +98,16 @@ export class RecordPaymentHandler implements SalesCommandHandler<
         targetStatus = input.status as PaymentStatus;
       }
 
-      if (targetStatus !== PaymentStatus.SETTLED && targetStatus !== PaymentStatus.PENDING) {
+      if (targetStatus !== PaymentStatus.COMPLETED && targetStatus !== PaymentStatus.PENDING) {
         throw new Error(
-          `Initial payment status must be PENDING or SETTLED. Cannot instantiate in status '${targetStatus}'.`,
+          `Initial payment status must be PENDING or COMPLETED. Cannot instantiate in status '${targetStatus}'.`,
         );
       }
 
       // 9. Aggregate Instantiation
       const payment =
-        targetStatus === PaymentStatus.SETTLED
-          ? Payment.createSettled(
+        targetStatus === PaymentStatus.COMPLETED
+          ? Payment.createCompleted(
               {
                 saleId: sale.id,
                 tenantId: sale.tenantId,
@@ -131,8 +131,8 @@ export class RecordPaymentHandler implements SalesCommandHandler<
       // 10. Persistence
       await this.paymentRepository.save(payment);
 
-      // 11. Coordinate Sale Status Transition if Settled
-      if (payment.status === PaymentStatus.SETTLED) {
+      // 11. Coordinate Sale Status Transition if Completed
+      if (payment.status === PaymentStatus.COMPLETED) {
         const newSettledTotal = settledTotal.add(payment.amount);
         if (newSettledTotal.greaterThanOrEqual(sale.total)) {
           sale.markPaid(this.clock);

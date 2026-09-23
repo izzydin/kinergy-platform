@@ -44,8 +44,8 @@ export class PaymentResponseDto {
 
   @ApiProperty({
     enum: PaymentStatus,
-    description: 'Current lifecycle state of payment (PENDING, SETTLED, FAILED, CANCELLED)',
-    example: PaymentStatus.SETTLED,
+    description: 'Current lifecycle state of payment (PENDING, COMPLETED, FAILED, CANCELLED)',
+    example: PaymentStatus.COMPLETED,
   })
   status!: PaymentStatus;
 

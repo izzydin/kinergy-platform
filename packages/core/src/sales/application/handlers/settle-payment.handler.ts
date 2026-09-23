@@ -68,7 +68,7 @@ export class SettlePaymentHandler implements SalesCommandHandler<
         enforceTenantIsolation(sale.tenantId, payment.tenantId);
         const allPayments = await this.paymentRepository.findBySaleId(sale.id);
         const settledTotal = allPayments
-          .filter((p) => p.status === PaymentStatus.SETTLED)
+          .filter((p) => p.status === PaymentStatus.COMPLETED)
           .reduce((acc, p) => acc.add(p.amount), Money.zero(sale.currency));
 
         if (settledTotal.greaterThanOrEqual(sale.total)) {

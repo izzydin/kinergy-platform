@@ -248,7 +248,7 @@ describe('Payment Financial Security, Authorization & Audit Hardening Spec', () 
 
       const result = await controller.recordPayment(sale.id.value, dto, receptionistUser);
       expect(result.id).toBeDefined();
-      expect(result.status).toBe(PaymentStatus.SETTLED);
+      expect(result.status).toBe(PaymentStatus.COMPLETED);
       expect(result.amount.formatted).toBe('50.00');
     });
 
@@ -494,7 +494,7 @@ describe('Payment Financial Security, Authorization & Audit Hardening Spec', () 
       );
       const storedPayment = await paymentRepo.findById(result.id);
       expect(storedPayment?.tenantId).toBe(primaryTenantId); // Derived strictly from authenticated context
-      expect(result.status).toBe(PaymentStatus.SETTLED);
+      expect(result.status).toBe(PaymentStatus.COMPLETED);
     });
   });
 

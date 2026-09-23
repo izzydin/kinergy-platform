@@ -75,7 +75,7 @@ describe('Payment Persistence & PostgreSQL Exact Decimal Representation (ADR-011
       expect(reconstituted.amount.amount).toBe(0.01);
       expect(reconstituted.amount.currency).toBe('USD');
       expect(reconstituted.amount.equals(centAmount)).toBe(true);
-      expect(reconstituted.status).toBe(PaymentStatus.SETTLED);
+      expect(reconstituted.status).toBe(PaymentStatus.COMPLETED);
       expect(reconstituted.reference?.value).toBe('CENT-RECEIPT');
       expect(reconstituted.paidAt).toEqual(t0);
       expect(reconstituted.createdAt).toEqual(t0);
