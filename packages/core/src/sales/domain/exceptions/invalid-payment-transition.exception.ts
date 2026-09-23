@@ -6,6 +6,14 @@ import { PaymentDomainException } from './payment-domain.exception';
 export class InvalidPaymentTransitionException extends PaymentDomainException {
   public override readonly code = 'INVALID_PAYMENT_TRANSITION';
 
+  public get currentStatus(): string {
+    return this.currentState;
+  }
+
+  public get targetStatus(): string {
+    return this.targetState;
+  }
+
   constructor(
     public readonly currentState: string,
     public readonly targetState: string,

@@ -43,6 +43,16 @@ export interface CompletePaymentOptions {
 
 export type SettlePaymentOptions = CompletePaymentOptions;
 
+export interface FailPaymentOptions {
+  reason?: string;
+  clock?: Clock;
+}
+
+export interface CancelPaymentOptions {
+  reason?: string;
+  clock?: Clock;
+}
+
 export interface PaymentReconstituteProps {
   id: PaymentId;
   tenantId: string;
@@ -422,15 +432,34 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
   /**
    * Transitions a PENDING payment to FAILED when the rail declines or times out.
    */
-  public fail(reasonOrClock?: string | Clock, maybeClock?: Clock): void {
+  public fail(
+    reasonOrOptionsOrClock?: string | FailPaymentOptions | Clock,
+    maybeClock?: Clock,
+  ): void {
     let reason: string | undefined;
     let clock: Clock;
 
-    if (reasonOrClock && typeof reasonOrClock === 'object' && 'now' in reasonOrClock) {
-      clock = reasonOrClock as Clock;
+    if (
+      reasonOrOptionsOrClock &&
+      typeof reasonOrOptionsOrClock === 'object' &&
+      'now' in reasonOrOptionsOrClock &&
+      typeof (reasonOrOptionsOrClock as Clock).now === 'function'
+    ) {
+      clock = reasonOrOptionsOrClock as Clock;
       reason = undefined;
+    } else if (
+      reasonOrOptionsOrClock &&
+      typeof reasonOrOptionsOrClock === 'object' &&
+      !('now' in reasonOrOptionsOrClock)
+    ) {
+      const opts = reasonOrOptionsOrClock as FailPaymentOptions;
+      reason = typeof opts.reason === 'string' ? opts.reason : undefined;
+      clock = opts.clock ?? maybeClock ?? new SystemClock();
+    } else if (typeof reasonOrOptionsOrClock === 'string') {
+      reason = reasonOrOptionsOrClock;
+      clock = maybeClock ?? new SystemClock();
     } else {
-      reason = typeof reasonOrClock === 'string' ? reasonOrClock : undefined;
+      reason = undefined;
       clock = maybeClock ?? new SystemClock();
     }
 
@@ -463,22 +492,44 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
   /**
    * Domain method alias for fail(). Marks the payment as failed.
    */
-  public markAsFailed(reasonOrClock?: string | Clock, maybeClock?: Clock): void {
-    this.fail(reasonOrClock, maybeClock);
+  public markAsFailed(
+    reasonOrOptionsOrClock?: string | FailPaymentOptions | Clock,
+    maybeClock?: Clock,
+  ): void {
+    this.fail(reasonOrOptionsOrClock, maybeClock);
   }
 
   /**
    * Transitions a PENDING payment to CANCELLED when aborted by the cashier or customer.
    */
-  public cancel(reasonOrClock?: string | Clock, maybeClock?: Clock): void {
+  public cancel(
+    reasonOrOptionsOrClock?: string | CancelPaymentOptions | Clock,
+    maybeClock?: Clock,
+  ): void {
     let reason: string | undefined;
     let clock: Clock;
 
-    if (reasonOrClock && typeof reasonOrClock === 'object' && 'now' in reasonOrClock) {
-      clock = reasonOrClock as Clock;
+    if (
+      reasonOrOptionsOrClock &&
+      typeof reasonOrOptionsOrClock === 'object' &&
+      'now' in reasonOrOptionsOrClock &&
+      typeof (reasonOrOptionsOrClock as Clock).now === 'function'
+    ) {
+      clock = reasonOrOptionsOrClock as Clock;
       reason = undefined;
+    } else if (
+      reasonOrOptionsOrClock &&
+      typeof reasonOrOptionsOrClock === 'object' &&
+      !('now' in reasonOrOptionsOrClock)
+    ) {
+      const opts = reasonOrOptionsOrClock as CancelPaymentOptions;
+      reason = typeof opts.reason === 'string' ? opts.reason : undefined;
+      clock = opts.clock ?? maybeClock ?? new SystemClock();
+    } else if (typeof reasonOrOptionsOrClock === 'string') {
+      reason = reasonOrOptionsOrClock;
+      clock = maybeClock ?? new SystemClock();
     } else {
-      reason = typeof reasonOrClock === 'string' ? reasonOrClock : undefined;
+      reason = undefined;
       clock = maybeClock ?? new SystemClock();
     }
 
