@@ -95,6 +95,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0113](file:///c:/Projects/kinergy-platform/docs/adr/0113-item-level-discounts.md)                                                                                   | Item-Level Discount Domain Model, Deterministic Calculation, and Invariant Enforcement                       | Accepted   | 2026-09-18              |
 | [0114](file:///c:/Projects/kinergy-platform/docs/adr/0114-canonical-monetary-policy-and-sale-totals.md)                                                              | Canonical Monetary Policy, Deterministic Arithmetic, and Sale Totals Invariant Enforcement                   | Accepted   | 2026-09-18              |
 | [0115](file:///c:/Projects/kinergy-platform/docs/adr/0115-payment-domain-canonical-architecture.md)                                                                  | Payment Domain Canonical Architecture, Aggregate Boundaries, and Tender Decoupling                           | Accepted   | 2026-09-19              |
+| [0116](file:///c:/Projects/kinergy-platform/docs/adr/0116-payment-state-machine-and-lifecycle-specification.md)                                                      | Payment State Machine, Lifecycle Specification, and Financial Transition Determinism                         | Accepted   | 2026-09-23              |
 
 ## Format
 
