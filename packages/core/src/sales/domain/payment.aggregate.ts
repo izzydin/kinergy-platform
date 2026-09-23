@@ -6,15 +6,14 @@ import { SaleId } from './value-objects/sale-id.vo';
 import { Money } from './value-objects/money.vo';
 import { PaymentReference } from './value-objects/payment-reference.vo';
 import { PaymentMethod, assertValidPaymentMethod } from './enums/payment-method.enum';
-import {
-  PaymentStatus,
-  assertValidPaymentStatus,
-  canTransitionPaymentStatus,
-} from './enums/payment-status.enum';
+import { PaymentStatus, assertValidPaymentStatus } from './enums/payment-status.enum';
 import { PaymentDomainException } from './exceptions/payment-domain.exception';
-import { InvalidPaymentTransitionException } from './exceptions/invalid-payment-transition.exception';
 import { Clock, SystemClock } from './shared/clock';
 import { PaymentSettledEvent, PaymentFailedEvent, PaymentCancelledEvent } from './events';
+import {
+  PaymentLifecycleStateMachine,
+  PaymentTransitionCommand,
+} from './services/payment-lifecycle.state-machine';
 
 export interface CreateCompletedPaymentParams {
   id?: PaymentId | string;
@@ -330,15 +329,7 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
    * @param fallbackClock Optional Clock instance if options object was provided without its own clock.
    */
   public complete(optionsOrClock?: CompletePaymentOptions | Clock, fallbackClock?: Clock): void {
-    if (!canTransitionPaymentStatus(this._status, PaymentStatus.COMPLETED)) {
-      throw new InvalidPaymentTransitionException(
-        this._status,
-        PaymentStatus.COMPLETED,
-        this._status === PaymentStatus.COMPLETED
-          ? 'Completed payments are permanently immutable'
-          : `Cannot settle a payment that is ${this._status}`,
-      );
-    }
+    PaymentLifecycleStateMachine.assertTransitionValid(this._status, PaymentStatus.COMPLETED);
 
     let clock: Clock;
     let explicitPaidAt: Date | undefined;
@@ -443,15 +434,7 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
       clock = maybeClock ?? new SystemClock();
     }
 
-    if (!canTransitionPaymentStatus(this._status, PaymentStatus.FAILED)) {
-      throw new InvalidPaymentTransitionException(
-        this._status,
-        PaymentStatus.FAILED,
-        this._status === PaymentStatus.COMPLETED
-          ? 'Completed payments are permanently immutable'
-          : `Cannot fail a payment that is ${this._status}`,
-      );
-    }
+    PaymentLifecycleStateMachine.assertTransitionValid(this._status, PaymentStatus.FAILED);
 
     const now = clock.now();
     this._status = PaymentStatus.FAILED;
@@ -499,15 +482,7 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
       clock = maybeClock ?? new SystemClock();
     }
 
-    if (!canTransitionPaymentStatus(this._status, PaymentStatus.CANCELLED)) {
-      throw new InvalidPaymentTransitionException(
-        this._status,
-        PaymentStatus.CANCELLED,
-        this._status === PaymentStatus.COMPLETED
-          ? 'Completed payments are permanently immutable'
-          : `Cannot cancel a payment that is ${this._status}`,
-      );
-    }
+    PaymentLifecycleStateMachine.assertTransitionValid(this._status, PaymentStatus.CANCELLED);
 
     const now = clock.now();
     this._status = PaymentStatus.CANCELLED;
@@ -531,6 +506,62 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
         now,
       ),
     );
+  }
+
+  /**
+   * Evaluates whether this Payment aggregate instance can legally transition to the target status.
+   * Answers the domain query: "Can this Payment move from state A to state B?"
+   */
+  public canTransitionTo(targetStatus: PaymentStatus): boolean {
+    return PaymentLifecycleStateMachine.canTransition(this._status, targetStatus);
+  }
+
+  /**
+   * Asserts that this Payment instance can legally transition to the target status.
+   * Throws InvalidPaymentTransitionException if prohibited.
+   */
+  public assertCanTransitionTo(targetStatus: PaymentStatus, reason?: string): void {
+    PaymentLifecycleStateMachine.assertTransitionValid(this._status, targetStatus, reason);
+  }
+
+  /**
+   * Returns the list of permitted destination statuses from the payment's current status.
+   */
+  public getAllowedTransitions(): readonly PaymentStatus[] {
+    return PaymentLifecycleStateMachine.getAllowedTransitions(this._status);
+  }
+
+  /**
+   * Applies an explicit transition command deterministically to this Payment.
+   * Throws InvalidPaymentTransitionException if prohibited.
+   * On failure, aggregate remains 100% unchanged (no partial mutation).
+   */
+  public applyTransition(
+    command: PaymentTransitionCommand,
+    options?: {
+      readonly clock?: Clock;
+      readonly reference?: string | PaymentReference | null;
+      readonly paidAt?: Date;
+    },
+  ): void {
+    const targetStatus = PaymentLifecycleStateMachine.resolveTargetStatus(command.action);
+    this.assertCanTransitionTo(targetStatus);
+
+    switch (targetStatus) {
+      case PaymentStatus.COMPLETED:
+        this.complete({
+          reference: options?.reference,
+          paidAt: options?.paidAt,
+          clock: options?.clock,
+        });
+        break;
+      case PaymentStatus.FAILED:
+        this.fail('reason' in command ? command.reason : undefined, options?.clock);
+        break;
+      case PaymentStatus.CANCELLED:
+        this.cancel('reason' in command ? command.reason : undefined, options?.clock);
+        break;
+    }
   }
 
   // ---------------------------------------------------------------------------
