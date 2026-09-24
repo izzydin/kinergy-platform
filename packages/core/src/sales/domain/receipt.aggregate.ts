@@ -257,7 +257,8 @@ export class Receipt implements Entity<ReceiptId>, AggregateRoot<ReceiptId> {
         tenantId: params.sale.tenantId,
         saleId: params.sale.id,
         receiptNumber: params.receiptNumber,
-        saleReference: params.saleReference ?? params.sale.id.value,
+        saleReference:
+          params.saleReference ?? params.sale.source?.sourceCode ?? params.sale.id.value,
         clientSnapshot,
         items,
         subtotal: params.sale.subtotal,

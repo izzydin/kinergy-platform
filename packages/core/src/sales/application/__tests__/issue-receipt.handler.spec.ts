@@ -41,9 +41,11 @@ class DeterministicClock implements Clock {
   }
 }
 
+import { InMemoryReceiptSequenceGenerator } from '../../infrastructure/services/in-memory-receipt-sequence.generator';
+
 class InMemoryReceiptRepository implements ReceiptRepositoryPort {
   public store = new Map<string, Receipt>();
-  private sequenceCounter = 0;
+  private readonly sequenceGenerator = new InMemoryReceiptSequenceGenerator();
 
   async findById(id: ReceiptId | string): Promise<Receipt | null> {
     const key = typeof id === 'string' ? id.trim() : id.value;
@@ -74,10 +76,8 @@ class InMemoryReceiptRepository implements ReceiptRepositoryPort {
     this.store.set(receipt.id.value, receipt);
   }
 
-  async getNextReceiptNumber(_tenantId: string, year: number): Promise<ReceiptNumber> {
-    this.sequenceCounter += 1;
-    const formattedSeq = String(this.sequenceCounter).padStart(6, '0');
-    return ReceiptNumber.create(`REC-${year}-${formattedSeq}`);
+  async getNextReceiptNumber(tenantId: string, year: number): Promise<ReceiptNumber> {
+    return this.sequenceGenerator.getNextReceiptNumber(tenantId, year);
   }
 }
 
@@ -346,6 +346,40 @@ describe('Receipt Application Lifecycle — IssueReceiptHandler & ReprintReceipt
       const result = await issueHandler.execute(command);
       expect(result.isFailure).toBe(true);
       expect(result.getError()).toBeInstanceOf(SaleNotFoundException);
+    });
+
+    it('concurrently issues receipts for 20 distinct sales with collision-free, gap-free sequences', async () => {
+      const salesCount = 20;
+      const sales = Array.from({ length: salesCount }, (_, idx) =>
+        setupSettledSaleAndPayment(`sale_concurrent_${idx}`, 50.0),
+      );
+
+      const promises = sales.map(({ sale }) =>
+        issueHandler.execute(
+          new IssueReceiptCommand({
+            saleId: sale.id.value,
+            tenantId,
+          }),
+        ),
+      );
+
+      const results = await Promise.all(promises);
+
+      for (const res of results) {
+        expect(res.isSuccess).toBe(true);
+      }
+
+      const receiptNumbers = results.map((r) => r.getValue().receiptNumber);
+      const uniqueNumbers = new Set(receiptNumbers);
+      expect(uniqueNumbers.size).toBe(salesCount);
+
+      // Verify gap-free sequence progression
+      const indices = receiptNumbers
+        .map((num) => parseInt(num.replace('REC-2026-', ''), 10))
+        .sort((a, b) => a - b);
+
+      expect(indices[0]).toBe(1);
+      expect(indices[salesCount - 1]).toBe(salesCount);
     });
 
     it('should reject issuance if cross-tenant isolation is violated', async () => {

@@ -2,13 +2,14 @@ import { Receipt } from '../../domain/receipt.aggregate';
 import { ReceiptId } from '../../domain/value-objects/receipt-id.vo';
 import { SaleId } from '../../domain/value-objects/sale-id.vo';
 import { ReceiptNumber } from '../../domain/value-objects/receipt-number.vo';
+import { ReceiptSequenceGeneratorPort } from './receipt-sequence-generator.port';
 
 /**
  * Port interface for Receipt persistence and sequence generation operations.
  * Decouples domain and application logic from concrete database/ORM drivers.
- * Codified by ADR-0117.
+ * Codified by ADR-0117 and ADR-0118.
  */
-export interface ReceiptRepositoryPort {
+export interface ReceiptRepositoryPort extends ReceiptSequenceGeneratorPort {
   /**
    * Resolves a Receipt aggregate by its unique domain identifier.
    */

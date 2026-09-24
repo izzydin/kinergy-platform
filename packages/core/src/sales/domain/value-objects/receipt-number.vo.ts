@@ -49,6 +49,27 @@ export class ReceiptNumber implements ValueObject<string> {
     return new ReceiptNumber(value);
   }
 
+  /**
+   * Deterministically constructs a canonical ReceiptNumber from an integer calendar year and sequence index.
+   * Enforces zero-padding to 6 digits (e.g. REC-2026-000001).
+   */
+  public static fromParts(year: number, sequence: number): ReceiptNumber {
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+      throw new ReceiptDomainException(
+        `Invalid calendar year for receipt number: '${year}'. Must be an integer between 2000 and 2100.`,
+        'INVALID_RECEIPT_NUMBER',
+      );
+    }
+    if (!Number.isInteger(sequence) || sequence <= 0) {
+      throw new ReceiptDomainException(
+        `Receipt sequence counter must be a strictly positive integer, got: '${sequence}'.`,
+        'INVALID_RECEIPT_NUMBER',
+      );
+    }
+    const formattedSeq = String(sequence).padStart(6, '0');
+    return new ReceiptNumber(`REC-${year}-${formattedSeq}`);
+  }
+
   public getValue(): string {
     return this._value;
   }
