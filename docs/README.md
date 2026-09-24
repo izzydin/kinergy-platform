@@ -17,7 +17,7 @@ docs/
 ├── testing/              ◄── Quality Gates, Harnesses, Unit, Integration & E2E Testing
 ├── configuration/        ◄── Centralized Zod Environment Variables & Secrets Reference
 ├── api/                  ◄── OpenAPI / Swagger Docs, Envelope Schemas & Routes
-├── adr/                  ◄── Architectural Decision Records (0001 - 0116)
+├── adr/                  ◄── Architectural Decision Records (0001 - 0117)
 └── glossary.md           ◄── Ubiquitous Language, Security Acronyms & Terminology
 ```
 

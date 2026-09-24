@@ -386,15 +386,26 @@ PostgreSQL NUMERIC/DECIMAL (@db.Decimal(12, 2))
 > **Is a Receipt a Financial Source of Truth?**  
 > **No.** A `Receipt` is **NOT** the financial source of truth.  
 > The financial truth is authoritatively governed by the `Sale` and `Payment` aggregates.  
-> A `Receipt` is an **immutable, customer-facing legal voucher** that represents and evidences an already-settled financial transaction.
+> A `Receipt` is an **immutable, customer-facing legal proof-of-purchase voucher** that represents and evidences an already-settled financial transaction.
+> Formally codified in [ADR-0117: Receipt Domain Boundary, Document Model, and Legal Proof-of-Purchase Invariants](../adr/0117-receipt-domain-boundary-and-document-model.md).
 
-#### Generation, Immutability & Reprint Rules
+#### Generation, Immutability & Lifecycle Rules
 
-1. **Generation Trigger**: Automatically generated once a `Sale` reaches `PAID` status (or upon recording an official partial deposit).
-2. **No Regeneration**: Once issued, a receipt cannot be regenerated with a new identifier or altered financial data.
-3. **No Deletion**: Deletion is prohibited by database foreign key constraints and audit policies.
-4. **Reprint Behavior**: Customer reprint requests do **not** create a new receipt entity. The system re-renders the frozen receipt snapshot stamped with a mandatory `DUPLICATE / REPRINT` watermark, logging the reprint timestamp and operator in technical audit logs.
-5. **Refund Representation**: When a sale is refunded, the original receipt remains frozen. A separate `CreditNote` or `RefundVoucher` is issued to document the reversal.
+1. **Existence Preconditions**: A `Receipt` can exist **exclusively** after the underlying `Sale` has achieved full financial settlement (status `PAID` or `COMPLETED`).
+   - `DRAFT` Sales: **PROHIBITED** (unfinalized cart).
+   - `PENDING_PAYMENT` Sales: **PROHIBITED** (unsettled balance).
+   - `PAID` Sales: **PERMITTED & MANDATORY** (official issuance trigger).
+   - `CANCELLED` Sales: **PROHIBITED** (voided orders cannot issue receipts).
+2. **Idempotency & Cardinality**: One `Sale` maps to at most **one primary `Receipt`**. Issuance is strictly idempotent; subsequent requests return the existing receipt.
+3. **Permanent Data Immutability**: Once issued, all financial data, line items, customer details, and issuance timestamps are permanently write-once/frozen.
+4. **Historical Data Preservation via Snapshots**:
+   - `clientSnapshot`: Frozen copy of customer legal name, reference number, email, and phone at issuance time. Never performs a runtime SQL `JOIN` to `clients`.
+   - `items`: Frozen snapshot of item descriptions, SKUs, quantities, unit prices, discounts, and line totals.
+   - `payments`: Frozen snapshot of settled tenders (method, settled amount, reference, `paidAt`).
+5. **Sequential Monotonic Numbering**: Every receipt receives a gap-free, monotonically increasing alphanumeric receipt number per tenant (e.g. `REC-2026-000421`), partitioned by `tenantId`.
+6. **No Regeneration / Duplicate Watermark**: Customer reprint requests do **not** regenerate or create a new receipt. The system re-renders the frozen receipt snapshot stamped with a mandatory `DUPLICATE / REPRINT` watermark and increments `reprintCount`.
+7. **Refund Separation**: When a sale is refunded, the original receipt remains frozen. A separate `CreditNote` or `RefundReceipt` is issued.
+8. **Explicitly Out of Scope**: General ledger accounting, double-entry bookkeeping, tax accounting/VAT declarations, fiscal printer hardware drivers, and government e-invoicing are strictly out of scope.
 
 ---
 
