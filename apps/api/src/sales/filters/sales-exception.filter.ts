@@ -8,6 +8,7 @@ import {
   EmptySaleException,
   SaleAlreadyFinalizedException,
   SaleOptimisticLockException,
+  PaymentOptimisticLockException,
   InvalidSaleTransitionException,
   InvalidSaleStateException,
   SaleNotFoundException,
@@ -34,7 +35,10 @@ export class SalesExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
 
     // 1. Optimistic Concurrency & Lock Collisions (409 Conflict)
-    if (exception instanceof SaleOptimisticLockException) {
+    if (
+      exception instanceof SaleOptimisticLockException ||
+      exception instanceof PaymentOptimisticLockException
+    ) {
       response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,
         error: 'Conflict',

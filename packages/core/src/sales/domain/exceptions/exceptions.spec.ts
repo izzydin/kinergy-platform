@@ -6,6 +6,10 @@ import { InvalidSaleTransitionException } from './invalid-sale-transition.except
 import { InvalidSaleItemException } from './invalid-sale-item.exception';
 import { InvalidDiscountException } from './invalid-discount.exception';
 import { InvalidMoneyException } from './invalid-money.exception';
+import {
+  SaleOptimisticLockException,
+  PaymentOptimisticLockException,
+} from './optimistic-lock.exception';
 
 describe('Sales Domain Exceptions Hierarchy', () => {
   it('SaleDomainException should inherit from Error and expose default code', () => {
@@ -86,5 +90,17 @@ describe('Sales Domain Exceptions Hierarchy', () => {
     expect(error).toBeInstanceOf(Error);
     expect(error.code).toBe('INVALID_MONEY');
     expect(error.name).toBe('InvalidMoneyException');
+  });
+
+  it('PaymentOptimisticLockException should inherit from SaleOptimisticLockException and Error', () => {
+    const error = new PaymentOptimisticLockException('pay_123', 2);
+    expect(error).toBeInstanceOf(Error);
+    expect(error).toBeInstanceOf(SaleDomainException);
+    expect(error).toBeInstanceOf(SaleOptimisticLockException);
+    expect(error).toBeInstanceOf(PaymentOptimisticLockException);
+    expect(error.code).toBe('OPTIMISTIC_LOCK_ERROR');
+    expect(error.name).toBe('PaymentOptimisticLockException');
+    expect(error.message).toContain("Payment with ID 'pay_123' was modified concurrently");
+    expect(error.message).toContain('expected version: 2');
   });
 });

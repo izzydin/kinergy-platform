@@ -1,11 +1,16 @@
-import { Prisma, PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient, PaymentStatus as PrismaPaymentStatus } from '@prisma/client';
 import { Payment } from '../../../../domain/payment.aggregate';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { Money } from '../../../../domain/value-objects/money.vo';
 import { PaymentMethod } from '../../../../domain/enums/payment-method.enum';
 import { PaymentStatus } from '../../../../domain/enums/payment-status.enum';
-import { SaleOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
+import {
+  SaleOptimisticLockException,
+  PaymentOptimisticLockException,
+} from '../../../../domain/exceptions/optimistic-lock.exception';
 import { PaymentDomainException } from '../../../../domain/exceptions/payment-domain.exception';
+import { InvalidPaymentStatusException } from '../../../../domain/exceptions/invalid-payment-status.exception';
+import { InvalidPaymentTransitionException } from '../../../../domain/exceptions/invalid-payment-transition.exception';
 import { PrismaPaymentMapper } from '../mappers/prisma-payment.mapper';
 import { PrismaPaymentRepository } from '../repositories/prisma-payment.repository';
 import { DeterministicClock } from '../../../../domain/shared/clock';
@@ -605,6 +610,495 @@ describe('Payment Persistence & PostgreSQL Exact Decimal Representation (ADR-011
       expect(payment.saleId.value).toBe(saleId.value);
       // @ts-expect-error - Proving Sale aggregate is not embedded
       expect(payment.sale).toBeUndefined();
+    });
+  });
+
+  // ==========================================================================
+  // 4. Lifecycle State Survives Persistence Reload & Enforces Immutability
+  // ==========================================================================
+  describe('4. Lifecycle State Survives Persistence Reload & Enforces Immutability', () => {
+    it('persists PENDING state and preserves mutable transition capability after reload', async () => {
+      const pendingPayment = Payment.createPending(
+        {
+          id: 'pay_reload_pending',
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(150.0, 'USD'),
+        },
+        clock,
+      );
+
+      const persistedData = PrismaPaymentMapper.toPersistence(pendingPayment);
+      const rawRecord = {
+        ...persistedData,
+        createdAt: pendingPayment.createdAt,
+        updatedAt: pendingPayment.updatedAt,
+      };
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        payment: {
+          upsert: jest.fn(),
+          findUnique: jest.fn().mockResolvedValue(rawRecord),
+          findMany: jest.fn(),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaPaymentRepository(mockPrisma as unknown as PrismaClient);
+      const reloaded = await repo.findById('pay_reload_pending');
+
+      expect(reloaded).not.toBeNull();
+      expect(reloaded!.status).toBe(PaymentStatus.PENDING);
+      expect(reloaded!.isPending()).toBe(true);
+      expect(reloaded!.paidAt).toBeNull();
+      expect(reloaded!.version).toBe(1);
+
+      // Verify that after reload, valid transitions remain executable in domain
+      clock.advanceSeconds(10);
+      expect(() => reloaded!.complete(clock)).not.toThrow();
+      expect(reloaded!.isCompleted()).toBe(true);
+      expect(reloaded!.version).toBe(2);
+    });
+
+    it('persists COMPLETED state and enforces terminal immutability after reload', async () => {
+      const payment = Payment.createPending(
+        {
+          id: 'pay_reload_completed',
+          tenantId,
+          saleId,
+          method: PaymentMethod.CASH,
+          amount: Money.create(200.0, 'USD'),
+        },
+        clock,
+      );
+
+      clock.advanceSeconds(25);
+      const paidTimestamp = clock.now();
+      payment.complete({ paidAt: paidTimestamp }, clock);
+
+      const persistedData = PrismaPaymentMapper.toPersistence(payment);
+      const rawRecord = {
+        ...persistedData,
+        createdAt: payment.createdAt,
+        updatedAt: payment.updatedAt,
+      };
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        payment: {
+          upsert: jest.fn(),
+          findUnique: jest.fn().mockResolvedValue(rawRecord),
+          findMany: jest.fn(),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaPaymentRepository(mockPrisma as unknown as PrismaClient);
+      const reloaded = await repo.findById('pay_reload_completed');
+
+      expect(reloaded).not.toBeNull();
+      expect(reloaded!.status).toBe(PaymentStatus.COMPLETED);
+      expect(reloaded!.isCompleted()).toBe(true);
+      expect(reloaded!.isSettled()).toBe(true);
+      expect(reloaded!.paidAt).toEqual(paidTimestamp);
+      expect(reloaded!.version).toBe(2);
+
+      // Verify terminal state: no further mutations permitted
+      expect(() => reloaded!.complete(clock)).toThrow(InvalidPaymentTransitionException);
+      expect(() => reloaded!.fail('Late failure', clock)).toThrow(
+        InvalidPaymentTransitionException,
+      );
+      expect(() => reloaded!.cancel('Late cancel', clock)).toThrow(
+        InvalidPaymentTransitionException,
+      );
+    });
+
+    it('persists FAILED state and enforces terminal immutability after reload', async () => {
+      const payment = Payment.createPending(
+        {
+          id: 'pay_reload_failed',
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(85.0, 'USD'),
+        },
+        clock,
+      );
+
+      clock.advanceSeconds(12);
+      payment.fail('Card declined by issuer', clock);
+
+      const persistedData = PrismaPaymentMapper.toPersistence(payment);
+      const rawRecord = {
+        ...persistedData,
+        createdAt: payment.createdAt,
+        updatedAt: payment.updatedAt,
+      };
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        payment: {
+          upsert: jest.fn(),
+          findUnique: jest.fn().mockResolvedValue(rawRecord),
+          findMany: jest.fn(),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaPaymentRepository(mockPrisma as unknown as PrismaClient);
+      const reloaded = await repo.findById('pay_reload_failed');
+
+      expect(reloaded).not.toBeNull();
+      expect(reloaded!.status).toBe(PaymentStatus.FAILED);
+      expect(reloaded!.isFailed()).toBe(true);
+      expect(reloaded!.paidAt).toBeNull();
+      expect(reloaded!.version).toBe(2);
+
+      // Verify terminal state: cannot transition out of FAILED
+      expect(() => reloaded!.complete(clock)).toThrow(InvalidPaymentTransitionException);
+      expect(() => reloaded!.cancel('Late cancel', clock)).toThrow(
+        InvalidPaymentTransitionException,
+      );
+    });
+
+    it('persists CANCELLED state and enforces terminal immutability after reload', async () => {
+      const payment = Payment.createPending(
+        {
+          id: 'pay_reload_cancelled',
+          tenantId,
+          saleId,
+          method: PaymentMethod.CASH,
+          amount: Money.create(40.0, 'USD'),
+        },
+        clock,
+      );
+
+      clock.advanceSeconds(5);
+      payment.cancel('Customer aborted checkout', clock);
+
+      const persistedData = PrismaPaymentMapper.toPersistence(payment);
+      const rawRecord = {
+        ...persistedData,
+        createdAt: payment.createdAt,
+        updatedAt: payment.updatedAt,
+      };
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        payment: {
+          upsert: jest.fn(),
+          findUnique: jest.fn().mockResolvedValue(rawRecord),
+          findMany: jest.fn(),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaPaymentRepository(mockPrisma as unknown as PrismaClient);
+      const reloaded = await repo.findById('pay_reload_cancelled');
+
+      expect(reloaded).not.toBeNull();
+      expect(reloaded!.status).toBe(PaymentStatus.CANCELLED);
+      expect(reloaded!.isCancelled()).toBe(true);
+      expect(reloaded!.paidAt).toBeNull();
+      expect(reloaded!.version).toBe(2);
+
+      // Verify terminal state: cannot transition out of CANCELLED
+      expect(() => reloaded!.complete(clock)).toThrow(InvalidPaymentTransitionException);
+      expect(() => reloaded!.fail('Late fail', clock)).toThrow(InvalidPaymentTransitionException);
+    });
+  });
+
+  // ==========================================================================
+  // 5. paidAt Timestamp Precision & Round-Trip Fidelity
+  // ==========================================================================
+  describe('5. paidAt Timestamp Precision & Round-Trip Fidelity', () => {
+    it('preserves exact sub-second millisecond timestamp for COMPLETED payment', async () => {
+      const preciseDate = new Date('2026-09-24T14:35:12.789Z');
+      const payment = Payment.createPending(
+        {
+          id: 'pay_precise_time',
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(110.0, 'USD'),
+        },
+        clock,
+      );
+
+      payment.complete({ paidAt: preciseDate }, clock);
+
+      const persisted = PrismaPaymentMapper.toPersistence(payment);
+      expect(persisted.paidAt).toEqual(preciseDate);
+      expect(persisted.paidAt?.getTime()).toBe(preciseDate.getTime());
+
+      const reloaded = PrismaPaymentMapper.toDomain({
+        ...persisted,
+        createdAt: payment.createdAt,
+        updatedAt: payment.updatedAt,
+      });
+
+      expect(reloaded.paidAt).not.toBeNull();
+      expect(reloaded.paidAt!.getTime()).toBe(preciseDate.getTime());
+      expect(reloaded.paidAt!.toISOString()).toBe('2026-09-24T14:35:12.789Z');
+    });
+
+    it('strictly guarantees paidAt is null for non-completed states across roundtrip', () => {
+      const pendingPayment = Payment.createPending(
+        {
+          id: 'pay_pending_null_paid_at',
+          tenantId,
+          saleId,
+          method: PaymentMethod.CASH,
+          amount: Money.create(35.0, 'USD'),
+        },
+        clock,
+      );
+
+      const persistedPending = PrismaPaymentMapper.toPersistence(pendingPayment);
+      expect(persistedPending.paidAt).toBeNull();
+
+      const reconstitutedPending = PrismaPaymentMapper.toDomain({
+        ...persistedPending,
+        createdAt: pendingPayment.createdAt,
+        updatedAt: pendingPayment.updatedAt,
+      });
+      expect(reconstitutedPending.paidAt).toBeNull();
+
+      // FAILED
+      pendingPayment.fail('Timeout', clock);
+      const persistedFailed = PrismaPaymentMapper.toPersistence(pendingPayment);
+      expect(persistedFailed.paidAt).toBeNull();
+
+      const reconstitutedFailed = PrismaPaymentMapper.toDomain({
+        ...persistedFailed,
+        createdAt: pendingPayment.createdAt,
+        updatedAt: pendingPayment.updatedAt,
+      });
+      expect(reconstitutedFailed.paidAt).toBeNull();
+    });
+  });
+
+  // ==========================================================================
+  // 6. Hardened Optimistic Concurrency Control (OCC) & Race Protection
+  // ==========================================================================
+  describe('6. Hardened Optimistic Concurrency Control (OCC) & Race Protection', () => {
+    it('prevents concurrent transition conflict (Request A: Complete vs Request B: Cancel) via conditional version update', async () => {
+      // Setup: DB has payment in PENDING status at version 1
+      let dbRecord = {
+        id: 'pay_occ_race_001',
+        tenantId,
+        saleId: saleId.value,
+        method: 'QR' as const,
+        amount: new Prisma.Decimal('100.00'),
+        currency: 'USD',
+        status: 'PENDING' as const,
+        reference: null,
+        paidAt: null,
+        createdAt: t0,
+        updatedAt: t0,
+        version: 1,
+      };
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
+        payment: {
+          upsert: jest.fn(),
+          findUnique: jest.fn(async ({ where: { id } }: { where: { id: string } }) => {
+            return dbRecord.id === id ? { ...dbRecord } : null;
+          }),
+          findMany: jest.fn(),
+          updateMany: jest.fn(async ({ where, data }) => {
+            // Simulate PostgreSQL conditional UPDATE payments SET ... WHERE id = :id AND version = :version
+            if (dbRecord.id === where.id && dbRecord.version === where.version) {
+              dbRecord = {
+                ...dbRecord,
+                ...data,
+                version: data.version,
+                updatedAt: new Date(),
+              };
+              return { count: 1 };
+            }
+            return { count: 0 };
+          }),
+        },
+      };
+
+      const repo = new PrismaPaymentRepository(mockPrisma as unknown as PrismaClient);
+
+      // 1. Both Request A and Request B concurrently load the payment at version 1 (PENDING)
+      const paymentForRequestA = (await repo.findById('pay_occ_race_001'))!;
+      const paymentForRequestB = (await repo.findById('pay_occ_race_001'))!;
+
+      expect(paymentForRequestA.version).toBe(1);
+      expect(paymentForRequestB.version).toBe(1);
+
+      // 2. Request A completes payment (transition to COMPLETED, version becomes 2)
+      clock.advanceSeconds(5);
+      paymentForRequestA.complete(clock);
+      expect(paymentForRequestA.version).toBe(2);
+
+      // 3. Request B cancels payment (transition to CANCELLED, version becomes 2 based on expected prior version 1)
+      clock.advanceSeconds(5);
+      paymentForRequestB.cancel('Customer aborted', clock);
+      expect(paymentForRequestB.version).toBe(2);
+
+      // 4. Request A saves first -> succeeds, updating DB to version 2 (SETTLED)
+      await repo.save(paymentForRequestA);
+      expect(dbRecord.version).toBe(2);
+      expect(dbRecord.status).toBe('SETTLED');
+
+      // 5. Request B saves second -> fails with OCC collision because DB is already at version 2!
+      await expect(repo.save(paymentForRequestB)).rejects.toThrow(PaymentOptimisticLockException);
+      await expect(repo.save(paymentForRequestB)).rejects.toThrow(SaleOptimisticLockException);
+
+      // 6. Verify that DB state remains COMPLETED and was NOT overwritten by Request B
+      expect(dbRecord.status).toBe('SETTLED');
+      expect(dbRecord.version).toBe(2);
+
+      // 7. Request B retries by re-loading the latest aggregate from DB
+      const latestPaymentForRetry = (await repo.findById('pay_occ_race_001'))!;
+      expect(latestPaymentForRetry.status).toBe(PaymentStatus.COMPLETED);
+
+      // The domain state machine strictly rejects the invalid transition from COMPLETED to CANCELLED
+      expect(() => latestPaymentForRetry.cancel('Retry cancel', clock)).toThrow(
+        InvalidPaymentTransitionException,
+      );
+    });
+
+    it('rejects stale version 1 write from overwriting an already progressed record (version > 1)', async () => {
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
+        payment: {
+          upsert: jest.fn(),
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'pay_already_completed',
+            version: 2, // Already progressed in DB
+          }),
+          findMany: jest.fn(),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaPaymentRepository(mockPrisma as unknown as PrismaClient);
+
+      // Stale aggregate still at version 1
+      const stalePayment = Payment.createPending(
+        {
+          id: 'pay_already_completed',
+          tenantId,
+          saleId,
+          method: PaymentMethod.CASH,
+          amount: Money.create(50.0, 'USD'),
+        },
+        clock,
+      );
+      expect(stalePayment.version).toBe(1);
+
+      // Attempting to save stale version 1 must throw PaymentOptimisticLockException
+      await expect(repo.save(stalePayment)).rejects.toThrow(PaymentOptimisticLockException);
+      expect(mockPrisma.payment.upsert).not.toHaveBeenCalled();
+    });
+  });
+
+  // ==========================================================================
+  // 7. Database Corrupted Record Invariant Rejection
+  // ==========================================================================
+  describe('7. Database Corrupted Record Invariant Rejection', () => {
+    it('rejects reconstitution if raw DB record has unknown status string', () => {
+      const corrupted = {
+        id: 'pay_corrupt_unknown_status',
+        tenantId,
+        saleId: saleId.value,
+        method: 'CASH' as const,
+        amount: new Prisma.Decimal('50.00'),
+        currency: 'USD',
+        status: 'REFUNDED' as unknown as PrismaPaymentStatus,
+        reference: null,
+        paidAt: null,
+        createdAt: t0,
+        updatedAt: t0,
+        version: 1,
+      };
+
+      expect(() => PrismaPaymentMapper.toDomain(corrupted)).toThrow(InvalidPaymentStatusException);
+    });
+
+    it('rejects reconstitution if FAILED record has non-null paidAt', () => {
+      const corrupted = {
+        id: 'pay_corrupt_failed_paid_at',
+        tenantId,
+        saleId: saleId.value,
+        method: 'CASH' as const,
+        amount: new Prisma.Decimal('50.00'),
+        currency: 'USD',
+        status: 'FAILED' as const,
+        reference: null,
+        paidAt: t0, // Contradictory: FAILED must have paidAt = null
+        createdAt: t0,
+        updatedAt: t0,
+        version: 2,
+      };
+
+      expect(() => PrismaPaymentMapper.toDomain(corrupted)).toThrow(PaymentDomainException);
+    });
+
+    it('rejects reconstitution if CANCELLED record has non-null paidAt', () => {
+      const corrupted = {
+        id: 'pay_corrupt_cancelled_paid_at',
+        tenantId,
+        saleId: saleId.value,
+        method: 'CASH' as const,
+        amount: new Prisma.Decimal('50.00'),
+        currency: 'USD',
+        status: 'CANCELLED' as const,
+        reference: null,
+        paidAt: t0, // Contradictory: CANCELLED must have paidAt = null
+        createdAt: t0,
+        updatedAt: t0,
+        version: 2,
+      };
+
+      expect(() => PrismaPaymentMapper.toDomain(corrupted)).toThrow(PaymentDomainException);
+    });
+
+    it('rejects reconstitution if version is zero or negative', () => {
+      const corrupted = {
+        id: 'pay_corrupt_version_zero',
+        tenantId,
+        saleId: saleId.value,
+        method: 'CASH' as const,
+        amount: new Prisma.Decimal('50.00'),
+        currency: 'USD',
+        status: 'PENDING' as const,
+        reference: null,
+        paidAt: null,
+        createdAt: t0,
+        updatedAt: t0,
+        version: 0, // Must be >= 1
+      };
+
+      expect(() => PrismaPaymentMapper.toDomain(corrupted)).toThrow(PaymentDomainException);
+    });
+
+    it('rejects reconstitution if version is a non-integer floating point', () => {
+      const corrupted = {
+        id: 'pay_corrupt_version_float',
+        tenantId,
+        saleId: saleId.value,
+        method: 'CASH' as const,
+        amount: new Prisma.Decimal('50.00'),
+        currency: 'USD',
+        status: 'PENDING' as const,
+        reference: null,
+        paidAt: null,
+        createdAt: t0,
+        updatedAt: t0,
+        version: 1.5, // Must be integer
+      };
+
+      expect(() => PrismaPaymentMapper.toDomain(corrupted)).toThrow(PaymentDomainException);
     });
   });
 });

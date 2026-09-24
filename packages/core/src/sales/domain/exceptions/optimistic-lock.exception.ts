@@ -8,3 +8,10 @@ export class SaleOptimisticLockException extends SaleDomainException {
     );
   }
 }
+
+export class PaymentOptimisticLockException extends SaleOptimisticLockException {
+  constructor(id: string, expectedVersion: number) {
+    super('Payment', id, expectedVersion);
+    this.name = 'PaymentOptimisticLockException';
+  }
+}

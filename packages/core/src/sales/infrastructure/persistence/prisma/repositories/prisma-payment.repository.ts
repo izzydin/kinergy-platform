@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { Payment } from '../../../../domain/payment.aggregate';
 import { PaymentId } from '../../../../domain/value-objects/payment-id.vo';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
-import { SaleOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
+import { PaymentOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
 import { PrismaPaymentMapper } from '../mappers/prisma-payment.mapper';
 
 import { PaymentRepositoryPort } from '../../../../application/ports/payment-repository.port';
@@ -54,7 +54,17 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
 
     await this.prisma.$transaction(async (tx) => {
       if (payment.version === 1) {
-        // Initial insert
+        // Initial insert or idempotent initial save
+        // Guard against stale version 1 overwriting a record that has already progressed past version 1
+        const existing = await tx.payment.findUnique({
+          where: { id: paymentData.id },
+          select: { id: true, version: true },
+        });
+
+        if (existing && existing.version > 1) {
+          throw new PaymentOptimisticLockException(paymentData.id, existing.version);
+        }
+
         await tx.payment.upsert({
           where: { id: paymentData.id },
           create: paymentData,
@@ -72,7 +82,7 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
         });
 
         if (result.count === 0) {
-          throw new SaleOptimisticLockException('Payment', paymentData.id, priorVersion);
+          throw new PaymentOptimisticLockException(paymentData.id, priorVersion);
         }
       }
     });
