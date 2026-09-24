@@ -187,6 +187,43 @@ export class ReceiptItemSnapshot implements ValueObject<ReceiptItemSnapshotProps
     return new ReceiptItemSnapshot(props);
   }
 
+  /**
+   * Factory method to create a point-in-time snapshot from a SaleItem entity or compatible source.
+   */
+  public static fromSaleItem(saleItem: {
+    id: { value: string } | string;
+    source: { sourceType: string; sourceId: string };
+    description: string;
+    skuOrCode?: string | null;
+    quantity: number;
+    unitPrice: Money;
+    discountTotal?: Money;
+    subtotal: Money;
+    total: Money;
+  }): ReceiptItemSnapshot {
+    if (!saleItem) {
+      throw new ReceiptDomainException(
+        'SaleItem cannot be null or undefined when creating item snapshot.',
+        'INVALID_RECEIPT_ITEMS',
+      );
+    }
+
+    const itemId = typeof saleItem.id === 'string' ? saleItem.id : saleItem.id?.value;
+
+    return new ReceiptItemSnapshot({
+      itemId,
+      sourceType: saleItem.source.sourceType,
+      sourceId: saleItem.source.sourceId,
+      description: saleItem.description,
+      skuOrCode: saleItem.skuOrCode,
+      quantity: saleItem.quantity,
+      unitPrice: saleItem.unitPrice,
+      discountTotal: saleItem.discountTotal,
+      subtotal: saleItem.subtotal,
+      total: saleItem.total,
+    });
+  }
+
   public get itemId(): string {
     return this._itemId;
   }

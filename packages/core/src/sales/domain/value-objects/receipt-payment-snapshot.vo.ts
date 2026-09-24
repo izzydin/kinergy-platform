@@ -97,6 +97,42 @@ export class ReceiptPaymentSnapshot implements ValueObject<ReceiptPaymentSnapsho
     return new ReceiptPaymentSnapshot(props);
   }
 
+  /**
+   * Factory method to create a point-in-time snapshot from a settled Payment aggregate or compatible source.
+   */
+  public static fromPayment(payment: {
+    id: { value: string } | string;
+    method: PaymentMethod;
+    amount: Money;
+    status: PaymentStatus;
+    reference?: { value: string } | string | null;
+    paidAt?: Date | null;
+  }): ReceiptPaymentSnapshot {
+    if (!payment) {
+      throw new ReceiptDomainException(
+        'Payment cannot be null or undefined when creating payment snapshot.',
+        'INVALID_RECEIPT_PAYMENTS',
+      );
+    }
+
+    const paymentId = typeof payment.id === 'string' ? payment.id : payment.id?.value;
+    const ref =
+      payment.reference && typeof payment.reference === 'object' && 'value' in payment.reference
+        ? payment.reference.value
+        : typeof payment.reference === 'string'
+          ? payment.reference
+          : null;
+
+    return new ReceiptPaymentSnapshot({
+      paymentId,
+      method: payment.method,
+      amount: payment.amount,
+      status: payment.status,
+      reference: ref,
+      paidAt: payment.paidAt,
+    });
+  }
+
   public get paymentId(): string {
     return this._paymentId;
   }

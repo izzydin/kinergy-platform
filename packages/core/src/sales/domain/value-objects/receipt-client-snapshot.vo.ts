@@ -70,6 +70,31 @@ export class ReceiptClientSnapshot implements ValueObject<ReceiptClientSnapshotP
     return new ReceiptClientSnapshot(props);
   }
 
+  /**
+   * Factory method to create a point-in-time snapshot from ClientSummaryDto or summary-like object.
+   */
+  public static fromSummary(summary: {
+    id: string;
+    referenceNumber?: string | null;
+    fullName: string;
+    email?: string | null;
+    phone?: string | null;
+  }): ReceiptClientSnapshot {
+    if (!summary) {
+      throw new ReceiptDomainException(
+        'Client summary cannot be null or undefined when creating client snapshot.',
+        'INVALID_RECEIPT_CLIENT_SNAPSHOT',
+      );
+    }
+    return new ReceiptClientSnapshot({
+      clientId: summary.id,
+      referenceNumber: summary.referenceNumber,
+      fullName: summary.fullName,
+      email: summary.email,
+      phone: summary.phone,
+    });
+  }
+
   public get clientId(): string {
     return this._clientId;
   }

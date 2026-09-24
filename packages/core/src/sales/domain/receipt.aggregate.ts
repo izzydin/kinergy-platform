@@ -10,10 +10,13 @@ import { ReceiptClientSnapshot } from './value-objects/receipt-client-snapshot.v
 import { ReceiptItemSnapshot } from './value-objects/receipt-item-snapshot.vo';
 import { ReceiptPaymentSnapshot } from './value-objects/receipt-payment-snapshot.vo';
 import { ReceiptStatus, isValidReceiptStatus } from './enums/receipt-status.enum';
+import { SaleStatus } from './enums/sale-status.enum';
 import { PaymentMethod } from './enums/payment-method.enum';
 import { PaymentStatus } from './enums/payment-status.enum';
 import { ReceiptDomainException } from './exceptions/receipt-domain.exception';
 import { ReceiptIssuedEvent, ReceiptReprintedEvent } from './events';
+import { Sale } from './sale.aggregate';
+import { Payment } from './payment.aggregate';
 
 export interface CreateReceiptProps {
   id?: ReceiptId | string;
@@ -28,6 +31,21 @@ export interface CreateReceiptProps {
   discountTotal?: Money;
   total: Money;
   payments: ReceiptPaymentSnapshot[];
+}
+
+export interface FromSettledSaleParams {
+  sale: Sale;
+  payments: Payment[];
+  clientSummary?: {
+    id: string;
+    referenceNumber?: string | null;
+    fullName: string;
+    email?: string | null;
+    phone?: string | null;
+  } | null;
+  receiptNumber: ReceiptNumber | string;
+  saleReference?: string;
+  id?: ReceiptId | string;
 }
 
 export interface ReconstituteReceiptProps {
@@ -178,6 +196,77 @@ export class Receipt implements Entity<ReceiptId>, AggregateRoot<ReceiptId> {
     );
 
     return receipt;
+  }
+
+  /**
+   * Authoritative factory method to issue a Receipt from a settled Sale and its tender Payments.
+   *
+   * Enforces:
+   * - Sale must be in PAID or COMPLETED status (ADR-0117 Invariant 9).
+   * - Creates point-in-time snapshots of Client, SaleItems, and Payments.
+   * - Decouples receipt permanently from subsequent mutations to Client or Catalog.
+   */
+  public static fromSettledSale(
+    params: FromSettledSaleParams,
+    clock: Clock = new SystemClock(),
+  ): Receipt {
+    if (!params) {
+      throw new ReceiptDomainException(
+        'FromSettledSaleParams cannot be null or undefined.',
+        'INVALID_RECEIPT_PROPS',
+      );
+    }
+
+    if (!params.sale) {
+      throw new ReceiptDomainException(
+        'Sale is required to issue a receipt.',
+        'INVALID_RECEIPT_PROPS',
+      );
+    }
+
+    if (params.sale.status !== SaleStatus.PAID && params.sale.status !== SaleStatus.COMPLETED) {
+      throw new ReceiptDomainException(
+        `Cannot issue receipt for sale '${params.sale.id.value}' in status '${params.sale.status}'. Receipt issuance requires PAID or COMPLETED sale.`,
+        'INVALID_RECEIPT_SALE_STATUS',
+      );
+    }
+
+    if (!params.sale.tenantId) {
+      throw new ReceiptDomainException(
+        'Sale must have a valid tenantId to issue a receipt.',
+        'INVALID_RECEIPT_PROPS',
+      );
+    }
+
+    if (!Array.isArray(params.payments) || params.payments.length === 0) {
+      throw new ReceiptDomainException(
+        'At least one settled Payment is required to issue a receipt.',
+        'INVALID_RECEIPT_PAYMENTS',
+      );
+    }
+
+    const items = params.sale.items.map((item) => ReceiptItemSnapshot.fromSaleItem(item));
+    const payments = params.payments.map((p) => ReceiptPaymentSnapshot.fromPayment(p));
+    const clientSnapshot = params.clientSummary
+      ? ReceiptClientSnapshot.fromSummary(params.clientSummary)
+      : null;
+
+    return Receipt.create(
+      {
+        id: params.id,
+        tenantId: params.sale.tenantId,
+        saleId: params.sale.id,
+        receiptNumber: params.receiptNumber,
+        saleReference: params.saleReference ?? params.sale.id.value,
+        clientSnapshot,
+        items,
+        subtotal: params.sale.subtotal,
+        discountTotal: params.sale.discountTotal,
+        total: params.sale.total,
+        payments,
+      },
+      clock,
+    );
   }
 
   /**
