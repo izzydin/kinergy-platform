@@ -3,3 +3,4 @@ export * from './source-type.enum';
 export * from './discount-type.enum';
 export * from './payment-method.enum';
 export * from './payment-status.enum';
+export * from './receipt-status.enum';

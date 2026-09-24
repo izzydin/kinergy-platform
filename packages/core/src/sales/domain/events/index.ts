@@ -11,3 +11,5 @@ export * from './payment-completed.event';
 export * from './payment-settled.event';
 export * from './payment-failed.event';
 export * from './payment-cancelled.event';
+export * from './receipt-issued.event';
+export * from './receipt-reprinted.event';

@@ -5,3 +5,8 @@ export * from './discount.vo';
 export * from './money.vo';
 export * from './payment-id.vo';
 export * from './payment-reference.vo';
+export * from './receipt-id.vo';
+export * from './receipt-number.vo';
+export * from './receipt-client-snapshot.vo';
+export * from './receipt-item-snapshot.vo';
+export * from './receipt-payment-snapshot.vo';

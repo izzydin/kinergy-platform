@@ -6,3 +6,4 @@ export * from './entities';
 export * from './services';
 export * from './sale.aggregate';
 export * from './payment.aggregate';
+export * from './receipt.aggregate';
