@@ -3,6 +3,8 @@ import { PaymentStatus } from '../../domain/enums/payment-status.enum';
 
 export interface RecordPaymentCurrentUser {
   id?: string;
+  userId?: string;
+  email?: string;
   permissions?: string[];
   roles?: string[];
 }

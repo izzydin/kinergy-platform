@@ -15,16 +15,24 @@ import {
   RecordPaymentHandler,
   GetPaymentByIdHandler,
   GetPaymentsBySaleIdHandler,
+  CompletePaymentHandler,
   SettlePaymentHandler,
+  FailPaymentHandler,
   CancelPaymentHandler,
   SaleNotFoundException,
   PaymentNotFoundException,
   PaymentUnauthorizedException,
   InvalidPaymentReferenceException,
+  InvalidPaymentTransitionException,
 } from '@kinergy-platform/core';
 import { PaymentsController, PAYMENT_REPOSITORY_TOKEN } from '../controllers/payments.controller';
 import { SALE_REPOSITORY_TOKEN } from '../controllers/sales.controller';
-import { RecordPaymentRequestDto, CancelPaymentRequestDto } from '../dto';
+import {
+  RecordPaymentRequestDto,
+  CancelPaymentRequestDto,
+  CompletePaymentRequestDto,
+  FailPaymentRequestDto,
+} from '../dto';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
 import { AuthenticatedUserPayload } from '../../platform/identity/decorators/current-user.decorator';
@@ -204,9 +212,29 @@ describe('Payment Financial Security, Authorization & Audit Hardening Spec', () 
           useFactory: () => new GetPaymentsBySaleIdHandler(paymentRepo, saleRepo),
         },
         {
+          provide: CompletePaymentHandler,
+          useFactory: () =>
+            new CompletePaymentHandler(
+              paymentRepo,
+              saleRepo,
+              undefined,
+              salesAuditPublisher as unknown as SalesEventPublisherPort,
+            ),
+        },
+        {
           provide: SettlePaymentHandler,
           useFactory: () =>
             new SettlePaymentHandler(
+              paymentRepo,
+              saleRepo,
+              undefined,
+              salesAuditPublisher as unknown as SalesEventPublisherPort,
+            ),
+        },
+        {
+          provide: FailPaymentHandler,
+          useFactory: () =>
+            new FailPaymentHandler(
               paymentRepo,
               saleRepo,
               undefined,
@@ -547,7 +575,7 @@ describe('Payment Financial Security, Authorization & Audit Hardening Spec', () 
       // Verify audit event published
       expect(mockAuditPublisher.publishedEvents.length).toBeGreaterThanOrEqual(1);
       const settlementAudit = mockAuditPublisher.publishedEvents.find(
-        (e) => e.eventType === 'PaymentSettled',
+        (e) => e.eventType === 'PaymentCompleted' || e.eventType === 'PaymentSettled',
       );
       expect(settlementAudit).toBeDefined();
       expect(settlementAudit?.category).toBe(AuditEventCategory.DATA_ACCESS);
@@ -557,6 +585,8 @@ describe('Payment Financial Security, Authorization & Audit Hardening Spec', () 
       expect(settlementAudit?.tenantId).toBe(primaryTenantId);
       expect(settlementAudit?.metadata?.custom?.amount).toBe(100.0);
       expect(settlementAudit?.metadata?.custom?.reference).toBe('RECEIPT-AUDIT-01');
+      expect(settlementAudit?.actor?.userId).toBe(receptionistUser.id);
+      expect(settlementAudit?.actor?.roles).toEqual(['Receptionist']);
     });
 
     it('publishes structured IAuditEvent record upon PaymentCancelled', async () => {
@@ -592,6 +622,325 @@ describe('Payment Financial Security, Authorization & Audit Hardening Spec', () 
       expect(cancelAudit?.severity).toBe(AuditSeverity.MEDIUM);
       expect(cancelAudit?.target.id).toBe(pending.id);
       expect(cancelAudit?.metadata?.reason).toBe('Customer changed mind');
+      expect(cancelAudit?.actor?.userId).toBe(managerUser.id);
+      expect(cancelAudit?.actor?.roles).toEqual(['Manager']);
+    });
+  });
+
+  // 7. Payment Lifecycle Transition Authorization, Cross-Context & Audit Hardening
+  describe('7. Payment Lifecycle Transition Authorization, Cross-Context & Audit Hardening', () => {
+    const createPendingPayment = async (
+      tenantId: string = primaryTenantId,
+      saleAmount: number = 100.0,
+      paymentAmount: number = 50.0,
+    ) => {
+      const sale = createPayableSale(tenantId, saleAmount, 'USD');
+      const recordHandler = new RecordPaymentHandler(
+        paymentRepo,
+        saleRepo,
+        undefined,
+        salesAuditPublisher as unknown as SalesEventPublisherPort,
+      );
+      const pendingRes = await recordHandler.execute({
+        input: {
+          saleId: sale.id.value,
+          amount: paymentAmount,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+          currentUser: receptionistUser,
+        },
+      });
+      return { sale, pending: pendingRes.getValue() };
+    };
+
+    it('authorized completion: allows Receptionist with payments.create to complete PENDING payment, publishing PaymentCompleted audit record with actor attribution', async () => {
+      const { pending } = await createPendingPayment();
+      mockAuditPublisher.clear();
+
+      const completeDto: CompletePaymentRequestDto = {
+        reference: 'TERM-OK-AUTH-1001',
+      };
+
+      const result = await controller.completePayment(pending.id, completeDto, receptionistUser);
+
+      expect(result.status).toBe(PaymentStatus.COMPLETED);
+      expect(result.paidAt).not.toBeNull();
+      expect(result.reference).toBe('TERM-OK-AUTH-1001');
+
+      // Verify audit event creation
+      expect(mockAuditPublisher.publishedEvents.length).toBe(1);
+      const audit = mockAuditPublisher.publishedEvents[0]!;
+      expect(audit.eventType).toBe('PaymentCompleted');
+      expect(audit.category).toBe(AuditEventCategory.DATA_ACCESS);
+      expect(audit.outcome).toBe(AuditOutcome.SUCCESS);
+      expect(audit.severity).toBe(AuditSeverity.LOW);
+      expect(audit.target.type).toBe('Payment');
+      expect(audit.target.id).toBe(pending.id);
+      expect(audit.tenantId).toBe(primaryTenantId);
+      expect(audit.actor?.userId).toBe(receptionistUser.id);
+      expect(audit.actor?.email).toBe(receptionistUser.email);
+      expect(audit.actor?.roles).toEqual(['Receptionist']);
+      expect(audit.metadata?.custom?.amount).toBe(50.0);
+      expect(audit.metadata?.custom?.reference).toBe('TERM-OK-AUTH-1001');
+      expect(audit.metadata?.custom?.paidAt).toBeDefined();
+    });
+
+    it('unauthorized completion: rejects unprivileged user lacking payments.create/manage and emits NO audit event', async () => {
+      const { pending } = await createPendingPayment();
+      mockAuditPublisher.clear();
+
+      await expect(
+        controller.completePayment(
+          pending.id,
+          { reference: 'UNAUTH-COMPLETE' },
+          unprivilegedMemberUser,
+        ),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+      const stored = await paymentRepo.findById(pending.id);
+      expect(stored?.status).toBe(PaymentStatus.PENDING);
+      expect(stored?.paidAt).toBeNull();
+    });
+
+    it('authorized failure: allows Receptionist with payments.create to mark payment as failed, publishing PaymentFailed audit record with actor attribution and reason', async () => {
+      const { pending } = await createPendingPayment();
+      mockAuditPublisher.clear();
+
+      const failDto: FailPaymentRequestDto = {
+        reason: 'Payment network decline: Insufficient balance on card',
+      };
+
+      const result = await controller.failPayment(pending.id, failDto, receptionistUser);
+
+      expect(result.status).toBe(PaymentStatus.FAILED);
+      expect(result.paidAt).toBeNull();
+
+      expect(mockAuditPublisher.publishedEvents.length).toBe(1);
+      const audit = mockAuditPublisher.publishedEvents[0]!;
+      expect(audit.eventType).toBe('PaymentFailed');
+      expect(audit.category).toBe(AuditEventCategory.SYSTEM_SECURITY);
+      expect(audit.outcome).toBe(AuditOutcome.FAILURE);
+      expect(audit.severity).toBe(AuditSeverity.HIGH);
+      expect(audit.target.id).toBe(pending.id);
+      expect(audit.target.type).toBe('Payment');
+      expect(audit.actor?.userId).toBe(receptionistUser.id);
+      expect(audit.metadata?.reason).toBe('Payment network decline: Insufficient balance on card');
+      expect(audit.metadata?.custom?.amount).toBe(50.0);
+    });
+
+    it('unauthorized failure: rejects unprivileged user lacking payments.create/manage and emits NO audit event', async () => {
+      const { pending } = await createPendingPayment();
+      mockAuditPublisher.clear();
+
+      await expect(
+        controller.failPayment(
+          pending.id,
+          { reason: 'Rogue failure attempt' },
+          unprivilegedMemberUser,
+        ),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+      const stored = await paymentRepo.findById(pending.id);
+      expect(stored?.status).toBe(PaymentStatus.PENDING);
+    });
+
+    it('authorized cancellation: allows Manager with payments.manage to cancel payment, publishing PaymentCancelled audit record with actor attribution and reason', async () => {
+      const { pending } = await createPendingPayment();
+      mockAuditPublisher.clear();
+
+      const cancelDto: CancelPaymentRequestDto = {
+        reason: 'Customer tender cancellation approved by store supervisor',
+      };
+
+      const result = await controller.cancelPayment(pending.id, cancelDto, managerUser);
+
+      expect(result.status).toBe(PaymentStatus.CANCELLED);
+      expect(result.paidAt).toBeNull();
+
+      expect(mockAuditPublisher.publishedEvents.length).toBe(1);
+      const audit = mockAuditPublisher.publishedEvents[0]!;
+      expect(audit.eventType).toBe('PaymentCancelled');
+      expect(audit.category).toBe(AuditEventCategory.DATA_ACCESS);
+      expect(audit.outcome).toBe(AuditOutcome.SUCCESS);
+      expect(audit.severity).toBe(AuditSeverity.MEDIUM);
+      expect(audit.target.id).toBe(pending.id);
+      expect(audit.actor?.userId).toBe(managerUser.id);
+      expect(audit.actor?.roles).toEqual(['Manager']);
+      expect(audit.metadata?.reason).toBe(
+        'Customer tender cancellation approved by store supervisor',
+      );
+    });
+
+    it('unauthorized cancellation: rejects Receptionist lacking payments.manage from cancelling payment and emits NO audit event', async () => {
+      const { pending } = await createPendingPayment();
+      mockAuditPublisher.clear();
+
+      await expect(
+        controller.cancelPayment(
+          pending.id,
+          { reason: 'Cashier attempt to cancel tender' },
+          receptionistUser,
+        ),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+      const stored = await paymentRepo.findById(pending.id);
+      expect(stored?.status).toBe(PaymentStatus.PENDING);
+    });
+
+    it('cross-context access: rejects complete/fail/cancel when client specifies mismatched saleId and emits NO audit event', async () => {
+      const { pending } = await createPendingPayment();
+      const foreignSale = createPayableSale(primaryTenantId, 250.0, 'USD');
+      mockAuditPublisher.clear();
+
+      // Mismatched saleId on complete
+      await expect(
+        controller.completePayment(pending.id, {}, receptionistUser, foreignSale.id.value),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+
+      // Mismatched saleId on fail
+      await expect(
+        controller.failPayment(
+          pending.id,
+          { reason: 'Declined' },
+          receptionistUser,
+          foreignSale.id.value,
+        ),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+
+      // Mismatched saleId on cancel
+      await expect(
+        controller.cancelPayment(
+          pending.id,
+          { reason: 'Voided' },
+          managerUser,
+          foreignSale.id.value,
+        ),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+    });
+
+    it('cross-tenant isolation: rejects lifecycle transitions by cross-tenant caller and emits NO audit event', async () => {
+      const { pending } = await createPendingPayment(primaryTenantId);
+      mockAuditPublisher.clear();
+
+      await expect(
+        controller.completePayment(pending.id, {}, crossTenantManagerUser),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+
+      await expect(
+        controller.failPayment(pending.id, { reason: 'Rail failure' }, crossTenantManagerUser),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+
+      await expect(
+        controller.cancelPayment(pending.id, { reason: 'Aborted' }, crossTenantManagerUser),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+    });
+
+    it('cross-context defense: rejects payment whose associated sale belongs to another tenant and emits NO audit event', async () => {
+      // Create pending payment in Tenant A, but associated sale has Tenant B
+      const saleRival = createPayableSale(competitorTenantId, 100.0, 'USD');
+      const anomalousPayment = Payment.createPending({
+        id: PaymentId.create(),
+        tenantId: primaryTenantId,
+        saleId: saleRival.id,
+        method: PaymentMethod.CASH,
+        amount: Money.create(50.0, 'USD'),
+      });
+      await paymentRepo.save(anomalousPayment);
+      mockAuditPublisher.clear();
+
+      await expect(
+        controller.completePayment(anomalousPayment.id.value, {}, receptionistUser),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+
+      await expect(
+        controller.failPayment(anomalousPayment.id.value, { reason: 'Timeout' }, receptionistUser),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+
+      await expect(
+        controller.cancelPayment(
+          anomalousPayment.id.value,
+          { reason: 'Cancel anomalous' },
+          managerUser,
+        ),
+      ).rejects.toThrow(PaymentUnauthorizedException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+    });
+
+    it('audit event absence on invalid state machine transitions: terminal payments reject transition and emit NO audit event', async () => {
+      const { pending } = await createPendingPayment();
+      // First, complete the payment legally
+      await controller.completePayment(pending.id, {}, receptionistUser);
+      mockAuditPublisher.clear();
+
+      // Attempt repeated complete on COMPLETED payment -> domain rejects transition
+      await expect(controller.completePayment(pending.id, {}, managerUser)).rejects.toThrow(
+        InvalidPaymentTransitionException,
+      );
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+
+      // Attempt fail on COMPLETED payment -> domain rejects transition
+      await expect(
+        controller.failPayment(pending.id, { reason: 'Declined' }, managerUser),
+      ).rejects.toThrow(InvalidPaymentTransitionException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+
+      // Attempt cancel on COMPLETED payment -> domain rejects transition
+      await expect(
+        controller.cancelPayment(pending.id, { reason: 'Cancel' }, managerUser),
+      ).rejects.toThrow(InvalidPaymentTransitionException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+    });
+
+    it('audit event absence when payment is not found', async () => {
+      mockAuditPublisher.clear();
+
+      await expect(
+        controller.completePayment('pmt_nonexistent_id_404', {}, receptionistUser),
+      ).rejects.toThrow(PaymentNotFoundException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+
+      await expect(
+        controller.failPayment('pmt_nonexistent_id_404', { reason: 'Fail' }, receptionistUser),
+      ).rejects.toThrow(PaymentNotFoundException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+
+      await expect(
+        controller.cancelPayment('pmt_nonexistent_id_404', { reason: 'Cancel' }, managerUser),
+      ).rejects.toThrow(PaymentNotFoundException);
+      expect(mockAuditPublisher.publishedEvents.length).toBe(0);
+    });
+
+    it('audit privacy & data protection: credit card PANs and cardholder sensitive tokens are masked in audit records', async () => {
+      const { pending } = await createPendingPayment();
+      mockAuditPublisher.clear();
+
+      const sensitiveReason = 'Gateway rail decline for card 4111222233334444: Expired card';
+
+      await controller.failPayment(pending.id, { reason: sensitiveReason }, receptionistUser);
+
+      expect(mockAuditPublisher.publishedEvents.length).toBe(1);
+      const audit = mockAuditPublisher.publishedEvents[0]!;
+      expect(audit.metadata?.reason).toBe(
+        'Gateway rail decline for card ****-****-****-[MASKED]: Expired card',
+      );
+      expect(audit.metadata?.reason).not.toContain('4111222233334444');
+      // Verify no sensitive credentials leaked
+      const stringifiedAudit = JSON.stringify(audit);
+      expect(stringifiedAudit).not.toContain('password');
+      expect(stringifiedAudit).not.toContain('secret');
+      expect(stringifiedAudit).not.toContain('apiKey');
     });
   });
 });

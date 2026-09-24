@@ -76,6 +76,7 @@ export class CancelPaymentHandler implements SalesCommandHandler<
         const sale = await this.saleRepository.findById(payment.saleId);
         if (sale) {
           enforceTenantIsolation(sale.tenantId, input.tenantId);
+          enforceTenantIsolation(sale.tenantId, payment.tenantId);
         }
       }
 

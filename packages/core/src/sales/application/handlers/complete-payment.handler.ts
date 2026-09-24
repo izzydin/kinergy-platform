@@ -60,6 +60,13 @@ export class CompletePaymentHandler implements SalesCommandHandler<
         );
       }
 
+      // 4b. Verify Associated Sale Access Before Domain Mutation
+      const sale = await this.saleRepository.findById(payment.saleId);
+      if (sale) {
+        enforceTenantIsolation(sale.tenantId, input.tenantId);
+        enforceTenantIsolation(sale.tenantId, payment.tenantId);
+      }
+
       // 5. Invoke Explicit Domain Behavior
       payment.complete({
         reference: input.reference,
@@ -71,10 +78,7 @@ export class CompletePaymentHandler implements SalesCommandHandler<
       await this.paymentRepository.save(payment);
 
       // 7. Synchronize Associated Sale Settlement Balance
-      const sale = await this.saleRepository.findById(payment.saleId);
       if (sale) {
-        enforceTenantIsolation(sale.tenantId, input.tenantId);
-        enforceTenantIsolation(sale.tenantId, payment.tenantId);
         const allPayments = await this.paymentRepository.findBySaleId(sale.id);
         const settledTotal = allPayments
           .filter((p) => p.status === PaymentStatus.COMPLETED)

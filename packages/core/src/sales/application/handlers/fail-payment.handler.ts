@@ -71,10 +71,11 @@ export class FailPaymentHandler implements SalesCommandHandler<
         );
       }
 
-      if (this.saleRepository && input.saleId) {
+      if (this.saleRepository) {
         const sale = await this.saleRepository.findById(payment.saleId);
         if (sale) {
           enforceTenantIsolation(sale.tenantId, input.tenantId);
+          enforceTenantIsolation(sale.tenantId, payment.tenantId);
         }
       }
 

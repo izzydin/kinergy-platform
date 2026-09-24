@@ -1,6 +1,6 @@
 import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
-  PaymentSettledEvent,
+  PaymentCompletedEvent,
   PaymentCancelledEvent,
   PaymentFailedEvent,
   SaleFinalizedEvent,
@@ -11,10 +11,13 @@ import {
   AUDIT_EVENT_PUBLISHER,
   IAuditEventPublisher,
   IAuditEvent,
+  IAuditEventActor,
   AuditEventCategory,
   AuditOutcome,
   AuditSeverity,
 } from '../../platform/audit';
+import { REQUEST_CONTEXT_ACCESSOR, IRequestContextAccessor } from '../../platform/identity/context';
+import { RequestContext } from '../../platform/identity/request-context';
 
 type SalesDomainEventList = Parameters<SalesEventPublisherPort['publish']>[0];
 type SalesDomainEvent = SalesDomainEventList[number];
@@ -40,6 +43,9 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
     @Inject(AUDIT_EVENT_PUBLISHER)
     @Optional()
     private readonly auditPublisher?: IAuditEventPublisher,
+    @Inject(REQUEST_CONTEXT_ACCESSOR)
+    @Optional()
+    private readonly contextAccessor?: IRequestContextAccessor,
   ) {}
 
   public async publish(events: SalesDomainEventList): Promise<void> {
@@ -55,18 +61,26 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
     }
   }
 
+  private resolveActor(tenantId?: string | null): IAuditEventActor {
+    const ctx = this.contextAccessor?.getContext() ?? RequestContext.currentContext();
+    return {
+      userId: ctx?.userId || undefined,
+      email: ctx?.email || undefined,
+      roles: ctx?.roles && ctx.roles.length > 0 ? [...ctx.roles] : undefined,
+      tenantId: ctx?.tenantId || tenantId || null,
+    };
+  }
+
   private mapDomainEventToAuditEvent(event: SalesDomainEvent): IAuditEvent | null {
     const timestamp = (event as { occurredAt?: Date }).occurredAt ?? new Date();
 
-    if (event instanceof PaymentSettledEvent) {
+    if (event instanceof PaymentCompletedEvent) {
       return {
         eventId: event.eventId,
-        eventType: 'PaymentSettled',
+        eventType: 'PaymentCompleted',
         category: AuditEventCategory.DATA_ACCESS,
         timestamp,
-        actor: {
-          tenantId: event.payload.tenantId,
-        },
+        actor: this.resolveActor(event.payload.tenantId),
         target: {
           type: 'Payment',
           id: event.payload.paymentId,
@@ -94,9 +108,7 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
         eventType: 'PaymentCancelled',
         category: AuditEventCategory.DATA_ACCESS,
         timestamp,
-        actor: {
-          tenantId: event.payload.tenantId,
-        },
+        actor: this.resolveActor(event.payload.tenantId),
         target: {
           type: 'Payment',
           id: event.payload.paymentId,
@@ -105,7 +117,7 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
         severity: AuditSeverity.MEDIUM,
         tenantId: event.payload.tenantId,
         metadata: {
-          reason: event.payload.reason ?? undefined,
+          reason: sanitizeReference(event.payload.reason) ?? undefined,
           custom: {
             saleId: event.payload.saleId,
           },
@@ -119,9 +131,7 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
         eventType: 'PaymentFailed',
         category: AuditEventCategory.SYSTEM_SECURITY,
         timestamp,
-        actor: {
-          tenantId: event.payload.tenantId,
-        },
+        actor: this.resolveActor(event.payload.tenantId),
         target: {
           type: 'Payment',
           id: event.payload.paymentId,
@@ -130,7 +140,7 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
         severity: AuditSeverity.HIGH,
         tenantId: event.payload.tenantId,
         metadata: {
-          reason: event.payload.reason,
+          reason: sanitizeReference(event.payload.reason) ?? 'Unknown failure',
           custom: {
             saleId: event.payload.saleId,
             amount: event.payload.amount,
@@ -146,7 +156,7 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
         eventType: 'SaleFinalized',
         category: AuditEventCategory.DATA_ACCESS,
         timestamp,
-        actor: {},
+        actor: this.resolveActor(),
         target: {
           type: 'Sale',
           id: event.payload.saleId,
@@ -169,7 +179,7 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
         eventType: 'SaleCancelled',
         category: AuditEventCategory.DATA_ACCESS,
         timestamp,
-        actor: {},
+        actor: this.resolveActor(),
         target: {
           type: 'Sale',
           id: event.payload.saleId,

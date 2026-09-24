@@ -10,6 +10,7 @@ import {
   Optional,
   Param,
   Post,
+  Query,
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
@@ -37,6 +38,8 @@ import { AuthenticationGuard } from '../../platform/identity/guards/authenticati
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
 import { Permissions, Roles, CurrentUser } from '../../platform/identity/decorators';
 import { AuthenticatedUserPayload } from '../../platform/identity/decorators/current-user.decorator';
+import { AuthenticatedUserContext } from '../../platform/identity/context/authenticated-user-context';
+import { RequestContext } from '../../platform/identity/request-context';
 import {
   RecordPaymentRequestDto,
   PaymentResponseDto,
@@ -144,24 +147,41 @@ export class PaymentsController {
     @Body() dto: RecordPaymentRequestDto,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto> {
-    const command = new RecordPaymentCommand({
-      saleId,
-      amount: dto.amount,
-      currency: dto.currency,
-      method: dto.method,
-      reference: dto.reference,
-      tenantId: user?.tenantId ?? undefined,
-      currentUser: user
-        ? {
-            id: user.id,
-            roles: user.roles,
-            permissions: user.permissions,
-          }
-        : undefined,
-    });
+    const userContext = user
+      ? new AuthenticatedUserContext({
+          userId: user.id,
+          email: user.email,
+          status: user.status ?? 'ACTIVE',
+          roles: user.roles ?? [],
+          permissions: user.permissions ?? [],
+          tenantId: user.tenantId ?? null,
+        })
+      : null;
 
-    const result = await this._recordPaymentHandler.execute(command);
-    return this.handleResult(result) as unknown as PaymentResponseDto;
+    const executeAction = async (): Promise<PaymentResponseDto> => {
+      const command = new RecordPaymentCommand({
+        saleId,
+        amount: dto.amount,
+        currency: dto.currency,
+        method: dto.method,
+        reference: dto.reference,
+        tenantId: user?.tenantId ?? undefined,
+        currentUser: user
+          ? {
+              id: user.id,
+              userId: user.id,
+              email: user.email,
+              roles: user.roles,
+              permissions: user.permissions,
+            }
+          : undefined,
+      });
+
+      const result = await this._recordPaymentHandler.execute(command);
+      return this.handleResult(result) as unknown as PaymentResponseDto;
+    };
+
+    return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
   @Get('sales/:saleId/payments')
@@ -238,7 +258,7 @@ export class PaymentsController {
     return this.handleResult(result) as unknown as PaymentResponseDto;
   }
 
-  @Post('payments/:id/complete')
+  @Post(['payments/:id/complete', ':saleId/payments/:id/complete'])
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist')
   @Permissions('payments.create', 'payments.manage')
@@ -284,25 +304,46 @@ export class PaymentsController {
     @Param('id') id: string,
     @Body() dto: CompletePaymentRequestDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
+    @Param('saleId') paramSaleId?: string,
+    @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
-    const command = new CompletePaymentCommand({
-      paymentId: id,
-      reference: dto?.reference,
-      tenantId: user?.tenantId ?? undefined,
-      currentUser: user
-        ? {
-            id: user.id,
-            roles: user.roles,
-            permissions: user.permissions,
-          }
-        : undefined,
-    });
+    const effectiveSaleId = paramSaleId ?? querySaleId;
+    const userContext = user
+      ? new AuthenticatedUserContext({
+          userId: user.id,
+          email: user.email,
+          status: user.status ?? 'ACTIVE',
+          roles: user.roles ?? [],
+          permissions: user.permissions ?? [],
+          tenantId: user.tenantId ?? null,
+        })
+      : null;
 
-    const result = await this._completePaymentHandler.execute(command);
-    return this.handleResult(result) as unknown as PaymentResponseDto;
+    const executeAction = async (): Promise<PaymentResponseDto> => {
+      const command = new CompletePaymentCommand({
+        paymentId: id,
+        saleId: effectiveSaleId,
+        reference: dto?.reference,
+        tenantId: user?.tenantId ?? undefined,
+        currentUser: user
+          ? {
+              id: user.id,
+              userId: user.id,
+              email: user.email,
+              roles: user.roles,
+              permissions: user.permissions,
+            }
+          : undefined,
+      });
+
+      const result = await this._completePaymentHandler.execute(command);
+      return this.handleResult(result) as unknown as PaymentResponseDto;
+    };
+
+    return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
-  @Post('payments/:id/settle')
+  @Post(['payments/:id/settle', ':saleId/payments/:id/settle'])
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist')
   @Permissions('payments.create', 'payments.manage')
@@ -348,25 +389,46 @@ export class PaymentsController {
     @Param('id') id: string,
     @Body() dto: SettlePaymentRequestDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
+    @Param('saleId') paramSaleId?: string,
+    @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
-    const command = new SettlePaymentCommand({
-      paymentId: id,
-      reference: dto?.reference,
-      tenantId: user?.tenantId ?? undefined,
-      currentUser: user
-        ? {
-            id: user.id,
-            roles: user.roles,
-            permissions: user.permissions,
-          }
-        : undefined,
-    });
+    const effectiveSaleId = paramSaleId ?? querySaleId;
+    const userContext = user
+      ? new AuthenticatedUserContext({
+          userId: user.id,
+          email: user.email,
+          status: user.status ?? 'ACTIVE',
+          roles: user.roles ?? [],
+          permissions: user.permissions ?? [],
+          tenantId: user.tenantId ?? null,
+        })
+      : null;
 
-    const result = await this._settlePaymentHandler.execute(command);
-    return this.handleResult(result) as unknown as PaymentResponseDto;
+    const executeAction = async (): Promise<PaymentResponseDto> => {
+      const command = new SettlePaymentCommand({
+        paymentId: id,
+        saleId: effectiveSaleId,
+        reference: dto?.reference,
+        tenantId: user?.tenantId ?? undefined,
+        currentUser: user
+          ? {
+              id: user.id,
+              userId: user.id,
+              email: user.email,
+              roles: user.roles,
+              permissions: user.permissions,
+            }
+          : undefined,
+      });
+
+      const result = await this._settlePaymentHandler.execute(command);
+      return this.handleResult(result) as unknown as PaymentResponseDto;
+    };
+
+    return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
-  @Post('payments/:id/fail')
+  @Post(['payments/:id/fail', ':saleId/payments/:id/fail'])
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist')
   @Permissions('payments.create', 'payments.manage')
@@ -412,27 +474,48 @@ export class PaymentsController {
     @Param('id') id: string,
     @Body() dto: FailPaymentRequestDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
+    @Param('saleId') paramSaleId?: string,
+    @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
-    const command = new FailPaymentCommand({
-      paymentId: id,
-      reason: dto?.reason,
-      tenantId: user?.tenantId ?? undefined,
-      currentUser: user
-        ? {
-            id: user.id,
-            roles: user.roles,
-            permissions: user.permissions,
-          }
-        : undefined,
-    });
+    const effectiveSaleId = paramSaleId ?? querySaleId;
+    const userContext = user
+      ? new AuthenticatedUserContext({
+          userId: user.id,
+          email: user.email,
+          status: user.status ?? 'ACTIVE',
+          roles: user.roles ?? [],
+          permissions: user.permissions ?? [],
+          tenantId: user.tenantId ?? null,
+        })
+      : null;
 
-    const result = await this._failPaymentHandler.execute(command);
-    return this.handleResult(result) as unknown as PaymentResponseDto;
+    const executeAction = async (): Promise<PaymentResponseDto> => {
+      const command = new FailPaymentCommand({
+        paymentId: id,
+        saleId: effectiveSaleId,
+        reason: dto?.reason,
+        tenantId: user?.tenantId ?? undefined,
+        currentUser: user
+          ? {
+              id: user.id,
+              userId: user.id,
+              email: user.email,
+              roles: user.roles,
+              permissions: user.permissions,
+            }
+          : undefined,
+      });
+
+      const result = await this._failPaymentHandler.execute(command);
+      return this.handleResult(result) as unknown as PaymentResponseDto;
+    };
+
+    return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
-  @Post('payments/:id/cancel')
+  @Post(['payments/:id/cancel', ':saleId/payments/:id/cancel'])
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist')
+  @Roles('Owner', 'Manager')
   @Permissions('payments.manage')
   @ApiOperation({
     summary: 'Void or cancel an unsettled pending payment transaction',
@@ -476,22 +559,43 @@ export class PaymentsController {
     @Param('id') id: string,
     @Body() dto: CancelPaymentRequestDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
+    @Param('saleId') paramSaleId?: string,
+    @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
-    const command = new CancelPaymentCommand({
-      paymentId: id,
-      reason: dto?.reason,
-      tenantId: user?.tenantId ?? undefined,
-      currentUser: user
-        ? {
-            id: user.id,
-            roles: user.roles,
-            permissions: user.permissions,
-          }
-        : undefined,
-    });
+    const effectiveSaleId = paramSaleId ?? querySaleId;
+    const userContext = user
+      ? new AuthenticatedUserContext({
+          userId: user.id,
+          email: user.email,
+          status: user.status ?? 'ACTIVE',
+          roles: user.roles ?? [],
+          permissions: user.permissions ?? [],
+          tenantId: user.tenantId ?? null,
+        })
+      : null;
 
-    const result = await this._cancelPaymentHandler.execute(command);
-    return this.handleResult(result) as unknown as PaymentResponseDto;
+    const executeAction = async (): Promise<PaymentResponseDto> => {
+      const command = new CancelPaymentCommand({
+        paymentId: id,
+        saleId: effectiveSaleId,
+        reason: dto?.reason,
+        tenantId: user?.tenantId ?? undefined,
+        currentUser: user
+          ? {
+              id: user.id,
+              userId: user.id,
+              email: user.email,
+              roles: user.roles,
+              permissions: user.permissions,
+            }
+          : undefined,
+      });
+
+      const result = await this._cancelPaymentHandler.execute(command);
+      return this.handleResult(result) as unknown as PaymentResponseDto;
+    };
+
+    return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
   private handleResult<T>(result: SalesApplicationResult<T, Error | string>): T {
