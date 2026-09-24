@@ -14,3 +14,5 @@ export * from './fail-payment.handler';
 export * from './cancel-payment.handler';
 export * from './get-payment-by-id.handler';
 export * from './get-payments-by-sale-id.handler';
+export * from './issue-receipt.handler';
+export * from './reprint-receipt.handler';

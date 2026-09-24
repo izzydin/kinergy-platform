@@ -12,3 +12,5 @@ export * from './complete-payment.command';
 export * from './settle-payment.command';
 export * from './fail-payment.command';
 export * from './cancel-payment.command';
+export * from './issue-receipt.command';
+export * from './reprint-receipt.command';
