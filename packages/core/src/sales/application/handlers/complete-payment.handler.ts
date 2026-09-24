@@ -1,8 +1,11 @@
 import { SalesCommandHandler } from '../shared/sales-command-handler.interface';
 import { SalesApplicationResult } from '../shared/sales-application-result';
-import { FailPaymentCommand } from '../commands/fail-payment.command';
+import { CompletePaymentCommand } from '../commands/complete-payment.command';
 import { PaymentDTO } from '../dtos/payment.dto';
 import { PaymentMapper } from '../mappers/payment.mapper';
+import { PaymentStatus } from '../../domain/enums/payment-status.enum';
+import { SaleStatus } from '../../domain/enums/sale-status.enum';
+import { Money } from '../../domain/value-objects/money.vo';
 import { PaymentRepositoryPort } from '../ports/payment-repository.port';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
@@ -12,38 +15,24 @@ import { PaymentUnauthorizedException } from '../exceptions/payment-unauthorized
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 
 /**
- * Application command handler orchestrating explicit Payment failure.
- * Transitions a PENDING payment to FAILED upon rail decline or timeout,
- * records failure audit reason, and persists with OCC verification.
+ * Application command handler orchestrating explicit Payment completion.
+ * Transitions a PENDING payment to COMPLETED, persists state with OCC verification,
+ * and synchronizes parent Sale settlement totals without duplicating domain rules.
  */
-export class FailPaymentHandler implements SalesCommandHandler<
-  FailPaymentCommand,
+export class CompletePaymentHandler implements SalesCommandHandler<
+  CompletePaymentCommand,
   SalesApplicationResult<PaymentDTO>
 > {
-  private readonly paymentRepository: PaymentRepositoryPort;
-  private readonly saleRepository?: SaleRepositoryPort;
-  private readonly clock: Clock;
-  private readonly eventPublisher?: SalesEventPublisherPort;
-
   constructor(
-    paymentRepository: PaymentRepositoryPort,
-    arg2?: SaleRepositoryPort | Clock,
-    arg3?: Clock | SalesEventPublisherPort,
-    arg4?: SalesEventPublisherPort,
-  ) {
-    this.paymentRepository = paymentRepository;
-    if (arg2 && 'findById' in arg2) {
-      this.saleRepository = arg2 as SaleRepositoryPort;
-      this.clock = arg3 && 'now' in arg3 ? (arg3 as Clock) : new SystemClock();
-      this.eventPublisher = arg4;
-    } else {
-      this.clock = arg2 && 'now' in arg2 ? (arg2 as Clock) : new SystemClock();
-      this.eventPublisher =
-        arg3 && 'publish' in arg3 ? (arg3 as SalesEventPublisherPort) : undefined;
-    }
-  }
+    private readonly paymentRepository: PaymentRepositoryPort,
+    private readonly saleRepository: SaleRepositoryPort,
+    private readonly clock: Clock = new SystemClock(),
+    private readonly eventPublisher?: SalesEventPublisherPort,
+  ) {}
 
-  public async execute(command: FailPaymentCommand): Promise<SalesApplicationResult<PaymentDTO>> {
+  public async execute(
+    command: CompletePaymentCommand,
+  ): Promise<SalesApplicationResult<PaymentDTO>> {
     try {
       const { input } = command;
 
@@ -71,25 +60,46 @@ export class FailPaymentHandler implements SalesCommandHandler<
         );
       }
 
-      if (this.saleRepository && input.saleId) {
-        const sale = await this.saleRepository.findById(payment.saleId);
-        if (sale) {
-          enforceTenantIsolation(sale.tenantId, input.tenantId);
-        }
-      }
-
       // 5. Invoke Explicit Domain Behavior
-      payment.fail(input.reason ?? undefined, this.clock);
+      payment.complete({
+        reference: input.reference,
+        paidAt: input.paidAt,
+        clock: this.clock,
+      });
 
       // 6. Persist Payment Aggregate (Enforces OCC version check at persistence layer)
       await this.paymentRepository.save(payment);
 
-      // 7. Publish Domain Events
-      const events = payment.getUncommittedEvents();
+      // 7. Synchronize Associated Sale Settlement Balance
+      const sale = await this.saleRepository.findById(payment.saleId);
+      if (sale) {
+        enforceTenantIsolation(sale.tenantId, input.tenantId);
+        enforceTenantIsolation(sale.tenantId, payment.tenantId);
+        const allPayments = await this.paymentRepository.findBySaleId(sale.id);
+        const settledTotal = allPayments
+          .filter((p) => p.status === PaymentStatus.COMPLETED)
+          .reduce((acc, p) => acc.add(p.amount), Money.zero(sale.currency));
+
+        if (settledTotal.greaterThanOrEqual(sale.total)) {
+          sale.markPaid(this.clock);
+        } else if (sale.status === SaleStatus.PENDING_PAYMENT) {
+          sale.markPartiallyPaid(this.clock);
+        }
+        await this.saleRepository.save(sale);
+      }
+
+      // 8. Publish Domain Events
+      const events = [
+        ...payment.getUncommittedEvents(),
+        ...(sale ? sale.getUncommittedEvents() : []),
+      ];
       if (this.eventPublisher && events.length > 0) {
         await this.eventPublisher.publish(events);
       }
       payment.clearEvents();
+      if (sale) {
+        sale.clearEvents();
+      }
 
       return SalesApplicationResult.ok(PaymentMapper.toDTO(payment));
     } catch (err: unknown) {

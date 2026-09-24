@@ -1,13 +1,9 @@
-import { RecordPaymentCurrentUser } from './record-payment.command';
+import { CompletePaymentCommand, CompletePaymentInput } from './complete-payment.command';
 
-export interface SettlePaymentInput {
-  paymentId: string;
-  saleId?: string;
-  reference?: string | null;
-  tenantId?: string;
-  currentUser?: RecordPaymentCurrentUser;
-}
+export type SettlePaymentInput = CompletePaymentInput;
 
-export class SettlePaymentCommand {
-  constructor(public readonly input: SettlePaymentInput) {}
-}
+/**
+ * Domain command alias for CompletePaymentCommand to maintain full backward compatibility
+ * with existing settlement routes and handlers.
+ */
+export class SettlePaymentCommand extends CompletePaymentCommand {}

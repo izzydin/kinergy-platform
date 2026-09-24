@@ -8,6 +8,7 @@ export * from './apply-order-discount.command';
 export * from './remove-order-discount.command';
 export * from './finalize-sale.command';
 export * from './record-payment.command';
+export * from './complete-payment.command';
 export * from './settle-payment.command';
 export * from './fail-payment.command';
 export * from './cancel-payment.command';

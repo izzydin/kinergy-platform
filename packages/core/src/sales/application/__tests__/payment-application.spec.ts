@@ -1,10 +1,12 @@
 import { RecordPaymentHandler } from '../handlers/record-payment.handler';
+import { CompletePaymentHandler } from '../handlers/complete-payment.handler';
 import { SettlePaymentHandler } from '../handlers/settle-payment.handler';
 import { FailPaymentHandler } from '../handlers/fail-payment.handler';
 import { CancelPaymentHandler } from '../handlers/cancel-payment.handler';
 import { GetPaymentByIdHandler } from '../handlers/get-payment-by-id.handler';
 import { GetPaymentsBySaleIdHandler } from '../handlers/get-payments-by-sale-id.handler';
 import { RecordPaymentCommand } from '../commands/record-payment.command';
+import { CompletePaymentCommand } from '../commands/complete-payment.command';
 import { SettlePaymentCommand } from '../commands/settle-payment.command';
 import { FailPaymentCommand } from '../commands/fail-payment.command';
 import { CancelPaymentCommand } from '../commands/cancel-payment.command';
@@ -33,15 +35,32 @@ import { PaymentUnauthorizedException } from '../exceptions/payment-unauthorized
 import { PaymentCurrencyMismatchException } from '../exceptions/payment-currency-mismatch.exception';
 import { InvalidPaymentMethodException } from '../../domain/exceptions/invalid-payment-method.exception';
 import { InvalidPaymentTransitionException } from '../../domain/exceptions/invalid-payment-transition.exception';
+import { SaleOptimisticLockException } from '../../domain/exceptions/optimistic-lock.exception';
 
 // In-Memory Test Doubles
 class InMemoryPaymentRepository implements PaymentRepositoryPort {
   public store = new Map<string, Payment>();
   public shouldFailSave = false;
+  public enforceOCC = false;
+  public versions = new Map<string, number>();
 
   async findById(id: PaymentId | string): Promise<Payment | null> {
     const key = typeof id === 'string' ? id.trim() : id.value;
-    return this.store.get(key) ?? null;
+    const payment = this.store.get(key);
+    if (!payment) return null;
+    return Payment.reconstitute({
+      id: payment.id,
+      tenantId: payment.tenantId,
+      saleId: payment.saleId,
+      method: payment.method,
+      amount: payment.amount,
+      status: payment.status,
+      reference: payment.reference,
+      paidAt: payment.paidAt,
+      createdAt: payment.createdAt,
+      updatedAt: payment.updatedAt,
+      version: payment.version,
+    });
   }
 
   async findBySaleId(saleId: SaleId | string): Promise<Payment[]> {
@@ -52,6 +71,16 @@ class InMemoryPaymentRepository implements PaymentRepositoryPort {
   async save(payment: Payment): Promise<void> {
     if (this.shouldFailSave) {
       throw new Error('Simulated repository persistence failure.');
+    }
+    if (this.enforceOCC && payment.version > 1) {
+      const storedVersion = this.versions.get(payment.id.value) ?? 1;
+      const expectedPriorVersion = payment.version - 1;
+      if (storedVersion !== expectedPriorVersion) {
+        throw new SaleOptimisticLockException('Payment', payment.id.value, expectedPriorVersion);
+      }
+      this.versions.set(payment.id.value, payment.version);
+    } else if (this.enforceOCC) {
+      this.versions.set(payment.id.value, payment.version);
     }
     this.store.set(payment.id.value, payment);
   }
@@ -96,6 +125,7 @@ describe('Payment Application Layer Test Suite', () => {
   let eventPublisher: MockSalesEventPublisher;
 
   let recordPaymentHandler: RecordPaymentHandler;
+  let completePaymentHandler: CompletePaymentHandler;
   let settlePaymentHandler: SettlePaymentHandler;
   let failPaymentHandler: FailPaymentHandler;
   let cancelPaymentHandler: CancelPaymentHandler;
@@ -132,6 +162,12 @@ describe('Payment Application Layer Test Suite', () => {
     eventPublisher = new MockSalesEventPublisher();
 
     recordPaymentHandler = new RecordPaymentHandler(paymentRepo, saleRepo, clock, eventPublisher);
+    completePaymentHandler = new CompletePaymentHandler(
+      paymentRepo,
+      saleRepo,
+      clock,
+      eventPublisher,
+    );
     settlePaymentHandler = new SettlePaymentHandler(paymentRepo, saleRepo, clock, eventPublisher);
     failPaymentHandler = new FailPaymentHandler(paymentRepo, clock, eventPublisher);
     cancelPaymentHandler = new CancelPaymentHandler(paymentRepo, clock, eventPublisher);
@@ -771,6 +807,526 @@ describe('Payment Application Layer Test Suite', () => {
 
       expect(result.isFailure).toBe(true);
       expect((result.getError() as Error).message).toContain('100 characters');
+    });
+  });
+
+  // 12. CompletePaymentHandler Lifecycle Transitions
+  describe('12. CompletePaymentHandler Lifecycle Transitions', () => {
+    it('should complete a PENDING payment, update paidAt, and advance Sale to PAID', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+      expect(pendingDto.status).toBe(PaymentStatus.PENDING);
+
+      clock.advanceSeconds(45);
+      const completeRes = await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: pendingDto.id,
+          reference: 'CONFIRM-QR-999',
+          tenantId,
+          currentUser: {
+            id: 'cashier_1',
+            roles: ['Receptionist'],
+            permissions: ['payments.create'],
+          },
+        }),
+      );
+
+      expect(completeRes.isSuccess).toBe(true);
+      const completedDto = completeRes.getValue();
+      expect(completedDto.status).toBe(PaymentStatus.COMPLETED);
+      expect(completedDto.paidAt).toBe(clock.now().toISOString());
+      expect(completedDto.reference).toBe('CONFIRM-QR-999');
+
+      const updatedSale = await saleRepo.findById(sale.id);
+      expect(updatedSale?.status).toBe(SaleStatus.PAID);
+    });
+
+    it('should return PaymentNotFoundException when completing non-existent payment', async () => {
+      const result = await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: 'pay_does_not_exist',
+          tenantId,
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(PaymentNotFoundException);
+    });
+
+    it('should return InvalidPaymentTransitionException when attempting to re-complete an already COMPLETED payment', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      // First complete succeeds
+      await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId,
+        }),
+      );
+
+      // Second complete must fail with InvalidPaymentTransitionException
+      const secondRes = await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId,
+        }),
+      );
+
+      expect(secondRes.isFailure).toBe(true);
+      expect(secondRes.getError()).toBeInstanceOf(InvalidPaymentTransitionException);
+    });
+
+    it('should return PaymentUnauthorizedException on cross-tenant completion attempt', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      const result = await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId: 'different_tenant',
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(PaymentUnauthorizedException);
+    });
+
+    it('should return PaymentUnauthorizedException when payment does not belong to specified saleId', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      const result = await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: pendingDto.id,
+          saleId: 'sale_wrong_scoping',
+          tenantId,
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(PaymentUnauthorizedException);
+    });
+
+    it('should return repository failure when payment save fails during complete', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      paymentRepo.shouldFailSave = true;
+
+      const result = await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId,
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect((result.getError() as Error).message).toContain(
+        'Simulated repository persistence failure',
+      );
+    });
+  });
+
+  // 13. FailPaymentHandler Lifecycle Transitions
+  describe('13. FailPaymentHandler Lifecycle Transitions', () => {
+    it('should transition PENDING payment to FAILED with reason and keep paidAt null', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      const failRes = await failPaymentHandler.execute(
+        new FailPaymentCommand({
+          paymentId: pendingDto.id,
+          reason: 'Issuing bank timeout',
+          tenantId,
+          currentUser: {
+            id: 'cashier_1',
+            roles: ['Receptionist'],
+            permissions: ['payments.create'],
+          },
+        }),
+      );
+
+      expect(failRes.isSuccess).toBe(true);
+      const failedDto = failRes.getValue();
+      expect(failedDto.status).toBe(PaymentStatus.FAILED);
+      expect(failedDto.paidAt).toBeNull();
+
+      // Parent sale status remains unchanged
+      const saleAfterFail = await saleRepo.findById(sale.id);
+      expect(saleAfterFail?.status).toBe(SaleStatus.PENDING_PAYMENT);
+    });
+
+    it('should return PaymentNotFoundException when failing non-existent payment', async () => {
+      const result = await failPaymentHandler.execute(
+        new FailPaymentCommand({
+          paymentId: 'pay_non_existent',
+          tenantId,
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(PaymentNotFoundException);
+    });
+
+    it('should return InvalidPaymentTransitionException when failing an already COMPLETED payment', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.CASH, // Immediate COMPLETED
+          tenantId,
+        }),
+      );
+      const paymentDto = createRes.getValue();
+
+      const failRes = await failPaymentHandler.execute(
+        new FailPaymentCommand({
+          paymentId: paymentDto.id,
+          reason: 'Declined late',
+          tenantId,
+        }),
+      );
+
+      expect(failRes.isFailure).toBe(true);
+      expect(failRes.getError()).toBeInstanceOf(InvalidPaymentTransitionException);
+    });
+
+    it('should return PaymentUnauthorizedException when caller lacks payments.create/manage', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      const result = await failPaymentHandler.execute(
+        new FailPaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId,
+          currentUser: {
+            id: 'unauth_user',
+            roles: ['Member'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(PaymentUnauthorizedException);
+    });
+
+    it('should return repository failure when payment save fails during fail transition', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      paymentRepo.shouldFailSave = true;
+
+      const result = await failPaymentHandler.execute(
+        new FailPaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId,
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect((result.getError() as Error).message).toContain(
+        'Simulated repository persistence failure',
+      );
+    });
+  });
+
+  // 14. CancelPaymentHandler Lifecycle Transitions
+  describe('14. CancelPaymentHandler Lifecycle Transitions', () => {
+    it('should cancel a PENDING payment when authorized with payments.manage', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      const cancelRes = await cancelPaymentHandler.execute(
+        new CancelPaymentCommand({
+          paymentId: pendingDto.id,
+          reason: 'Customer cancelled checkout',
+          tenantId,
+          currentUser: {
+            id: 'manager_1',
+            roles: ['Manager'],
+            permissions: ['payments.manage'],
+          },
+        }),
+      );
+
+      expect(cancelRes.isSuccess).toBe(true);
+      const cancelledDto = cancelRes.getValue();
+      expect(cancelledDto.status).toBe(PaymentStatus.CANCELLED);
+      expect(cancelledDto.paidAt).toBeNull();
+    });
+
+    it('should return PaymentNotFoundException when cancelling non-existent payment', async () => {
+      const result = await cancelPaymentHandler.execute(
+        new CancelPaymentCommand({
+          paymentId: 'pay_non_existent',
+          tenantId,
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(PaymentNotFoundException);
+    });
+
+    it('should return InvalidPaymentTransitionException when cancelling an already CANCELLED payment', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      // First cancel succeeds
+      await cancelPaymentHandler.execute(
+        new CancelPaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId,
+        }),
+      );
+
+      // Second cancel must fail with InvalidPaymentTransitionException
+      const secondRes = await cancelPaymentHandler.execute(
+        new CancelPaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId,
+        }),
+      );
+
+      expect(secondRes.isFailure).toBe(true);
+      expect(secondRes.getError()).toBeInstanceOf(InvalidPaymentTransitionException);
+    });
+
+    it('should reject cancellation when user lacks payments.manage permission', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      const result = await cancelPaymentHandler.execute(
+        new CancelPaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId,
+          currentUser: {
+            id: 'operator_readonly',
+            roles: ['Receptionist'],
+            permissions: ['payments.read'], // Missing payments.manage
+          },
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(PaymentUnauthorizedException);
+    });
+
+    it('should return repository failure when payment save fails during cancellation', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      paymentRepo.shouldFailSave = true;
+
+      const result = await cancelPaymentHandler.execute(
+        new CancelPaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId,
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect((result.getError() as Error).message).toContain(
+        'Simulated repository persistence failure',
+      );
+    });
+  });
+
+  // 15. Optimistic Concurrency Control (OCC) & Concurrent Transitions
+  describe('15. Optimistic Concurrency Control (OCC) & Concurrent Transitions', () => {
+    it('should prevent conflicting concurrent transitions from silently overwriting each other', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      // Enable OCC enforcement on the repository
+      paymentRepo.enforceOCC = true;
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      // Read aggregate instance concurrently (simulate two workers reading version 1)
+      const worker1Payment = await paymentRepo.findById(pendingDto.id);
+      const worker2Payment = await paymentRepo.findById(pendingDto.id);
+
+      expect(worker1Payment).not.toBeNull();
+      expect(worker2Payment).not.toBeNull();
+      expect(worker1Payment?.version).toBe(1);
+      expect(worker2Payment?.version).toBe(1);
+
+      // Worker 1 completes the payment: transitions PENDING -> COMPLETED (version becomes 2)
+      worker1Payment!.complete(clock);
+      await paymentRepo.save(worker1Payment!);
+
+      // Worker 2 attempts to cancel the same payment from stale version 1
+      worker2Payment!.cancel('Concurrent cashier void', clock);
+
+      // Saving worker 2's stale transition must be rejected by OCC
+      await expect(paymentRepo.save(worker2Payment!)).rejects.toThrow(SaleOptimisticLockException);
+
+      // Verify the persisted payment remains COMPLETED and was not corrupted by the concurrent worker
+      const finalPayment = await paymentRepo.findById(pendingDto.id);
+      expect(finalPayment?.status).toBe(PaymentStatus.COMPLETED);
+      expect(finalPayment?.version).toBe(2);
+    });
+
+    it('handler gracefully catches OCC collision and returns SalesApplicationResult.fail', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+      paymentRepo.enforceOCC = true;
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const pendingDto = createRes.getValue();
+
+      // Advance version in DB behind the scenes (simulating another node updating the payment first)
+      paymentRepo.versions.set(pendingDto.id, 99);
+
+      // Attempt to complete the payment via handler
+      const result = await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: pendingDto.id,
+          tenantId,
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(SaleOptimisticLockException);
     });
   });
 });

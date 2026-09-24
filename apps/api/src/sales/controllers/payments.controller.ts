@@ -20,12 +20,16 @@ import {
   RecordPaymentHandler,
   GetPaymentByIdHandler,
   GetPaymentsBySaleIdHandler,
+  CompletePaymentHandler,
   SettlePaymentHandler,
+  FailPaymentHandler,
   CancelPaymentHandler,
   RecordPaymentCommand,
   GetPaymentByIdQuery,
   GetPaymentsBySaleIdQuery,
+  CompletePaymentCommand,
   SettlePaymentCommand,
+  FailPaymentCommand,
   CancelPaymentCommand,
   SalesApplicationResult,
 } from '@kinergy-platform/core';
@@ -36,7 +40,9 @@ import { AuthenticatedUserPayload } from '../../platform/identity/decorators/cur
 import {
   RecordPaymentRequestDto,
   PaymentResponseDto,
+  CompletePaymentRequestDto,
   SettlePaymentRequestDto,
+  FailPaymentRequestDto,
   CancelPaymentRequestDto,
 } from '../dto';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
@@ -53,7 +59,9 @@ export class PaymentsController {
   private readonly _recordPaymentHandler: RecordPaymentHandler;
   private readonly _getPaymentByIdHandler: GetPaymentByIdHandler;
   private readonly _getPaymentsBySaleIdHandler: GetPaymentsBySaleIdHandler;
+  private readonly _completePaymentHandler: CompletePaymentHandler;
   private readonly _settlePaymentHandler: SettlePaymentHandler;
+  private readonly _failPaymentHandler: FailPaymentHandler;
   private readonly _cancelPaymentHandler: CancelPaymentHandler;
 
   constructor(
@@ -71,8 +79,14 @@ export class PaymentsController {
     @Inject(GetPaymentsBySaleIdHandler)
     getPaymentsBySaleIdHandler?: GetPaymentsBySaleIdHandler,
     @Optional()
+    @Inject(CompletePaymentHandler)
+    completePaymentHandler?: CompletePaymentHandler,
+    @Optional()
     @Inject(SettlePaymentHandler)
     settlePaymentHandler?: SettlePaymentHandler,
+    @Optional()
+    @Inject(FailPaymentHandler)
+    failPaymentHandler?: FailPaymentHandler,
     @Optional()
     @Inject(CancelPaymentHandler)
     cancelPaymentHandler?: CancelPaymentHandler,
@@ -84,8 +98,16 @@ export class PaymentsController {
     this._getPaymentsBySaleIdHandler =
       getPaymentsBySaleIdHandler ??
       new GetPaymentsBySaleIdHandler(paymentRepository, saleRepository);
+    this._completePaymentHandler =
+      completePaymentHandler ??
+      settlePaymentHandler ??
+      new CompletePaymentHandler(paymentRepository, saleRepository);
     this._settlePaymentHandler =
-      settlePaymentHandler ?? new SettlePaymentHandler(paymentRepository, saleRepository);
+      settlePaymentHandler ??
+      (this._completePaymentHandler as SettlePaymentHandler) ??
+      new SettlePaymentHandler(paymentRepository, saleRepository);
+    this._failPaymentHandler =
+      failPaymentHandler ?? new FailPaymentHandler(paymentRepository, saleRepository);
     this._cancelPaymentHandler =
       cancelPaymentHandler ?? new CancelPaymentHandler(paymentRepository, saleRepository);
   }
@@ -216,14 +238,59 @@ export class PaymentsController {
     return this.handleResult(result) as unknown as PaymentResponseDto;
   }
 
+  @Post('payments/:id/complete')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist')
+  @Permissions('payments.create', 'payments.manage')
+  @ApiOperation({
+    summary: 'Confirm completion/settlement of an unsettled pending payment transaction',
+    description:
+      'Transitions a PENDING payment to COMPLETED, sets the definitive paidAt timestamp, and advances the parent Sale status if balance is satisfied.',
+  })
+  @ApiParam({ name: 'id', description: 'Pending Payment UUID identifier' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: PaymentResponseDto,
+    description: 'Payment completed successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Payment not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNPROCESSABLE_ENTITY,
+    description: 'Payment is not in PENDING state (already completed, failed, or cancelled)',
+  })
+  public async completePayment(
+    @Param('id') id: string,
+    @Body() dto: CompletePaymentRequestDto,
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ): Promise<PaymentResponseDto> {
+    const command = new CompletePaymentCommand({
+      paymentId: id,
+      reference: dto.reference,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: user
+        ? {
+            id: user.id,
+            roles: user.roles,
+            permissions: user.permissions,
+          }
+        : undefined,
+    });
+
+    const result = await this._completePaymentHandler.execute(command);
+    return this.handleResult(result) as unknown as PaymentResponseDto;
+  }
+
   @Post('payments/:id/settle')
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist')
   @Permissions('payments.create', 'payments.manage')
   @ApiOperation({
-    summary: 'Confirm settlement of an unsettled pending payment transaction',
+    summary: 'Confirm settlement of an unsettled pending payment transaction (alias for complete)',
     description:
-      'Transitions a PENDING payment to SETTLED, sets the definitive paidAt timestamp, and advances the parent Sale status if balance is satisfied.',
+      'Transitions a PENDING payment to SETTLED/COMPLETED, sets the definitive paidAt timestamp, and advances parent Sale status.',
   })
   @ApiParam({ name: 'id', description: 'Pending Payment UUID identifier' })
   @ApiResponse({
@@ -258,6 +325,51 @@ export class PaymentsController {
     });
 
     const result = await this._settlePaymentHandler.execute(command);
+    return this.handleResult(result) as unknown as PaymentResponseDto;
+  }
+
+  @Post('payments/:id/fail')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist')
+  @Permissions('payments.create', 'payments.manage')
+  @ApiOperation({
+    summary: 'Mark an unsettled pending payment transaction as failed',
+    description:
+      'Transitions a PENDING payment to FAILED upon provider decline or timeout. Completed payments cannot be marked failed.',
+  })
+  @ApiParam({ name: 'id', description: 'Pending Payment UUID identifier' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: PaymentResponseDto,
+    description: 'Payment marked as failed successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Payment not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNPROCESSABLE_ENTITY,
+    description: 'Payment is not in PENDING state (already completed, failed, or cancelled)',
+  })
+  public async failPayment(
+    @Param('id') id: string,
+    @Body() dto: FailPaymentRequestDto,
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ): Promise<PaymentResponseDto> {
+    const command = new FailPaymentCommand({
+      paymentId: id,
+      reason: dto.reason,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: user
+        ? {
+            id: user.id,
+            roles: user.roles,
+            permissions: user.permissions,
+          }
+        : undefined,
+    });
+
+    const result = await this._failPaymentHandler.execute(command);
     return this.handleResult(result) as unknown as PaymentResponseDto;
   }
 

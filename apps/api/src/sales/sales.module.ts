@@ -11,7 +11,9 @@ import {
   RecordPaymentHandler,
   GetPaymentByIdHandler,
   GetPaymentsBySaleIdHandler,
+  CompletePaymentHandler,
   SettlePaymentHandler,
+  FailPaymentHandler,
   CancelPaymentHandler,
   SaleRepositoryPort,
   PaymentRepositoryPort,
@@ -77,12 +79,30 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
       inject: [PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN],
     },
     {
+      provide: CompletePaymentHandler,
+      useFactory: (
+        paymentRepo: PaymentRepositoryPort,
+        saleRepo: SaleRepositoryPort,
+        auditPublisher: SalesAuditEventPublisher,
+      ) => new CompletePaymentHandler(paymentRepo, saleRepo, undefined, auditPublisher),
+      inject: [PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
+    },
+    {
       provide: SettlePaymentHandler,
       useFactory: (
         paymentRepo: PaymentRepositoryPort,
         saleRepo: SaleRepositoryPort,
         auditPublisher: SalesAuditEventPublisher,
       ) => new SettlePaymentHandler(paymentRepo, saleRepo, undefined, auditPublisher),
+      inject: [PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
+    },
+    {
+      provide: FailPaymentHandler,
+      useFactory: (
+        paymentRepo: PaymentRepositoryPort,
+        saleRepo: SaleRepositoryPort,
+        auditPublisher: SalesAuditEventPublisher,
+      ) => new FailPaymentHandler(paymentRepo, saleRepo, undefined, auditPublisher),
       inject: [PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
     },
     {
@@ -106,7 +126,9 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     RecordPaymentHandler,
     GetPaymentByIdHandler,
     GetPaymentsBySaleIdHandler,
+    CompletePaymentHandler,
     SettlePaymentHandler,
+    FailPaymentHandler,
     CancelPaymentHandler,
   ],
 })

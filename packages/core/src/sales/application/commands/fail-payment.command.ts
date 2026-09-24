@@ -2,6 +2,7 @@ import { RecordPaymentCurrentUser } from './record-payment.command';
 
 export interface FailPaymentInput {
   paymentId: string;
+  saleId?: string;
   reason?: string | null;
   tenantId?: string;
   currentUser?: RecordPaymentCurrentUser;

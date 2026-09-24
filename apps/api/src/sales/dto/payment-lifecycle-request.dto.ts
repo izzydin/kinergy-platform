@@ -18,6 +18,11 @@ export class SettlePaymentRequestDto {
   reference?: string;
 }
 
+/**
+ * Request DTO alias for CompletePaymentRequest to support canonical completion nomenclature.
+ */
+export class CompletePaymentRequestDto extends SettlePaymentRequestDto {}
+
 export class CancelPaymentRequestDto {
   @ApiPropertyOptional({
     description: 'Audit justification reason for voiding or cancelling the pending payment.',
@@ -27,5 +32,17 @@ export class CancelPaymentRequestDto {
   @IsString()
   @IsOptional()
   @MaxLength(255, { message: 'Cancellation reason cannot exceed 255 characters.' })
+  reason?: string;
+}
+
+export class FailPaymentRequestDto {
+  @ApiPropertyOptional({
+    description: 'Audit justification reason for payment decline, rejection, or rail timeout.',
+    example: 'Bank card decline: insufficient funds',
+    maxLength: 255,
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(255, { message: 'Failure reason cannot exceed 255 characters.' })
   reason?: string;
 }
