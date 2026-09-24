@@ -4,7 +4,7 @@ import { IsOptional, IsString, Matches, MaxLength } from 'class-validator';
 export class SettlePaymentRequestDto {
   @ApiPropertyOptional({
     description:
-      'Optional transaction trace or correlation reference returned by payment provider upon settlement.',
+      'Optional transaction trace or correlation reference returned by payment provider upon settlement. Note: status, paidAt, and createdAt are strictly domain-managed and cannot be supplied by clients.',
     example: 'QR-CONFIRMED-TRACE-12345',
     maxLength: 100,
   })
@@ -25,7 +25,8 @@ export class CompletePaymentRequestDto extends SettlePaymentRequestDto {}
 
 export class CancelPaymentRequestDto {
   @ApiPropertyOptional({
-    description: 'Audit justification reason for voiding or cancelling the pending payment.',
+    description:
+      'Audit justification reason for voiding or cancelling the pending payment. Note: status, paidAt, and createdAt are strictly domain-managed and cannot be supplied by clients.',
     example: 'Customer opted to tender cash instead',
     maxLength: 255,
   })
@@ -37,7 +38,8 @@ export class CancelPaymentRequestDto {
 
 export class FailPaymentRequestDto {
   @ApiPropertyOptional({
-    description: 'Audit justification reason for payment decline, rejection, or rail timeout.',
+    description:
+      'Audit justification reason for payment decline, rejection, or rail timeout. Note: status, paidAt, and createdAt are strictly domain-managed and cannot be supplied by clients.',
     example: 'Bank card decline: insufficient funds',
     maxLength: 255,
   })

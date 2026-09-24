@@ -30,7 +30,9 @@ import { SalesExceptionFilter } from '../filters/sales-exception.filter';
 import {
   RecordPaymentRequestDto,
   PaymentResponseDto,
+  CompletePaymentRequestDto,
   SettlePaymentRequestDto,
+  FailPaymentRequestDto,
   CancelPaymentRequestDto,
 } from '../dto';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
@@ -452,12 +454,11 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
     });
   });
 
-  // 8. Lifecycle Transitions
-  describe('8. Lifecycle Transition Operations', () => {
-    it('confirms settlement of a PENDING payment via settlePayment', async () => {
+  // 8. Lifecycle Transitions & State Machine API Hardening
+  describe('8. Lifecycle Transition Operations & API Hardening', () => {
+    it('confirms completion of a PENDING payment via completePayment (explicit command)', async () => {
       const sale = createPayableSale(100.0, 'USD');
 
-      // Create pending QR payment
       const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
       const createRes = await recordHandler.execute({
         input: {
@@ -472,7 +473,39 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
       });
       const pendingDto = createRes.getValue();
 
-      // Settle via controller
+      const completeDto: CompletePaymentRequestDto = {
+        reference: 'QR-COMPLETION-TRACE-999',
+      };
+      const completed = await controller.completePayment(pendingDto.id, completeDto, defaultUser);
+
+      expect(completed.status).toBe(PaymentStatus.COMPLETED);
+      expect(completed.paidAt).toBeDefined();
+      expect(typeof completed.paidAt).toBe('string');
+      expect(completed.reference).toBe('QR-COMPLETION-TRACE-999');
+      expect(completed.version).toBe(2);
+
+      // Verify Sale status is now PAID
+      const updatedSale = await saleRepo.findById(sale.id);
+      expect(updatedSale?.status).toBe(SaleStatus.PAID);
+    });
+
+    it('confirms settlement of a PENDING payment via settlePayment (alias command)', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
+      const createRes = await recordHandler.execute({
+        input: {
+          saleId: sale.id.value,
+          amount: 100.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+          currentUser: defaultUser,
+        },
+      });
+      const pendingDto = createRes.getValue();
+
       const settleDto: SettlePaymentRequestDto = {
         reference: 'QR-TRACE-SETTLED-888',
       };
@@ -481,13 +514,44 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
       expect(settled.status).toBe(PaymentStatus.COMPLETED);
       expect(settled.paidAt).toBeDefined();
       expect(settled.reference).toBe('QR-TRACE-SETTLED-888');
+      expect(settled.version).toBe(2);
 
-      // Verify Sale status is now PAID
       const updatedSale = await saleRepo.findById(sale.id);
       expect(updatedSale?.status).toBe(SaleStatus.PAID);
     });
 
-    it('voids/cancels a PENDING payment via cancelPayment', async () => {
+    it('marks a PENDING payment as failed via failPayment with audit reason', async () => {
+      const sale = createPayableSale(75.0, 'USD');
+
+      const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
+      const createRes = await recordHandler.execute({
+        input: {
+          saleId: sale.id.value,
+          amount: 75.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+          currentUser: defaultUser,
+        },
+      });
+      const pendingDto = createRes.getValue();
+
+      const failDto: FailPaymentRequestDto = {
+        reason: 'Payment rail timeout: 30000ms exceeded',
+      };
+      const failed = await controller.failPayment(pendingDto.id, failDto, defaultUser);
+
+      expect(failed.status).toBe(PaymentStatus.FAILED);
+      expect(failed.paidAt).toBeNull();
+      expect(failed.version).toBe(2);
+
+      // Verify Sale status remains unpaid
+      const untouchedSale = await saleRepo.findById(sale.id);
+      expect(untouchedSale?.status).toBe(SaleStatus.PENDING_PAYMENT);
+    });
+
+    it('voids/cancels a PENDING payment via cancelPayment with audit reason', async () => {
       const sale = createPayableSale(100.0, 'USD');
 
       const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
@@ -510,9 +574,11 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
       const cancelled = await controller.cancelPayment(pendingDto.id, cancelDto, managerUser);
 
       expect(cancelled.status).toBe(PaymentStatus.CANCELLED);
+      expect(cancelled.paidAt).toBeNull();
+      expect(cancelled.version).toBe(2);
     });
 
-    it('rejects settling or cancelling an already SETTLED payment with InvalidPaymentTransitionException', async () => {
+    it('strictly rejects invalid transitions from COMPLETED to FAILED or CANCELLED', async () => {
       const sale = createPayableSale(100.0, 'USD');
 
       const settled = await controller.recordPayment(
@@ -521,15 +587,246 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
         defaultUser,
       );
 
-      // Settle attempt
-      await expect(controller.settlePayment(settled.id, {}, defaultUser)).rejects.toThrow(
+      // Attempting fail on COMPLETED payment
+      await expect(
+        controller.failPayment(settled.id, { reason: 'Late decline' }, defaultUser),
+      ).rejects.toThrow(InvalidPaymentTransitionException);
+
+      // Attempting cancel on COMPLETED payment
+      await expect(
+        controller.cancelPayment(settled.id, { reason: 'Late refund request' }, managerUser),
+      ).rejects.toThrow(InvalidPaymentTransitionException);
+    });
+
+    it('strictly rejects invalid transitions from FAILED to COMPLETED or CANCELLED', async () => {
+      const sale = createPayableSale(50.0, 'USD');
+      const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
+      const createRes = await recordHandler.execute({
+        input: {
+          saleId: sale.id.value,
+          amount: 50.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+          currentUser: defaultUser,
+        },
+      });
+      const pendingDto = createRes.getValue();
+      await controller.failPayment(pendingDto.id, { reason: 'Network failure' }, defaultUser);
+
+      // Attempting complete on FAILED payment
+      await expect(controller.completePayment(pendingDto.id, {}, defaultUser)).rejects.toThrow(
         InvalidPaymentTransitionException,
       );
 
-      // Cancel attempt
-      await expect(controller.cancelPayment(settled.id, {}, managerUser)).rejects.toThrow(
+      // Attempting cancel on FAILED payment
+      await expect(
+        controller.cancelPayment(pendingDto.id, { reason: 'Customer aborted' }, managerUser),
+      ).rejects.toThrow(InvalidPaymentTransitionException);
+    });
+
+    it('strictly rejects invalid transitions from CANCELLED to COMPLETED or FAILED', async () => {
+      const sale = createPayableSale(50.0, 'USD');
+      const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
+      const createRes = await recordHandler.execute({
+        input: {
+          saleId: sale.id.value,
+          amount: 50.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+          currentUser: defaultUser,
+        },
+      });
+      const pendingDto = createRes.getValue();
+      await controller.cancelPayment(pendingDto.id, { reason: 'Cashier aborted' }, managerUser);
+
+      // Attempting complete on CANCELLED payment
+      await expect(controller.completePayment(pendingDto.id, {}, defaultUser)).rejects.toThrow(
         InvalidPaymentTransitionException,
       );
+
+      // Attempting fail on CANCELLED payment
+      await expect(
+        controller.failPayment(pendingDto.id, { reason: 'Timeout' }, defaultUser),
+      ).rejects.toThrow(InvalidPaymentTransitionException);
+    });
+
+    it('rejects repeated lifecycle commands (non-idempotent transition rejection per ADR)', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+      const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
+      const createRes = await recordHandler.execute({
+        input: {
+          saleId: sale.id.value,
+          amount: 100.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+          currentUser: defaultUser,
+        },
+      });
+      const pendingDto = createRes.getValue();
+
+      // First complete succeeds
+      await controller.completePayment(pendingDto.id, {}, defaultUser);
+
+      // Repeated complete MUST be rejected with InvalidPaymentTransitionException
+      await expect(controller.completePayment(pendingDto.id, {}, defaultUser)).rejects.toThrow(
+        InvalidPaymentTransitionException,
+      );
+    });
+
+    it('rejects unauthorized complete and fail commands when caller lacks permissions', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+      const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
+      const createRes = await recordHandler.execute({
+        input: {
+          saleId: sale.id.value,
+          amount: 100.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+          currentUser: defaultUser,
+        },
+      });
+      const pendingDto = createRes.getValue();
+
+      const guestUser: AuthenticatedUserPayload = {
+        id: 'user_guest',
+        email: 'guest@example.com',
+        status: 'ACTIVE',
+        roles: ['Guest'],
+        permissions: ['sales.read'], // Missing payments.create & payments.manage
+        tenantId,
+      };
+
+      await expect(controller.completePayment(pendingDto.id, {}, guestUser)).rejects.toThrow(
+        PaymentUnauthorizedException,
+      );
+
+      await expect(controller.failPayment(pendingDto.id, {}, guestUser)).rejects.toThrow(
+        PaymentUnauthorizedException,
+      );
+    });
+
+    it('rejects cross-tenant lifecycle transitions with PaymentUnauthorizedException', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+      const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
+      const createRes = await recordHandler.execute({
+        input: {
+          saleId: sale.id.value,
+          amount: 100.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId: 'tenant_kinergy_wellness',
+          currentUser: defaultUser,
+        },
+      });
+      const pendingDto = createRes.getValue();
+
+      const crossTenantUser: AuthenticatedUserPayload = {
+        id: 'user_cross',
+        email: 'attacker@other.com',
+        status: 'ACTIVE',
+        roles: ['Owner'],
+        permissions: ['payments.create', 'payments.manage'],
+        tenantId: 'tenant_competitor',
+      };
+
+      await expect(controller.completePayment(pendingDto.id, {}, crossTenantUser)).rejects.toThrow(
+        PaymentUnauthorizedException,
+      );
+
+      await expect(controller.failPayment(pendingDto.id, {}, crossTenantUser)).rejects.toThrow(
+        PaymentUnauthorizedException,
+      );
+
+      await expect(controller.cancelPayment(pendingDto.id, {}, crossTenantUser)).rejects.toThrow(
+        PaymentUnauthorizedException,
+      );
+    });
+
+    it('throws PaymentNotFoundException when completing, failing, or cancelling a non-existent payment ID', async () => {
+      const missingId = 'non_existent_pay_uuid';
+
+      await expect(controller.completePayment(missingId, {}, defaultUser)).rejects.toThrow(
+        PaymentNotFoundException,
+      );
+
+      await expect(controller.failPayment(missingId, {}, defaultUser)).rejects.toThrow(
+        PaymentNotFoundException,
+      );
+
+      await expect(controller.cancelPayment(missingId, {}, managerUser)).rejects.toThrow(
+        PaymentNotFoundException,
+      );
+    });
+
+    it('returns deterministic response shape with exact monetary types and paidAt alignment', async () => {
+      const sale = createPayableSale(123.45, 'USD');
+      const recordHandler = new RecordPaymentHandler(paymentRepo, saleRepo);
+      const createRes = await recordHandler.execute({
+        input: {
+          saleId: sale.id.value,
+          amount: 123.45,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          reference: 'PRE-REF',
+          status: PaymentStatus.PENDING,
+          tenantId,
+          currentUser: defaultUser,
+        },
+      });
+      const pendingDto = createRes.getValue();
+
+      // Verify pending response shape
+      expect(pendingDto).toMatchObject({
+        id: expect.any(String),
+        saleId: sale.id.value,
+        method: PaymentMethod.QR,
+        amount: {
+          amount: 123.45,
+          cents: 12345,
+          currency: 'USD',
+          formatted: '123.45',
+        },
+        amountValue: 123.45,
+        status: PaymentStatus.PENDING,
+        reference: 'PRE-REF',
+        paidAt: null,
+        version: 1,
+      });
+
+      // Complete payment
+      const completed = await controller.completePayment(
+        pendingDto.id,
+        { reference: 'POST-REF' },
+        defaultUser,
+      );
+
+      // Verify completed response shape
+      expect(completed).toMatchObject({
+        id: pendingDto.id,
+        saleId: sale.id.value,
+        method: PaymentMethod.QR,
+        amount: {
+          amount: 123.45,
+          cents: 12345,
+          currency: 'USD',
+          formatted: '123.45',
+        },
+        amountValue: 123.45,
+        status: PaymentStatus.COMPLETED,
+        reference: 'POST-REF',
+        version: 2,
+      });
+      expect(completed.paidAt).not.toBeNull();
+      expect(new Date(completed.paidAt!).getTime()).not.toBeNaN();
     });
   });
 

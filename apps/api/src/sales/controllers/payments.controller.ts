@@ -245,30 +245,49 @@ export class PaymentsController {
   @ApiOperation({
     summary: 'Confirm completion/settlement of an unsettled pending payment transaction',
     description:
-      'Transitions a PENDING payment to COMPLETED, sets the definitive paidAt timestamp, and advances the parent Sale status if balance is satisfied.',
+      'Transitions a PENDING payment to COMPLETED, sets the definitive paidAt timestamp, and advances the parent Sale status if balance is satisfied. Target payment must currently be in PENDING status. Calling this on a terminal state (COMPLETED, FAILED, CANCELLED) will be rejected with HTTP 422 Unprocessable Entity.',
   })
   @ApiParam({ name: 'id', description: 'Pending Payment UUID identifier' })
   @ApiResponse({
     status: HttpStatus.OK,
     type: PaymentResponseDto,
-    description: 'Payment completed successfully',
+    description:
+      'Payment completed successfully. Returns updated payment aggregate representation with COMPLETED status and populated paidAt timestamp.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed or malformed reference trace string.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid authentication token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Forbidden: Caller lacks required payments.create/manage permissions or cross-tenant access.',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
-    description: 'Payment not found',
+    description: 'Payment with the specified identifier was not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description:
+      'Optimistic concurrency control conflict: payment was concurrently modified by another process.',
   })
   @ApiResponse({
     status: HttpStatus.UNPROCESSABLE_ENTITY,
-    description: 'Payment is not in PENDING state (already completed, failed, or cancelled)',
+    description: 'Payment is not in PENDING state (already completed, failed, or cancelled).',
   })
   public async completePayment(
     @Param('id') id: string,
-    @Body() dto: CompletePaymentRequestDto,
+    @Body() dto: CompletePaymentRequestDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto> {
     const command = new CompletePaymentCommand({
       paymentId: id,
-      reference: dto.reference,
+      reference: dto?.reference,
       tenantId: user?.tenantId ?? undefined,
       currentUser: user
         ? {
@@ -288,32 +307,51 @@ export class PaymentsController {
   @Roles('Owner', 'Manager', 'Receptionist')
   @Permissions('payments.create', 'payments.manage')
   @ApiOperation({
-    summary: 'Confirm settlement of an unsettled pending payment transaction (alias for complete)',
+    summary:
+      'Confirm settlement of an unsettled pending payment transaction (canonical alias for complete)',
     description:
-      'Transitions a PENDING payment to SETTLED/COMPLETED, sets the definitive paidAt timestamp, and advances parent Sale status.',
+      'Transitions a PENDING payment to SETTLED/COMPLETED, sets the definitive paidAt timestamp, and advances parent Sale status. Target payment must currently be in PENDING status.',
   })
   @ApiParam({ name: 'id', description: 'Pending Payment UUID identifier' })
   @ApiResponse({
     status: HttpStatus.OK,
     type: PaymentResponseDto,
-    description: 'Payment settled successfully',
+    description: 'Payment settled successfully.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed or malformed reference trace string.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid authentication token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Forbidden: Caller lacks required payments.create/manage permissions or cross-tenant access.',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
-    description: 'Payment not found',
+    description: 'Payment with the specified identifier was not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description:
+      'Optimistic concurrency control conflict: payment was concurrently modified by another process.',
   })
   @ApiResponse({
     status: HttpStatus.UNPROCESSABLE_ENTITY,
-    description: 'Payment is not in PENDING state (already settled, failed, or cancelled)',
+    description: 'Payment is not in PENDING state (already settled, failed, or cancelled).',
   })
   public async settlePayment(
     @Param('id') id: string,
-    @Body() dto: SettlePaymentRequestDto,
+    @Body() dto: SettlePaymentRequestDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto> {
     const command = new SettlePaymentCommand({
       paymentId: id,
-      reference: dto.reference,
+      reference: dto?.reference,
       tenantId: user?.tenantId ?? undefined,
       currentUser: user
         ? {
@@ -335,30 +373,49 @@ export class PaymentsController {
   @ApiOperation({
     summary: 'Mark an unsettled pending payment transaction as failed',
     description:
-      'Transitions a PENDING payment to FAILED upon provider decline or timeout. Completed payments cannot be marked failed.',
+      'Transitions a PENDING payment to FAILED upon provider decline or rail timeout. Target payment must currently be in PENDING status. Terminal states (COMPLETED, FAILED, CANCELLED) cannot be transitioned to failed and return HTTP 422 Unprocessable Entity.',
   })
   @ApiParam({ name: 'id', description: 'Pending Payment UUID identifier' })
   @ApiResponse({
     status: HttpStatus.OK,
     type: PaymentResponseDto,
-    description: 'Payment marked as failed successfully',
+    description:
+      'Payment marked as failed successfully. Returns updated payment aggregate representation with FAILED status and null paidAt.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed or malformed request payload.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid authentication token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Forbidden: Caller lacks required payments.create/manage permissions or cross-tenant access.',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
-    description: 'Payment not found',
+    description: 'Payment with the specified identifier was not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description:
+      'Optimistic concurrency control conflict: payment was concurrently modified by another process.',
   })
   @ApiResponse({
     status: HttpStatus.UNPROCESSABLE_ENTITY,
-    description: 'Payment is not in PENDING state (already completed, failed, or cancelled)',
+    description: 'Payment is not in PENDING state (already completed, failed, or cancelled).',
   })
   public async failPayment(
     @Param('id') id: string,
-    @Body() dto: FailPaymentRequestDto,
+    @Body() dto: FailPaymentRequestDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto> {
     const command = new FailPaymentCommand({
       paymentId: id,
-      reason: dto.reason,
+      reason: dto?.reason,
       tenantId: user?.tenantId ?? undefined,
       currentUser: user
         ? {
@@ -380,30 +437,49 @@ export class PaymentsController {
   @ApiOperation({
     summary: 'Void or cancel an unsettled pending payment transaction',
     description:
-      'Transitions a PENDING payment to CANCELLED. Settled payments can never be cancelled in-place.',
+      'Transitions a PENDING payment to CANCELLED. Requires elevated payments.manage permission. Target payment must currently be in PENDING status. Settled or terminal payments can never be cancelled in-place and return HTTP 422 Unprocessable Entity.',
   })
   @ApiParam({ name: 'id', description: 'Pending Payment UUID identifier' })
   @ApiResponse({
     status: HttpStatus.OK,
     type: PaymentResponseDto,
-    description: 'Payment cancelled successfully',
+    description:
+      'Payment cancelled successfully. Returns updated payment aggregate representation with CANCELLED status and null paidAt.',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Validation failed or malformed cancellation reason payload.',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid authentication token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Forbidden: Caller lacks required payments.manage permission or cross-tenant access.',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
-    description: 'Payment not found',
+    description: 'Payment with the specified identifier was not found.',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description:
+      'Optimistic concurrency control conflict: payment was concurrently modified by another process.',
   })
   @ApiResponse({
     status: HttpStatus.UNPROCESSABLE_ENTITY,
-    description: 'Payment is already settled and cannot be cancelled',
+    description: 'Payment is already settled or in a terminal state and cannot be cancelled.',
   })
   public async cancelPayment(
     @Param('id') id: string,
-    @Body() dto: CancelPaymentRequestDto,
+    @Body() dto: CancelPaymentRequestDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto> {
     const command = new CancelPaymentCommand({
       paymentId: id,
-      reason: dto.reason,
+      reason: dto?.reason,
       tenantId: user?.tenantId ?? undefined,
       currentUser: user
         ? {
