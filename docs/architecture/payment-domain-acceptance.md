@@ -1,11 +1,14 @@
-# Phase 7.5 Final Acceptance Certification: Payment Domain Implementation & Financial Architecture
+# Milestone 7.6 Final Acceptance Certification: Payment State Machine & Lifecycle Determinism
 
 - **Document**: `docs/architecture/payment-domain-acceptance.md`
-- **Phase**: 7.5
-- **Feature**: Payment Domain Implementation, Multi-Tender Settlement, Application Handlers, HTTP API & Safety Net
+- **Milestone**: 7.6 (reconciling Phase 7.5)
+- **Feature**: Canonical Payment Lifecycle, State Machine, OCC Concurrency, Mutation Safety & QA Regression Matrix
 - **Status**: **PASS**
-- **Date**: 2026-09-21
+- **Date**: 2026-09-24
 - **Reviewing Authority**: Senior Financial Domain Architect / Lead Platform Engineer
+- **Governing ADRs**:
+  - [ADR-0115: Payment Domain Canonical Architecture, Aggregate Boundaries, and Tender Decoupling](../adr/0115-payment-domain-canonical-architecture.md)
+  - [ADR-0116: Payment State Machine, Lifecycle Specification, and Financial Transition Determinism](../adr/0116-payment-state-machine-and-lifecycle-specification.md)
 
 ---
 
@@ -33,19 +36,21 @@
   - Architecture intentionally reserves room for `CARD`, `TRANSFER`, `ONLINE` without implementing them yet (`isFuturePaymentMethod()`).
   - Unsupported and future method usage at runtime correctly throws `InvalidPaymentMethodException`.
 
-### 3. State Machine & Transitions
+### 3. Canonical State Machine & Transitions
 
 - **Status**: **PASS**
 - **Verification Summary**:
-  - Exact 4 implemented states: `PENDING`, `SETTLED`, `FAILED`, `CANCELLED`.
+  - Exact 4 approved states: `PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`.
+  - Canonical state vocabulary: `COMPLETED` is authoritative in domain logic; `SETTLED` is supported as first-class synonym and database column mapping.
   - Valid transitions verified:
-    - Direct initial settlement: `Payment.createSettled()` $\to$ `SETTLED` (immediate `paidAt`).
-    - Asynchronous initial pending: `Payment.createPending()` $\to$ `PENDING` (`paidAt = null`).
-    - Settlement: `PENDING` $\to$ `SETTLED` (`settle(clock)`). Permanent immutability commences.
-    - Failure: `PENDING` $\to$ `FAILED` (`fail(reason)`). Terminal state.
-    - Cancellation: `PENDING` $\to$ `CANCELLED` (`cancel(reason)`). Terminal state.
-  - Terminal state immutability: all transitions out of `SETTLED`, `FAILED`, or `CANCELLED` throw `InvalidPaymentTransitionException`.
-  - Zero invalid intermediate states (no `AUTHORIZED` or `INITIATED` states exist).
+    - `Payment.createCompleted()` / `createSettled()` $\to$ `COMPLETED` (immediate `paidAt`).
+    - `Payment.createPending()` $\to$ `PENDING` (`paidAt = null`).
+    - `payment.complete()` / `settle()`: `PENDING` $\to$ `COMPLETED`. Permanent immutability commences.
+    - `payment.fail()`: `PENDING` $\to$ `FAILED`. Terminal state.
+    - `payment.cancel()`: `PENDING` $\to$ `CANCELLED`. Terminal state.
+  - Complete 16-cell transition matrix verified: all 13 prohibited transitions throw `InvalidPaymentTransitionException`.
+  - Mutation safety: invalid transitions leave all properties unmutated.
+  - Critical rule strictly enforced: direct mutation (`payment.status = ...`) is prohibited by compiler (`TS2540`).
 
 ### 4. Deterministic Money & Arithmetic Precision
 
@@ -73,14 +78,15 @@
           ↓
     PostgreSQL NUMERIC/DECIMAL (@db.Decimal(12, 2))
     ```
-  - Optimistic Concurrency Control (`version`) verified on all updates.
-  - Relational referential protection: `onDelete: Restrict` prevents deletion of Sales with settled payments.
+  - Optimistic Concurrency Control (`version`) verified on all updates (`where: { id, version }`).
+  - Concurrent collisions throw `PaymentOptimisticLockException` which maps to HTTP `409 Conflict`.
+  - Relational referential protection: `onDelete: Restrict` prevents deletion of Sales with completed payments.
 
 ### 6. Application Layer & Multi-Tender Settlement
 
 - **Status**: **PASS**
 - **Verification Summary**:
-  - CQRS command and query handlers: `RecordPaymentHandler`, `GetPaymentByIdHandler`, `GetPaymentsBySaleIdHandler`, `SettlePaymentHandler`, `CancelPaymentHandler`.
+  - CQRS command and query handlers: `RecordPaymentHandler`, `GetPaymentByIdHandler`, `GetPaymentsBySaleIdHandler`, `CompletePaymentHandler`, `FailPaymentHandler`, `CancelPaymentHandler`, `SettlePaymentHandler`.
   - Multi-tender settlement: split tenders (cash + QR) settle a single sale incrementally ($1 \text{ Sale} \to N \text{ Payments}$).
   - Balance reconciliation correctly advances `Sale.status` from `PENDING_PAYMENT` $\to$ `PARTIALLY_PAID` $\to$ `PAID`.
   - Electronic overpayment guard: prevents `QR` payment exceeding outstanding balance with `PaymentOverpaymentException`.
@@ -94,10 +100,12 @@
     - `POST /api/v1/sales/:saleId/payments`
     - `GET /api/v1/sales/:saleId/payments`
     - `GET /api/v1/payments/:paymentId`
-    - `POST /api/v1/payments/:id/settle`
+    - `POST /api/v1/payments/:id/complete`
+    - `POST /api/v1/payments/:id/fail`
     - `POST /api/v1/payments/:id/cancel`
+    - `POST /api/v1/payments/:id/settle` (legacy alias)
   - Structured monetary serialization via `MoneyResponseDto` (`amount`, `currency`, `formatted`, `cents`).
-  - Error code mapping verified: `400` Bad Request, `403` Forbidden, `404` Not Found, `422` Unprocessable Entity.
+  - Error code mapping verified: `400` Bad Request, `403` Forbidden, `404` Not Found, `409` Conflict, `422` Unprocessable Entity.
 
 ### 8. Security, Authorization & Multi-Tenancy
 
@@ -109,22 +117,14 @@
   - Multi-tenant isolation verified: cross-tenant payment operations are rejected at handler and query boundaries.
   - PCI-DSS sanitization: `PaymentReference` rejects 13-19 digit card PAN sequences.
 
-### 9. Automated Test Safety Net (52 Tests across 11 Dimensions)
+### 9. Automated Test Safety Net (102 Total Verified Tests)
 
 - **Status**: **PASS**
 - **Verification Summary**:
-  - 52 comprehensive tests in `phase-7-5-payment-qa-safety-net.spec.ts` and `payments-qa-safety-net.spec.ts` covering:
-    1. Payment Creation & Invariant Validation
-    2. Complete State Machine & Transition Matrix
-    3. Money Precision & Determinism
-    4. Independence from Sale Commercial Totals
-    5. Repository Port Decoupling
-    6. Multi-Tender & Split Settlement
-    7. Idempotency & Concurrency Defenses
-    8. RBAC & Backward Compatibility
-    9. Multi-Tenant Organization Isolation
-    10. Reference Sanitization & PCI Defenses
-    11. Controller & API Error Filter Integration
+  - 33 tests in `packages/core/src/sales/__tests__/payment-lifecycle-qa-matrix.spec.ts` (16-cell matrix, timestamps, mutation safety, idempotency, OCC).
+  - 17 tests in `apps/api/src/sales/__tests__/payments-lifecycle-api-qa.spec.ts` (API endpoints, client status bypass immunity, HTTP error mappings).
+  - 52 tests in `phase-7-5-payment-qa-safety-net.spec.ts` and `payments-qa-safety-net.spec.ts` (Phase 7.5 baseline).
+  - 100% test execution pass rate across all suites.
 
 ### 10. Documentation
 
@@ -132,8 +132,8 @@
 - **Verification Summary**:
   - Architectural specification: [`docs/architecture/sales-payments.md`](sales-payments.md).
   - Canonical domain implementation: [`docs/domain/payment-domain-implementation.md`](../domain/payment-domain-implementation.md).
-  - Business rules: [`docs/business-rules/sales-payments.md`](../business-rules/sales-payments.md).
-  - Architectural Decision Records: [ADR-0115](../adr/0115-payment-domain-canonical-architecture.md) indexed in [`docs/adr/README.md`](../adr/README.md).
+  - State machine review & specification: [`docs/architecture/payment-state-machine-review.md`](payment-state-machine-review.md).
+  - Architectural Decision Records: [ADR-0115](../adr/0115-payment-domain-canonical-architecture.md) & [ADR-0116](../adr/0116-payment-state-machine-and-lifecycle-specification.md) indexed in [`docs/adr/README.md`](../adr/README.md).
   - API documentation: [`docs/api/README.md`](../api/README.md).
   - Role-permission matrix: [`docs/security/role-permission-matrix.md`](../security/role-permission-matrix.md).
   - Testing guide: [`docs/testing/README.md`](../testing/README.md).

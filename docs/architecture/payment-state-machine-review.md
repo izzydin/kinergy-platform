@@ -2,14 +2,15 @@
 
 - **Document**: `docs/architecture/payment-state-machine-review.md`
 - **Milestone**: 7.6 (Payment State Machine)
-- **Status**: **Architectural Review & Specification Proposal (Pre-Implementation)**
+- **Status**: **Authoritative Architectural Review & Milestone 7.6 State Machine Specification (Completed & Verified)**
 - **Role**: Senior Domain Architect & Payments Systems Engineer
-- **Date**: 2026-09-23
+- **Date**: 2026-09-24
 - **Governing ADRs**:
   - [ADR-0108: Deterministic Financial Representation and Currency Modeling](../adr/0108-money-representation.md)
   - [ADR-0109: Payment Lifecycle, Multi-Tender Settlement, and Financial Immutability](../adr/0109-payment-lifecycle.md)
   - [ADR-0111: Sales & Payments Authorization, Organization Isolation, and Audit Boundaries](../adr/0111-sales-payments-authorization-and-audit.md)
   - [ADR-0115: Payment Domain Canonical Architecture, Aggregate Boundaries, and Tender Decoupling](../adr/0115-payment-domain-canonical-architecture.md)
+  - [ADR-0116: Payment State Machine, Lifecycle Specification, and Financial Transition Determinism](../adr/0116-payment-state-machine-and-lifecycle-specification.md)
 
 ---
 
@@ -350,11 +351,11 @@ CANCELLED
 
 ---
 
-## 8. Unresolved Architectural Questions for User / Deciders
+## 8. Resolved Architectural Decisions for Milestone 7.6
 
 1. **State Naming Reconciliation (`SETTLED` vs. `COMPLETED`)**:
-   - Shall we rename `PaymentStatus.SETTLED` to `PaymentStatus.COMPLETED` across the database and domain, or support `COMPLETED` as an alias while preserving `SETTLED` in PostgreSQL to avoid database migrations?
+   - **Resolution (ADR-0116)**: `COMPLETED` is established as the canonical domain lifecycle status (`PaymentStatus.COMPLETED = 'COMPLETED'`). `SETTLED` is maintained as a first-class accepted synonym in domain logic and serves as the persistence representation in PostgreSQL, providing clean domain semantics without requiring disruptive database migrations.
 2. **Asynchronous Initial Tender Creation via REST API**:
-   - Should `POST /api/v1/sales/:saleId/payments` default to `PENDING` when method is `QR` and `SETTLED`/`COMPLETED` when method is `CASH`, or should the client explicitly pass an `isAsync` / `immediateSettlement` flag?
-3. **Cross-Aggregate Transactional Consistency**:
-   - When a payment completes and advances the parent `Sale` status to `PARTIALLY_PAID` or `PAID`, should this be executed within a shared Prisma interactive transaction (`UnitOfWork`), or remain coordinated via application service domain events?
+   - **Resolution (ADR-0116)**: Tender creation defaults deterministically based on method: `CASH` tenders instantiate immediately in `COMPLETED` (`Payment.createCompleted()`), while `QR` dynamic codes instantiate in `PENDING` (`Payment.createPending()`) with `paidAt = null`.
+3. **Cross-Aggregate Transactional Consistency & Concurrency**:
+   - **Resolution (ADR-0116)**: Concurrency is protected via Optimistic Concurrency Control (OCC) through the integer `version` field checked on every update (`where: { id, version }`). Cross-aggregate status progression of `Sale` (`PARTIALLY_PAID`, `PAID`) is coordinated cleanly by application use case handlers without coupling aggregate boundaries or requiring heavy distributed two-phase commits.

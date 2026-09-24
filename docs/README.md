@@ -17,7 +17,7 @@ docs/
 ├── testing/              ◄── Quality Gates, Harnesses, Unit, Integration & E2E Testing
 ├── configuration/        ◄── Centralized Zod Environment Variables & Secrets Reference
 ├── api/                  ◄── OpenAPI / Swagger Docs, Envelope Schemas & Routes
-├── adr/                  ◄── Architectural Decision Records (0001 - 0115)
+├── adr/                  ◄── Architectural Decision Records (0001 - 0116)
 └── glossary.md           ◄── Ubiquitous Language, Security Acronyms & Terminology
 ```
 
@@ -117,16 +117,18 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
 - **[Sales Architecture Hub](file:///c:/Projects/kinergy-platform/docs/architecture/sales-payments.md)**: Authoritative architecture, aggregate boundaries, "References Over Ownership" law, and checkout flows.
 - **[Sale Totals & Canonical Money Rules Architecture](file:///c:/Projects/kinergy-platform/docs/architecture/sale-totals-and-money-rules.md)**: Milestone 7.4 architectural specification for deterministic integer-cent arithmetic, Commercial Half-Up rounding, and boundary mappings.
 - **[Sale Totals Implementation Specification](file:///c:/Projects/kinergy-platform/docs/domain/sale-totals-implementation.md)**: Authoritative implemented domain specification for Sale totals, non-negative invariants, and discount calculation.
-- **[Payment Domain Implementation Specification](file:///c:/Projects/kinergy-platform/docs/domain/payment-domain-implementation.md)**: Authoritative implemented domain specification for Payment aggregate, multi-tender settlement, and persistence boundaries.
+- **[Payment Domain Implementation Specification](file:///c:/Projects/kinergy-platform/docs/domain/payment-domain-implementation.md)**: Authoritative implemented domain specification for Payment aggregate, canonical state machine, multi-tender settlement, and persistence boundaries.
+- **[Payment State Machine Review & Specification](file:///c:/Projects/kinergy-platform/docs/architecture/payment-state-machine-review.md)**: Authoritative specification for Payment state machine, terminality guarantees, and concurrency model.
 - **[Milestone 7.4 Final Acceptance Certification](file:///c:/Projects/kinergy-platform/docs/architecture/sale-totals-acceptance.md)**: Complete certification of domain totals, persistence, API, and automated safety net quality gates.
 - **[Milestone 7.5 Final Acceptance Certification](file:///c:/Projects/kinergy-platform/docs/architecture/payment-domain-acceptance.md)**: Complete certification of Payment domain, multi-tender settlement, 52-test safety net, and HTTP API quality gates.
+- **[Milestone 7.6 Final Acceptance Certification](file:///c:/Projects/kinergy-platform/docs/architecture/payment-domain-acceptance.md)**: Complete certification of Payment State Machine, 16-cell transition matrix, OCC concurrency, client bypass immunity, and 100% test pass rate.
 - **[Sales Domain Model Specification](file:///c:/Projects/kinergy-platform/docs/domain/sales-payments.md)**: Conceptual domain models, aggregate roots (`Sale`, `Payment`), value objects (`Money`, `Discount`, `SourceReference`), and state machines.
 - **[Sales Business Rules & Invariants](file:///c:/Projects/kinergy-platform/docs/business-rules/sales-payments.md)**: Complete inventory of commercial rules, 13 canonical formulas, and milestone statuses.
-- **[Sales & Payments API Reference](file:///c:/Projects/kinergy-platform/docs/api/README.md#34-sales--payments-module-apiv1sales)**: REST endpoints (`/api/v1/sales` & `/api/v1/sales/:saleId/payments`), DTO contracts, and JSON payloads.
+- **[Sales & Payments API Reference](file:///c:/Projects/kinergy-platform/docs/api/README.md#35-payments-module-apiv1salesaleidpayments--apiv1payments)**: REST endpoints (`/api/v1/sales` & `/api/v1/sales/:saleId/payments`, `/api/v1/payments`), DTO contracts, and JSON payloads.
 
 ### 10. Architectural Decision Records (ADRs)
 
-- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 50+ Architectural Decision Records documenting all major platform design choices (0001 through 0115).
+- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 50+ Architectural Decision Records documenting all major platform design choices (0001 through 0116).
 - **[Phase 6 ADR Index (ADR-0081–0107)](file:///c:/Projects/kinergy-platform/docs/architecture/resources/README.md#6-architectural-decision-records-adr-index)**: Detailed index of all 27 Phase 6 Resources Management Architectural Decision Records.
 - **Phase 7 ADRs**:
   - [ADR-0108: Deterministic Financial Representation and Currency Modeling](file:///c:/Projects/kinergy-platform/docs/adr/0108-money-representation.md)
@@ -137,3 +139,4 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
   - [ADR-0113: Item-Level Discount Domain Model, Deterministic Calculation, and Invariant Enforcement](file:///c:/Projects/kinergy-platform/docs/adr/0113-item-level-discounts.md)
   - [ADR-0114: Canonical Monetary Policy, Deterministic Arithmetic, and Sale Totals Invariant Enforcement](file:///c:/Projects/kinergy-platform/docs/adr/0114-canonical-monetary-policy-and-sale-totals.md)
   - [ADR-0115: Payment Domain Canonical Architecture, Aggregate Boundaries, and Tender Decoupling](file:///c:/Projects/kinergy-platform/docs/adr/0115-payment-domain-canonical-architecture.md)
+  - [ADR-0116: Payment State Machine, Lifecycle Specification, and Financial Transition Determinism](file:///c:/Projects/kinergy-platform/docs/adr/0116-payment-state-machine-and-lifecycle-specification.md)

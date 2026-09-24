@@ -11,6 +11,8 @@
   - [ADR-0112: Sales & Payments Bounded Context Establishment](../adr/0112-sales-bounded-context.md)
   - [ADR-0113: Item-Level Discount Domain Model, Deterministic Calculation, and Invariant Enforcement](../adr/0113-item-level-discounts.md)
   - [ADR-0114: Canonical Monetary Policy, Deterministic Arithmetic, and Sale Totals Invariant Enforcement](../adr/0114-canonical-monetary-policy-and-sale-totals.md)
+  - [ADR-0115: Payment Domain Canonical Architecture, Aggregate Boundaries, and Tender Decoupling](../adr/0115-payment-domain-canonical-architecture.md)
+  - [ADR-0116: Payment State Machine, Lifecycle Specification, and Financial Transition Determinism](../adr/0116-payment-state-machine-and-lifecycle-specification.md)
 
 ---
 
@@ -321,3 +323,4 @@ Domain Test
 | **Phase 7.3** | Item-Level Discounts & Bounds                       | **CERTIFIED PASS** (`docs/architecture/discount-domain-acceptance.md`)  | `discount.vo.spec.ts`, `phase-7-3-discount-test-matrix.spec.ts`                                                                         |
 | **Phase 7.4** | Deterministic Sale Totals, Money Rules & Safety Net | **CERTIFIED PASS** (`docs/architecture/sale-totals-acceptance.md`)      | `sale-application-totals.spec.ts`, `monetary-precision-safety-net.spec.ts`, `sales-monetary-anti-patterns.spec.ts`                      |
 | **Phase 7.5** | Multi-Tender Settlement & Payments                  | **CERTIFIED PASS** (`docs/architecture/payment-domain-acceptance.md`)   | `payment.aggregate.spec.ts`, `payment-application.spec.ts`, `phase-7-5-payment-qa-safety-net.spec.ts`, `payments-qa-safety-net.spec.ts` |
+| **Phase 7.6** | Payment State Machine & Lifecycle Determinism       | **CERTIFIED PASS** (`docs/architecture/payment-domain-acceptance.md`)   | `payment-lifecycle-qa-matrix.spec.ts`, `payments-lifecycle-api-qa.spec.ts`                                                              |

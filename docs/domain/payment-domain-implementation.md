@@ -1,7 +1,7 @@
-# Phase 7.5: Payment Domain Implementation & Financial Architecture Specification
+# Milestone 7.6: Payment Domain Implementation, State Machine & Financial Architecture
 
 - **Document**: `docs/domain/payment-domain-implementation.md`
-- **Phase**: `7.5 — Payment Domain Implementation, Multi-Tender Settlement & Financial Architecture`
+- **Milestone**: `7.6 — Canonical Payment Lifecycle, State Machine & Financial Transition Determinism` (reconciling Phase 7.5)
 - **Role**: Senior Financial Domain Architect / Lead Platform Engineer
 - **Status**: **Authoritative Implemented Domain Specification**
 - **Bounded Context**: Sales & Payments (`packages/core/src/sales/`, `apps/api/src/sales/`)
@@ -13,19 +13,19 @@
   - [ADR-0112: Sales & Payments Bounded Context Establishment](../adr/0112-sales-bounded-context.md)
   - [ADR-0114: Canonical Monetary Policy, Deterministic Arithmetic, and Sale Totals Invariant Enforcement](../adr/0114-canonical-monetary-policy-and-sale-totals.md)
   - [ADR-0115: Payment Domain Canonical Architecture, Aggregate Boundaries, and Tender Decoupling](../adr/0115-payment-domain-canonical-architecture.md)
+  - [ADR-0116: Payment State Machine, Lifecycle Specification, and Financial Transition Determinism](../adr/0116-payment-state-machine-and-lifecycle-specification.md)
 - **Related Documentation**:
   - [`docs/architecture/sales-payments.md`](../architecture/sales-payments.md)
   - [`docs/domain/sales-payments.md`](sales-payments.md)
-  - [`docs/business-rules/sales-payments.md`](../business-rules/sales-payments.md)
-  - [`docs/domain/sale-totals-implementation.md`](sale-totals-implementation.md)
+  - [`docs/architecture/payment-state-machine-review.md`](../architecture/payment-state-machine-review.md)
   - [`docs/architecture/payment-domain-acceptance.md`](../architecture/payment-domain-acceptance.md)
-- **Date**: 2026-09-21
+- **Date**: 2026-09-24
 
 ---
 
 ## 1. Executive Summary & Foundational Distinction
 
-Milestone 7.5 establishes the complete Payment domain subsystem within the **Sales & Payments** bounded context, enforcing strict separation between commercial debt obligations and financial tender receipts.
+Milestone 7.6 establishes the canonical, deterministic **Payment State Machine** within the **Sales & Payments** bounded context, enforcing strict separation between commercial debt obligations and financial tender collections.
 
 ### 1.1 The Foundational Domain Law
 
@@ -51,17 +51,30 @@ The `Payment` aggregate root (`packages/core/src/sales/domain/payment.aggregate.
 
 ```text
 Payment
-├── id
-├── saleId
-├── method
-├── amount
-├── status
-├── reference?
-├── paidAt?
-└── createdAt
+├── id: PaymentId
+├── tenantId: string
+├── saleId: SaleId
+├── method: PaymentMethod (CASH, QR)
+├── amount: Money
+├── status: PaymentStatus (PENDING, COMPLETED, FAILED, CANCELLED)
+├── reference?: string | null
+├── paidAt?: Date | null
+├── createdAt: Date
+├── updatedAt: Date
+└── version: number
 ```
 
-### 2.1 Detailed Property Specifications
+### 2.1 Critical Encapsulation Rule
+
+> **Payment status cannot be changed directly. Every state transition must pass through domain/application lifecycle logic.**
+
+- `_status` is marked `private` within `Payment`.
+- The aggregate exposes only a read-only getter: `public get status(): PaymentStatus { return this._status; }`.
+- Any external caller attempting direct assignment (`payment.status = ...`) fails at compile-time (`TS2540: Cannot assign to 'status' because it is a read-only property`).
+- State transitions can only occur by invoking explicit domain methods: `complete()`, `fail()`, `cancel()`, or `applyTransition()`.
+- Reconstitution from persistence (`Payment.reconstitute()`) validates state invariants and is restricted to infrastructure mappers.
+
+### 2.2 Detailed Property Specifications
 
 | Property        | Domain Type      | Nullable | Description & Invariants                                                                                           |
 | :-------------- | :--------------- | :------: | :----------------------------------------------------------------------------------------------------------------- |
@@ -70,307 +83,247 @@ Payment
 | **`saleId`**    | `SaleId`         |    No    | Scalar identifier referencing the parent `Sale`. The aggregate holds no object or instance reference to `Sale`.    |
 | **`method`**    | `PaymentMethod`  |    No    | Tender mechanism (`CASH`, `QR`). Validated against supported domain enumeration.                                   |
 | **`amount`**    | `Money`          |    No    | Tender monetary amount ($> 0$). Strictly positive, non-negative, and denominated in parent Sale currency.          |
-| **`status`**    | `PaymentStatus`  |    No    | Lifecycle state (`PENDING`, `SETTLED`, `FAILED`, `CANCELLED`).                                                     |
+| **`status`**    | `PaymentStatus`  |    No    | Canonical lifecycle state (`PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`). `SETTLED` accepted as synonym/DB alias. |
 | **`reference`** | `string \| null` |   Yes    | Optional audit tag, drawer identifier, or gateway trace token (max 100 characters; no credit card PANs permitted). |
-| **`paidAt`**    | `Date \| null`   |   Yes    | Settlement timestamp (UTC). Set strictly upon entering `SETTLED`. Must remain `null` for unsettled states.         |
+| **`paidAt`**    | `Date \| null`   |   Yes    | Settlement timestamp (UTC). Set strictly upon entering `COMPLETED`. Must remain `null` for non-completed states.   |
 | **`createdAt`** | `Date`           |    No    | UTC timestamp when the payment transaction was first initialized. Permanently immutable.                           |
 | **`updatedAt`** | `Date`           |    No    | UTC timestamp of the most recent lifecycle mutation.                                                               |
 | **`version`**   | `number`         |    No    | Optimistic Concurrency Control (OCC) integer counter ($\ge 1$), incremented on every state transition.             |
 
 ---
 
-## 3. Tender Methods
+## 3. Approved State Definitions
 
-### 3.1 Currently Supported Tender Methods
-
-Phase 7.5 supports two active payment tender methods:
+The platform supports exactly four canonical Payment states established by ADR-0116:
 
 ```text
-CASH
-QR
+PENDING
+COMPLETED
+FAILED
+CANCELLED
 ```
 
-1. **`CASH`**: Physical in-person cash currency tendered at the reception or POS counter. Instantiated directly in `SETTLED` status (`Payment.createSettled()`) with an immediate `paidAt` timestamp.
-2. **`QR`**: Dynamic or static QR code presented on a customer-facing display or printed invoice for scanning via mobile banking or digital wallet apps. Instantiated in `PENDING` status (`Payment.createPending()`) with `paidAt = null`.
+Do not implement speculative states (`REFUNDED`, `EXPIRED`, `PARTIALLY_COMPLETED`, `REVERSED`) on `Payment`. Reversals and returns are modeled as autonomous compensating records.
 
-### 3.2 Architectural Extensibility for Future Methods
+### 3.1 PENDING
 
-The architecture explicitly recognizes and reserves the following future tender methods:
+- **Definition**: A payment tender has been initiated by an operator or system, but funds have not yet been transferred, verified, or cleared.
+- **Operational Reality**: Dynamic QR code displayed awaiting customer scan, or asynchronous provider session initiated.
+- **Invariants**:
+  - `paidAt` must be strictly `null`.
+  - Amount must be strictly positive ($> 0$).
+  - Non-terminal: can transition to `COMPLETED`, `FAILED`, or `CANCELLED`.
 
-```text
-CARD
-TRANSFER
-ONLINE
-```
+### 3.2 COMPLETED (Synonym / Equivalent: SETTLED)
 
-- **Recognition Without Implementation**: These variants are recognized by domain utility `isFuturePaymentMethod()`. They are intentionally **not** implemented in Phase 7.5 to prevent speculative classes, stubbed database tables, or dead gateway integrations.
-- **Runtime Guard**: Attempting to instantiate a payment with a future or unsupported tender method throws typed `InvalidPaymentMethodException` with code `'INVALID_PAYMENT_METHOD'`.
-- **Zero-Disruption Evolution**: When future gateway integrations (e.g., Stripe Terminal, bank reconcilers) are delivered, they will implement dedicated gateway ports without modifying `Payment` core aggregate invariants or altering the relational database structure.
+- **Definition**: Monetary value has been definitively collected, verified, and settled into the cash drawer or merchant bank account.
+- **Operational Reality**: Cash counted and drawer closed, or electronic gateway confirmed funds clearance.
+- **Invariants & Immutability**:
+  - `paidAt` must be a valid UTC timestamp ($\ge$ `createdAt`).
+  - **Terminal and write-once immutable**: cannot transition to any other status.
+  - Reversals require autonomous compensating `Refund` records, never mutation of the completed payment.
+
+> **Semantic Reconciliation**: In domain code, `PaymentStatus.COMPLETED = 'COMPLETED'` is canonical. `PaymentStatus.SETTLED = 'SETTLED'` is supported as a first-class equivalent and matches the PostgreSQL database column enum (`SETTLED`) to maintain zero-disruption persistence compatibility.
+
+### 3.3 FAILED
+
+- **Definition**: The payment attempt terminated unsuccessfully due to rejection, decline, hardware error, or rail timeout.
+- **Operational Reality**: Customer bank declined transaction, network timeout, or QR session expired.
+- **Invariants**:
+  - `paidAt` must be strictly `null`.
+  - **Terminal**: cannot be retried or transitioned. Retrying payment requires instantiating a fresh `Payment` aggregate.
+
+### 3.4 CANCELLED
+
+- **Definition**: The pending payment attempt was aborted or voided prior to charge execution or fund transfer.
+- **Operational Reality**: Customer opted to change tender method (e.g. switch from QR to cash), or cashier aborted pending POS transaction.
+- **Invariants**:
+  - `paidAt` must be strictly `null`.
+  - **Terminal**: cannot transition to any other status.
 
 ---
 
-## 4. Payment Status & State Transition Matrix
+## 4. State Transition Matrix & Prohibited Transitions
 
-The Payment domain implements a deterministic, minimal 4-state lifecycle:
-
-```text
-┌────────────────────────────────────────────────────────────────────────┐
-│                        PAYMENT STATE MACHINE                           │
-│                                                                        │
-│                          ┌─────────────┐                               │
-│                          │  [Initial]  │                               │
-│                          └──────┬──────┘                               │
-│                                 │ createPending()                      │
-│                                 ▼                                      │
-│                          ┌─────────────┐                               │
-│                          │   PENDING   │                               │
-│                          └──┬───┬───┬──┘                               │
-│                             │   │   │                                  │
-│                 settle()    │   │   │  cancel()                        │
-│         ┌───────────────────┘   │   └────────────────────┐             │
-│         ▼                       ▼ fail()                 ▼             │
-│  ┌─────────────┐         ┌─────────────┐          ┌─────────────┐      │
-│  │   SETTLED   │         │   FAILED    │          │  CANCELLED  │      │
-│  └─────────────┘         └─────────────┘          └─────────────┘      │
-│    (Terminal &              (Terminal)               (Terminal)        │
-│     Immutable)                                                         │
-└────────────────────────────────────────────────────────────────────────┘
-```
-
-### 4.1 Implemented State Transition Table
-
-| From Status | To Status   | Trigger Method               | Invariants & Preconditions                                                | Resulting State & Side Effects                                                  |
-| :---------- | :---------- | :--------------------------- | :------------------------------------------------------------------------ | :------------------------------------------------------------------------------ |
-| _Initial_   | `SETTLED`   | `Payment.createSettled(...)` | Direct cash or instant counter tender. Amount $> 0$.                      | `status = SETTLED`, `paidAt = clock.now()`. Permanent immutability commences.   |
-| _Initial_   | `PENDING`   | `Payment.createPending(...)` | Asynchronous tender (QR code awaiting scan). Amount $> 0$.                | `status = PENDING`, `paidAt = null`.                                            |
-| `PENDING`   | `SETTLED`   | `payment.settle(clock?)`     | External rail confirmation. Amount verified.                              | `status = SETTLED`, `paidAt = clock.now()`, `version++`. Permanently immutable. |
-| `PENDING`   | `FAILED`    | `payment.fail(reason?)`      | Payment provider timeout, declined payment, or session expiration.        | `status = FAILED`, `version++`. Terminal state.                                 |
-| `PENDING`   | `CANCELLED` | `payment.cancel(reason?)`    | Cashier voids or customer abandons pending transaction before settlement. | `status = CANCELLED`, `version++`. Terminal state.                              |
-| `SETTLED`   | _Any_       | **PROHIBITED**               | **Illegal State Transition**. Throws `InvalidPaymentTransitionException`. | Record is permanently frozen. No mutations allowed.                             |
-| `FAILED`    | _Any_       | **PROHIBITED**               | Terminal state. Throws `InvalidPaymentTransitionException`.               | No transitions permitted.                                                       |
-| `CANCELLED` | _Any_       | **PROHIBITED**               | Terminal state. Throws `InvalidPaymentTransitionException`.               | No transitions permitted.                                                       |
-
-> **Note on Non-Existent States**:  
-> No `AUTHORIZED`, `INITIATED`, or `REFUNDED` states exist in the Phase 7.5 implementation. Settled payments are never edited into refunds; customer returns are represented as autonomous compensating records in subsequent milestones.
-
----
-
-## 5. Monetary Policy Reference & Arithmetic Rules
-
-`Payment` strictly adheres to the canonical platform monetary policy established in Phase 7.4 ([ADR-0108](../adr/0108-money-representation.md), [ADR-0114](../adr/0114-canonical-monetary-policy-and-sale-totals.md)):
-
-1. **Deterministic Minor Units**: All monetary amounts are encapsulated in the canonical `Money` Value Object (`packages/core/src/sales/domain/value-objects/money.vo.ts`). Arithmetic is conducted strictly in 64-bit safe integer minor units (cents):
-   $$\text{cents} = \text{round}((\text{amount} + \text{Number.EPSILON}) \times 100)$$
-2. **Prohibition of Floating-Point Calculations**: The use of raw IEEE-754 arithmetic (`+`, `-`, `*`), `parseFloat()`, `Number(money)`, and `toFixed()` as calculation engines is banned.
-3. **Strictly Positive Payment Amounts**: Every payment amount must satisfy:
-   $$\text{Payment.amount} > \$0.00$$
-   Zero-dollar payments and negative amounts are deterministically rejected with `InvalidPaymentAmountException`.
-4. **Currency Homogeneity**: The currency of `Payment.amount` must match the ISO-4217 currency of the associated `Sale`. Currency mismatches throw `InvalidPaymentCurrencyException`.
-
----
-
-## 6. Domain-to-Persistence Boundary
-
-To prevent domain model pollution and ensure absolute database isolation, the domain layer maintains a clean boundary to the persistence infrastructure:
+### 4.1 Permitted Transitions Matrix
 
 ```text
-Payment.amount
-      ↓
-Money (in-memory value object, integer cents)
-      ↓
-PrismaPaymentMapper (infrastructure boundary mapper)
-      ↓
-Prisma.Decimal (new Prisma.Decimal(payment.amount.amount))
-      ↓
-PostgreSQL NUMERIC/DECIMAL (@db.Decimal(12, 2))
+Current       Action          Result
+-----------------------------------------
+PENDING       complete        COMPLETED
+PENDING       fail            FAILED
+PENDING       cancel          CANCELLED
 ```
 
-### 6.1 Database Schema (`prisma/schema.prisma`)
+In addition, creation lifecycle paths establish the initial state:
 
-```prisma
-enum PaymentMethod {
-  CASH
-  QR
-}
+- `Payment.createPending(...)` $\to$ `PENDING` (`paidAt = null`)
+- `Payment.createCompleted(...)` / `Payment.createSettled(...)` $\to$ `COMPLETED` (`paidAt = clock.now()`)
 
-enum PaymentStatus {
-  PENDING
-  SETTLED
-  FAILED
-  CANCELLED
-}
+### 4.2 Prohibited Transitions (Exhaustive 16-Cell Matrix)
 
-model Payment {
-  id          String        @id @default(uuid())
-  tenantId    String        @map("tenant_id")
-  saleId      String        @map("sale_id")
-  method      PaymentMethod
-  amount      Decimal       @db.Decimal(12, 2)
-  currency    String        @default("USD") @db.VarChar(3)
-  status      PaymentStatus @default(SETTLED)
-  reference   String?       @db.VarChar(100)
-  paidAt      DateTime?     @map("paid_at")
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  version     Int           @default(1)
+Out of all $4 \times 4 = 16$ possible source/target combinations, exactly **3 transitions are permitted** from an existing payment, and **13 transitions are strictly prohibited**:
 
-  sale        Sale          @relation(fields: [saleId], references: [id], onDelete: Restrict)
+| Current State | Target State | Status    | Action / Method | Reason & Enforcement Behavior                                      |
+| :------------ | :----------- | :-------- | :-------------- | :----------------------------------------------------------------- |
+| `PENDING`     | `COMPLETED`  | **VALID** | `complete()`    | Normal settlement: funds cleared. `paidAt` assigned.               |
+| `PENDING`     | `FAILED`     | **VALID** | `fail()`        | Rail decline or timeout. `paidAt = null`.                          |
+| `PENDING`     | `CANCELLED`  | **VALID** | `cancel()`      | Operator void before clearing. `paidAt = null`.                    |
+| `PENDING`     | `PENDING`    | _INVALID_ | `complete/fail` | Prohibited re-entry. Throws `InvalidPaymentTransitionException`.   |
+| `COMPLETED`   | `PENDING`    | _INVALID_ | Domain method   | Prohibited. Cannot revert cleared funds to pending.                |
+| `COMPLETED`   | `COMPLETED`  | _INVALID_ | `complete()`    | Prohibited. Write-once immutable. Cannot re-complete.              |
+| `COMPLETED`   | `FAILED`     | _INVALID_ | `fail()`        | Prohibited. Settled money cannot fail; requires refund.            |
+| `COMPLETED`   | `CANCELLED`  | _INVALID_ | `cancel()`      | Prohibited. Completed tender cannot be cancelled; requires refund. |
+| `FAILED`      | `PENDING`    | _INVALID_ | Domain method   | Prohibited. Cannot revive failed tender; create new aggregate.     |
+| `FAILED`      | `COMPLETED`  | _INVALID_ | `complete()`    | Prohibited. Cannot complete a failed attempt.                      |
+| `FAILED`      | `FAILED`     | _INVALID_ | `fail()`        | Prohibited. Terminal audit record.                                 |
+| `FAILED`      | `CANCELLED`  | _INVALID_ | `cancel()`      | Prohibited. Cannot cancel an already failed attempt.               |
+| `CANCELLED`   | `PENDING`    | _INVALID_ | Domain method   | Prohibited. Cannot revive aborted tender; create new aggregate.    |
+| `CANCELLED`   | `COMPLETED`  | _INVALID_ | `complete()`    | Prohibited. Cannot complete an aborted attempt.                    |
+| `CANCELLED`   | `FAILED`     | _INVALID_ | `fail()`        | Prohibited. Cannot fail an aborted attempt.                        |
+| `CANCELLED`   | `CANCELLED`  | _INVALID_ | `cancel()`      | Prohibited. Terminal audit record.                                 |
 
-  @@index([tenantId, saleId])
-  @@index([tenantId, status])
-  @@index([tenantId, createdAt])
-  @@map("payments")
-}
-```
-
-### 6.2 Relational Invariants
-
-- **Exact Scale & Precision**: Stored as `Decimal(12, 2)` matching the financial standard established in ADR-0114.
-- **Referential Protection**: `onDelete: Restrict` prevents deletion of any `Sale` record that has associated `Payment` rows, preserving financial audit ledgers.
-- **Optimistic Concurrency Control**: The `version` column is checked on every update (`where: { id, version }`), preventing concurrent write hazards.
+Every prohibited transition throws `InvalidPaymentTransitionException` (`422 Unprocessable Entity`).
 
 ---
 
-## 7. Application Layer & CQRS Handlers
+## 5. Timestamp Rules & Mutation Safety
 
-The application layer coordinates payment operations through dedicated CQRS command and query handlers:
+### 5.1 Timestamp Lifecycle Rules
 
-### 7.1 Command & Query Catalog
+| Timestamp       | Type           | Nullable? | Rules & Lifecycle Behavior                                                                                                          |
+| :-------------- | :------------- | :-------: | :---------------------------------------------------------------------------------------------------------------------------------- |
+| **`createdAt`** | `Date`         |    No     | Assigned strictly upon payment creation (`clock.now()`). Permanently immutable across all subsequent transitions.                   |
+| **`paidAt`**    | `Date \| null` |    Yes    | Must be `null` in `PENDING`, `FAILED`, and `CANCELLED`. Assigned strictly upon entering `COMPLETED` (`opts.paidAt ?? clock.now()`). |
+| **`updatedAt`** | `Date`         |    No     | Refreshed to `clock.now()` on every valid transition (`complete()`, `fail()`, `cancel()`).                                          |
 
-| Handler                          | Type    | Purpose & Business Logic                                                                                                                 |
-| :------------------------------- | :------ | :--------------------------------------------------------------------------------------------------------------------------------------- |
-| **`RecordPaymentHandler`**       | Command | Verifies Sale exists, asserts payable status, checks overpayment on QR, saves Payment, and updates `Sale` to `PARTIALLY_PAID` or `PAID`. |
-| **`GetPaymentByIdHandler`**      | Query   | Resolves single Payment record by ID within tenant boundary.                                                                             |
-| **`GetPaymentsBySaleIdHandler`** | Query   | Returns chronological payment history for a given Sale ID within tenant boundary.                                                        |
-| **`SettlePaymentHandler`**       | Command | Transitions `PENDING` $\rightarrow$ `SETTLED`, records `paidAt`, and updates parent `Sale` settlement balance.                           |
-| **`CancelPaymentHandler`**       | Command | Transitions `PENDING` $\rightarrow$ `CANCELLED` with audit reason. Fails if payment is already settled.                                  |
+### 5.2 Behavior During Invalid Transitions (Mutation Safety)
 
-### 7.2 Multi-Tender Settlement & Balance Calculation
+When an invalid transition is attempted (e.g. calling `payment.complete()` on a `CANCELLED` payment):
 
-The application layer coordinates multiple payments settling a single sale ($1 \text{ Sale} \to N \text{ Payments}$):
+1. The domain eagerly validates transition legality against `ALLOWED_PAYMENT_TRANSITIONS`.
+2. It throws `InvalidPaymentTransitionException` immediately.
+3. **No fields are mutated**:
+   - `status` remains unchanged.
+   - `paidAt` remains unchanged (`null` stays `null`; completed timestamp is never altered).
+   - `version` is not incremented.
+   - No uncommitted domain events are recorded.
 
-$$\text{SettledTotal} = \sum_{p \in \text{SettledPayments}} p.\text{amount}$$
-$$\text{BalanceRemaining} = \max(0, \text{Sale}.\text{total} - \text{SettledTotal})$$
+---
 
-- When $\text{SettledTotal} = 0$: `Sale.status` is `PENDING_PAYMENT`.
-- When $0 < \text{SettledTotal} < \text{Sale}.\text{total}$: `Sale.status` is `PARTIALLY_PAID`.
-- When $\text{SettledTotal} \ge \text{Sale}.\text{total}$: `Sale.status` is `PAID`.
+## 6. Idempotency & Concurrency Guarantees
+
+### 6.1 Idempotency of Lifecycle Commands
+
+- Lifecycle commands (`complete`, `fail`, `cancel`) are **state-transition triggers**, not idempotent upserts.
+- Repeating a lifecycle command on an already transitioned payment throws `InvalidPaymentTransitionException`.
+  - Example: Calling `POST /payments/:id/complete` twice will return `200 OK` on the first call and `422 Unprocessable Entity` on the second call.
+- This deterministic rejection prevents caller confusion, ensures external payment gateways receive unambiguous responses, and protects audit ledgers from duplicate event emissions.
+
+### 6.2 Implemented Concurrency Consistency Guarantee
+
+> **Consistency Guarantee**: Optimistic Concurrency Control (OCC) using the integer `version` field.
+
+- The `Payment` domain aggregate maintains a `version: number` counter, starting at 1 and incremented on every valid transition.
+- The PostgreSQL `payments` table maintains a matching `version Int @default(1)` column.
+- When `PrismaPaymentRepository.save(payment)` persists an updated aggregate:
+  ```typescript
+  const updated = await prisma.payment.updateMany({
+    where: {
+      id: payment.id.value,
+      version: payment.version - 1, // OCC predicate
+    },
+    data: persistenceData,
+  });
+  if (updated.count === 0) {
+    throw new PaymentOptimisticLockException(payment.id.value, payment.version - 1);
+  }
+  ```
+- **Concurrency Collision Behavior**: If two concurrent requests load `PENDING` (version 1) simultaneously:
+  - Request A executes `complete()` $\to$ version becomes 2 $\to$ successfully commits (`updated.count === 1`).
+  - Request B executes `cancel()` $\to$ version becomes 2 $\to$ tries to update `where version = 1` $\to$ matches 0 rows $\to$ throws `PaymentOptimisticLockException`.
+  - The API exception filter translates `PaymentOptimisticLockException` into HTTP **`409 Conflict`**.
+- **Important Architectural Notice**: The platform does **not** implement distributed transactions, two-phase locking, or pessimistic database row locks (`SELECT FOR UPDATE`). Callers receiving a 409 must re-fetch the latest resource and re-evaluate their intent.
+
+---
+
+## 7. System Architecture Boundaries
+
+```text
+API Layer (PaymentsController)
+    ↓
+Application Layer (Use Case Handlers: CompletePaymentHandler, FailPaymentHandler, CancelPaymentHandler)
+    ↓
+Payment Domain Layer (Payment Aggregate Root, PaymentStatus, State Machine)
+    ↓
+Repository Layer (PaymentRepositoryPort / PrismaPaymentRepository)
+    ↓
+Database (PostgreSQL via Prisma ORM)
+```
+
+- **The state machine belongs strictly to the Domain Layer**.
+- Controllers do not evaluate transitions.
+- Application handlers orchestrate transactions and load aggregates, but never mutate `status` directly.
+- Repositories only persist and rehydrate domain aggregates; they never enforce or bypass lifecycle rules.
 
 ---
 
 ## 8. HTTP REST API Specification
 
-Payments are exposed via `PaymentsController` (`apps/api/src/sales/controllers/payments.controller.ts`) under base route `/api/v1`.
+### 8.1 Endpoints Catalog
 
-### 8.1 Endpoints
+| HTTP Method | Route                            | Permission Required                  | Allowed Roles                                       | Summary                                       | Expected Codes                           |
+| :---------- | :------------------------------- | :----------------------------------- | :-------------------------------------------------- | :-------------------------------------------- | :--------------------------------------- |
+| `POST`      | `/api/v1/sales/:saleId/payments` | `payments.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | Record tender against a finalized sale order  | `201`, `400`, `403`, `404`, `422`        |
+| `GET`       | `/api/v1/sales/:saleId/payments` | `payments.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | List all payments for a commercial sale order | `200`, `401`, `403`, `404`               |
+| `GET`       | `/api/v1/payments/:paymentId`    | `payments.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | Retrieve individual payment record by ID      | `200`, `401`, `403`, `404`               |
+| `POST`      | `/api/v1/payments/:id/complete`  | `payments.create`, `payments.manage` | `Owner`, `Manager`, `Receptionist`                  | Complete a pending payment tender             | `200`, `400`, `403`, `404`, `409`, `422` |
+| `POST`      | `/api/v1/payments/:id/fail`      | `payments.create`, `payments.manage` | `Owner`, `Manager`, `Receptionist`                  | Record provider failure/decline on pending    | `200`, `400`, `403`, `404`, `409`, `422` |
+| `POST`      | `/api/v1/payments/:id/cancel`    | `payments.manage`                    | `Owner`, `Manager`, `Receptionist`                  | Cancel or void an unsettled pending payment   | `200`, `400`, `403`, `404`, `409`, `422` |
+| `POST`      | `/api/v1/payments/:id/settle`    | `payments.create`, `payments.manage` | `Owner`, `Manager`, `Receptionist`                  | Settle pending payment (alias for complete)   | `200`, `400`, `403`, `404`, `409`, `422` |
 
-| HTTP Method | Route                            | Permission Required                  | Allowed Roles                                       | Summary                                       | Status Codes                      |
-| :---------- | :------------------------------- | :----------------------------------- | :-------------------------------------------------- | :-------------------------------------------- | :-------------------------------- |
-| `POST`      | `/api/v1/sales/:saleId/payments` | `payments.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | Record tender against a finalized sale order  | `201`, `400`, `403`, `404`, `422` |
-| `GET`       | `/api/v1/sales/:saleId/payments` | `payments.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | List all payments for a commercial sale order | `200`, `401`, `403`, `404`        |
-| `GET`       | `/api/v1/payments/:paymentId`    | `payments.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | Retrieve individual payment record by ID      | `200`, `401`, `403`, `404`        |
-| `POST`      | `/api/v1/payments/:id/settle`    | `payments.create`, `payments.manage` | `Owner`, `Manager`, `Receptionist`                  | Confirm settlement of a pending payment       | `200`, `400`, `403`, `404`, `422` |
-| `POST`      | `/api/v1/payments/:id/cancel`    | `payments.manage`                    | `Owner`, `Manager`, `Receptionist`                  | Cancel or void an unsettled pending payment   | `200`, `400`, `403`, `404`, `422` |
+### 8.2 Command Request Semantics
 
-### 8.2 Request & Response Payloads
+Client request DTOs strictly accept only operational parameters. **Clients cannot pass `status`, `paidAt`, or `createdAt`**:
 
-#### `RecordPaymentRequestDto`
+- `POST /api/v1/payments/:id/complete`: Accepts optional `{ "reference"?: string, "paidAt"?: string }`.
+- `POST /api/v1/payments/:id/fail`: Accepts optional `{ "reason"?: string }`.
+- `POST /api/v1/payments/:id/cancel`: Accepts optional `{ "reason"?: string }`.
 
-```json
-{
-  "method": "CASH",
-  "amount": 49.99,
-  "currency": "USD",
-  "reference": "DRAWER-01-RECEIPT-99"
-}
-```
-
-- `method`: `CASH` or `QR`.
-- `amount`: Strictly positive number with at most 2 decimal places.
-- `currency`: Optional ISO-4217 code (default `"USD"`). Must match Sale currency.
-- `reference`: Optional string up to 100 characters.
-
-#### `PaymentResponseDto`
-
-```json
-{
-  "id": "a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d",
-  "saleId": "f5e4d3c2-b1a0-9f8e-7d6c-5b4a3f2e1d0c",
-  "method": "CASH",
-  "amount": {
-    "amount": 49.99,
-    "currency": "USD",
-    "formatted": "49.99",
-    "cents": 4999
-  },
-  "amountValue": 49.99,
-  "status": "SETTLED",
-  "reference": "DRAWER-01-RECEIPT-99",
-  "paidAt": "2026-09-21T10:00:00.000Z",
-  "createdAt": "2026-09-21T10:00:00.000Z",
-  "version": 1
-}
-```
-
-### 8.3 Error Code Mapping
-
-The API filter (`SalesExceptionFilter`) deterministically maps domain exceptions to HTTP status codes:
-
-| Domain Exception                    | HTTP Status Code           | Cause & Business Context                                            |
-| :---------------------------------- | :------------------------- | :------------------------------------------------------------------ |
-| `PaymentNotFoundException`          | `404 Not Found`            | Requested payment ID does not exist in target tenant.               |
-| `SaleNotFoundException`             | `404 Not Found`            | Parent sale ID does not exist in target tenant.                     |
-| `InvalidPaymentMethodException`     | `400 Bad Request`          | Unsupported or future tender method requested.                      |
-| `InvalidPaymentAmountException`     | `400 Bad Request`          | Payment amount $\le 0$ or non-finite.                               |
-| `InvalidPaymentReferenceException`  | `400 Bad Request`          | Reference exceeds 100 characters or contains credit card PAN.       |
-| `PaymentUnauthorizedException`      | `403 Forbidden`            | User lacks required permission or attempts cross-tenant mutation.   |
-| `PaymentOverpaymentException`       | `422 Unprocessable Entity` | Electronic payment exceeds outstanding Sale balance.                |
-| `SaleNotPayableException`           | `422 Unprocessable Entity` | Target Sale is in `DRAFT`, `PAID`, `CANCELLED`, or `REFUNDED`.      |
-| `InvalidPaymentTransitionException` | `422 Unprocessable Entity` | Attempted transition from terminal state (e.g. mutating `SETTLED`). |
+Any client-supplied `status` field is stripped by validation pipes and ignored by application use cases.
 
 ---
 
-## 9. Security, Authorization & Multi-Tenancy
+## 9. Traceability Matrix
 
-### 9.1 Tenant & Business Scoping
-
-- Every query and command strictly filters by `tenantId`.
-- Cross-tenant payment creation, queries, or lifecycle transitions are blocked by `enforceTenantIsolation()` and repository where-clauses (`where: { id, tenantId }`).
-
-### 9.2 Financial Record Protection (PCI-DSS & Immutability)
-
-- **PCI-DSS Compliance**: The `PaymentReference` value object strictly rejects Primary Account Numbers (PANs; continuous sequences of 13 to 19 digits) to prevent accidental card data storage.
-- **Settlement Immutability**: `SETTLED` records can never be updated or deleted. Correcting an erroneous payment requires an autonomous compensating refund.
-- **Audit Trails**: Security audit events (`PaymentSettled`, `PaymentFailed`, `PaymentCancelled`) are durably emitted for regulatory compliance.
-
----
-
-## 10. Traceability Matrix
+Every lifecycle requirement traces from business requirements through ADRs, states, transition rules, domain methods, use cases, API routes, and automated test suites:
 
 ```text
 Requirement
     ↓
 ADR
     ↓
-Domain Rule
+State
+    ↓
+Transition Rule
+    ↓
+Domain Method
     ↓
 Use Case
-    ↓
-Persistence
     ↓
 API
     ↓
 Test
 ```
 
-| Requirement                         | Governing ADR      | Domain Rule        | Application Use Case        | Persistence Mapper    | API Route                   | Governing Test Suite                      |
-| :---------------------------------- | :----------------- | :----------------- | :-------------------------- | :-------------------- | :-------------------------- | :---------------------------------------- |
-| **Decouple Sale vs Payment**        | ADR-0115           | `PAY-01`           | `RecordPaymentHandler`      | `PrismaPaymentMapper` | `POST /sales/:id/payments`  | `payment.aggregate.spec.ts`               |
-| **Strict Positive Amounts**         | ADR-0108, ADR-0114 | `PAY-02`, `MNY-05` | `RecordPaymentCommand`      | Decimal(12, 2)        | `POST /sales/:id/payments`  | `phase-7-5-payment-qa-safety-net.spec.ts` |
-| **Supported Methods (CASH, QR)**    | ADR-0115           | `PAY-03`           | `RecordPaymentHandler`      | `PaymentMethod` Enum  | `POST /sales/:id/payments`  | `phase-7-5-payment-qa-safety-net.spec.ts` |
-| **Deterministic Lifecycle**         | ADR-0109, ADR-0115 | `PAY-04` – `06`    | `SettlePaymentHandler`      | `PaymentStatus` Enum  | `POST /payments/:id/settle` | `phase-7-5-payment-qa-safety-net.spec.ts` |
-| **Settlement Immutability**         | ADR-0109, ADR-0115 | `PAY-07`           | `CancelPaymentHandler`      | `onDelete: Restrict`  | `POST /payments/:id/cancel` | `payment-application.spec.ts`             |
-| **Overpayment Guard**               | ADR-0115           | `PAY-08`           | `RecordPaymentHandler`      | —                     | `POST /sales/:id/payments`  | `payment-application.spec.ts`             |
-| **Multi-Tenant Scoping**            | ADR-0111           | `ORG-02`           | `checkPaymentAuthorization` | `where: { tenantId }` | All payment routes          | `payments-qa-safety-net.spec.ts`          |
-| **Reference Sanitization (No PAN)** | ADR-0111           | `SEC-01`           | `PaymentReference`          | `VarChar(100)`        | DTO validation pipe         | `phase-7-5-payment-qa-safety-net.spec.ts` |
-| **Zero Float Drift**                | ADR-0108, ADR-0114 | `MNY-01`           | `Money` VO                  | Decimal(12, 2)        | `MoneyResponseDto`          | `phase-7-5-payment-qa-safety-net.spec.ts` |
+| Requirement                | ADR      | State / Transition       | Domain Rule & Method     | Application Use Case     | API Endpoint                | Governing Test Suite                                    |
+| :------------------------- | :------- | :----------------------- | :----------------------- | :----------------------- | :-------------------------- | :------------------------------------------------------ |
+| **Deterministic States**   | ADR-0116 | Exact 4 states           | `PaymentStatus` Enum     | CQRS DTOs                | Response DTO                | `payment-lifecycle-qa-matrix.spec.ts` (Tests 1–4)       |
+| **Permitted Transitions**  | ADR-0116 | `PENDING` $\to$ `COMPL.` | `Payment.complete()`     | `CompletePaymentHandler` | `POST /payments/:id/compl.` | `payment-lifecycle-qa-matrix.spec.ts` (Tests 5–7)       |
+| **Failure Transition**     | ADR-0116 | `PENDING` $\to$ `FAILED` | `Payment.fail()`         | `FailPaymentHandler`     | `POST /payments/:id/fail`   | `payment-lifecycle-qa-matrix.spec.ts` (Tests 8–10)      |
+| **Cancel Transition**      | ADR-0116 | `PENDING` $\to$ `CANC.`  | `Payment.cancel()`       | `CancelPaymentHandler`   | `POST /payments/:id/cancel` | `payment-lifecycle-qa-matrix.spec.ts` (Tests 11–13)     |
+| **Prohibited Matrix (13)** | ADR-0116 | Terminal Immutability    | `ALLOWED_PAYMENT_TRANS.` | Domain Exception Filter  | `422 Unprocessable Entity`  | `payment-lifecycle-qa-matrix.spec.ts` (Tests 14–26)     |
+| **Mutation Safety**        | ADR-0116 | All Fields Preserved     | `Payment._status` Guard  | Rejection Safety         | Integrity Protection        | `payment-lifecycle-qa-matrix.spec.ts` (Tests 27–28)     |
+| **Timestamp Invariants**   | ADR-0116 | `paidAt` Coupling        | `Payment.validatePaidAt` | Entity Invariants        | Serialized ISO-8601         | `payment-lifecycle-qa-matrix.spec.ts` (Tests 29–30)     |
+| **OCC Concurrency**        | ADR-0116 | Monotonic `version`      | `Payment.version++`      | `PrismaPaymentRepo`      | `409 Conflict`              | `payment-lifecycle-qa-matrix.spec.ts` (Tests 31–32)     |
+| **API Lifecycle Routes**   | ADR-0116 | External HTTP Interface  | `PaymentsController`     | Handlers Pipeline        | Complete / Fail / Cancel    | `payments-lifecycle-api-qa.spec.ts` (17 endpoint tests) |

@@ -415,42 +415,97 @@ Payment
 - **`saleId: SaleId`**: Unconstrained scalar reference to the `Sale` being settled.
 - **`method: PaymentMethod`**: The tender mechanism (`CASH`, `QR`).
 - **`amount: Money`**: Non-negative monetary amount ($> 0$).
-- **`status: PaymentStatus`**: Lifecycle state (`PENDING`, `SETTLED`, `FAILED`, `CANCELLED`).
+- **`id: PaymentId`**: Canonical UUID uniquely identifying the financial transaction.
+- **`tenantId: string`**: Tenant boundary for organization isolation.
+- **`saleId: SaleId`**: Unconstrained scalar reference to the `Sale` being settled.
+- **`method: PaymentMethod`**: The tender mechanism (`CASH`, `QR`).
+- **`amount: Money`**: Non-negative monetary amount ($> 0$).
+- **`status: PaymentStatus`**: Canonical lifecycle state (`PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`). `SETTLED` is supported as an accepted synonym and database mapping.
 - **`reference?: string | null`**: External correlation trace or register tag (max 100 chars, no PAN).
-- **`paidAt?: Date | null`**: Settlement timestamp (UTC), set strictly upon entering `SETTLED`.
+- **`paidAt?: Date | null`**: Settlement timestamp (UTC), set strictly upon entering `COMPLETED`. Must remain `null` for non-completed states.
 - **`createdAt: Date`**: Immutable creation timestamp.
 - **`updatedAt: Date`**: Last state modification timestamp.
-- **`version: number`**: OCC version counter ($\ge 1$).
+- **`version: number`**: OCC version counter ($\ge 1$), incremented on every valid transition.
 
-#### Payment Methods
+#### Critical Encapsulation Rule
 
-- **Currently Supported**:
-  ```text
-  CASH
-  QR
-  ```
-- **Architectural Extensibility**: The architecture intentionally leaves room for:
-  ```text
-  CARD
-  TRANSFER
-  ONLINE
-  ```
-  without implementing them yet. Future methods are recognized in `isFuturePaymentMethod()` and will be backed by external gateway adapters without breaking core domain logic. Calling future methods prior to gateway implementation throws `InvalidPaymentMethodException`.
+> **Payment status cannot be changed directly. Every state transition must pass through domain/application lifecycle logic.**
+
+- `_status` is private within `Payment`. The property getter `status` is read-only.
+- Direct status assignment (`payment.status = ...`) is prohibited and blocked by the compiler (`TS2540`).
+- Transitions occur strictly via domain methods: `complete()`, `fail()`, `cancel()`, or `applyTransition()`.
 
 #### State Transition Matrix
 
-Deterministic 4-state lifecycle (`PENDING`, `SETTLED`, `FAILED`, `CANCELLED`):
+Deterministic 4-state lifecycle (`PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`) established by ADR-0116:
 
-| From Status | To Status   | Trigger Method               | Invariants & Preconditions                                                     |
-| :---------- | :---------- | :--------------------------- | :----------------------------------------------------------------------------- |
-| _Initial_   | `SETTLED`   | `Payment.createSettled(...)` | Direct cash or instant counter payment. `paidAt` set immediately.              |
-| _Initial_   | `PENDING`   | `Payment.createPending(...)` | Asynchronous tender (e.g. dynamic QR awaiting customer scan). `paidAt = null`. |
-| `PENDING`   | `SETTLED`   | `payment.settle(clock?)`     | Funds confirmed. `paidAt` populated. Permanent immutability commences.         |
-| `PENDING`   | `FAILED`    | `payment.fail(reason?)`      | Gateway decline or session expiration. Terminal state.                         |
-| `PENDING`   | `CANCELLED` | `payment.cancel(reason?)`    | Operator cancels pending tender before settlement. Terminal state.             |
-| `SETTLED`   | _Any_       | **PROHIBITED**               | **Illegal State Transition**. Settled records are permanently immutable.       |
-| `FAILED`    | _Any_       | **PROHIBITED**               | Terminal.                                                                      |
-| `CANCELLED` | _Any_       | **PROHIBITED**               | Terminal.                                                                      |
+```text
+Current       Action          Result
+-----------------------------------------
+PENDING       complete        COMPLETED
+PENDING       fail            FAILED
+PENDING       cancel          CANCELLED
+```
+
+##### Permitted Transitions:
+
+| Current State | Action / Trigger Method     | Result State | Preconditions & Timestamp Effects                                              |
+| :------------ | :-------------------------- | :----------- | :----------------------------------------------------------------------------- |
+| _Initial_     | `Payment.createCompleted()` | `COMPLETED`  | Immediate tender (cash). `paidAt = clock.now()`. Permanently immutable.        |
+| _Initial_     | `Payment.createPending()`   | `PENDING`    | Asynchronous tender (dynamic QR). `paidAt = null`.                             |
+| `PENDING`     | `payment.complete(opts?)`   | `COMPLETED`  | Funds confirmed. `paidAt = opts.paidAt ?? clock.now()`. Permanently immutable. |
+| `PENDING`     | `payment.fail(reason?)`     | `FAILED`     | Rail decline or session timeout. `paidAt = null`. Terminal audit record.       |
+| `PENDING`     | `payment.cancel(reason?)`   | `CANCELLED`  | Operator/customer aborts prior to clearing. `paidAt = null`. Terminal record.  |
+
+##### Prohibited Transitions (Exhaustive 13 Prohibitions):
+
+All other 13 source/target transitions are strictly prohibited and throw `InvalidPaymentTransitionException`:
+
+- **From `PENDING`**: `PENDING -> PENDING` (prohibited re-entry).
+- **From `COMPLETED`**: `COMPLETED -> PENDING`, `COMPLETED -> COMPLETED`, `COMPLETED -> FAILED`, `COMPLETED -> CANCELLED` (terminal, write-once immutable; corrections require compensating refunds).
+- **From `FAILED`**: `FAILED -> PENDING`, `FAILED -> COMPLETED`, `FAILED -> FAILED`, `FAILED -> CANCELLED` (terminal audit record; retries require new aggregate).
+- **From `CANCELLED`**: `CANCELLED -> PENDING`, `CANCELLED -> COMPLETED`, `CANCELLED -> FAILED`, `CANCELLED -> CANCELLED` (terminal record).
+
+#### Architectural Layering Boundary
+
+```text
+API Layer (PaymentsController)
+    ↓
+Application Layer (Use Case Handlers: CompletePayment, FailPayment, CancelPayment)
+    ↓
+Payment Domain (Payment Aggregate, PaymentStatus, State Machine)
+    ↓
+Repository Layer (PaymentRepositoryPort / PrismaPaymentRepository)
+    ↓
+Database (PostgreSQL via Prisma ORM)
+```
+
+The state machine belongs strictly to the domain layer. Controllers and repositories never evaluate transition validity.
+
+#### Traceability Pipeline
+
+```text
+Requirement
+    ↓
+ADR (ADR-0116)
+    ↓
+State (PENDING, COMPLETED, FAILED, CANCELLED)
+    ↓
+Transition Rule (Permitted vs Prohibited Matrix)
+    ↓
+Domain Method (complete, fail, cancel)
+    ↓
+Use Case (CompletePaymentHandler, FailPaymentHandler, CancelPaymentHandler)
+    ↓
+API (POST /payments/:id/complete, /fail, /cancel)
+    ↓
+Test (payment-lifecycle-qa-matrix.spec.ts, payments-lifecycle-api-qa.spec.ts)
+```
+
+#### Idempotency & Concurrency
+
+- **Idempotency**: Repeating a lifecycle command on a terminal or already-transitioned payment throws `InvalidPaymentTransitionException` (`422 Unprocessable Entity`). Commands do not silently no-op.
+- **Concurrency**: Guaranteed via Optimistic Concurrency Control (OCC) using the integer `version` property checked on every database update (`where: { id, version }`). Concurrent race conditions throw `PaymentOptimisticLockException` (`409 Conflict`). Distributed locks or pessimistic table locks are neither claimed nor implemented.
 
 #### Monetary Rules & Precision
 

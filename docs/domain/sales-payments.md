@@ -240,12 +240,20 @@ Detailed aggregate properties:
 - **`saleId: SaleId`**: Unconstrained scalar reference to the `Sale` being settled. `Payment` holds no object reference to `Sale`.
 - **`method: PaymentMethod`**: The tender mechanism (`CASH`, `QR`).
 - **`amount: Money`**: Canonical `Money` value object representing the non-negative tender amount ($> 0$).
-- **`status: PaymentStatus`**: Exact 4-state lifecycle (`PENDING`, `SETTLED`, `FAILED`, `CANCELLED`).
+- **`status: PaymentStatus`**: Exact 4-state canonical lifecycle (`PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`). `SETTLED` is recognized as an accepted synonym and database mapping.
 - **`reference: string | null`**: Optional, sanitized external correlation identifier (max 100 characters; register tag or gateway trace; no PAN).
-- **`paidAt: Date | null`**: UTC timestamp populated exclusively upon settlement (`SETTLED`), `null` otherwise.
+- **`paidAt: Date | null`**: UTC timestamp populated exclusively upon entering `COMPLETED`, `null` otherwise.
 - **`createdAt: Date`**: Immutable creation timestamp.
 - **`updatedAt: Date`**: Timestamp of last lifecycle transition.
 - **`version: number`**: Integer counter ($\ge 1$) for Optimistic Concurrency Control (OCC).
+
+#### Critical Encapsulation Rule
+
+> **Payment status cannot be changed directly. Every state transition must pass through domain/application lifecycle logic.**
+
+- `_status` is private within `Payment`. The property getter `status` is read-only.
+- Direct status assignment (`payment.status = ...`) is prohibited and blocked by the compiler (`TS2540`).
+- Transitions occur strictly via domain methods: `complete()`, `fail()`, `cancel()`, or `applyTransition()`.
 
 #### Payment Methods
 
@@ -256,8 +264,8 @@ CASH
 QR
 ```
 
-- **`CASH`**: Physical in-person currency tendered at the reception or POS counter.
-- **`QR`**: Dynamic or static QR code payment generated for customer scanning via mobile banking or digital wallet.
+- **`CASH`**: Physical in-person currency tendered at the reception or POS counter. Instantiated directly as `COMPLETED`.
+- **`QR`**: Dynamic or static QR code payment generated for customer scanning via mobile banking or digital wallet. Instantiated as `PENDING`.
 
 **Extensibility Design**: The architecture intentionally leaves room for:
 
@@ -286,31 +294,43 @@ The Payment domain implements an exact, deterministic 4-state machine:
 │                          │   PENDING   │                               │
 │                          └──┬───┬───┬──┘                               │
 │                             │   │   │                                  │
-│                 settle()    │   │   │  cancel()                        │
+│                complete()   │   │   │  cancel()                        │
 │         ┌───────────────────┘   │   └────────────────────┐             │
 │         ▼                       ▼ fail()                 ▼             │
 │  ┌─────────────┐         ┌─────────────┐          ┌─────────────┐      │
-│  │   SETTLED   │         │   FAILED    │          │  CANCELLED  │      │
+│  │  COMPLETED  │         │   FAILED    │          │  CANCELLED  │      │
 │  └─────────────┘         └─────────────┘          └─────────────┘      │
 │    (Terminal &              (Terminal)               (Terminal)        │
 │     Immutable)                                                         │
 └────────────────────────────────────────────────────────────────────────┘
 ```
 
-Exact transition matrix:
+Transition Matrix:
 
-| From Status | To Status   | Trigger Method               | Invariants & Preconditions                                                         |
-| :---------- | :---------- | :--------------------------- | :--------------------------------------------------------------------------------- |
-| _Initial_   | `SETTLED`   | `Payment.createSettled(...)` | Direct cash or instant counter payment. `paidAt` set immediately.                  |
-| _Initial_   | `PENDING`   | `Payment.createPending(...)` | Asynchronous tender (e.g., QR awaiting scan). `paidAt = null`.                     |
-| `PENDING`   | `SETTLED`   | `payment.settle(clock?)`     | Funds received and verified. `paidAt` populated. Permanent immutability commences. |
-| `PENDING`   | `FAILED`    | `payment.fail(reason?)`      | Rail timeout, expired session, or customer decline.                                |
-| `PENDING`   | `CANCELLED` | `payment.cancel(reason?)`    | Operator voids pending transaction before completion.                              |
-| `SETTLED`   | _Any_       | **PROHIBITED**               | **Illegal State Transition**. Settled records are permanently immutable.           |
-| `FAILED`    | _Any_       | **PROHIBITED**               | Terminal. No further transitions permitted.                                        |
-| `CANCELLED` | _Any_       | **PROHIBITED**               | Terminal. No further transitions permitted.                                        |
+```text
+Current       Action          Result
+-----------------------------------------
+PENDING       complete        COMPLETED
+PENDING       fail            FAILED
+PENDING       cancel          CANCELLED
+```
 
-_Note: No `AUTHORIZED` or intermediate hold state exists in the Phase 7.5 implementation._
+Exact transition table:
+
+| From Status | To Status   | Trigger Method               | Invariants & Preconditions                                                           |
+| :---------- | :---------- | :--------------------------- | :----------------------------------------------------------------------------------- |
+| _Initial_   | `COMPLETED` | `Payment.createCompleted()`  | Direct cash or instant counter payment. `paidAt` set immediately.                    |
+| _Initial_   | `PENDING`   | `Payment.createPending(...)` | Asynchronous tender (e.g., QR awaiting scan). `paidAt = null`.                       |
+| `PENDING`   | `COMPLETED` | `payment.complete(opts?)`    | Funds received and verified. `paidAt` populated. Permanent immutability commences.   |
+| `PENDING`   | `FAILED`    | `payment.fail(reason?)`      | Rail timeout, expired session, or customer decline. `paidAt = null`. Terminal state. |
+| `PENDING`   | `CANCELLED` | `payment.cancel(reason?)`    | Operator voids pending transaction before completion. `paidAt = null`. Terminal.     |
+| `COMPLETED` | _Any_       | **PROHIBITED**               | **Illegal State Transition**. Completed records are permanently immutable.           |
+| `FAILED`    | _Any_       | **PROHIBITED**               | Terminal. No further transitions permitted.                                          |
+| `CANCELLED` | _Any_       | **PROHIBITED**               | Terminal. No further transitions permitted.                                          |
+
+All 13 prohibited transitions throw typed `InvalidPaymentTransitionException`. Terminal states cannot re-enter the lifecycle. Repeating a command on a terminal payment is rejected deterministically.
+
+_Note: No `AUTHORIZED` or intermediate hold state exists in the implementation._
 
 #### Money Policy Reference
 

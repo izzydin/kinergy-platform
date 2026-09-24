@@ -299,6 +299,31 @@ Phase 7.5 enforces financial correctness, state machine determinism, repository 
 
 ---
 
+### 3.6 Authoritative Payment State Machine & Lifecycle QA Suite (Milestone 7.6)
+
+Milestone 7.6 delivers mathematical proof that invalid Payment state transitions are impossible through supported application paths, documented by [ADR-0116](../adr/0116-payment-state-machine-and-lifecycle-specification.md):
+
+#### 1. Exhaustive Domain Lifecycle QA Matrix (`payment-lifecycle-qa-matrix.spec.ts` — 33 tests)
+
+- **16-Cell Exhaustive Transition Matrix**: Tests every source/target combination ($4 \times 4 = 16$). Asserts that exactly 3 transitions (`PENDING` $\to$ `COMPLETED`, `FAILED`, `CANCELLED`) succeed, and all 13 other transitions throw typed `InvalidPaymentTransitionException`.
+- **Mutation Safety & Invariant Protection**: Proves that attempting any invalid transition leaves all aggregate properties (`status`, `paidAt`, `amount`, `version`, domain events) completely unmutated.
+- **Timestamp Coupling**: Verifies that `paidAt` is strictly `null` in `PENDING`, `FAILED`, and `CANCELLED`, and populated strictly upon entering `COMPLETED` ($\ge$ `createdAt`).
+- **Deterministic Idempotency**: Proves that repeating a transition command on a terminal or already-transitioned payment is deterministically rejected with `InvalidPaymentTransitionException` (never a silent no-op).
+- **Optimistic Concurrency Control (OCC)**: Proves that `Payment.version` increments monotonically on every transition, preventing lost updates during concurrent requests.
+- **Phase 7.4 Regression Immunity**: Verifies that the payment aggregate respects canonical `Money` integer arithmetic and never recalculates or modifies parent `Sale` totals.
+
+#### 2. API Lifecycle & Client Bypass QA Suite (`payments-lifecycle-api-qa.spec.ts` — 17 tests)
+
+- **Explicit Lifecycle Endpoints**: Directly tests `POST /api/v1/payments/:id/complete`, `POST /api/v1/payments/:id/fail`, `POST /api/v1/payments/:id/cancel`, and alias `POST /api/v1/payments/:id/settle`.
+- **Client Bypass Immunity**: Proves that clients cannot pass arbitrary `status`, `paidAt`, or `createdAt` fields in request bodies; status transitions can only be triggered via domain lifecycle methods.
+- **HTTP Error Mapping**:
+  - `404 Not Found`: Target payment does not exist in tenant scope.
+  - `403 Forbidden`: User lacks required permission (`payments.create` or `payments.manage`).
+  - `409 Conflict`: OCC concurrency collision (`PaymentOptimisticLockException`).
+  - `422 Unprocessable Entity`: Prohibited state machine transition (`InvalidPaymentTransitionException`).
+
+---
+
 ## 4. Test Execution & Quality Gate Pipeline
 
 Run all test suites using workspace commands:

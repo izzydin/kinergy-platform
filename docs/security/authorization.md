@@ -137,9 +137,16 @@ In Phase 7 (Sales & Payments), operations enforce fine-grained dot-notation perm
 - **`sales.read`**: Inspect checkout session, line item snapshots, totals.
 - **`sales.manage`**: Discretionary discount overrides above standard thresholds.
 - **`sales.cancel`**: Void or cancel draft and finalized orders.
-- **`payments.create`**: Record tender against a finalized sale (`POST /sales/:saleId/payments`).
-- **`payments.read`**: List payment history or inspect single payment transaction.
-- **`payments.manage`**: Confirm settlement (`POST /payments/:id/settle`) or void pending tender (`POST /payments/:id/cancel`).
+- **`payments.create`**: Record tender against a finalized sale (`POST /sales/:saleId/payments`), complete pending payment (`POST /payments/:id/complete`), or record provider decline (`POST /payments/:id/fail`).
+- **`payments.read`**: List payment history or inspect individual payment transaction details (`GET /sales/:saleId/payments`, `GET /payments/:paymentId`).
+- **`payments.manage`**: Complete pending payment (`POST /payments/:id/complete` / `/settle`), record failure (`POST /payments/:id/fail`), or cancel/void pending tender (`POST /payments/:id/cancel`). Voiding and cancelling pending payments strictly requires `payments.manage`.
+
+#### Sale Scoping & Multi-Tenant Enforcement
+
+Every payment lifecycle command verifies server-side that the authenticated actor has access to the parent `Sale` and operates within the authorized `tenantId`:
+
+- Client-supplied tenant IDs or role headers are ignored; identity is resolved from cryptographic JWT claims (`sub`, `tenantId`).
+- Repositories enforce tenant-scoped where-clauses (`where: { id, tenantId }`), rendering cross-tenant access attempts indistinguishable from non-existent resources (`404 Not Found`) or access denied (`403 Forbidden`).
 
 #### Backward Compatibility Rules
 
