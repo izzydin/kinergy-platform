@@ -341,18 +341,6 @@ export class ReceiptResponseDto {
   })
   lastReprintedAt!: string | null;
 
-  @ApiProperty({
-    description: 'ISO 8601 UTC creation timestamp in database',
-    example: '2026-09-25T10:00:00.000Z',
-  })
-  createdAt!: string;
-
-  @ApiProperty({
-    description: 'Optimistic concurrency control version sequence',
-    example: 1,
-  })
-  version!: number;
-
   public static fromDTO(dto: ReceiptDTO): ReceiptResponseDto {
     const response = new ReceiptResponseDto();
     response.id = dto.id;
@@ -389,8 +377,6 @@ export class ReceiptResponseDto {
     response.status = dto.status;
     response.reprintCount = dto.reprintCount;
     response.lastReprintedAt = dto.lastReprintedAt;
-    response.createdAt = dto.createdAt;
-    response.version = dto.version;
     return response;
   }
 }
