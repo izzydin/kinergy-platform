@@ -110,11 +110,11 @@ export class Receipt implements Entity<ReceiptId>, AggregateRoot<ReceiptId> {
     this._saleReference = props.saleReference.trim();
     this._issuedAt = new Date(props.issuedAt.getTime());
     this._clientSnapshot = props.clientSnapshot;
-    this._items = [...props.items];
+    this._items = Object.freeze([...props.items]) as unknown as ReceiptItemSnapshot[];
     this._subtotal = props.subtotal;
     this._discountTotal = props.discountTotal;
     this._total = props.total;
-    this._payments = [...props.payments];
+    this._payments = Object.freeze([...props.payments]) as unknown as ReceiptPaymentSnapshot[];
     this._status = props.status;
     this._reprintCount = props.reprintCount;
     this._lastReprintedAt = props.lastReprintedAt
@@ -123,6 +123,24 @@ export class Receipt implements Entity<ReceiptId>, AggregateRoot<ReceiptId> {
     this._version = props.version;
     this._createdAt = new Date(props.createdAt.getTime());
     this._updatedAt = new Date(props.updatedAt.getTime());
+
+    // Local, explicit runtime immutability defense for historical commercial properties.
+    // Protects historical proof-of-purchase fields against accidental runtime tampering,
+    // bypassing TypeScript readonly, while preserving operational reprint lifecycle updates.
+    Object.defineProperty(this, '_id', { writable: false, configurable: false });
+    Object.defineProperty(this, '_tenantId', { writable: false, configurable: false });
+    Object.defineProperty(this, '_saleId', { writable: false, configurable: false });
+    Object.defineProperty(this, '_receiptNumber', { writable: false, configurable: false });
+    Object.defineProperty(this, '_saleReference', { writable: false, configurable: false });
+    Object.defineProperty(this, '_issuedAt', { writable: false, configurable: false });
+    Object.defineProperty(this, '_clientSnapshot', { writable: false, configurable: false });
+    Object.defineProperty(this, '_items', { writable: false, configurable: false });
+    Object.defineProperty(this, '_subtotal', { writable: false, configurable: false });
+    Object.defineProperty(this, '_discountTotal', { writable: false, configurable: false });
+    Object.defineProperty(this, '_total', { writable: false, configurable: false });
+    Object.defineProperty(this, '_payments', { writable: false, configurable: false });
+    Object.defineProperty(this, '_createdAt', { writable: false, configurable: false });
+    Object.seal(this);
   }
 
   /**

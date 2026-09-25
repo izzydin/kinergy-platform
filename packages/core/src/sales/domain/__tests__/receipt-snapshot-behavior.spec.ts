@@ -548,4 +548,349 @@ describe('Receipt Snapshot Model — Historical Financial Representations (ADR-0
       expect(receipt.lastReprintedAt).toBeNull();
     });
   });
+
+  // ===========================================================================
+  // 7. HISTORICAL FINANCIAL-DOMAIN INTEGRITY & ENTITY MUTATION STABILITY
+  // ===========================================================================
+  describe('7. Historical Financial-Domain Integrity & Entity Mutation Stability Regression Suite', () => {
+    it('verifies Sale changes (status transition, cancellation, re-settlement) do not silently mutate the issued Receipt', () => {
+      const sale = createSampleSettledSale(SaleStatus.PAID);
+      const payment = createSampleSettledPayment(140.0);
+      const client = {
+        id: 'client_hist_01',
+        fullName: 'Historical Client',
+        email: 'hist@example.com',
+      };
+
+      const receipt = Receipt.fromSettledSale(
+        {
+          sale,
+          payments: [payment],
+          clientSummary: client,
+          receiptNumber: 'REC-2026-000088',
+        },
+        clock,
+      );
+
+      // Verify baseline state
+      expect(receipt.status).toBe('ISSUED');
+      expect(receipt.total.amount).toBe(140.0);
+      expect(receipt.subtotal.amount).toBe(150.0);
+      expect(receipt.discountTotal.amount).toBe(10.0);
+
+      // MUTATION: Sale changes after receipt issuance (e.g. completion, cancellation, refunding)
+      const untypedSale = sale as unknown as Record<string, unknown>;
+      untypedSale['_status'] = SaleStatus.CANCELLED;
+      untypedSale['_subtotal'] = Money.zero('USD');
+      untypedSale['_discountTotal'] = Money.zero('USD');
+      untypedSale['_total'] = Money.zero('USD');
+
+      // PROOF: The historical receipt voucher remains 100% stable and intact
+      expect(receipt.status).toBe('ISSUED');
+      expect(receipt.total.amount).toBe(140.0);
+      expect(receipt.total.cents).toBe(14000);
+      expect(receipt.subtotal.amount).toBe(150.0);
+      expect(receipt.subtotal.cents).toBe(15000);
+      expect(receipt.discountTotal.amount).toBe(10.0);
+      expect(receipt.discountTotal.cents).toBe(1000);
+      expect(receipt.saleReference).toBe('sale_test_snap_001');
+    });
+
+    it('verifies Client profile modifications (name change, contact update, anonymization) do not silently mutate receipt client snapshot', () => {
+      const sale = createSampleSettledSale(SaleStatus.PAID);
+      const payment = createSampleSettledPayment(140.0);
+      const clientProfile = {
+        id: 'client_gdpr_01',
+        referenceNumber: 'CLI-GDPR-99',
+        fullName: 'Original Customer Name',
+        email: 'original@privacy.org',
+        phone: '+1-555-0199',
+      };
+
+      const receipt = Receipt.fromSettledSale(
+        {
+          sale,
+          payments: [payment],
+          clientSummary: clientProfile,
+          receiptNumber: 'REC-2026-000089',
+        },
+        clock,
+      );
+
+      // Verify baseline snapshot
+      expect(receipt.clientSnapshot!.fullName).toBe('Original Customer Name');
+      expect(receipt.clientSnapshot!.email).toBe('original@privacy.org');
+      expect(receipt.clientSnapshot!.phone).toBe('+1-555-0199');
+      expect(receipt.clientSnapshot!.referenceNumber).toBe('CLI-GDPR-99');
+
+      // MUTATION: Client exercises GDPR "Right to be forgotten" or updates legal name
+      clientProfile.fullName = 'Anonymized Client';
+      clientProfile.email = 'redacted@privacy.org';
+      clientProfile.phone = '+0-000-0000';
+      clientProfile.referenceNumber = 'CLI-REDACTED';
+
+      // PROOF: Receipt snapshot is permanently frozen in point-in-time state
+      expect(receipt.clientSnapshot!.fullName).toBe('Original Customer Name');
+      expect(receipt.clientSnapshot!.email).toBe('original@privacy.org');
+      expect(receipt.clientSnapshot!.phone).toBe('+1-555-0199');
+      expect(receipt.clientSnapshot!.referenceNumber).toBe('CLI-GDPR-99');
+    });
+
+    it('verifies SaleItem adjustments (quantity changes, catalog re-pricing) do not silently mutate receipt item snapshots', () => {
+      const sale = createSampleSettledSale(SaleStatus.PAID);
+      const payment = createSampleSettledPayment(140.0);
+
+      const receipt = Receipt.fromSettledSale(
+        {
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000090',
+        },
+        clock,
+      );
+
+      expect(receipt.itemCount).toBe(2);
+      expect(receipt.items[0]!.quantity).toBe(1);
+      expect(receipt.items[0]!.unitPrice.amount).toBe(100.0);
+      expect(receipt.items[0]!.subtotal.amount).toBe(100.0);
+      expect(receipt.items[1]!.quantity).toBe(2);
+      expect(receipt.items[1]!.unitPrice.amount).toBe(25.0);
+      expect(receipt.items[1]!.subtotal.amount).toBe(50.0);
+
+      // MUTATION: Sale items reconfigured in the Sale aggregate post-issuance
+      const reconfiguredItem = SaleItem.create({
+        id: SaleItemId.create('item_snap_01'),
+        source: SourceReference.create({
+          sourceType: SourceType.TREATMENT_SESSION,
+          sourceId: 'sess_123',
+        }),
+        description: 'Changed Service Description',
+        quantity: 10,
+        unitPrice: Money.create(500.0, 'USD'),
+      });
+      const untypedSale = sale as unknown as Record<string, unknown>;
+      untypedSale['_items'] = [reconfiguredItem];
+
+      // PROOF: Receipt item snapshots retain original values
+      expect(receipt.itemCount).toBe(2);
+      expect(receipt.items[0]!.quantity).toBe(1);
+      expect(receipt.items[0]!.unitPrice.amount).toBe(100.0);
+      expect(receipt.items[0]!.subtotal.amount).toBe(100.0);
+      expect(receipt.items[0]!.description).toBe('Physiotherapy Assessment 60m');
+    });
+
+    it('verifies current catalog price increases do not rewrite historical receipt prices', () => {
+      const sale = createSampleSettledSale(SaleStatus.PAID);
+      const payment = createSampleSettledPayment(140.0);
+
+      const receipt = Receipt.fromSettledSale(
+        {
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000091',
+        },
+        clock,
+      );
+
+      // Original price recorded: $100.00
+      expect(receipt.items[0]!.unitPrice.amount).toBe(100.0);
+      expect(receipt.total.amount).toBe(140.0);
+
+      // Simulated catalog price hike: Physiotherapy increased to $175.00
+      const currentCatalogPrice = Money.create(175.0, 'USD');
+      expect(currentCatalogPrice.amount).toBe(175.0);
+
+      // PROOF: Receipt historical prices remain frozen at original $100.00
+      expect(receipt.items[0]!.unitPrice.amount).toBe(100.0);
+      expect(receipt.total.amount).toBe(140.0);
+    });
+
+    it('verifies promotion expiry and discount modifications do not rewrite historical receipt discounts', () => {
+      const sale = createSampleSettledSale(SaleStatus.PAID);
+      const payment = createSampleSettledPayment(140.0);
+
+      const receipt = Receipt.fromSettledSale(
+        {
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000092',
+        },
+        clock,
+      );
+
+      expect(receipt.discountTotal.amount).toBe(10.0);
+
+      // Promotion expired or removed on sale aggregate
+      const untypedSale = sale as unknown as Record<string, unknown>;
+      untypedSale['_discountTotal'] = Money.zero('USD');
+      untypedSale['_orderDiscount'] = null;
+
+      // PROOF: Receipt preserves historical discount of $10.00
+      expect(receipt.discountTotal.amount).toBe(10.0);
+      expect(receipt.discountTotal.cents).toBe(1000);
+      expect(receipt.total.amount).toBe(140.0);
+    });
+
+    it('verifies Payment status transitions (chargeback, refund) do not silently rewrite historical receipt payment snapshots', () => {
+      const sale = createSampleSettledSale(SaleStatus.PAID);
+      const payment = createSampleSettledPayment(140.0);
+
+      const receipt = Receipt.fromSettledSale(
+        {
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000093',
+        },
+        clock,
+      );
+
+      expect(receipt.paymentStatus).toBe(PaymentStatus.COMPLETED);
+      expect(receipt.payments[0]!.status).toBe(PaymentStatus.COMPLETED);
+      expect(receipt.payments[0]!.amount.amount).toBe(140.0);
+
+      // Later event: Payment status transitions to CANCELLED in the Payment aggregate
+      const untypedPayment = payment as unknown as Record<string, unknown>;
+      untypedPayment['_status'] = PaymentStatus.CANCELLED;
+
+      // PROOF: Historical proof-of-purchase payment snapshot remains COMPLETED
+      expect(receipt.paymentStatus).toBe(PaymentStatus.COMPLETED);
+      expect(receipt.payments[0]!.status).toBe(PaymentStatus.COMPLETED);
+      expect(receipt.payments[0]!.amount.amount).toBe(140.0);
+    });
+
+    it('enforces runtime immutability on private historical properties preventing direct property mutations', () => {
+      const sale = createSampleSettledSale(SaleStatus.PAID);
+      const payment = createSampleSettledPayment(140.0);
+
+      const receipt = Receipt.fromSettledSale(
+        {
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000094',
+        },
+        clock,
+      );
+
+      const untypedReceipt = receipt as unknown as Record<string, unknown>;
+
+      // 1. Direct mutation of non-writable private fields throws TypeError in runtime
+      expect(() => {
+        untypedReceipt['_total'] = Money.create(999.0, 'USD');
+      }).toThrow(TypeError);
+
+      expect(() => {
+        untypedReceipt['_subtotal'] = Money.create(999.0, 'USD');
+      }).toThrow(TypeError);
+
+      expect(() => {
+        untypedReceipt['_discountTotal'] = Money.create(999.0, 'USD');
+      }).toThrow(TypeError);
+
+      expect(() => {
+        untypedReceipt['_items'] = [];
+      }).toThrow(TypeError);
+
+      expect(() => {
+        untypedReceipt['_payments'] = [];
+      }).toThrow(TypeError);
+
+      expect(() => {
+        untypedReceipt['_clientSnapshot'] = null;
+      }).toThrow(TypeError);
+
+      expect(() => {
+        untypedReceipt['_saleId'] = SaleId.create('fraudulent_sale');
+      }).toThrow(TypeError);
+
+      expect(() => {
+        untypedReceipt['_receiptNumber'] = null;
+      }).toThrow(TypeError);
+
+      expect(() => {
+        untypedReceipt['_issuedAt'] = new Date();
+      }).toThrow(TypeError);
+
+      // 2. Direct mutation of getter-only properties throws TypeError in strict mode
+      expect(() => {
+        untypedReceipt['total'] = Money.create(0.0, 'USD');
+      }).toThrow(TypeError);
+
+      expect(() => {
+        untypedReceipt['subtotal'] = Money.create(0.0, 'USD');
+      }).toThrow(TypeError);
+
+      expect(() => {
+        untypedReceipt['status'] = 'VOID';
+      }).toThrow(TypeError);
+
+      // 3. Deleting historical fields on sealed object throws TypeError
+      expect(() => {
+        delete untypedReceipt['_total'];
+      }).toThrow(TypeError);
+
+      // 4. Adding rogue fields to sealed object throws TypeError
+      expect(() => {
+        untypedReceipt['rogueFinancialOverride'] = true;
+      }).toThrow(TypeError);
+
+      // 5. Array mutation on frozen getters throws TypeError
+      const itemsList = receipt.items as unknown as Array<unknown>;
+      expect(() => {
+        itemsList.push({ description: 'Injected Item' });
+      }).toThrow(TypeError);
+
+      const paymentsList = receipt.payments as unknown as Array<unknown>;
+      expect(() => {
+        paymentsList.push({ amount: Money.create(10, 'USD') });
+      }).toThrow(TypeError);
+    });
+
+    it('proves duplicate reprinting updates ONLY reprint operational metadata while keeping historical financial data identical', () => {
+      const sale = createSampleSettledSale(SaleStatus.PAID);
+      const payment = createSampleSettledPayment(140.0);
+      const client = {
+        id: 'client_reprint_01',
+        fullName: 'Reprint Test User',
+      };
+
+      const receipt = Receipt.fromSettledSale(
+        {
+          sale,
+          payments: [payment],
+          clientSummary: client,
+          receiptNumber: 'REC-2026-000095',
+        },
+        clock,
+      );
+
+      const preReprintSubtotal = receipt.subtotal;
+      const preReprintTotal = receipt.total;
+      const preReprintDiscount = receipt.discountTotal;
+      const preReprintItems = receipt.items;
+      const preReprintPayments = receipt.payments;
+      const preReprintClient = receipt.clientSnapshot;
+      const preReprintIssuedAt = receipt.issuedAt;
+
+      // Advance clock and trigger duplicate reprint
+      clock.advance(3600 * 1000 * 24); // 24 hours later
+      const reprintTimestamp = clock.now();
+      receipt.recordReprint(clock);
+
+      // Operational reprint fields MUST update
+      expect(receipt.status).toBe('REPRINTED');
+      expect(receipt.reprintCount).toBe(1);
+      expect(receipt.isReprint).toBe(true);
+      expect(receipt.lastReprintedAt?.toISOString()).toBe(reprintTimestamp.toISOString());
+      expect(receipt.version).toBe(2);
+
+      // Historical financial, client, items, payments, and issuance fields MUST NOT mutate
+      expect(receipt.subtotal.equals(preReprintSubtotal)).toBe(true);
+      expect(receipt.total.equals(preReprintTotal)).toBe(true);
+      expect(receipt.discountTotal.equals(preReprintDiscount)).toBe(true);
+      expect(receipt.issuedAt.toISOString()).toBe(preReprintIssuedAt.toISOString());
+      expect(receipt.clientSnapshot!.fullName).toBe(preReprintClient!.fullName);
+      expect(receipt.itemCount).toBe(preReprintItems.length);
+      expect(receipt.payments.length).toBe(preReprintPayments.length);
+    });
+  });
 });
