@@ -9,19 +9,25 @@ import {
   SaleAlreadyFinalizedException,
   SaleOptimisticLockException,
   PaymentOptimisticLockException,
+  ReceiptOptimisticLockException,
+  DuplicateReceiptException,
   InvalidSaleTransitionException,
   InvalidSaleStateException,
   SaleNotFoundException,
   PaymentNotFoundException,
+  ReceiptNotFoundException,
   SaleNotPayableException,
   PaymentOverpaymentException,
   PaymentUnauthorizedException,
+  ReceiptUnauthorizedException,
   PaymentCurrencyMismatchException,
   InvalidPaymentMethodException,
   InvalidPaymentReferenceException,
   InvalidPaymentStatusException,
   InvalidPaymentTransitionException,
   PaymentDomainException,
+  ReceiptDomainException,
+  ReceiptIssuanceRejectedException,
 } from '@kinergy-platform/core';
 
 /**
@@ -37,12 +43,19 @@ export class SalesExceptionFilter implements ExceptionFilter {
     // 1. Optimistic Concurrency & Lock Collisions (409 Conflict)
     if (
       exception instanceof SaleOptimisticLockException ||
-      exception instanceof PaymentOptimisticLockException
+      exception instanceof PaymentOptimisticLockException ||
+      exception instanceof ReceiptOptimisticLockException ||
+      exception instanceof DuplicateReceiptException
     ) {
+      const code =
+        'code' in exception && typeof (exception as { code: unknown }).code === 'string'
+          ? (exception as { code: string }).code
+          : 'CONFLICT';
+
       response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,
         error: 'Conflict',
-        code: exception.code,
+        code,
         message: exception.message,
       });
       return;
@@ -61,7 +74,8 @@ export class SalesExceptionFilter implements ExceptionFilter {
     // 2. Not Found Entities (404 Not Found)
     if (
       exception instanceof SaleNotFoundException ||
-      exception instanceof PaymentNotFoundException
+      exception instanceof PaymentNotFoundException ||
+      exception instanceof ReceiptNotFoundException
     ) {
       response.status(HttpStatus.NOT_FOUND).json({
         statusCode: HttpStatus.NOT_FOUND,
@@ -72,7 +86,10 @@ export class SalesExceptionFilter implements ExceptionFilter {
     }
 
     // 3. Security & Multi-Tenant Authorization (403 Forbidden)
-    if (exception instanceof PaymentUnauthorizedException) {
+    if (
+      exception instanceof PaymentUnauthorizedException ||
+      exception instanceof ReceiptUnauthorizedException
+    ) {
       response.status(HttpStatus.FORBIDDEN).json({
         statusCode: HttpStatus.FORBIDDEN,
         error: 'Forbidden',
@@ -87,7 +104,8 @@ export class SalesExceptionFilter implements ExceptionFilter {
       exception instanceof InvalidSaleTransitionException ||
       exception instanceof InvalidPaymentTransitionException ||
       exception instanceof SaleNotPayableException ||
-      exception instanceof PaymentOverpaymentException
+      exception instanceof PaymentOverpaymentException ||
+      exception instanceof ReceiptIssuanceRejectedException
     ) {
       const code =
         'code' in exception && typeof (exception as { code: unknown }).code === 'string'
@@ -114,6 +132,7 @@ export class SalesExceptionFilter implements ExceptionFilter {
       exception instanceof InvalidPaymentReferenceException ||
       exception instanceof InvalidPaymentStatusException ||
       exception instanceof PaymentDomainException ||
+      exception instanceof ReceiptDomainException ||
       exception instanceof SaleDomainException
     ) {
       const code =

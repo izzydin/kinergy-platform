@@ -5,6 +5,8 @@ import {
   PaymentFailedEvent,
   SaleFinalizedEvent,
   SaleCancelledEvent,
+  ReceiptIssuedEvent,
+  ReceiptReprintedEvent,
   SalesEventPublisherPort,
 } from '@kinergy-platform/core';
 import {
@@ -188,6 +190,58 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
         severity: AuditSeverity.MEDIUM,
         metadata: {
           reason: event.payload.reason ?? undefined,
+        },
+      };
+    }
+
+    if (event instanceof ReceiptIssuedEvent) {
+      return {
+        eventId: event.eventId,
+        eventType: 'ReceiptIssued',
+        category: AuditEventCategory.DATA_ACCESS,
+        timestamp,
+        actor: this.resolveActor(event.payload.tenantId),
+        target: {
+          type: 'Receipt',
+          id: event.payload.receiptId,
+        },
+        outcome: AuditOutcome.SUCCESS,
+        severity: AuditSeverity.LOW,
+        tenantId: event.payload.tenantId,
+        metadata: {
+          custom: {
+            receiptNumber: event.payload.receiptNumber,
+            saleId: event.payload.saleId,
+            totalAmount: event.payload.totalAmount,
+            cents: event.payload.totalCents,
+            currency: event.payload.currency,
+            issuedAt: event.payload.issuedAt.toISOString(),
+          },
+        },
+      };
+    }
+
+    if (event instanceof ReceiptReprintedEvent) {
+      return {
+        eventId: event.eventId,
+        eventType: 'ReceiptReprinted',
+        category: AuditEventCategory.DATA_ACCESS,
+        timestamp,
+        actor: this.resolveActor(event.payload.tenantId),
+        target: {
+          type: 'Receipt',
+          id: event.payload.receiptId,
+        },
+        outcome: AuditOutcome.SUCCESS,
+        severity: AuditSeverity.LOW,
+        tenantId: event.payload.tenantId,
+        metadata: {
+          custom: {
+            receiptNumber: event.payload.receiptNumber,
+            saleId: event.payload.saleId,
+            reprintCount: event.payload.reprintCount,
+            reprintedAt: event.payload.reprintedAt.toISOString(),
+          },
         },
       };
     }

@@ -4,6 +4,7 @@ import { AuditModule } from '../platform/audit/audit.module';
 import {
   PrismaSaleRepository,
   PrismaPaymentRepository,
+  PrismaReceiptRepository,
   CreateSaleHandler,
   GetSaleByIdHandler,
   AddSaleItemHandler,
@@ -15,16 +16,21 @@ import {
   SettlePaymentHandler,
   FailPaymentHandler,
   CancelPaymentHandler,
+  IssueReceiptHandler,
+  GetReceiptHandler,
+  GetReceiptBySaleHandler,
   SaleRepositoryPort,
   PaymentRepositoryPort,
+  ReceiptRepositoryPort,
 } from '@kinergy-platform/core';
 import { SalesController, SALE_REPOSITORY_TOKEN } from './controllers/sales.controller';
 import { PaymentsController, PAYMENT_REPOSITORY_TOKEN } from './controllers/payments.controller';
+import { ReceiptsController, RECEIPT_REPOSITORY_TOKEN } from './controllers/receipts.controller';
 import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-publisher';
 
 @Module({
   imports: [AuditModule],
-  controllers: [SalesController, PaymentsController],
+  controllers: [SalesController, PaymentsController, ReceiptsController],
   providers: [
     SalesAuditEventPublisher,
     {
@@ -35,6 +41,11 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     {
       provide: PAYMENT_REPOSITORY_TOKEN,
       useFactory: (prisma: PrismaService) => new PrismaPaymentRepository(prisma),
+      inject: [PrismaService],
+    },
+    {
+      provide: RECEIPT_REPOSITORY_TOKEN,
+      useFactory: (prisma: PrismaService) => new PrismaReceiptRepository(prisma),
       inject: [PrismaService],
     },
     {
@@ -114,10 +125,45 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
       ) => new CancelPaymentHandler(paymentRepo, saleRepo, undefined, auditPublisher),
       inject: [PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
     },
+    {
+      provide: IssueReceiptHandler,
+      useFactory: (
+        receiptRepo: ReceiptRepositoryPort,
+        saleRepo: SaleRepositoryPort,
+        paymentRepo: PaymentRepositoryPort,
+        auditPublisher: SalesAuditEventPublisher,
+      ) =>
+        new IssueReceiptHandler(
+          receiptRepo,
+          saleRepo,
+          paymentRepo,
+          undefined,
+          undefined,
+          auditPublisher,
+        ),
+      inject: [
+        RECEIPT_REPOSITORY_TOKEN,
+        SALE_REPOSITORY_TOKEN,
+        PAYMENT_REPOSITORY_TOKEN,
+        SalesAuditEventPublisher,
+      ],
+    },
+    {
+      provide: GetReceiptHandler,
+      useFactory: (receiptRepo: ReceiptRepositoryPort) => new GetReceiptHandler(receiptRepo),
+      inject: [RECEIPT_REPOSITORY_TOKEN],
+    },
+    {
+      provide: GetReceiptBySaleHandler,
+      useFactory: (receiptRepo: ReceiptRepositoryPort, saleRepo: SaleRepositoryPort) =>
+        new GetReceiptBySaleHandler(receiptRepo, saleRepo),
+      inject: [RECEIPT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN],
+    },
   ],
   exports: [
     SALE_REPOSITORY_TOKEN,
     PAYMENT_REPOSITORY_TOKEN,
+    RECEIPT_REPOSITORY_TOKEN,
     SalesAuditEventPublisher,
     CreateSaleHandler,
     GetSaleByIdHandler,
@@ -130,6 +176,9 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     SettlePaymentHandler,
     FailPaymentHandler,
     CancelPaymentHandler,
+    IssueReceiptHandler,
+    GetReceiptHandler,
+    GetReceiptBySaleHandler,
   ],
 })
 export class SalesModule {}

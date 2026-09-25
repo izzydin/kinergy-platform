@@ -5,3 +5,5 @@ export * from './sales-input.dto';
 export * from './record-payment-request.dto';
 export * from './payment-lifecycle-request.dto';
 export * from './payment-response.dto';
+export * from './issue-receipt-request.dto';
+export * from './receipt-response.dto';

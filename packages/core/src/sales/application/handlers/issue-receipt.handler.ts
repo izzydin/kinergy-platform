@@ -38,7 +38,7 @@ export class IssueReceiptHandler implements SalesCommandHandler<
     const { input } = command;
     try {
       // 1. Authorization & Role Validation (ADR-0111, ADR-0117)
-      checkReceiptAuthorization(input.currentUser, ['receipts.manage', 'receipts.read']);
+      checkReceiptAuthorization(input.currentUser, ['receipts.manage']);
 
       const saleId = input.saleId?.trim();
       if (!saleId) {

@@ -22,6 +22,9 @@ export function checkReceiptAuthorization(
     'Gym Manager',
     'Platform Admin',
     'Receptionist',
+    'Kitchen Staff',
+    'Client',
+    'Member',
   ],
 ): void {
   if (!currentUser) {
