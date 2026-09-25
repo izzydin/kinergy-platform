@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { Receipt } from '../../../../domain/receipt.aggregate';
 import { ReceiptId } from '../../../../domain/value-objects/receipt-id.vo';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
@@ -77,50 +77,91 @@ export class PrismaReceiptRepository implements ReceiptRepositoryPort {
   public async save(receipt: Receipt): Promise<void> {
     const persistenceData = PrismaReceiptMapper.toPersistence(receipt);
 
-    await this.prisma.$transaction(async (tx) => {
-      if (receipt.version === 1) {
-        // Initial issuance: verify uniqueness per (tenantId, saleId)
-        const existing = await tx.receipt.findUnique({
-          where: {
-            unique_tenant_sale_receipt: {
-              tenantId: receipt.tenantId,
-              saleId: receipt.saleId.value,
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        if (receipt.version === 1) {
+          // Initial issuance: verify uniqueness per (tenantId, saleId)
+          const existing = await tx.receipt.findUnique({
+            where: {
+              unique_tenant_sale_receipt: {
+                tenantId: receipt.tenantId,
+                saleId: receipt.saleId.value,
+              },
             },
-          },
-          select: { id: true, version: true },
-        });
+            select: { id: true, version: true },
+          });
 
-        if (existing) {
-          throw new DuplicateReceiptException(receipt.saleId.value, receipt.tenantId);
+          if (existing) {
+            throw new DuplicateReceiptException(receipt.saleId.value, receipt.tenantId);
+          }
+
+          await tx.receipt.create({
+            data: persistenceData,
+          });
+        } else {
+          // Reprint mutation: explicit immutability protection.
+          // Financial totals, items, client, and payment snapshots are strictly read-only.
+          const priorVersion = receipt.version - 1;
+
+          const result = await tx.receipt.updateMany({
+            where: {
+              id: receipt.id.value,
+              version: priorVersion,
+            },
+            data: {
+              status: persistenceData.status,
+              reprintCount: persistenceData.reprintCount,
+              lastReprintedAt: persistenceData.lastReprintedAt,
+              version: persistenceData.version,
+              updatedAt: persistenceData.updatedAt,
+            },
+          });
+
+          if (result.count === 0) {
+            throw new ReceiptOptimisticLockException(receipt.id.value, priorVersion);
+          }
         }
-
-        await tx.receipt.create({
-          data: persistenceData,
-        });
-      } else {
-        // Reprint mutation: explicit immutability protection.
-        // Financial totals, items, client, and payment snapshots are strictly read-only.
-        const priorVersion = receipt.version - 1;
-
-        const result = await tx.receipt.updateMany({
-          where: {
-            id: receipt.id.value,
-            version: priorVersion,
-          },
-          data: {
-            status: persistenceData.status,
-            reprintCount: persistenceData.reprintCount,
-            lastReprintedAt: persistenceData.lastReprintedAt,
-            version: persistenceData.version,
-            updatedAt: persistenceData.updatedAt,
-          },
-        });
-
-        if (result.count === 0) {
-          throw new ReceiptOptimisticLockException(receipt.id.value, priorVersion);
-        }
+      });
+    } catch (error: unknown) {
+      if (
+        error instanceof DuplicateReceiptException ||
+        error instanceof ReceiptOptimisticLockException
+      ) {
+        throw error;
       }
-    });
+
+      if (this.isUniqueConstraintError(error)) {
+        throw new DuplicateReceiptException(receipt.saleId.value, receipt.tenantId);
+      }
+
+      throw error;
+    }
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    if (!error || typeof error !== 'object') {
+      return false;
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      return true;
+    }
+
+    const err = error as { code?: string; message?: string };
+    if (err.code === 'P2002' || err.code === '23505') {
+      return true;
+    }
+
+    if (
+      typeof err.message === 'string' &&
+      (err.message.includes('unique_tenant_sale_receipt') ||
+        err.message.includes('unique_tenant_receipt_number') ||
+        err.message.includes('Unique constraint failed'))
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
   public async getNextReceiptNumber(tenantId: string, year: number): Promise<ReceiptNumber> {

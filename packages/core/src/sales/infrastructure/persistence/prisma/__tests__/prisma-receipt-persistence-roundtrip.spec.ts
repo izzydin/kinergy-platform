@@ -337,6 +337,84 @@ describe('Receipt Persistence & Round-Trip Architecture (ADR-0117 / ADR-0118 / P
       expect(mockPrisma.receipt.create).not.toHaveBeenCalled();
     });
 
+    it('translates database unique constraint violation P2002 on unique_tenant_sale_receipt into DuplicateReceiptException when concurrent race bypasses pre-check', async () => {
+      // Simulate concurrent race: pre-check findUnique returns null because transaction B has not yet committed
+      // But concurrent tx A committed just before tx B calls create(), raising P2002
+      const p2002Error = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`tenant_id`, `sale_id`)',
+        {
+          code: 'P2002',
+          clientVersion: '6.19.3',
+        },
+      );
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
+        $queryRawUnsafe: jest.fn(),
+        receipt: {
+          create: jest.fn().mockRejectedValue(p2002Error),
+          findUnique: jest.fn().mockResolvedValue(null), // Pre-check returned null during race!
+          findFirst: jest.fn(),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaReceiptRepository(mockPrisma as unknown as PrismaClient);
+      const receipt = createSampleReceipt();
+
+      await expect(repo.save(receipt)).rejects.toThrow(DuplicateReceiptException);
+      expect(mockPrisma.receipt.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('translates database unique constraint violation P2002 on unique_tenant_receipt_number into DuplicateReceiptException', async () => {
+      const p2002Error = new Prisma.PrismaClientKnownRequestError(
+        'Unique constraint failed on the fields: (`tenant_id`, `receipt_number`)',
+        {
+          code: 'P2002',
+          clientVersion: '6.19.3',
+        },
+      );
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
+        $queryRawUnsafe: jest.fn(),
+        receipt: {
+          create: jest.fn().mockRejectedValue(p2002Error),
+          findUnique: jest.fn().mockResolvedValue(null),
+          findFirst: jest.fn(),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaReceiptRepository(mockPrisma as unknown as PrismaClient);
+      const receipt = createSampleReceipt();
+
+      await expect(repo.save(receipt)).rejects.toThrow(DuplicateReceiptException);
+    });
+
+    it('translates raw PostgreSQL 23505 unique violation error into DuplicateReceiptException', async () => {
+      const pg23505Error = Object.assign(
+        new Error('duplicate key value violates unique constraint "unique_tenant_sale_receipt"'),
+        { code: '23505' },
+      );
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),
+        $queryRawUnsafe: jest.fn(),
+        receipt: {
+          create: jest.fn().mockRejectedValue(pg23505Error),
+          findUnique: jest.fn().mockResolvedValue(null),
+          findFirst: jest.fn(),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaReceiptRepository(mockPrisma as unknown as PrismaClient);
+      const receipt = createSampleReceipt();
+
+      await expect(repo.save(receipt)).rejects.toThrow(DuplicateReceiptException);
+    });
+
     it('strictly preserves immutability on reprint: updates ONLY reprint metadata, never financial snapshots', async () => {
       const mockPrisma: MockPrismaClient = {
         $transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mockPrisma)),

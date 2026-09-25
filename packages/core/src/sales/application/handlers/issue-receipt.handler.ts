@@ -146,9 +146,17 @@ export class IssueReceiptHandler implements SalesCommandHandler<
       return SalesApplicationResult.ok(ReceiptMapper.toDTO(receipt));
     } catch (err: unknown) {
       if (err instanceof DuplicateReceiptException) {
-        const existing = await this.receiptRepository.findBySaleId(input.saleId);
-        if (existing) {
-          return SalesApplicationResult.ok(ReceiptMapper.toDTO(existing));
+        // Deterministic recovery for concurrent racers: fetch committed winning receipt
+        const targetSaleId = input.saleId?.trim();
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const existing = await this.receiptRepository.findBySaleId(targetSaleId);
+          if (existing) {
+            return SalesApplicationResult.ok(ReceiptMapper.toDTO(existing));
+          }
+          if (attempt < 2) {
+            // Micro-delay between retries to allow concurrent transaction commit to finalize
+            await new Promise((resolve) => setTimeout(resolve, 10 * (attempt + 1)));
+          }
         }
       }
       const error = err instanceof Error ? err : new Error(String(err));
