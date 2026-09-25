@@ -909,5 +909,48 @@ describe('Sale Aggregate Root Behavioral Test Suite', () => {
       expect(reconstituted.total.equals(sale.total)).toBe(true);
       expect(reconstituted.subtotal.equals(sale.subtotal)).toBe(true);
     });
+
+    it('REG-05: applyDiscount, removeDiscount, markPendingPayment, and calculateTotals operate with aggregate encapsulation', () => {
+      const sale = Sale.create({ source: validSessionSource }, clock);
+      sale.addItem({
+        source: validInventorySource,
+        description: 'Single Session',
+        quantity: 1,
+        unitPrice: Money.create(100.0, 'USD'),
+      });
+
+      // applyDiscount
+      sale.applyDiscount(Discount.percentage(20, 'Seasonal Discount'), clock);
+      expect(sale.discountTotal.amount).toBe(20.0);
+      expect(sale.total.amount).toBe(80.0);
+
+      // calculateTotals
+      sale.calculateTotals();
+      expect(sale.total.amount).toBe(80.0);
+
+      // removeDiscount
+      sale.removeDiscount(clock);
+      expect(sale.discountTotal.amount).toBe(0.0);
+      expect(sale.total.amount).toBe(100.0);
+
+      // markPendingPayment
+      sale.markPendingPayment(clock);
+      expect(sale.status).toBe(SaleStatus.PENDING_PAYMENT);
+
+      // Encapsulation: items array is frozen and cannot be mutated externally
+      const exposedItems = sale.items as SaleItem[];
+      expect(Object.isFrozen(exposedItems)).toBe(true);
+      expect(() =>
+        exposedItems.push(
+          SaleItem.create({
+            saleId: sale.id,
+            source: validInventorySource,
+            description: 'Illicit item',
+            quantity: 1,
+            unitPrice: Money.create(10, 'USD'),
+          }),
+        ),
+      ).toThrow();
+    });
   });
 });

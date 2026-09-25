@@ -724,6 +724,29 @@ export class Sale implements AggregateRoot<SaleId> {
   }
 
   /**
+   * Applies an order-level discount. Convenience domain method for applyOrderDiscount.
+   * Permitted only while in DRAFT status.
+   */
+  public applyDiscount(discount: Discount, clock: Clock = new SystemClock()): void {
+    this.applyOrderDiscount(discount, clock);
+  }
+
+  /**
+   * Removes order-level discount. Convenience domain method for removeOrderDiscount.
+   * Permitted only while in DRAFT status.
+   */
+  public removeDiscount(clock: Clock = new SystemClock()): void {
+    this.removeOrderDiscount(clock);
+  }
+
+  /**
+   * Explicitly recalculates all order totals and reconciles financial state deterministically.
+   */
+  public calculateTotals(): void {
+    this.recalculateTotals();
+  }
+
+  /**
    * Finalizes the commercial agreement, transitioning from DRAFT to PENDING_PAYMENT.
    * Freezes commercial terms permanently against further item and discount adjustments.
    * Invariant: Requires at least one line item (SALE-05).
@@ -761,6 +784,15 @@ export class Sale implements AggregateRoot<SaleId> {
         now,
       ),
     );
+  }
+
+  /**
+   * Transitions status from DRAFT to PENDING_PAYMENT. Convenience domain method for finalize.
+   * Freezes commercial terms permanently against further item and discount adjustments.
+   * Invariant: Requires at least one line item (SALE-05).
+   */
+  public markPendingPayment(clock: Clock = new SystemClock()): void {
+    this.finalize(clock);
   }
 
   /**
