@@ -13,3 +13,4 @@ export * from './invalid-payment-status.exception';
 export * from './invalid-payment-reference.exception';
 export * from './invalid-payment-transition.exception';
 export * from './receipt-domain.exception';
+export * from './duplicate-receipt.exception';

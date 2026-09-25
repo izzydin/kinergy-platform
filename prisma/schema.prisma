@@ -712,6 +712,7 @@ model Sale {
 
   items    SaleItem[] @relation("SaleToSaleItems")
   payments Payment[]  @relation("SaleToPayments")
+  receipts Receipt[]  @relation("SaleToReceipts")
 
   @@index([tenantId])
   @@index([clientId])
@@ -782,4 +783,55 @@ model Payment {
   @@index([status])
   @@index([createdAt(sort: Desc)])
   @@map("payments")
+}
+
+// ==========================================
+// RECEIPT BOUNDED SUBDOMAIN (PHASE 7.7)
+// ==========================================
+
+enum ReceiptStatus {
+  ISSUED
+  REPRINTED
+}
+
+model ReceiptSequence {
+  tenantId     String   @map("tenant_id")
+  year         Int      @map("year")
+  currentValue Int      @default(0) @map("current_value")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@id([tenantId, year])
+  @@map("receipt_sequences")
+}
+
+model Receipt {
+  id                  String        @id @default(uuid())
+  tenantId            String        @map("tenant_id")
+  saleId              String        @map("sale_id")
+  receiptNumber       String        @map("receipt_number") @db.VarChar(50)
+  saleReference       String        @map("sale_reference") @db.VarChar(100)
+  issuedAt            DateTime      @default(now()) @map("issued_at")
+  clientSnapshot      Json?         @map("client_snapshot")
+  itemsSnapshot       Json          @map("items_snapshot")
+  paymentsSnapshot    Json          @map("payments_snapshot")
+  subtotalAmount      Decimal       @map("subtotal_amount") @db.Decimal(12, 2)
+  discountTotalAmount Decimal       @map("discount_total_amount") @db.Decimal(12, 2)
+  totalAmount         Decimal       @map("total_amount") @db.Decimal(12, 2)
+  currency            String        @default("USD") @map("currency") @db.VarChar(3)
+  status              ReceiptStatus @default(ISSUED)
+  reprintCount        Int           @default(0) @map("reprint_count")
+  lastReprintedAt     DateTime?     @map("last_reprinted_at")
+  version             Int           @default(1)
+  createdAt           DateTime      @default(now()) @map("created_at")
+  updatedAt           DateTime      @updatedAt @map("updated_at")
+
+  sale Sale @relation("SaleToReceipts", fields: [saleId], references: [id], onDelete: Restrict)
+
+  @@unique([tenantId, saleId], name: "unique_tenant_sale_receipt")
+  @@unique([tenantId, receiptNumber], name: "unique_tenant_receipt_number")
+  @@index([tenantId])
+  @@index([saleId])
+  @@index([status])
+  @@index([issuedAt(sort: Desc)])
+  @@map("receipts")
 }

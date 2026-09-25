@@ -15,3 +15,10 @@ export class PaymentOptimisticLockException extends SaleOptimisticLockException 
     this.name = 'PaymentOptimisticLockException';
   }
 }
+
+export class ReceiptOptimisticLockException extends SaleOptimisticLockException {
+  constructor(id: string, expectedVersion: number) {
+    super('Receipt', id, expectedVersion);
+    this.name = 'ReceiptOptimisticLockException';
+  }
+}
