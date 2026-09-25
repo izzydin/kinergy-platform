@@ -328,6 +328,107 @@ Payment = money paid toward a Sale
 
 ---
 
+### 3.6 Receipts Module (`/api/v1/sales/:saleId/receipt`, `/api/v1/receipts`)
+
+The Receipts Module implements Milestone 7.7 ([ADR-0117](../adr/0117-receipt-domain-boundary-and-document-model.md), [ADR-0118](../adr/0118-sale-reference-and-receipt-identification-strategy.md)), providing immutable, legal proof-of-purchase customer vouchers for settled transactions.
+
+- **Authoritative Contract Specification**: [`docs/api/receipt-canonical-response-contract.md`](receipt-canonical-response-contract.md)
+- **Domain Specification**: [`docs/domain/receipt-domain-specification.md`](../domain/receipt-domain-specification.md)
+
+#### Available Endpoints
+
+| Method | Endpoint Route                  | Description                                       | AuthZ Permissions | Status Codes                             |
+| :----- | :------------------------------ | :------------------------------------------------ | :---------------- | :--------------------------------------- |
+| `POST` | `/api/v1/sales/:saleId/receipt` | Idempotent receipt issuance for settled sale      | `receipts.manage` | `201`, `400`, `401`, `403`, `404`, `422` |
+| `POST` | `/api/v1/receipts`              | Idempotent issuance with `saleId` in request body | `receipts.manage` | `201`, `400`, `401`, `403`, `404`, `422` |
+| `GET`  | `/api/v1/sales/:saleId/receipt` | Retrieve receipt voucher by associated Sale ID    | `receipts.read`   | `200`, `401`, `403`, `404`               |
+| `GET`  | `/api/v1/receipts/:id`          | Retrieve receipt by UUID or receipt number        | `receipts.read`   | `200`, `401`, `403`, `404`               |
+
+#### Request Payloads
+
+##### 1. `IssueReceiptRequestDto` (`POST /api/v1/sales/:saleId/receipt`)
+
+```json
+{
+  "saleReference": "ORD-2026-00042"
+}
+```
+
+- **`saleReference`** (string, optional): External client order reference code (max 100 characters). If omitted, defaults to sale sourceCode or saleId.
+- **`receiptId`** (string, optional): Client-generated UUID for deterministic idempotency correlation.
+- **Financial Security Invariant**: Clients CANNOT submit subtotal, discounts, totals, payment method, or payment status. All financial values are derived server-side from authoritative Sale and Payment aggregates.
+
+##### 2. `IssueReceiptDirectRequestDto` (`POST /api/v1/receipts`)
+
+```json
+{
+  "saleId": "f5e4d3c2-b1a0-9f8e-7d6c-5b4a3f2e1d0c",
+  "saleReference": "ORD-2026-00042"
+}
+```
+
+- **`saleId`** (string, required): Canonical target commercial Sale UUID identifier.
+
+#### Canonical Response Schema (`ReceiptResponseDto`)
+
+```json
+{
+  "id": "rcpt_9b1deb4d-3b7d-416b-9548-52ee8c8230e5",
+  "tenantId": "tenant_wellness_center",
+  "saleId": "sale_7f3e2a1b-4c5d-6e7f-8a9b-0c1d2e3f4a5b",
+  "receiptNumber": "REC-2026-000421",
+  "saleReference": "ORD-2026-00042",
+  "issuedAt": "2026-09-25T14:30:00.000Z",
+  "status": "ISSUED",
+  "reprintCount": 0,
+  "lastReprintedAt": null,
+  "clientSnapshot": {
+    "clientId": "cli_01j9876543210abcdef",
+    "referenceNumber": "CLI-2026-00042",
+    "fullName": "Jane Doe",
+    "email": "jane.doe@example.com",
+    "phone": "+1-555-0199"
+  },
+  "items": [
+    {
+      "itemId": "item_01j9876543210abcdef",
+      "sourceType": "MEMBERSHIP_PLAN",
+      "sourceId": "mem_plan_gold_annual",
+      "description": "Gold Annual Gym Membership",
+      "skuOrCode": "GYM-ANN-01",
+      "quantity": 1,
+      "unitPrice": { "amount": 100.0, "currency": "USD", "formatted": "100.00", "cents": 10000 },
+      "discountTotal": { "amount": 10.0, "currency": "USD", "formatted": "10.00", "cents": 1000 },
+      "subtotal": { "amount": 100.0, "currency": "USD", "formatted": "100.00", "cents": 10000 },
+      "total": { "amount": 90.0, "currency": "USD", "formatted": "90.00", "cents": 9000 }
+    }
+  ],
+  "itemCount": 1,
+  "subtotal": { "amount": 100.0, "currency": "USD", "formatted": "100.00", "cents": 10000 },
+  "discountTotal": { "amount": 10.0, "currency": "USD", "formatted": "10.00", "cents": 1000 },
+  "total": { "amount": 90.0, "currency": "USD", "formatted": "90.00", "cents": 9000 },
+  "currency": "USD",
+  "payments": [
+    {
+      "paymentId": "pay_01j9876543210abcdef",
+      "method": "CASH",
+      "amount": { "amount": 90.0, "currency": "USD", "formatted": "90.00", "cents": 9000 },
+      "status": "COMPLETED",
+      "reference": "DRAWER-01-REGISTER",
+      "paidAt": "2026-09-25T14:29:45.000Z"
+    }
+  ],
+  "paymentMethod": "CASH",
+  "paymentStatus": "COMPLETED"
+}
+```
+
+- **Reference Fields**: `id`, `tenantId`, `saleId`, `receiptNumber`, `status`, `reprintCount`, `lastReprintedAt`.
+- **Historical Snapshot Fields**: `saleReference`, `issuedAt`, `clientSnapshot` (or `null` for walk-ins), `items`, `subtotal`, `discountTotal`, `total`, `currency`, `payments`, `paymentMethod`, `paymentStatus`.
+- **Zero Internal Persistence Leaks**: `version` (OCC), `createdAt`, `updatedAt`, and raw Prisma `Decimal` instances are strictly excluded.
+
+---
+
 ## 4. HTTP Status Code Reference
 
 | Status Code                | Meaning           | System Trigger & Cause                                                                          |

@@ -17,7 +17,7 @@ docs/
 ├── testing/              ◄── Quality Gates, Harnesses, Unit, Integration & E2E Testing
 ├── configuration/        ◄── Centralized Zod Environment Variables & Secrets Reference
 ├── api/                  ◄── OpenAPI / Swagger Docs, Envelope Schemas & Routes
-├── adr/                  ◄── Architectural Decision Records (0001 - 0117)
+├── adr/                  ◄── Architectural Decision Records (0001 - 0118)
 └── glossary.md           ◄── Ubiquitous Language, Security Acronyms & Terminology
 ```
 
@@ -124,11 +124,14 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
 - **[Milestone 7.6 Final Acceptance Certification](file:///c:/Projects/kinergy-platform/docs/architecture/payment-domain-acceptance.md)**: Complete certification of Payment State Machine, 16-cell transition matrix, OCC concurrency, client bypass immunity, and 100% test pass rate.
 - **[Sales Domain Model Specification](file:///c:/Projects/kinergy-platform/docs/domain/sales-payments.md)**: Conceptual domain models, aggregate roots (`Sale`, `Payment`), value objects (`Money`, `Discount`, `SourceReference`), and state machines.
 - **[Sales Business Rules & Invariants](file:///c:/Projects/kinergy-platform/docs/business-rules/sales-payments.md)**: Complete inventory of commercial rules, 13 canonical formulas, and milestone statuses.
-- **[Sales & Payments API Reference](file:///c:/Projects/kinergy-platform/docs/api/README.md#35-payments-module-apiv1salesaleidpayments--apiv1payments)**: REST endpoints (`/api/v1/sales` & `/api/v1/sales/:saleId/payments`, `/api/v1/payments`), DTO contracts, and JSON payloads.
+- **[Receipt Domain Specification](file:///c:/Projects/kinergy-platform/docs/domain/receipt-domain-specification.md)**: Milestone 7.7 architectural specification for legal proof-of-purchase document model, snapshotting, and immutability invariants.
+- **[Receipt Canonical Response Contract](file:///c:/Projects/kinergy-platform/docs/api/receipt-canonical-response-contract.md)**: Authoritative API presentation contract, reference vs historical snapshot taxonomy, and zero-float serialization rules.
+- **[Receipt End-to-End Traceability Matrix](file:///c:/Projects/kinergy-platform/docs/architecture/receipt-traceability-matrix.md)**: Complete traceability matrix mapping business requirements, ADRs, invariants, use cases, persistence constraints, API contracts, and test coverage.
+- **[Sales & Payments API Reference](file:///c:/Projects/kinergy-platform/docs/api/README.md#35-payments-module-apiv1salesaleidpayments--apiv1payments)**: REST endpoints (`/api/v1/sales` & `/api/v1/sales/:saleId/payments`, `/api/v1/payments`, `/api/v1/receipts`), DTO contracts, and JSON payloads.
 
 ### 10. Architectural Decision Records (ADRs)
 
-- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 50+ Architectural Decision Records documenting all major platform design choices (0001 through 0116).
+- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 50+ Architectural Decision Records documenting all major platform design choices (0001 through 0118).
 - **[Phase 6 ADR Index (ADR-0081–0107)](file:///c:/Projects/kinergy-platform/docs/architecture/resources/README.md#6-architectural-decision-records-adr-index)**: Detailed index of all 27 Phase 6 Resources Management Architectural Decision Records.
 - **Phase 7 ADRs**:
   - [ADR-0108: Deterministic Financial Representation and Currency Modeling](file:///c:/Projects/kinergy-platform/docs/adr/0108-money-representation.md)
@@ -140,3 +143,5 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
   - [ADR-0114: Canonical Monetary Policy, Deterministic Arithmetic, and Sale Totals Invariant Enforcement](file:///c:/Projects/kinergy-platform/docs/adr/0114-canonical-monetary-policy-and-sale-totals.md)
   - [ADR-0115: Payment Domain Canonical Architecture, Aggregate Boundaries, and Tender Decoupling](file:///c:/Projects/kinergy-platform/docs/adr/0115-payment-domain-canonical-architecture.md)
   - [ADR-0116: Payment State Machine, Lifecycle Specification, and Financial Transition Determinism](file:///c:/Projects/kinergy-platform/docs/adr/0116-payment-state-machine-and-lifecycle-specification.md)
+  - [ADR-0117: Receipt Domain Boundary, Document Model, and Legal Proof-of-Purchase Invariants](file:///c:/Projects/kinergy-platform/docs/adr/0117-receipt-domain-boundary-and-document-model.md)
+  - [ADR-0118: Sale Reference and Receipt Identification Strategy](file:///c:/Projects/kinergy-platform/docs/adr/0118-sale-reference-and-receipt-identification-strategy.md)
