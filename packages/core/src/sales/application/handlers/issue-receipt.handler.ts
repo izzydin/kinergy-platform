@@ -15,6 +15,7 @@ import { Money } from '../../domain/value-objects/money.vo';
 import { Receipt } from '../../domain/receipt.aggregate';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { ReceiptIssuanceRejectedException } from '../exceptions/receipt-issuance-rejected.exception';
+import { DuplicateReceiptException } from '../../domain/exceptions/duplicate-receipt.exception';
 import {
   checkReceiptAuthorization,
   enforceReceiptTenantIsolation,
@@ -34,9 +35,8 @@ export class IssueReceiptHandler implements SalesCommandHandler<
   ) {}
 
   public async execute(command: IssueReceiptCommand): Promise<SalesApplicationResult<ReceiptDTO>> {
+    const { input } = command;
     try {
-      const { input } = command;
-
       // 1. Authorization & Role Validation (ADR-0111, ADR-0117)
       checkReceiptAuthorization(input.currentUser, ['receipts.manage', 'receipts.read']);
 
@@ -118,6 +118,7 @@ export class IssueReceiptHandler implements SalesCommandHandler<
       // 9. Instantiate Immutable Receipt Aggregate Root
       const receipt = Receipt.fromSettledSale(
         {
+          id: input.receiptId,
           sale,
           payments: settledPayments,
           clientSummary,
@@ -139,6 +140,12 @@ export class IssueReceiptHandler implements SalesCommandHandler<
 
       return SalesApplicationResult.ok(ReceiptMapper.toDTO(receipt));
     } catch (err: unknown) {
+      if (err instanceof DuplicateReceiptException) {
+        const existing = await this.receiptRepository.findBySaleId(input.saleId);
+        if (existing) {
+          return SalesApplicationResult.ok(ReceiptMapper.toDTO(existing));
+        }
+      }
       const error = err instanceof Error ? err : new Error(String(err));
       return SalesApplicationResult.fail(error);
     }

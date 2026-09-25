@@ -16,3 +16,5 @@ export * from './get-payment-by-id.handler';
 export * from './get-payments-by-sale-id.handler';
 export * from './issue-receipt.handler';
 export * from './reprint-receipt.handler';
+export * from './get-receipt.handler';
+export * from './get-receipt-by-sale.handler';

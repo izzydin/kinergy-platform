@@ -3,6 +3,11 @@ import { ClientSummaryPayload } from '../ports/client-facade.port';
 
 export interface IssueReceiptInput {
   /**
+   * Optional client-specified idempotency receipt domain identifier.
+   */
+  readonly receiptId?: string;
+
+  /**
    * Target Sale domain identifier.
    */
   readonly saleId: string;
