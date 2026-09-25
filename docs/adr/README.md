@@ -98,6 +98,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0116](file:///c:/Projects/kinergy-platform/docs/adr/0116-payment-state-machine-and-lifecycle-specification.md)                                                      | Payment State Machine, Lifecycle Specification, and Financial Transition Determinism                         | Accepted   | 2026-09-23              |
 | [0117](file:///c:/Projects/kinergy-platform/docs/adr/0117-receipt-domain-boundary-and-document-model.md)                                                             | Receipt Domain Boundary, Document Model, and Legal Proof-of-Purchase Invariants                              | Accepted   | 2026-09-24              |
 | [0118](file:///c:/Projects/kinergy-platform/docs/adr/0118-sale-reference-and-receipt-identification-strategy.md)                                                     | Sale Reference and Receipt Identification Strategy                                                           | Accepted   | 2026-09-24              |
+| [0119](file:///c:/Projects/kinergy-platform/docs/adr/0119-sale-aggregate-boundary-and-invariants.md)                                                                 | Sale Aggregate Boundary, Invariants, and Commercial Transaction Integrity                                    | Accepted   | 2026-09-25              |
 
 ## Format
 

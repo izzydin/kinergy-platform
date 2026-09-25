@@ -17,7 +17,7 @@ docs/
 ├── testing/              ◄── Quality Gates, Harnesses, Unit, Integration & E2E Testing
 ├── configuration/        ◄── Centralized Zod Environment Variables & Secrets Reference
 ├── api/                  ◄── OpenAPI / Swagger Docs, Envelope Schemas & Routes
-├── adr/                  ◄── Architectural Decision Records (0001 - 0118)
+├── adr/                  ◄── Architectural Decision Records (0001 - 0119)
 └── glossary.md           ◄── Ubiquitous Language, Security Acronyms & Terminology
 ```
 
@@ -131,7 +131,7 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
 
 ### 10. Architectural Decision Records (ADRs)
 
-- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 50+ Architectural Decision Records documenting all major platform design choices (0001 through 0118).
+- **[ADR Directory Index](file:///c:/Projects/kinergy-platform/docs/adr/README.md)**: Complete log of 50+ Architectural Decision Records documenting all major platform design choices (0001 through 0119).
 - **[Phase 6 ADR Index (ADR-0081–0107)](file:///c:/Projects/kinergy-platform/docs/architecture/resources/README.md#6-architectural-decision-records-adr-index)**: Detailed index of all 27 Phase 6 Resources Management Architectural Decision Records.
 - **Phase 7 ADRs**:
   - [ADR-0108: Deterministic Financial Representation and Currency Modeling](file:///c:/Projects/kinergy-platform/docs/adr/0108-money-representation.md)
@@ -145,3 +145,4 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
   - [ADR-0116: Payment State Machine, Lifecycle Specification, and Financial Transition Determinism](file:///c:/Projects/kinergy-platform/docs/adr/0116-payment-state-machine-and-lifecycle-specification.md)
   - [ADR-0117: Receipt Domain Boundary, Document Model, and Legal Proof-of-Purchase Invariants](file:///c:/Projects/kinergy-platform/docs/adr/0117-receipt-domain-boundary-and-document-model.md)
   - [ADR-0118: Sale Reference and Receipt Identification Strategy](file:///c:/Projects/kinergy-platform/docs/adr/0118-sale-reference-and-receipt-identification-strategy.md)
+  - [ADR-0119: Sale Aggregate Boundary, Invariants, and Commercial Transaction Integrity](file:///c:/Projects/kinergy-platform/docs/adr/0119-sale-aggregate-boundary-and-invariants.md)
