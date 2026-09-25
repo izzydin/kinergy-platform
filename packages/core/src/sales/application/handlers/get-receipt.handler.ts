@@ -8,6 +8,7 @@ import { ReceiptNotFoundException } from '../exceptions/receipt-not-found.except
 import {
   checkReceiptAuthorization,
   enforceReceiptTenantIsolation,
+  enforceReceiptOwnershipBoundary,
 } from '../shared/receipt-authorization';
 
 /**
@@ -52,7 +53,10 @@ export class GetReceiptHandler implements SalesQueryHandler<
       // 3. Multi-Tenant Boundary Enforcement
       enforceReceiptTenantIsolation(receipt.tenantId, input.tenantId);
 
-      // 4. Return canonical read-only DTO
+      // 4. Object-Level Ownership Boundary Enforcement
+      enforceReceiptOwnershipBoundary(receipt, input.currentUser);
+
+      // 5. Return canonical read-only DTO
       return SalesApplicationResult.ok(ReceiptMapper.toDTO(receipt));
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));

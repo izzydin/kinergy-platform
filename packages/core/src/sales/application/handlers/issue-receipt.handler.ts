@@ -106,6 +106,11 @@ export class IssueReceiptHandler implements SalesCommandHandler<
       let clientSummary: ClientSummaryPayload | null = input.clientSummary ?? null;
       if (!clientSummary && sale.clientId && this.clientFacade) {
         clientSummary = await this.clientFacade.getClientSummary(sale.clientId);
+      } else if (!clientSummary && sale.clientId) {
+        clientSummary = {
+          id: sale.clientId,
+          fullName: 'Customer ' + sale.clientId,
+        };
       }
 
       // 8. Generate Gap-Free Monotonic Receipt Number per Tenant (ADR-0117 Invariant 20)

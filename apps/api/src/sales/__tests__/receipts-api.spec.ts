@@ -114,6 +114,15 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
   const rivalTenantId = 'tenant_rival_gym';
 
   // Personas
+  const ownerUser: AuthenticatedUserPayload = {
+    id: 'user_owner_01',
+    email: 'owner@kinergy.com',
+    status: 'ACTIVE',
+    roles: ['Owner'],
+    permissions: ['*'],
+    tenantId: primaryTenantId,
+  };
+
   const receptionistUser: AuthenticatedUserPayload = {
     id: 'user_frontdesk_01',
     email: 'frontdesk@kinergy.com',
@@ -128,6 +137,48 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
     email: 'client@example.com',
     status: 'ACTIVE',
     roles: ['Client'],
+    permissions: ['receipts.read'],
+    tenantId: primaryTenantId,
+  };
+
+  const otherClientUser: AuthenticatedUserPayload = {
+    id: 'user_client_02',
+    email: 'other_client@example.com',
+    status: 'ACTIVE',
+    roles: ['Client'],
+    permissions: ['receipts.read'],
+    tenantId: primaryTenantId,
+  };
+
+  const kitchenStaffUser: AuthenticatedUserPayload = {
+    id: 'user_kitchen_01',
+    email: 'kitchen@kinergy.com',
+    status: 'ACTIVE',
+    roles: ['Kitchen Staff'],
+    permissions: [
+      'kitchen.read',
+      'kitchen.orders.manage',
+      'sales.read',
+      'sales.create',
+      'payments.create',
+    ],
+    tenantId: primaryTenantId,
+  };
+
+  const trainerUser: AuthenticatedUserPayload = {
+    id: 'user_trainer_01',
+    email: 'trainer@kinergy.com',
+    status: 'ACTIVE',
+    roles: ['Trainer'],
+    permissions: ['clients.read', 'appointments.read', 'appointments.create'],
+    tenantId: primaryTenantId,
+  };
+
+  const trainerWithReadUser: AuthenticatedUserPayload = {
+    id: 'user_trainer_02',
+    email: 'trainer_read@kinergy.com',
+    status: 'ACTIVE',
+    roles: ['Trainer'],
     permissions: ['receipts.read'],
     tenantId: primaryTenantId,
   };
@@ -160,9 +211,11 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
     tenant: string = primaryTenantId,
     totalAmount = 120.0,
     currency = 'USD',
+    clientId?: string,
   ): { sale: Sale; payment: Payment } => {
     const sale = Sale.create({
       tenantId: tenant,
+      clientId,
       currency,
       source: SourceReference.create({
         sourceType: SourceType.MEMBERSHIP_PLAN,
@@ -600,7 +653,7 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
   // 8. Retrieval Operations
   describe('8. Retrieval Operations (GET /sales/:saleId/receipt & GET /receipts/:receiptId)', () => {
     it('retrieves receipt voucher by sale ID via GET /sales/:saleId/receipt', async () => {
-      const { sale } = createSettledSale(primaryTenantId, 85.0, 'USD');
+      const { sale } = createSettledSale(primaryTenantId, 85.0, 'USD', clientUser.id);
       const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
 
       const resolved = await controller.getReceiptBySale(sale.id.value, clientUser);
@@ -611,7 +664,7 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
     });
 
     it('retrieves receipt voucher by internal UUID via GET /receipts/:receiptId', async () => {
-      const { sale } = createSettledSale(primaryTenantId, 85.0, 'USD');
+      const { sale } = createSettledSale(primaryTenantId, 85.0, 'USD', clientUser.id);
       const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
 
       const resolved = await controller.getReceiptById(issued.id, clientUser);
@@ -621,7 +674,7 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
     });
 
     it('retrieves receipt voucher by human-readable receipt number (REC-YYYY-XXXXXX)', async () => {
-      const { sale } = createSettledSale(primaryTenantId, 85.0, 'USD');
+      const { sale } = createSettledSale(primaryTenantId, 85.0, 'USD', clientUser.id);
       const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
 
       const resolved = await controller.getReceiptById(issued.receiptNumber, clientUser);
@@ -637,7 +690,7 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
     });
 
     it('throws ReceiptNotFoundException when sale exists but no receipt was issued yet', async () => {
-      const { sale } = createSettledSale(primaryTenantId, 50.0, 'USD');
+      const { sale } = createSettledSale(primaryTenantId, 50.0, 'USD', clientUser.id);
 
       await expect(controller.getReceiptBySale(sale.id.value, clientUser)).rejects.toThrow(
         ReceiptNotFoundException,
@@ -818,6 +871,124 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
           error: 'Bad Request',
         }),
       );
+    });
+  });
+
+  // 11. Security Architecture, Object-Level Ownership & Role Separation Spec
+  describe('11. Security Architecture, Object-Level Ownership & Role Separation Spec', () => {
+    it('allows Owner with full privileges (*) to issue and retrieve any receipt', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 150.0, 'USD', 'user_any_client');
+
+      const issued = await controller.issueReceipt(sale.id.value, {}, ownerUser);
+      expect(issued.id).toBeDefined();
+
+      const retrieved = await controller.getReceiptById(issued.id, ownerUser);
+      expect(retrieved.id).toBe(issued.id);
+    });
+
+    it('allows Receptionist with receipts.manage and receipts.read to issue and retrieve any receipt', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 95.0, 'USD', 'user_any_client');
+
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+      expect(issued.id).toBeDefined();
+
+      const retrieved = await controller.getReceiptById(issued.id, receptionistUser);
+      expect(retrieved.id).toBe(issued.id);
+    });
+
+    it('allows Client to retrieve their own receipt document', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 110.0, 'USD', clientUser.id);
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+
+      const resolved = await controller.getReceiptById(issued.id, clientUser);
+      expect(resolved.id).toBe(issued.id);
+      expect(resolved.clientSnapshot?.clientId).toBe(clientUser.id);
+    });
+
+    it('strictly forbids Client from retrieving another client receipt (Object-Level Ownership Boundary)', async () => {
+      // Sale belongs to clientUser (user_client_01)
+      const { sale } = createSettledSale(primaryTenantId, 110.0, 'USD', clientUser.id);
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+
+      // otherClientUser (user_client_02) attempts to retrieve it
+      await expect(controller.getReceiptById(issued.id, otherClientUser)).rejects.toThrow(
+        ReceiptUnauthorizedException,
+      );
+      await expect(controller.getReceiptBySale(sale.id.value, otherClientUser)).rejects.toThrow(
+        ReceiptUnauthorizedException,
+      );
+    });
+
+    it('forbids Client from retrieving an anonymous walk-in receipt without client assignment', async () => {
+      // Anonymous checkout without clientId
+      const { sale } = createSettledSale(primaryTenantId, 25.0, 'USD', undefined);
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+
+      // clientUser attempts to retrieve anonymous receipt
+      await expect(controller.getReceiptById(issued.id, clientUser)).rejects.toThrow(
+        ReceiptUnauthorizedException,
+      );
+    });
+
+    it('forbids Kitchen Staff lacking receipts.manage from issuing receipts', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 30.0, 'USD');
+
+      await expect(controller.issueReceipt(sale.id.value, {}, kitchenStaffUser)).rejects.toThrow(
+        ReceiptUnauthorizedException,
+      );
+    });
+
+    it('forbids Kitchen Staff lacking receipts.read from retrieving receipts', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 30.0, 'USD');
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+
+      await expect(controller.getReceiptById(issued.id, kitchenStaffUser)).rejects.toThrow(
+        ReceiptUnauthorizedException,
+      );
+    });
+
+    it('forbids Trainer lacking receipts.read from retrieving receipts', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 80.0, 'USD', 'client_123');
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+
+      await expect(controller.getReceiptById(issued.id, trainerUser)).rejects.toThrow(
+        ReceiptUnauthorizedException,
+      );
+    });
+
+    it('forbids Trainer lacking receipts.manage from issuing receipts', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 80.0, 'USD');
+
+      await expect(controller.issueReceipt(sale.id.value, {}, trainerUser)).rejects.toThrow(
+        ReceiptUnauthorizedException,
+      );
+    });
+
+    it('strictly forbids Trainer even with receipts.read from viewing general facility receipts', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 80.0, 'USD', 'client_other');
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+
+      await expect(controller.getReceiptById(issued.id, trainerWithReadUser)).rejects.toThrow(
+        ReceiptUnauthorizedException,
+      );
+    });
+
+    it('ensures API responses do not expose sensitive cardholder data, PAN, CVV, or internal secrets', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 120.0, 'USD', clientUser.id);
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+
+      // Verify no cardholder PAN or CVV or private keys are exposed anywhere in serialized payload
+      const json = JSON.stringify(issued);
+      expect(json).not.toContain('pan');
+      expect(json).not.toContain('cvv');
+      expect(json).not.toContain('cvc');
+      expect(json).not.toContain('pin');
+      expect(json).not.toContain('secret');
+      expect(json).not.toContain('password');
+
+      // Verify payment details only expose non-toxic reference
+      expect(issued.payments[0]?.reference).toBe('REG-DRAWER-01');
+      expect(issued.payments[0]?.method).toBe(PaymentMethod.CASH);
     });
   });
 });

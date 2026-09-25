@@ -96,6 +96,14 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
       return true;
     }
 
+    // receipts.manage implies receipts.read
+    if (
+      resolvedPermissions.includes('receipts.manage') &&
+      ['receipts.read'].includes(requiredPerm)
+    ) {
+      return true;
+    }
+
     return resolvedPermissions.some((perm) => {
       if (perm.endsWith(':*') || perm.endsWith('.*')) {
         const prefix = perm.slice(0, -2);

@@ -1,3 +1,4 @@
+import { Receipt } from '../../domain/receipt.aggregate';
 import { ReceiptUnauthorizedException } from '../exceptions/receipt-unauthorized.exception';
 
 export interface ReceiptCurrentUser {
@@ -25,6 +26,7 @@ export function checkReceiptAuthorization(
     'Kitchen Staff',
     'Client',
     'Member',
+    'Trainer',
   ],
 ): void {
   if (!currentUser) {
@@ -104,4 +106,81 @@ export function enforceReceiptTenantIsolation(
       `Cross-tenant access forbidden: caller tenant '${callerTenantId}' cannot operate on target tenant '${targetTenantId}'.`,
     );
   }
+}
+
+/**
+ * Enforces the object-level ownership boundary for Receipt retrieval.
+ * Respects ADR-0111, ADR-0074, and the Kinergy security framework:
+ * - Administrative and cashiering roles (Owner, Manager, Receptionist, Kitchen Staff)
+ *   or users holding management permissions (receipts.manage, billing.manage, sales.manage, *)
+ *   possess operational visibility across the tenant.
+ * - End-client / customer users (Client role) are strictly confined to their own receipts
+ *   (receipt.clientSnapshot.clientId === currentUser.id).
+ * - Non-administrative roles (e.g. Trainer without client assignment, unprivileged users)
+ *   are denied access to other clients' or facility-wide financial receipts.
+ */
+export function enforceReceiptOwnershipBoundary(
+  receipt: Receipt,
+  currentUser?: ReceiptCurrentUser,
+): void {
+  if (!currentUser) {
+    return;
+  }
+
+  const roles = currentUser.roles ?? [];
+  const permissions = currentUser.permissions ?? [];
+
+  // 1. Staff Administrative / Operational Privilege Check
+  const isPrivilegedStaff =
+    permissions.includes('*') ||
+    permissions.includes('*:*:*') ||
+    permissions.includes('receipts.*') ||
+    permissions.includes('receipts.manage') ||
+    permissions.includes('billing.manage') ||
+    permissions.includes('sales.manage') ||
+    roles.some(
+      (r) =>
+        r === 'Owner' ||
+        r === 'Gym Owner' ||
+        r === 'Manager' ||
+        r === 'Gym Manager' ||
+        r === 'Platform Admin' ||
+        r === 'Receptionist' ||
+        r === 'Kitchen Staff',
+    ) ||
+    (!roles.includes('Client') && !roles.includes('Member') && !roles.includes('Trainer'));
+
+  if (isPrivilegedStaff) {
+    // Authorized to view any receipt within their tenant boundary
+    return;
+  }
+
+  // 2. Client / End-Customer Object Ownership Check
+  const isClient = roles.includes('Client') || roles.includes('Member');
+  if (isClient) {
+    const receiptClientId = receipt.clientSnapshot?.clientId;
+    if (!receiptClientId || receiptClientId !== currentUser.id) {
+      throw new ReceiptUnauthorizedException(
+        'Access denied: clients are only authorized to access their own receipts.',
+      );
+    }
+    return;
+  }
+
+  // 3. Trainer / Other Non-Staff Roles
+  // Trainers lack general billing/receipt visibility across the facility (ADR-0074).
+  if (roles.includes('Trainer')) {
+    const receiptClientId = receipt.clientSnapshot?.clientId;
+    if (!receiptClientId || receiptClientId !== currentUser.id) {
+      throw new ReceiptUnauthorizedException(
+        'Access denied: trainers are not authorized to view general facility receipts.',
+      );
+    }
+    return;
+  }
+
+  // 4. Default: Unprivileged or unauthorized role attempting to read
+  throw new ReceiptUnauthorizedException(
+    'Access denied: user is not authorized to access this receipt document.',
+  );
 }

@@ -82,6 +82,17 @@ export const PERMISSION_CATALOG: Record<string, PermissionDefinition[]> = {
         'Authorize compensating refunds, settle manual payment exceptions, process chargeback adjustments, void/cancel payment',
     },
   ],
+  Receipts: [
+    {
+      code: 'receipts.read',
+      description: 'View and download customer receipt vouchers for settled transactions',
+    },
+    {
+      code: 'receipts.manage',
+      description:
+        'Authorize receipt reprints, issue duplicate vouchers, generate fiscal credit notes',
+    },
+  ],
   Reports: [
     { code: 'reports.read', description: 'View operational and business reports' },
     { code: 'reports.export', description: 'Export report data and analytics' },
@@ -156,6 +167,8 @@ export const SYSTEM_ROLE_DEFINITIONS = [
       'payments.read',
       'payments.create',
       'payments.manage',
+      'receipts.read',
+      'receipts.manage',
     ],
   },
 ];

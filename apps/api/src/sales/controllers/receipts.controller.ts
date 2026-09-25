@@ -166,7 +166,7 @@ export class ReceiptsController {
 
   @Get('sales/:saleId/receipt')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff', 'Client')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff', 'Trainer', 'Client')
   @Permissions('receipts.read')
   @ApiOperation({
     summary: 'Retrieve receipt voucher associated with a commercial sale',
@@ -199,7 +199,7 @@ export class ReceiptsController {
 
   @Get('receipts/:receiptId')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff', 'Client')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff', 'Trainer', 'Client')
   @Permissions('receipts.read')
   @ApiOperation({
     summary: 'Retrieve receipt voucher by internal UUID or sequential receipt number',
