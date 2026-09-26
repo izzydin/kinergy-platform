@@ -6,6 +6,7 @@ import { SourceReference } from '../../../../domain/value-objects/source-referen
 import { SourceType } from '../../../../domain/enums/source-type.enum';
 import { Discount } from '../../../../domain/value-objects/discount.vo';
 import { DiscountType } from '../../../../domain/enums/discount-type.enum';
+import { InvalidSaleStateException } from '../../../../domain/exceptions/invalid-sale-state.exception';
 import { PrismaMoneyMapper } from './prisma-money.mapper';
 
 export class PrismaSaleItemMapper {
@@ -47,7 +48,20 @@ export class PrismaSaleItemMapper {
     item: SaleItem,
     parentSaleId?: string,
   ): Omit<PrismaSaleItemModel, 'createdAt' | 'updatedAt'> {
-    const saleId = parentSaleId ?? item.saleId?.value ?? '';
+    if (item.saleId && parentSaleId && item.saleId.value !== parentSaleId) {
+      throw new InvalidSaleStateException(
+        `Cannot persist SaleItem '${item.id.value}' belonging to Sale '${item.saleId.value}' under foreign parent Sale '${parentSaleId}'. Cross-Sale persistence is strictly prohibited.`,
+        'CROSS_SALE_PERSISTENCE_PROHIBITED',
+      );
+    }
+
+    const saleId = parentSaleId ?? item.saleId?.value;
+    if (!saleId) {
+      throw new InvalidSaleStateException(
+        `Cannot persist detached SaleItem '${item.id.value}' without parent saleId.`,
+        'DETACHED_SALE_ITEM_PERSISTENCE_PROHIBITED',
+      );
+    }
 
     return {
       id: item.id.value,

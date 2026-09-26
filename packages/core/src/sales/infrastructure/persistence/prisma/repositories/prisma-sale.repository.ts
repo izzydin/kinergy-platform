@@ -33,7 +33,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
 
     await this.prisma.$transaction(async (tx) => {
       if (sale.version === 1) {
-        // Initial insert
+        // Initial insert or draft update with full child line-item synchronization
         await tx.sale.upsert({
           where: { id: saleData.id },
           create: {
@@ -46,6 +46,23 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
             ...saleData,
           },
         });
+
+        // Synchronize child items to ensure draft additions at version 1 persist correctly
+        const currentItemIds = itemsData.map((item) => item.id);
+        await tx.saleItem.deleteMany({
+          where: {
+            saleId: saleData.id,
+            id: { notIn: currentItemIds },
+          },
+        });
+
+        for (const itemData of itemsData) {
+          await tx.saleItem.upsert({
+            where: { id: itemData.id },
+            create: itemData,
+            update: itemData,
+          });
+        }
       } else {
         // Optimistic concurrency control check against prior version
         const priorVersion = sale.version - 1;

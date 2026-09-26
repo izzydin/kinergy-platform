@@ -403,6 +403,17 @@ export class SaleItem implements Entity<SaleItemId> {
     return this.withDiscount(null);
   }
 
+  /**
+   * Asserts whether this SaleItem belongs to the specified parent Sale aggregate root.
+   */
+  public belongsTo(saleId: SaleId | string): boolean {
+    if (!this._saleId) {
+      return false;
+    }
+    const idStr = typeof saleId === 'string' ? saleId.trim() : saleId.value;
+    return this._saleId.value === idStr;
+  }
+
   // --- Snapshot Serialization Helper ---
 
   /**

@@ -377,6 +377,7 @@ export class Sale implements AggregateRoot<SaleId> {
       if (item.saleId && !item.saleId.equals(props.id)) {
         throw new InvalidSaleStateException(
           `SaleItem '${item.id.value}' belongs to Sale '${item.saleId.value}', not '${props.id.value}'.`,
+          'CROSS_SALE_ITEM_ATTACHMENT_PROHIBITED',
         );
       }
       if (item.unitPrice.currency !== currency) {
@@ -531,13 +532,29 @@ export class Sale implements AggregateRoot<SaleId> {
   /**
    * Adds a new line item to the Sale. Permitted only while in DRAFT status.
    * Validates single currency homogeneity across items and the order.
+   * Hardens SaleItem ownership: rejects items belonging to foreign Sales.
    */
-  public addItem(props: AddSaleItemProps, clock: Clock = new SystemClock()): SaleItem {
+  public addItem(props: AddSaleItemProps | SaleItem, clock: Clock = new SystemClock()): SaleItem {
     this.assertDraftState();
 
     if (!props) {
       throw new InvalidSaleStateException('AddSaleItemProps cannot be null or undefined.');
     }
+
+    // 1. Cross-Sale item ownership guard: reject items that already belong to a different Sale
+    const incomingSaleId =
+      props instanceof SaleItem ? props.saleId : (props as { saleId?: SaleId | string }).saleId;
+    if (incomingSaleId !== undefined && incomingSaleId !== null) {
+      const incomingIdStr =
+        incomingSaleId instanceof SaleId ? incomingSaleId.value : String(incomingSaleId).trim();
+      if (incomingIdStr && incomingIdStr !== this._id.value) {
+        throw new InvalidSaleStateException(
+          `Cannot attach SaleItem belonging to Sale '${incomingIdStr}' to Sale '${this._id.value}'. Cross-Sale item attachment is strictly prohibited.`,
+          'CROSS_SALE_ITEM_ATTACHMENT_PROHIBITED',
+        );
+      }
+    }
+
     if (!props.unitPrice || !(props.unitPrice instanceof Money)) {
       throw new InvalidSaleStateException('SaleItem unitPrice must be a valid Money instance.');
     }
@@ -546,13 +563,36 @@ export class Sale implements AggregateRoot<SaleId> {
         `Cannot add item with currency '${props.unitPrice.currency}' to a Sale with currency '${this._currency}'.`,
       );
     }
-    if (props.id && this._items.some((i) => i.id.equals(props.id!))) {
+
+    const targetId =
+      props instanceof SaleItem
+        ? props.id
+        : props.id instanceof SaleItemId
+          ? props.id
+          : props.id
+            ? SaleItemId.create(props.id)
+            : undefined;
+
+    if (targetId && this._items.some((i) => i.id.equals(targetId))) {
       throw new InvalidSaleStateException(
-        `SaleItem with ID '${props.id.value}' already exists in Sale '${this._id.value}'.`,
+        `SaleItem with ID '${targetId.value}' already exists in Sale '${this._id.value}'.`,
       );
     }
 
-    const item = SaleItem.create({ ...props, saleId: this._id });
+    const item =
+      props instanceof SaleItem && props.saleId && props.saleId.equals(this._id)
+        ? props
+        : SaleItem.create({
+            id: targetId,
+            saleId: this._id,
+            source: props.source,
+            description: props.description,
+            skuOrCode: props.skuOrCode,
+            quantity: props.quantity,
+            unitPrice: props.unitPrice,
+            discount: props.discount,
+          });
+
     this._items.push(item);
     this.recalculateTotals();
 
@@ -581,13 +621,14 @@ export class Sale implements AggregateRoot<SaleId> {
   }
 
   /**
-   * Updates quantity of an existing line item. Permitted only while in DRAFT status.
+   * Updates or replaces attributes (quantity, discount) of an existing line item while in DRAFT status.
+   * Maintains strict Sale ownership and mathematical reconciliation.
    */
-  public updateItemQuantity(
+  public updateItem(
     itemId: SaleItemId | string,
-    newQuantity: number,
+    updates: { quantity?: number; discount?: Discount | null },
     clock: Clock = new SystemClock(),
-  ): void {
+  ): SaleItem {
     this.assertDraftState();
 
     const idStr = typeof itemId === 'string' ? itemId.trim() : (itemId?.value ?? '');
@@ -602,10 +643,30 @@ export class Sale implements AggregateRoot<SaleId> {
       );
     }
 
-    const currentItem = this._items[index]!;
-    this._items[index] = currentItem.withQuantity(newQuantity);
+    let currentItem = this._items[index]!;
+    if (updates.quantity !== undefined) {
+      currentItem = currentItem.withQuantity(updates.quantity);
+    }
+    if (updates.discount !== undefined) {
+      currentItem = currentItem.withDiscount(updates.discount);
+    }
+
+    this._items[index] = currentItem;
     this.recalculateTotals();
     this._updatedAt = clock.now();
+
+    return currentItem;
+  }
+
+  /**
+   * Updates quantity of an existing line item. Permitted only while in DRAFT status.
+   */
+  public updateItemQuantity(
+    itemId: SaleItemId | string,
+    newQuantity: number,
+    clock: Clock = new SystemClock(),
+  ): void {
+    this.updateItem(itemId, { quantity: newQuantity }, clock);
   }
 
   /**
