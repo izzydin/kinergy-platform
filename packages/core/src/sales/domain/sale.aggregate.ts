@@ -827,6 +827,9 @@ export class Sale implements AggregateRoot<SaleId> {
       );
     }
 
+    // Always recalculate totals internally right before transition to prevent any stale state
+    this.recalculateTotals();
+
     const now = clock.now();
     this._status = SaleStatus.PENDING_PAYMENT;
     this._version++;
@@ -1073,6 +1076,13 @@ export class Sale implements AggregateRoot<SaleId> {
 
     const discountTotal = totalLineDiscounts.add(orderDiscountAmount);
     const finalTotal = subtotal.subtract(discountTotal);
+
+    if (finalTotal.cents < 0) {
+      throw new InvalidSaleStateException(
+        `Sale total cannot be negative, got: ${finalTotal.amount}.`,
+        'NEGATIVE_SALE_TOTAL',
+      );
+    }
 
     this._subtotal = subtotal;
     this._discountTotal = discountTotal;

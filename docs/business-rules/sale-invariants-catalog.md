@@ -81,6 +81,7 @@ Every invariant in this catalog specifies:
 - **Test Coverage**:
   - [`sale-aggregate-invariants-catalog.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-aggregate-invariants-catalog.spec.ts)
   - [`sale-totals-deterministic.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-totals-deterministic.spec.ts)
+  - [`sale-authoritative-totals-calculation.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-authoritative-totals-calculation.spec.ts)
 - **Architectural Justification**: Eliminates floating-point discrepancies, database tampering, and rounding drifts across clients and servers.
 
 ---
@@ -89,10 +90,11 @@ Every invariant in this catalog specifies:
 
 - **Description**: The payable order total cannot be less than zero ($\text{total} \ge \$0.00$). Under no circumstance may discounts, promotional credits, or vouchers reduce the payable total below zero.
 - **Enforcement Location**: [`Sale.recalculateTotals()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/sale.aggregate.ts) via $\max(0, \text{subtotal} - \text{discountTotal})$ and [`Money.create()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/value-objects/money.vo.ts).
-- **Failure Behavior**: Attempting to construct negative `Money` throws [`InvalidMoneyException`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/exceptions/invalid-money.exception.ts) (`NEGATIVE_MONEY_AMOUNT`, HTTP 400).
+- **Failure Behavior**: Attempting to construct negative `Money` or calculate a negative total throws [`InvalidMoneyException`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/exceptions/invalid-money.exception.ts) or [`InvalidSaleStateException`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/exceptions/invalid-sale-state.exception.ts) (`NEGATIVE_SALE_TOTAL`, HTTP 400).
 - **Test Coverage**:
   - [`sale-aggregate-invariants-catalog.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-aggregate-invariants-catalog.spec.ts)
   - [`money.vo.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/money.vo.spec.ts)
+  - [`sale-authoritative-totals-calculation.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-authoritative-totals-calculation.spec.ts)
 - **Architectural Justification**: A point-of-sale checkout agreement cannot create a negative debt obligation (which would turn a commercial purchase into an unauthorized cashier cash payout).
 
 ---
