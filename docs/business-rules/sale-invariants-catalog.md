@@ -12,6 +12,7 @@
   - [ADR-0117: Receipt Domain Boundary, Document Model, and Legal Proof-of-Purchase Invariants](../adr/0117-receipt-domain-boundary-and-document-model.md)
   - [ADR-0118: Sale Reference and Receipt Identification Strategy](../adr/0118-sale-reference-and-receipt-identification-strategy.md)
   - [ADR-0119: Sale Aggregate Boundary, Invariants, and Commercial Transaction Integrity](../adr/0119-sale-aggregate-boundary-and-invariants.md)
+  - [Sale Lifecycle & State Transition Matrix](sale-lifecycle-transition-matrix.md)
 - **Executable Test Suite**: [`packages/core/src/sales/domain/__tests__/sale-aggregate-invariants-catalog.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-aggregate-invariants-catalog.spec.ts)
 
 ---

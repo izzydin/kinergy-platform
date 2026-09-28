@@ -1040,6 +1040,40 @@ export class Sale implements AggregateRoot<SaleId> {
     );
   }
 
+  /**
+   * Asserts whether this Sale aggregate has reached an irreversible terminal status.
+   */
+  public isTerminal(): boolean {
+    return this._status === SaleStatus.CANCELLED || this._status === SaleStatus.REFUNDED;
+  }
+
+  /**
+   * Evaluates whether a transition from the current status to targetStatus is permitted.
+   */
+  public canTransitionTo(targetStatus: SaleStatus): boolean {
+    switch (this._status) {
+      case SaleStatus.DRAFT:
+        return targetStatus === SaleStatus.PENDING_PAYMENT || targetStatus === SaleStatus.CANCELLED;
+      case SaleStatus.PENDING_PAYMENT:
+        return (
+          targetStatus === SaleStatus.PARTIALLY_PAID ||
+          targetStatus === SaleStatus.PAID ||
+          targetStatus === SaleStatus.CANCELLED
+        );
+      case SaleStatus.PARTIALLY_PAID:
+        return targetStatus === SaleStatus.PAID || targetStatus === SaleStatus.CANCELLED;
+      case SaleStatus.PAID:
+        return targetStatus === SaleStatus.COMPLETED || targetStatus === SaleStatus.REFUNDED;
+      case SaleStatus.COMPLETED:
+        return targetStatus === SaleStatus.REFUNDED;
+      case SaleStatus.CANCELLED:
+      case SaleStatus.REFUNDED:
+        return false;
+      default:
+        return false;
+    }
+  }
+
   // --- Internal Invariant Helpers ---
 
   private assertDraftState(): void {
