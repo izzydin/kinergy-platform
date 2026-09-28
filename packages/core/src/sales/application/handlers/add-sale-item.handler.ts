@@ -6,7 +6,7 @@ import { SaleMapper } from '../mappers/sale.mapper';
 import { Money } from '../../domain/value-objects/money.vo';
 import { Discount } from '../../domain/value-objects/discount.vo';
 import { SourceReference } from '../../domain/value-objects/source-reference.vo';
-import { SaleRepositoryInterface } from '../../infrastructure/persistence/prisma/repositories/prisma-sale.repository';
+import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 
@@ -15,7 +15,7 @@ export class AddSaleItemHandler implements SalesCommandHandler<
   SalesApplicationResult<SaleDTO>
 > {
   constructor(
-    private readonly saleRepository: SaleRepositoryInterface,
+    private readonly saleRepository: SaleRepositoryPort,
     private readonly clock: Clock = new SystemClock(),
     private readonly eventPublisher?: SalesEventPublisherPort,
   ) {}

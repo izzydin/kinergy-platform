@@ -9,8 +9,6 @@ import { PrismaSaleMapper } from '../mappers/prisma-sale.mapper';
 
 import { SaleRepositoryPort } from '../../../../application/ports/sale-repository.port';
 
-export type SaleRepositoryInterface = SaleRepositoryPort;
-
 export class PrismaSaleRepository implements SaleRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
 

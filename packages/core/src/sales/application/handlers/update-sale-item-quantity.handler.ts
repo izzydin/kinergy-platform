@@ -3,7 +3,7 @@ import { SalesApplicationResult } from '../shared/sales-application-result';
 import { UpdateSaleItemQuantityCommand } from '../commands/update-sale-item-quantity.command';
 import { SaleDTO } from '../dtos/sale.dto';
 import { SaleMapper } from '../mappers/sale.mapper';
-import { SaleRepositoryInterface } from '../../infrastructure/persistence/prisma/repositories/prisma-sale.repository';
+import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 
@@ -12,7 +12,7 @@ export class UpdateSaleItemQuantityHandler implements SalesCommandHandler<
   SalesApplicationResult<SaleDTO>
 > {
   constructor(
-    private readonly saleRepository: SaleRepositoryInterface,
+    private readonly saleRepository: SaleRepositoryPort,
     private readonly clock: Clock = new SystemClock(),
     private readonly eventPublisher?: SalesEventPublisherPort,
   ) {}

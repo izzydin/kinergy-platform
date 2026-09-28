@@ -32,3 +32,8 @@ export interface SaleRepositoryPort {
    */
   save(sale: Sale): Promise<void>;
 }
+
+/**
+ * Backward-compatible alias for SaleRepositoryPort in application handlers and services.
+ */
+export type SaleRepositoryInterface = SaleRepositoryPort;

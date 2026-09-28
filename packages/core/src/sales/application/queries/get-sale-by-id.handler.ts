@@ -3,13 +3,13 @@ import { SalesApplicationResult } from '../shared/sales-application-result';
 import { GetSaleByIdQuery } from './get-sale-by-id.query';
 import { SaleDTO } from '../dtos/sale.dto';
 import { SaleMapper } from '../mappers/sale.mapper';
-import { SaleRepositoryInterface } from '../../infrastructure/persistence/prisma/repositories/prisma-sale.repository';
+import { SaleRepositoryPort } from '../ports/sale-repository.port';
 
 export class GetSaleByIdHandler implements SalesQueryHandler<
   GetSaleByIdQuery,
   SalesApplicationResult<SaleDTO>
 > {
-  constructor(private readonly saleRepository: SaleRepositoryInterface) {}
+  constructor(private readonly saleRepository: SaleRepositoryPort) {}
 
   public async execute(query: GetSaleByIdQuery): Promise<SalesApplicationResult<SaleDTO>> {
     try {

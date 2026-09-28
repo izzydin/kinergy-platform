@@ -4,7 +4,7 @@ import { ApplyItemDiscountCommand } from '../commands/apply-item-discount.comman
 import { SaleDTO } from '../dtos/sale.dto';
 import { SaleMapper } from '../mappers/sale.mapper';
 import { Discount } from '../../domain/value-objects/discount.vo';
-import { SaleRepositoryInterface } from '../../infrastructure/persistence/prisma/repositories/prisma-sale.repository';
+import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 
@@ -13,7 +13,7 @@ export class ApplyItemDiscountHandler implements SalesCommandHandler<
   SalesApplicationResult<SaleDTO>
 > {
   constructor(
-    private readonly saleRepository: SaleRepositoryInterface,
+    private readonly saleRepository: SaleRepositoryPort,
     private readonly clock: Clock = new SystemClock(),
     private readonly eventPublisher?: SalesEventPublisherPort,
   ) {}
