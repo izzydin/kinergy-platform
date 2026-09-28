@@ -8,7 +8,12 @@ import {
   CreateSaleHandler,
   GetSaleByIdHandler,
   AddSaleItemHandler,
+  RemoveSaleItemHandler,
+  ApplyOrderDiscountHandler,
+  RemoveOrderDiscountHandler,
   FinalizeSaleHandler,
+  CancelSaleHandler,
+  CoordinateSalePaymentHandler,
   RecordPaymentHandler,
   GetPaymentByIdHandler,
   GetPaymentsBySaleIdHandler,
@@ -64,10 +69,37 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
       inject: [SALE_REPOSITORY_TOKEN],
     },
     {
+      provide: RemoveSaleItemHandler,
+      useFactory: (repo: SaleRepositoryPort) => new RemoveSaleItemHandler(repo),
+      inject: [SALE_REPOSITORY_TOKEN],
+    },
+    {
+      provide: ApplyOrderDiscountHandler,
+      useFactory: (repo: SaleRepositoryPort) => new ApplyOrderDiscountHandler(repo),
+      inject: [SALE_REPOSITORY_TOKEN],
+    },
+    {
+      provide: RemoveOrderDiscountHandler,
+      useFactory: (repo: SaleRepositoryPort) => new RemoveOrderDiscountHandler(repo),
+      inject: [SALE_REPOSITORY_TOKEN],
+    },
+    {
       provide: FinalizeSaleHandler,
       useFactory: (repo: SaleRepositoryPort, auditPublisher: SalesAuditEventPublisher) =>
         new FinalizeSaleHandler(repo, undefined, auditPublisher),
       inject: [SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
+    },
+    {
+      provide: CancelSaleHandler,
+      useFactory: (repo: SaleRepositoryPort, auditPublisher: SalesAuditEventPublisher) =>
+        new CancelSaleHandler(repo, undefined, auditPublisher),
+      inject: [SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
+    },
+    {
+      provide: CoordinateSalePaymentHandler,
+      useFactory: (saleRepo: SaleRepositoryPort, paymentRepo: PaymentRepositoryPort) =>
+        new CoordinateSalePaymentHandler(saleRepo, paymentRepo),
+      inject: [SALE_REPOSITORY_TOKEN, PAYMENT_REPOSITORY_TOKEN],
     },
     {
       provide: RecordPaymentHandler,
@@ -168,7 +200,12 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     CreateSaleHandler,
     GetSaleByIdHandler,
     AddSaleItemHandler,
+    RemoveSaleItemHandler,
+    ApplyOrderDiscountHandler,
+    RemoveOrderDiscountHandler,
     FinalizeSaleHandler,
+    CancelSaleHandler,
+    CoordinateSalePaymentHandler,
     RecordPaymentHandler,
     GetPaymentByIdHandler,
     GetPaymentsBySaleIdHandler,

@@ -15,3 +15,4 @@ export * from './cancel-payment.command';
 export * from './issue-receipt.command';
 export * from './reprint-receipt.command';
 export * from './coordinate-sale-payment.command';
+export * from './cancel-sale.command';

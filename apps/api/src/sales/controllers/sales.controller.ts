@@ -3,6 +3,7 @@ import {
   Body,
   ConflictException,
   Controller,
+  Delete,
   Get,
   Headers,
   HttpCode,
@@ -19,14 +20,25 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 import {
   SourceType,
   SaleRepositoryInterface,
+  PaymentRepositoryPort,
   CreateSaleHandler,
   GetSaleByIdHandler,
   AddSaleItemHandler,
+  RemoveSaleItemHandler,
+  ApplyOrderDiscountHandler,
+  RemoveOrderDiscountHandler,
   FinalizeSaleHandler,
+  CancelSaleHandler,
+  CoordinateSalePaymentHandler,
   CreateSaleCommand,
   GetSaleByIdQuery,
   AddSaleItemCommand,
+  RemoveSaleItemCommand,
+  ApplyOrderDiscountCommand,
+  RemoveOrderDiscountCommand,
   FinalizeSaleCommand,
+  CancelSaleCommand,
+  CoordinateSalePaymentCommand,
   SalesApplicationResult,
   DuplicateSaleException,
 } from '@kinergy-platform/core';
@@ -38,8 +50,12 @@ import {
   CreateSaleRequestDto,
   AddSaleItemRequestDto,
   FinalizeSaleRequestDto,
+  ApplySaleDiscountRequestDto,
+  CancelSaleRequestDto,
+  CoordinateSalePaymentRequestDto,
 } from '../dto';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
+import { PAYMENT_REPOSITORY_TOKEN } from './payments.controller';
 
 export const SALE_REPOSITORY_TOKEN = 'SaleRepositoryInterface';
 
@@ -52,11 +68,19 @@ export class SalesController {
   private readonly _createSaleHandler: CreateSaleHandler;
   private readonly _getSaleByIdHandler: GetSaleByIdHandler;
   private readonly _addSaleItemHandler: AddSaleItemHandler;
+  private readonly _removeSaleItemHandler: RemoveSaleItemHandler;
+  private readonly _applyOrderDiscountHandler: ApplyOrderDiscountHandler;
+  private readonly _removeOrderDiscountHandler: RemoveOrderDiscountHandler;
   private readonly _finalizeSaleHandler: FinalizeSaleHandler;
+  private readonly _cancelSaleHandler: CancelSaleHandler;
+  private readonly _coordinateSalePaymentHandler?: CoordinateSalePaymentHandler;
 
   constructor(
     @Inject(SALE_REPOSITORY_TOKEN)
     saleRepository: SaleRepositoryInterface,
+    @Optional()
+    @Inject(PAYMENT_REPOSITORY_TOKEN)
+    paymentRepository?: PaymentRepositoryPort,
     @Optional()
     @Inject(CreateSaleHandler)
     createSaleHandler?: CreateSaleHandler,
@@ -67,13 +91,44 @@ export class SalesController {
     @Inject(AddSaleItemHandler)
     addSaleItemHandler?: AddSaleItemHandler,
     @Optional()
+    @Inject(RemoveSaleItemHandler)
+    removeSaleItemHandler?: RemoveSaleItemHandler,
+    @Optional()
+    @Inject(ApplyOrderDiscountHandler)
+    applyOrderDiscountHandler?: ApplyOrderDiscountHandler,
+    @Optional()
+    @Inject(RemoveOrderDiscountHandler)
+    removeOrderDiscountHandler?: RemoveOrderDiscountHandler,
+    @Optional()
     @Inject(FinalizeSaleHandler)
     finalizeSaleHandler?: FinalizeSaleHandler,
+    @Optional()
+    @Inject(CancelSaleHandler)
+    cancelSaleHandler?: CancelSaleHandler,
+    @Optional()
+    @Inject(CoordinateSalePaymentHandler)
+    coordinateSalePaymentHandler?: CoordinateSalePaymentHandler,
   ) {
     this._createSaleHandler = createSaleHandler ?? new CreateSaleHandler(saleRepository);
     this._getSaleByIdHandler = getSaleByIdHandler ?? new GetSaleByIdHandler(saleRepository);
     this._addSaleItemHandler = addSaleItemHandler ?? new AddSaleItemHandler(saleRepository);
+    this._removeSaleItemHandler =
+      removeSaleItemHandler ?? new RemoveSaleItemHandler(saleRepository);
+    this._applyOrderDiscountHandler =
+      applyOrderDiscountHandler ?? new ApplyOrderDiscountHandler(saleRepository);
+    this._removeOrderDiscountHandler =
+      removeOrderDiscountHandler ?? new RemoveOrderDiscountHandler(saleRepository);
     this._finalizeSaleHandler = finalizeSaleHandler ?? new FinalizeSaleHandler(saleRepository);
+    this._cancelSaleHandler = cancelSaleHandler ?? new CancelSaleHandler(saleRepository);
+
+    if (coordinateSalePaymentHandler) {
+      this._coordinateSalePaymentHandler = coordinateSalePaymentHandler;
+    } else if (paymentRepository) {
+      this._coordinateSalePaymentHandler = new CoordinateSalePaymentHandler(
+        saleRepository,
+        paymentRepository,
+      );
+    }
   }
 
   @Post()
@@ -200,12 +255,117 @@ export class SalesController {
     return this.handleResult(result) as SaleResponseDto;
   }
 
-  @Post(':id/finalize')
+  @Delete(':id/items/:itemId')
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
   @Permissions('sales.create')
   @ApiOperation({
-    summary: 'Finalize sale order and freeze commercial terms permanently',
+    summary: 'Remove a line item from a draft sale',
+    description:
+      'Removes specified item and recalculates authoritative financial totals. Permitted only in DRAFT status.',
+  })
+  @ApiParam({ name: 'id', description: 'Sale ID' })
+  @ApiParam({ name: 'itemId', description: 'SaleItem ID to remove' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: SaleResponseDto,
+    description: 'Line item removed and totals recalculated deterministically',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Sale or line item not found',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Sale already finalized or cancelled',
+  })
+  public async removeItem(
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+  ): Promise<SaleResponseDto> {
+    const command = new RemoveSaleItemCommand({
+      saleId: id,
+      itemId,
+    });
+
+    const result = await this._removeSaleItemHandler.execute(command);
+    return this.handleResult(result) as SaleResponseDto;
+  }
+
+  @Post(':id/discount')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Permissions('sales.create')
+  @ApiOperation({
+    summary: 'Apply an order-level discount to a draft sale',
+    description:
+      'Applies a percentage or fixed discount to the overall order. Recalculates discountTotal and total deterministically. Permitted only in DRAFT status.',
+  })
+  @ApiParam({ name: 'id', description: 'Sale ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: SaleResponseDto,
+    description: 'Discount applied and totals recalculated deterministically',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid discount type or value',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Sale already finalized or cancelled',
+  })
+  public async applyDiscount(
+    @Param('id') id: string,
+    @Body() dto: ApplySaleDiscountRequestDto,
+  ): Promise<SaleResponseDto> {
+    const command = new ApplyOrderDiscountCommand({
+      saleId: id,
+      discount: {
+        type: dto.type,
+        value: dto.value,
+        reason: dto.reason,
+      },
+    });
+
+    const result = await this._applyOrderDiscountHandler.execute(command);
+    return this.handleResult(result) as SaleResponseDto;
+  }
+
+  @Delete(':id/discount')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Permissions('sales.create')
+  @ApiOperation({
+    summary: 'Remove the order-level discount from a draft sale',
+    description:
+      'Removes the order discount and recalculates discountTotal and total. Permitted only in DRAFT status.',
+  })
+  @ApiParam({ name: 'id', description: 'Sale ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: SaleResponseDto,
+    description: 'Order discount removed and totals recalculated deterministically',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Sale already finalized or cancelled',
+  })
+  public async removeDiscount(@Param('id') id: string): Promise<SaleResponseDto> {
+    const command = new RemoveOrderDiscountCommand({
+      saleId: id,
+    });
+
+    const result = await this._removeOrderDiscountHandler.execute(command);
+    return this.handleResult(result) as SaleResponseDto;
+  }
+
+  @Post([':id/finalize', ':id/submit-for-payment'])
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Permissions('sales.create')
+  @ApiOperation({
+    summary: 'Submit sale for payment and freeze commercial terms permanently',
     description:
       'Transitions sale from DRAFT to PENDING_PAYMENT. Invariant: Sale must have at least one line item. Once finalized, prices and discounts can never be modified.',
   })
@@ -221,10 +381,86 @@ export class SalesController {
   })
   public async finalizeSale(
     @Param('id') id: string,
-    @Body() _dto: FinalizeSaleRequestDto,
+    @Body() _dto: FinalizeSaleRequestDto = {},
   ): Promise<SaleResponseDto> {
     const command = new FinalizeSaleCommand({ saleId: id });
     const result = await this._finalizeSaleHandler.execute(command);
+    return this.handleResult(result) as SaleResponseDto;
+  }
+
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Permissions('sales.create')
+  @ApiOperation({
+    summary: 'Cancel an active sale order (DRAFT, PENDING_PAYMENT, or PARTIALLY_PAID)',
+    description:
+      'Transitions sale to terminal CANCELLED status with audit justification reason. Once cancelled, the sale becomes permanently immutable.',
+  })
+  @ApiParam({ name: 'id', description: 'Sale ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: SaleResponseDto,
+    description: 'Sale cancelled successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Cancellation reason is missing or empty',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Sale cannot be cancelled (e.g. already PAID, COMPLETED, or CANCELLED)',
+  })
+  public async cancelSale(
+    @Param('id') id: string,
+    @Body() dto: CancelSaleRequestDto,
+  ): Promise<SaleResponseDto> {
+    const command = new CancelSaleCommand({
+      saleId: id,
+      reason: dto.reason,
+    });
+
+    const result = await this._cancelSaleHandler.execute(command);
+    return this.handleResult(result) as SaleResponseDto;
+  }
+
+  @Post(':id/coordinate-payment')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist')
+  @Permissions('sales.create', 'payments.manage')
+  @ApiOperation({
+    summary: 'Coordinate verified Payment settlement against the Sale',
+    description:
+      'Synchronizes Sale payment status based on authoritative Payment aggregate state. Invariant: Sale cannot be marked PAID without a valid completed Payment.',
+  })
+  @ApiParam({ name: 'id', description: 'Sale ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: SaleResponseDto,
+    description: 'Payment coordinated and Sale status advanced',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Payment does not belong to Sale, currency mismatch, or insufficient funds',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Payment not in COMPLETED status or Sale not payable',
+  })
+  public async coordinatePayment(
+    @Param('id') id: string,
+    @Body() dto: CoordinateSalePaymentRequestDto,
+  ): Promise<SaleResponseDto> {
+    if (!this._coordinateSalePaymentHandler) {
+      throw new BadRequestException('Payment coordination service is unavailable.');
+    }
+
+    const command = new CoordinateSalePaymentCommand({
+      saleId: id,
+      paymentId: dto.paymentId,
+    });
+
+    const result = await this._coordinateSalePaymentHandler.execute(command);
     return this.handleResult(result) as SaleResponseDto;
   }
 
