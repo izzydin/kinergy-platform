@@ -13,6 +13,8 @@ export interface CreateSaleItemInput {
 }
 
 export interface CreateSaleInput {
+  id?: string;
+  idempotencyKey?: string;
   tenantId?: string;
   clientId?: string;
   currency?: string;

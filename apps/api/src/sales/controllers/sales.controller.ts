@@ -1,8 +1,10 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Inject,
@@ -26,6 +28,7 @@ import {
   AddSaleItemCommand,
   FinalizeSaleCommand,
   SalesApplicationResult,
+  DuplicateSaleException,
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
@@ -91,8 +94,17 @@ export class SalesController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Validation failed or invalid currency code',
   })
-  public async createSale(@Body() dto: CreateSaleRequestDto): Promise<SaleResponseDto> {
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Duplicate Sale or conflicting transaction detected',
+  })
+  public async createSale(
+    @Body() dto: CreateSaleRequestDto,
+    @Headers('x-idempotency-key') idempotencyKeyHeader?: string,
+  ): Promise<SaleResponseDto> {
     const command = new CreateSaleCommand({
+      id: dto.id,
+      idempotencyKey: dto.idempotencyKey || idempotencyKeyHeader,
       currency: dto.currency,
       clientId: dto.clientId,
       source: dto.source
@@ -220,12 +232,18 @@ export class SalesController {
     if (result.isFailure) {
       const error = result.getError();
       if (error instanceof Error) {
+        if (error instanceof DuplicateSaleException || error.name === 'DuplicateSaleException') {
+          throw new ConflictException(error.message);
+        }
         if (error.message.includes('not found') || error.message.includes('was not found')) {
           throw new NotFoundException(error.message);
         }
         throw error;
       }
       const message = String(error);
+      if (message.includes('Duplicate') || message.includes('already exists')) {
+        throw new ConflictException(message);
+      }
       if (message.includes('not found') || message.includes('was not found')) {
         throw new NotFoundException(message);
       }

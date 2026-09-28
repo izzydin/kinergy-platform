@@ -41,6 +41,22 @@ export class SourceReferenceInputDto {
 
 export class CreateSaleRequestDto {
   @ApiPropertyOptional({
+    description: 'Client-supplied unique Sale ID or transaction identity',
+    example: 'sale_01j9876543210abcdef',
+  })
+  @IsString()
+  @IsOptional()
+  id?: string;
+
+  @ApiPropertyOptional({
+    description: 'Idempotency key to prevent duplicate creation on network retries',
+    example: 'idem_987654321',
+  })
+  @IsString()
+  @IsOptional()
+  idempotencyKey?: string;
+
+  @ApiPropertyOptional({
     description: 'Normalized 3-letter uppercase ISO-4217 currency code',
     example: 'USD',
     default: 'USD',

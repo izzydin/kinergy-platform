@@ -13,6 +13,7 @@ import {
   EmptySaleException,
   SaleAlreadyFinalizedException,
   SaleOptimisticLockException,
+  DuplicateSaleException,
 } from '@kinergy-platform/core';
 import { SalesController, SALE_REPOSITORY_TOKEN } from '../controllers/sales.controller';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
@@ -356,6 +357,62 @@ describe('SalesController Monetary API Representation & Exception Spec', () => {
           code: 'OPTIMISTIC_LOCK_ERROR',
         }),
       );
+    });
+
+    it('translates DuplicateSaleException to 409 Conflict with code DUPLICATE_SALE_DETECTED', () => {
+      const ex = new DuplicateSaleException('Sale already exists', 'sale_existing_99', 'tenant_1');
+      exceptionFilter.catch(ex, mockHost);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.CONFLICT);
+      expect(mockResponse.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          statusCode: HttpStatus.CONFLICT,
+          error: 'Conflict',
+          code: 'DUPLICATE_SALE_DETECTED',
+          message: 'Sale already exists',
+        }),
+      );
+    });
+  });
+
+  describe('Commercial Transaction Idempotency & Duplicate Prevention', () => {
+    it('handles idempotent retries via x-idempotency-key header', async () => {
+      const dto: CreateSaleRequestDto = {
+        currency: 'USD',
+        clientId: 'client_vip_idem',
+      };
+
+      const key = 'idem_req_header_123';
+      const firstResponse = await controller.createSale(dto, key);
+      expect(firstResponse.id).toBe(key);
+      expect(firstResponse.status).toBe('DRAFT');
+
+      // Second identical call with the same header should return the same sale
+      const secondResponse = await controller.createSale(dto, key);
+      expect(secondResponse.id).toBe(firstResponse.id);
+      expect(secondResponse.clientId).toBe(firstResponse.clientId);
+    });
+
+    it('rejects conflicting reuse of idempotency key with 409 Conflict', async () => {
+      const key = 'idem_req_conflict_456';
+      await controller.createSale(
+        {
+          currency: 'USD',
+          clientId: 'client_A',
+        },
+        key,
+      );
+
+      // Same key, different client
+      await expect(
+        controller.createSale(
+          {
+            currency: 'USD',
+            clientId: 'client_B_different',
+          },
+          key,
+        ),
+      ).rejects.toThrow();
     });
   });
 });
