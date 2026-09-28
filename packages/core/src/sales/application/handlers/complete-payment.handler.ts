@@ -12,6 +12,7 @@ import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 import { PaymentNotFoundException } from '../exceptions/payment-not-found.exception';
 import { PaymentUnauthorizedException } from '../exceptions/payment-unauthorized.exception';
+import { SaleNotPayableException } from '../exceptions/sale-not-payable.exception';
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 
 /**
@@ -65,6 +66,12 @@ export class CompletePaymentHandler implements SalesCommandHandler<
       if (sale) {
         enforceTenantIsolation(sale.tenantId, input.tenantId);
         enforceTenantIsolation(sale.tenantId, payment.tenantId);
+
+        if (sale.status === SaleStatus.CANCELLED || sale.isTerminal()) {
+          return SalesApplicationResult.fail(
+            new SaleNotPayableException(sale.id.value, sale.status),
+          );
+        }
       }
 
       // 5. Invoke Explicit Domain Behavior

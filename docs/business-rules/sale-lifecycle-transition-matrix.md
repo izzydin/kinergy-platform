@@ -10,6 +10,7 @@
   - [ADR-0119: Sale Aggregate Boundary, Invariants, and Commercial Transaction Integrity](../adr/0119-sale-aggregate-boundary-and-invariants.md)
 - **Related Documents**:
   - [Authoritative Sale Invariant Catalog](sale-invariants-catalog.md)
+  - [Sale-Payment Cross-Aggregate Coordination](sale-payment-coordination.md)
 - **Executable Test Suite**:
   - [`packages/core/src/sales/domain/__tests__/sale-lifecycle-hardening.spec.ts`](../../packages/core/src/sales/domain/__tests__/sale-lifecycle-hardening.spec.ts)
   - [`packages/core/src/sales/domain/__tests__/sale-lifecycle.spec.ts`](../../packages/core/src/sales/domain/__tests__/sale-lifecycle.spec.ts)

@@ -18,3 +18,4 @@ export * from './issue-receipt.handler';
 export * from './reprint-receipt.handler';
 export * from './get-receipt.handler';
 export * from './get-receipt-by-sale.handler';
+export * from './coordinate-sale-payment.handler';

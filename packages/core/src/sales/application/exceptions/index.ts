@@ -7,3 +7,6 @@ export * from './payment-currency-mismatch.exception';
 export * from './receipt-not-found.exception';
 export * from './receipt-unauthorized.exception';
 export * from './receipt-issuance-rejected.exception';
+export * from './payment-not-completed.exception';
+export * from './payment-sale-mismatch.exception';
+export * from './insufficient-payment.exception';
