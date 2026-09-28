@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { Sale } from '../../../../domain/sale.aggregate';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { SaleOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
+import { InvalidSaleStateException } from '../../../../domain/exceptions/invalid-sale-state.exception';
 import { PrismaSaleMapper } from '../mappers/prisma-sale.mapper';
 
 import { SaleRepositoryPort } from '../../../../application/ports/sale-repository.port';
@@ -32,6 +33,20 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
     const { sale: saleData, items: itemsData } = PrismaSaleMapper.toPersistence(sale);
 
     await this.prisma.$transaction(async (tx) => {
+      // Persistence Guard: If record in persistence is already CANCELLED, reject any mutation.
+      // CANCELLED sales are immutable terminal states; no persistence updates may alter them.
+      const existing = await tx.sale.findUnique({
+        where: { id: saleData.id },
+        select: { status: true },
+      });
+
+      if (existing && existing.status === 'CANCELLED') {
+        throw new InvalidSaleStateException(
+          `Cannot update Sale '${saleData.id}': Sale is already in terminal CANCELLED status in persistence.`,
+          'TERMINAL_SALE_IMMUTABLE',
+        );
+      }
+
       if (sale.version === 1) {
         // Initial insert or draft update with full child line-item synchronization
         await tx.sale.upsert({

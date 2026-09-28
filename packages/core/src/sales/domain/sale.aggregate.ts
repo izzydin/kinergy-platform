@@ -73,7 +73,7 @@ export interface AddSaleItemProps {
 export class Sale implements AggregateRoot<SaleId> {
   private readonly _id: SaleId;
   private readonly _tenantId?: string;
-  private readonly _clientId?: string;
+  private _clientId?: string;
   private _status: SaleStatus;
   private readonly _currency: string;
   private readonly _source: SourceReference;
@@ -801,9 +801,29 @@ export class Sale implements AggregateRoot<SaleId> {
   }
 
   /**
+   * Associates or updates the client on this Sale. Permitted only while in DRAFT status.
+   * Enforces immutability: once a Sale departs DRAFT or enters CANCELLED, client association cannot be modified.
+   */
+  public assignClient(clientId?: string): void {
+    this.assertDraftState();
+    if (clientId !== undefined && clientId !== null) {
+      const trimmed = clientId.trim();
+      if (trimmed === '') {
+        throw new InvalidSaleStateException('clientId cannot be empty or whitespace.');
+      }
+      this._clientId = trimmed;
+    } else {
+      this._clientId = undefined;
+    }
+    this._updatedAt = new Date();
+  }
+
+  /**
    * Explicitly recalculates all order totals and reconciles financial state deterministically.
+   * Permitted only while in DRAFT status. Once finalized or cancelled, commercial terms are immutable.
    */
   public calculateTotals(): void {
+    this.assertDraftState();
     this.recalculateTotals();
   }
 

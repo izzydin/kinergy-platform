@@ -14,6 +14,7 @@
   - [ADR-0119: Sale Aggregate Boundary, Invariants, and Commercial Transaction Integrity](../adr/0119-sale-aggregate-boundary-and-invariants.md)
   - [Sale Lifecycle & State Transition Matrix](sale-lifecycle-transition-matrix.md)
   - [Sale-Payment Cross-Aggregate Coordination](sale-payment-coordination.md)
+  - [Cancelled Sale Immutability & Financial Integrity Policy](sale-cancelled-immutability.md)
 - **Executable Test Suite**: [`packages/core/src/sales/domain/__tests__/sale-aggregate-invariants-catalog.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-aggregate-invariants-catalog.spec.ts)
 
 ---
@@ -153,12 +154,14 @@ Every invariant in this catalog specifies:
 ### SALE-008: Terminal Immutability of Cancelled Sales
 
 - **Description**: Once a `Sale` transitions to `CANCELLED`, it is locked in an irreversible terminal state. Any attempt to add items, modify quantities, change discounts, or trigger subsequent status transitions must be immediately rejected.
-- **Enforcement Location**: [`Sale.assertDraftState()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/sale.aggregate.ts) and state transition guards in `Sale`.
-- **Failure Behavior**: Cart modifications throw [`SaleAlreadyFinalizedException`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/exceptions/sale-already-finalized.exception.ts) (HTTP 409). Status transitions throw [`InvalidSaleTransitionException`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/exceptions/invalid-sale-transition.exception.ts) (HTTP 409).
+- **Enforcement Location**: [`Sale.assertDraftState()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/sale.aggregate.ts), state transition guards in `Sale`, and persistence guard in [`PrismaSaleRepository.save()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/repositories/prisma-sale.repository.ts).
+- **Failure Behavior**: Cart/discount/financial modifications throw [`SaleAlreadyFinalizedException`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/exceptions/sale-already-finalized.exception.ts) (HTTP 409). Status transitions throw [`InvalidSaleTransitionException`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/exceptions/invalid-sale-transition.exception.ts) (HTTP 409). Persistence updates to already cancelled records throw [`InvalidSaleStateException`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/exceptions/invalid-sale-state.exception.ts) (`TERMINAL_SALE_IMMUTABLE`, HTTP 500).
 - **Test Coverage**:
+  - [`sale-cancelled-immutability.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-cancelled-immutability.spec.ts)
   - [`sale-aggregate-invariants-catalog.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-aggregate-invariants-catalog.spec.ts)
   - [`sale-lifecycle.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-lifecycle.spec.ts)
   - [`sale-hardening.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-hardening.spec.ts)
+- **Detailed Specification**: [Cancelled Sale Immutability & Financial Integrity Policy](sale-cancelled-immutability.md)
 - **Architectural Justification**: Preserves non-repudiation and auditability; voided agreements cannot be silently revived or altered.
 
 ---
