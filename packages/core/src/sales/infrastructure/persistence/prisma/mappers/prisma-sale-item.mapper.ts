@@ -47,6 +47,7 @@ export class PrismaSaleItemMapper {
   public static toPersistence(
     item: SaleItem,
     parentSaleId?: string,
+    parentCurrency?: string,
   ): Omit<PrismaSaleItemModel, 'createdAt' | 'updatedAt'> {
     if (item.saleId && parentSaleId && item.saleId.value !== parentSaleId) {
       throw new InvalidSaleStateException(
@@ -60,6 +61,13 @@ export class PrismaSaleItemMapper {
       throw new InvalidSaleStateException(
         `Cannot persist detached SaleItem '${item.id.value}' without parent saleId.`,
         'DETACHED_SALE_ITEM_PERSISTENCE_PROHIBITED',
+      );
+    }
+
+    if (parentCurrency && item.unitPrice.currency !== parentCurrency) {
+      throw new InvalidSaleStateException(
+        `Cannot persist SaleItem '${item.id.value}' with currency '${item.unitPrice.currency}' under parent Sale with currency '${parentCurrency}'. Currency mismatch.`,
+        'CURRENCY_MISMATCH',
       );
     }
 

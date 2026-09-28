@@ -93,7 +93,7 @@ export class PrismaSaleMapper {
     };
 
     const itemsData = sale.items.map((item) =>
-      PrismaSaleItemMapper.toPersistence(item, sale.id.value),
+      PrismaSaleItemMapper.toPersistence(item, sale.id.value, sale.currency),
     );
 
     return {

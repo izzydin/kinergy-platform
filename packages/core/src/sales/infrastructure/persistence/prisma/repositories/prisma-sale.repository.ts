@@ -81,21 +81,33 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
 
     try {
       await this.prisma.$transaction(async (tx) => {
-        // Persistence Guard: If record in persistence is already CANCELLED, reject any mutation.
-        // CANCELLED sales are immutable terminal states; no persistence updates may alter them.
+        // Persistence Guard: If record in persistence is already CANCELLED or REFUNDED, reject any mutation.
+        // CANCELLED and REFUNDED sales are immutable terminal states; no persistence updates may alter them.
         const existing = await tx.sale.findUnique({
           where: { id: saleData.id },
-          select: { status: true },
+          select: { status: true, version: true },
         });
 
-        if (existing && existing.status === 'CANCELLED') {
+        if (existing && (existing.status === 'CANCELLED' || existing.status === 'REFUNDED')) {
           throw new InvalidSaleStateException(
-            `Cannot update Sale '${saleData.id}': Sale is already in terminal CANCELLED status in persistence.`,
+            `Cannot update Sale '${saleData.id}': Sale is already in terminal ${existing.status} status in persistence.`,
             'TERMINAL_SALE_IMMUTABLE',
           );
         }
 
         if (sale.version === 1) {
+          // Concurrency & Status Guard for Version 1:
+          // If record already exists with version > 1, reject stale version 1 draft update.
+          if (existing && existing.version > 1) {
+            throw new SaleOptimisticLockException('Sale', saleData.id, existing.version);
+          }
+
+          if (existing && existing.status !== 'DRAFT' && saleData.status === 'DRAFT') {
+            throw new InvalidSaleStateException(
+              `Cannot regress Sale '${saleData.id}' from status '${existing.status}' back to '${saleData.status}'.`,
+              'ILLEGAL_STATUS_REGRESSION',
+            );
+          }
           // Invariant SALE-010: Operational Single-Billing Entity Protection
           if (
             sale.source.sourceType === SourceType.TREATMENT_SESSION &&
