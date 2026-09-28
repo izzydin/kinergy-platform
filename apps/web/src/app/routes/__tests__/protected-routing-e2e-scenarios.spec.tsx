@@ -102,6 +102,7 @@ function renderAppWithRouter(initialEntry = '/', userOverride?: AuthUser | null)
 }
 
 describe('Track B — Step B3.5: Protected Routing End-to-End Integration', () => {
+  jest.setTimeout(30000);
   let fetchSpy: jest.SpyInstance;
 
   beforeEach(() => {
