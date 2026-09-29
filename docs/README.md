@@ -147,3 +147,5 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
   - [ADR-0117: Receipt Domain Boundary, Document Model, and Legal Proof-of-Purchase Invariants](file:///c:/Projects/kinergy-platform/docs/adr/0117-receipt-domain-boundary-and-document-model.md)
   - [ADR-0118: Sale Reference and Receipt Identification Strategy](file:///c:/Projects/kinergy-platform/docs/adr/0118-sale-reference-and-receipt-identification-strategy.md)
   - [ADR-0119: Sale Aggregate Boundary, Invariants, and Commercial Transaction Integrity](file:///c:/Projects/kinergy-platform/docs/adr/0119-sale-aggregate-boundary-and-invariants.md)
+  - [ADR-0120: Commercial Transaction Uniqueness, Idempotency, and Exactly-One-Sale Invariant](file:///c:/Projects/kinergy-platform/docs/adr/0120-commercial-transaction-uniqueness-and-sale-idempotency.md)
+  - [ADR-0121: Sale Source References and Commercial Origin Model](file:///c:/Projects/kinergy-platform/docs/adr/0121-sale-source-references-and-commercial-origin-model.md)
