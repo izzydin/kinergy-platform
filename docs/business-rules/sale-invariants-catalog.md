@@ -508,6 +508,15 @@ To prevent architectural drift over time, the following explicit architectural b
 - **Rule**: Client-side UI is an untrusted presentation layer. Frontend carts and calculations are purely advisory.
 - **Enforcement**: API contracts strictly reject client-supplied `subtotal`, `discountTotal`, `total`, or `status`. Authoritative amounts are computed solely inside `Sale.calculateTotals()`.
 
+### 7.6 Prevention of Sales Becoming Source Domain Owner (ADR-0121)
+
+- **Rule**: The Sales bounded context must NEVER own, load, or inspect concrete source-domain entities (`Food`, `Drink`, `Membership`, `TreatmentSession`, `Room`).
+  - The **source domain** owns: source entity lifecycle, source-specific validation, source-specific business rules, source-specific state, and source-specific persistence.
+  - The **Sales domain** owns: storing the source type and reference, generic `SaleSource` validity, and `Sale` lifecycle rules.
+  - Existence verification of referenced upstream entities belongs strictly to **Application Orchestration** prior to command dispatch.
+  - No repositories are called inside `SaleSource` or `Sale`.
+- **Enforcement**: Automated static architecture boundary test suite [`sales-architecture-boundaries.spec.ts`](../../packages/core/src/sales/sales-architecture-boundaries.spec.ts).
+
 ---
 
 ## 8. Canonical Terminology & Cross-Tier Consistency Glossary
