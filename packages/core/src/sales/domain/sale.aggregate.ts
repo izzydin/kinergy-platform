@@ -571,6 +571,21 @@ export class Sale implements AggregateRoot<SaleId> {
    * To bill a different origin, cancel this sale and create a new one.
    */
   public changeSource(newSource: SaleSource | SourceReference): void {
+    if (this._status === SaleStatus.CANCELLED) {
+      throw new InvalidSaleStateException(
+        'Cannot modify source of a CANCELLED sale.',
+        'CANNOT_MODIFY_CANCELLED_SALE',
+      );
+    }
+    if (
+      this._status === SaleStatus.PAID ||
+      this._status === SaleStatus.COMPLETED ||
+      this._status === SaleStatus.REFUNDED
+    ) {
+      throw new SaleAlreadyFinalizedException(
+        `Cannot change source of sale in finalized status '${this._status}'.`,
+      );
+    }
     if (
       !newSource ||
       (!(newSource instanceof SaleSource) && !(newSource instanceof SourceReference))
@@ -578,17 +593,6 @@ export class Sale implements AggregateRoot<SaleId> {
       throw new InvalidSaleStateException(
         'SaleSource is required and must be a valid SaleSource instance.',
         'INVALID_SALE_SOURCE',
-      );
-    }
-    if (this._status === SaleStatus.CANCELLED) {
-      throw new InvalidSaleStateException(
-        'Cannot modify source of a CANCELLED sale.',
-        'CANNOT_MODIFY_CANCELLED_SALE',
-      );
-    }
-    if (this._status === SaleStatus.PAID || this._status === SaleStatus.COMPLETED) {
-      throw new SaleAlreadyFinalizedException(
-        `Cannot change source of sale in finalized status '${this._status}'.`,
       );
     }
     throw new InvalidSaleStateException(
@@ -602,21 +606,25 @@ export class Sale implements AggregateRoot<SaleId> {
    * Under ADR-0121 (§4.7 & §4.8), SaleSource is required at creation and immutable.
    */
   public assignSource(source: SaleSource | SourceReference): void {
-    if (!source || (!(source instanceof SaleSource) && !(source instanceof SourceReference))) {
-      throw new InvalidSaleStateException(
-        'SaleSource is required and must be a valid SaleSource instance.',
-        'INVALID_SALE_SOURCE',
-      );
-    }
     if (this._status === SaleStatus.CANCELLED) {
       throw new InvalidSaleStateException(
         'Cannot assign source on a CANCELLED sale.',
         'CANNOT_MODIFY_CANCELLED_SALE',
       );
     }
-    if (this._status === SaleStatus.PAID || this._status === SaleStatus.COMPLETED) {
+    if (
+      this._status === SaleStatus.PAID ||
+      this._status === SaleStatus.COMPLETED ||
+      this._status === SaleStatus.REFUNDED
+    ) {
       throw new SaleAlreadyFinalizedException(
         `Cannot assign source on finalized sale '${this._status}'.`,
+      );
+    }
+    if (!source || (!(source instanceof SaleSource) && !(source instanceof SourceReference))) {
+      throw new InvalidSaleStateException(
+        'SaleSource is required and must be a valid SaleSource instance.',
+        'INVALID_SALE_SOURCE',
       );
     }
     if (this._source) {
@@ -625,6 +633,32 @@ export class Sale implements AggregateRoot<SaleId> {
         'SALE_SOURCE_IMMUTABLE',
       );
     }
+  }
+
+  /**
+   * Attempts to remove or clear the SaleSource.
+   * Under ADR-0121 (§4.10), removing or clearing a source reference is strictly prohibited across all states.
+   */
+  public removeSource(): void {
+    if (this._status === SaleStatus.CANCELLED) {
+      throw new InvalidSaleStateException(
+        'Cannot remove source on a CANCELLED sale.',
+        'CANNOT_MODIFY_CANCELLED_SALE',
+      );
+    }
+    if (
+      this._status === SaleStatus.PAID ||
+      this._status === SaleStatus.COMPLETED ||
+      this._status === SaleStatus.REFUNDED
+    ) {
+      throw new SaleAlreadyFinalizedException(
+        `Cannot remove source on finalized sale '${this._status}'.`,
+      );
+    }
+    throw new InvalidSaleStateException(
+      'SaleSource cannot be removed or cleared after creation (ADR-0121 §4.10).',
+      'SALE_SOURCE_IMMUTABLE',
+    );
   }
 
   // --- Business Invariant & Cart Mutation Methods ---

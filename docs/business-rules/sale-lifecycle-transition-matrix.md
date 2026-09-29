@@ -181,3 +181,68 @@ The transition matrix and lifecycle invariants are backed by 63 unit tests in [`
 6. **Section 6: Separation of Payment State Machine & Payment Failure Handling**
    - Proves a failed payment retains `sale.status === PENDING_PAYMENT`.
    - Demonstrates subsequent retry payment successfully settling the sale to `PAID`.
+
+---
+
+## 7. SaleSource Mutation & Lifecycle Matrix (ADR-0121)
+
+In accordance with **ADR-0121** (§4.7, §4.8, §4.9, §4.10) and Milestone 7.9, commercial origin is an essential property of transaction inception. The `SaleSource` value object binds a `Sale` to its originating business context (`KINESIOLOGY_SESSION`, `GYM_MEMBERSHIP`, `FOOD`, `DRINK`, `ROOM_RENTAL`).
+
+### Authoritative Mutation Matrix across Lifecycle States
+
+| Lifecycle State $\downarrow$ / Operation $\rightarrow$ | Creation (`Sale.create()`) | `assignSource()` | `changeSource()` | `removeSource()` | Failure Exception & Invariant Enforced                       |
+| :----------------------------------------------------- | :------------------------: | :--------------: | :--------------: | :--------------: | :----------------------------------------------------------- |
+| **CREATION (Initial)**                                 |      ✅ **MANDATORY**      |       N/A        |       N/A        |       N/A        | `SaleSourceRequiredException` (if omitted)                   |
+| **`DRAFT`**                                            |            N/A             |  ❌ Prohibited   |  ❌ Prohibited   |  ❌ Prohibited   | `InvalidSaleStateException` (`SALE_SOURCE_IMMUTABLE`)        |
+| **`PENDING_PAYMENT`**                                  |            N/A             |  ❌ Prohibited   |  ❌ Prohibited   |  ❌ Prohibited   | `InvalidSaleStateException` (`SALE_SOURCE_IMMUTABLE`)        |
+| **`PARTIALLY_PAID`**                                   |            N/A             |  ❌ Prohibited   |  ❌ Prohibited   |  ❌ Prohibited   | `InvalidSaleStateException` (`SALE_SOURCE_IMMUTABLE`)        |
+| **`PAID`**                                             |            N/A             |  ❌ Prohibited   |  ❌ Prohibited   |  ❌ Prohibited   | `SaleAlreadyFinalizedException` (`SALE_ALREADY_FINALIZED`)   |
+| **`COMPLETED`**                                        |            N/A             |  ❌ Prohibited   |  ❌ Prohibited   |  ❌ Prohibited   | `SaleAlreadyFinalizedException` (`SALE_ALREADY_FINALIZED`)   |
+| **`CANCELLED`** _(Terminal)_                           |            N/A             |  ❌ Prohibited   |  ❌ Prohibited   |  ❌ Prohibited   | `InvalidSaleStateException` (`CANNOT_MODIFY_CANCELLED_SALE`) |
+| **`REFUNDED`** _(Terminal)_                            |            N/A             |  ❌ Prohibited   |  ❌ Prohibited   |  ❌ Prohibited   | `SaleAlreadyFinalizedException` (`SALE_ALREADY_FINALIZED`)   |
+
+### Evaluated Lifecycle Scenarios:
+
+1. **Creating a Sale without a source**:
+   - **Behavior**: ❌ **Prohibited**.
+   - **Rule**: `Sale.create()` requires a valid `SaleSource` or `SourceReference`. Omitting or supplying undefined/null throws `SaleSourceRequiredException`.
+2. **Creating a Sale with a source**:
+   - **Behavior**: ✅ **Permitted & Required**.
+   - **Rule**: Instantiates the aggregate with immutable origin identity across all 5 supported types.
+3. **Assigning a source to `DRAFT`**:
+   - **Behavior**: ❌ **Prohibited**.
+   - **Rule**: Source is write-once at creation. Re-assignment throws `SALE_SOURCE_IMMUTABLE`.
+4. **Changing a source on `DRAFT`**:
+   - **Behavior**: ❌ **Prohibited**.
+   - **Rule**: Modifying origin is rejected. If an origin was misassigned, cashier must cancel the draft and create a new sale with the correct source reference.
+5. **Changing a source on `PENDING_PAYMENT`**:
+   - **Behavior**: ❌ **Prohibited**.
+   - **Rule**: Cart and commercial identity are frozen. Throws `SALE_SOURCE_IMMUTABLE`.
+6. **Changing a source on `PAID`**:
+   - **Behavior**: ❌ **Prohibited**.
+   - **Rule**: Settled transactions cannot alter commercial origin. Throws `SaleAlreadyFinalizedException`.
+7. **Changing a source on `CANCELLED`**:
+   - **Behavior**: ❌ **Prohibited**.
+   - **Rule**: Cancelled sales are completely immutable (SALE-008). Throws `CANNOT_MODIFY_CANCELLED_SALE`.
+8. **Removing a source**:
+   - **Behavior**: ❌ **Prohibited across all states**.
+   - **Rule**: Commercial origin cannot be disassociated. Throws `SALE_SOURCE_IMMUTABLE`.
+9. **Assigning a source after payment (`PAID` / `COMPLETED`)**:
+   - **Behavior**: ❌ **Prohibited**.
+   - **Rule**: Violates post-settlement finality. Throws `SaleAlreadyFinalizedException`.
+10. **Assigning a source after cancellation (`CANCELLED`)**:
+    - **Behavior**: ❌ **Prohibited**.
+    - **Rule**: Terminal state inviolability. Throws `CANNOT_MODIFY_CANCELLED_SALE`.
+
+### Atomic Non-Partial Failure Guarantee
+
+All mutation attempts validate state guards prior to modifying any internal fields. Upon rejection:
+
+- `sale.source` remains unchanged.
+- `sale.status` remains unchanged.
+- `sale.version` remains unchanged.
+- Financial totals and items remain strictly intact.
+
+### Automated Test Coverage
+
+Verified by 33 test cases in [`packages/core/src/sales/domain/__tests__/sale-source-lifecycle-matrix.spec.ts`](../../packages/core/src/sales/domain/__tests__/sale-source-lifecycle-matrix.spec.ts).
