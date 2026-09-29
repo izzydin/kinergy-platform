@@ -4,6 +4,7 @@ import { Clock, SystemClock } from './shared/clock';
 import { SaleId } from './value-objects/sale-id.vo';
 import { SaleItemId } from './value-objects/sale-item-id.vo';
 import { SourceReference } from './value-objects/source-reference.vo';
+import { SaleSource } from './value-objects/sale-source.vo';
 import { Money } from './value-objects/money.vo';
 import { Discount } from './value-objects/discount.vo';
 import { SaleStatus, isValidSaleStatus } from './enums/sale-status.enum';
@@ -29,7 +30,8 @@ export interface CreateSaleProps {
   tenantId?: string;
   clientId?: string;
   currency?: string;
-  source: SourceReference;
+  source?: SaleSource | SourceReference;
+  sourceReference?: SaleSource | SourceReference;
   items?: CreateSaleItemProps[];
   orderDiscount?: Discount;
 }
@@ -40,7 +42,8 @@ export interface ReconstituteSaleProps {
   clientId?: string;
   status: SaleStatus;
   currency: string;
-  source: SourceReference;
+  source?: SaleSource | SourceReference;
+  sourceReference?: SaleSource | SourceReference;
   items: SaleItem[];
   orderDiscount?: Discount | null;
   subtotal: Money;
@@ -57,7 +60,8 @@ export interface ReconstituteSaleProps {
 
 export interface AddSaleItemProps {
   id?: SaleItemId;
-  source: SourceReference;
+  source?: SaleSource | SourceReference;
+  sourceReference?: SaleSource | SourceReference;
   description: string;
   skuOrCode?: string | null;
   quantity: number;
@@ -76,7 +80,7 @@ export class Sale implements AggregateRoot<SaleId> {
   private _clientId?: string;
   private _status: SaleStatus;
   private readonly _currency: string;
-  private readonly _source: SourceReference;
+  private readonly _source: SaleSource | SourceReference;
   private _items: SaleItem[];
   private _orderDiscount: Discount | null;
   private _subtotal: Money;
@@ -92,12 +96,18 @@ export class Sale implements AggregateRoot<SaleId> {
   private _uncommittedEvents: DomainEvent[] = [];
 
   private constructor(props: ReconstituteSaleProps) {
+    const rawSource = props.sourceReference ?? props.source;
+    if (!rawSource) {
+      throw new InvalidSaleStateException(
+        'SaleSource is required and cannot be null or undefined.',
+      );
+    }
     this._id = props.id;
     this._tenantId = props.tenantId ? props.tenantId.trim() : undefined;
     this._clientId = props.clientId ? props.clientId.trim() : undefined;
     this._status = props.status;
     this._currency = props.currency;
-    this._source = props.source;
+    this._source = rawSource;
     this._items = [...props.items];
     this._orderDiscount = props.orderDiscount ?? null;
     this._subtotal = props.subtotal;
@@ -119,7 +129,11 @@ export class Sale implements AggregateRoot<SaleId> {
     if (!props) {
       throw new InvalidSaleStateException('CreateSaleProps cannot be null or undefined.');
     }
-    if (!props.source || !(props.source instanceof SourceReference)) {
+    const rawSource = props.sourceReference ?? props.source;
+    if (
+      !rawSource ||
+      (!(rawSource instanceof SaleSource) && !(rawSource instanceof SourceReference))
+    ) {
       throw new InvalidSaleStateException(
         'SourceReference is required and must be a valid SourceReference instance.',
       );
@@ -164,7 +178,7 @@ export class Sale implements AggregateRoot<SaleId> {
       clientId,
       status: SaleStatus.DRAFT,
       currency,
-      source: props.source,
+      source: rawSource,
       items: [],
       orderDiscount: props.orderDiscount ?? null,
       subtotal: Money.zero(currency),
@@ -212,7 +226,11 @@ export class Sale implements AggregateRoot<SaleId> {
         'SaleId is required and must be a valid SaleId instance.',
       );
     }
-    if (!props.source || !(props.source instanceof SourceReference)) {
+    const rawSource = props.sourceReference ?? props.source;
+    if (
+      !rawSource ||
+      (!(rawSource instanceof SaleSource) && !(rawSource instanceof SourceReference))
+    ) {
       throw new InvalidSaleStateException(
         'SourceReference is required and must be a valid SourceReference instance.',
       );
@@ -445,7 +463,11 @@ export class Sale implements AggregateRoot<SaleId> {
     return this._currency;
   }
 
-  public get source(): SourceReference {
+  public get source(): SaleSource | SourceReference {
+    return this._source;
+  }
+
+  public get sourceReference(): SaleSource | SourceReference {
     return this._source;
   }
 
@@ -527,6 +549,84 @@ export class Sale implements AggregateRoot<SaleId> {
     this._uncommittedEvents = [];
   }
 
+  // --- Entity Equality ---
+
+  /**
+   * Deterministic entity equality: A Sale's identity is strictly its SaleId.
+   * SaleSource identifies the origin of the commercial transaction, not the identity of the Sale.
+   */
+  public equals(other?: Sale | null): boolean {
+    if (!other || !(other instanceof Sale)) {
+      return false;
+    }
+    return this._id.equals(other.id);
+  }
+
+  // --- Source Reference Lifecycle Enforcement (ADR-0121) ---
+
+  /**
+   * Attempts to reassign or change the SaleSource.
+   * Under ADR-0121 (§4.9 & §4.10), SaleSource is strictly immutable once assigned at creation.
+   * Source reassignment is prohibited across all lifecycles.
+   * To bill a different origin, cancel this sale and create a new one.
+   */
+  public changeSource(newSource: SaleSource | SourceReference): void {
+    if (
+      !newSource ||
+      (!(newSource instanceof SaleSource) && !(newSource instanceof SourceReference))
+    ) {
+      throw new InvalidSaleStateException(
+        'SaleSource is required and must be a valid SaleSource instance.',
+        'INVALID_SALE_SOURCE',
+      );
+    }
+    if (this._status === SaleStatus.CANCELLED) {
+      throw new InvalidSaleStateException(
+        'Cannot modify source of a CANCELLED sale.',
+        'CANNOT_MODIFY_CANCELLED_SALE',
+      );
+    }
+    if (this._status === SaleStatus.PAID || this._status === SaleStatus.COMPLETED) {
+      throw new SaleAlreadyFinalizedException(
+        `Cannot change source of sale in finalized status '${this._status}'.`,
+      );
+    }
+    throw new InvalidSaleStateException(
+      'SaleSource is strictly immutable once assigned. To bill a different origin, cancel this sale and create a new one (ADR-0121 §4.9).',
+      'SALE_SOURCE_IMMUTABLE',
+    );
+  }
+
+  /**
+   * Attempts to assign a SaleSource if one was not already assigned.
+   * Under ADR-0121 (§4.7 & §4.8), SaleSource is required at creation and immutable.
+   */
+  public assignSource(source: SaleSource | SourceReference): void {
+    if (!source || (!(source instanceof SaleSource) && !(source instanceof SourceReference))) {
+      throw new InvalidSaleStateException(
+        'SaleSource is required and must be a valid SaleSource instance.',
+        'INVALID_SALE_SOURCE',
+      );
+    }
+    if (this._status === SaleStatus.CANCELLED) {
+      throw new InvalidSaleStateException(
+        'Cannot assign source on a CANCELLED sale.',
+        'CANNOT_MODIFY_CANCELLED_SALE',
+      );
+    }
+    if (this._status === SaleStatus.PAID || this._status === SaleStatus.COMPLETED) {
+      throw new SaleAlreadyFinalizedException(
+        `Cannot assign source on finalized sale '${this._status}'.`,
+      );
+    }
+    if (this._source) {
+      throw new InvalidSaleStateException(
+        'SaleSource has already been assigned and is strictly immutable (ADR-0121 §4.9).',
+        'SALE_SOURCE_IMMUTABLE',
+      );
+    }
+  }
+
   // --- Business Invariant & Cart Mutation Methods ---
 
   /**
@@ -585,7 +685,7 @@ export class Sale implements AggregateRoot<SaleId> {
         : SaleItem.create({
             id: targetId,
             saleId: this._id,
-            source: props.source,
+            source: props.sourceReference ?? props.source,
             description: props.description,
             skuOrCode: props.skuOrCode,
             quantity: props.quantity,

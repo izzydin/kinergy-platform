@@ -2,6 +2,7 @@ import { Entity } from '../shared/entity';
 import { SaleItemId } from '../value-objects/sale-item-id.vo';
 import { SaleId } from '../value-objects/sale-id.vo';
 import { SourceReference } from '../value-objects/source-reference.vo';
+import { SaleSource } from '../value-objects/sale-source.vo';
 import { Money } from '../value-objects/money.vo';
 import { Discount } from '../value-objects/discount.vo';
 import { InvalidSaleItemException } from '../exceptions/invalid-sale-item.exception';
@@ -9,7 +10,8 @@ import { InvalidSaleItemException } from '../exceptions/invalid-sale-item.except
 export interface CreateSaleItemProps {
   id?: SaleItemId;
   saleId?: SaleId;
-  source: SourceReference;
+  source?: SourceReference | SaleSource;
+  sourceReference?: SourceReference | SaleSource;
   description: string;
   skuOrCode?: string | null;
   quantity: number;
@@ -20,7 +22,8 @@ export interface CreateSaleItemProps {
 export interface ReconstituteSaleItemProps {
   id: SaleItemId;
   saleId?: SaleId | string;
-  source: SourceReference;
+  source?: SourceReference | SaleSource;
+  sourceReference?: SourceReference | SaleSource;
   description: string;
   skuOrCode?: string | null;
   quantity: number;
@@ -60,7 +63,7 @@ export interface SaleItemSnapshot {
 export class SaleItem implements Entity<SaleItemId> {
   private readonly _id: SaleItemId;
   private readonly _saleId?: SaleId;
-  private readonly _source: SourceReference;
+  private readonly _source: SourceReference | SaleSource;
   private readonly _description: string;
   private readonly _skuOrCode: string | null;
   private readonly _quantity: number;
@@ -73,7 +76,7 @@ export class SaleItem implements Entity<SaleItemId> {
   private constructor(props: {
     id: SaleItemId;
     saleId?: SaleId;
-    source: SourceReference;
+    source: SourceReference | SaleSource;
     description: string;
     skuOrCode: string | null;
     quantity: number;
@@ -101,9 +104,13 @@ export class SaleItem implements Entity<SaleItemId> {
    * Factory to create a new SaleItem with full domain invariant enforcement.
    */
   public static create(props: CreateSaleItemProps): SaleItem {
-    if (!props.source || !(props.source instanceof SourceReference)) {
+    const rawSource = props.sourceReference ?? props.source;
+    if (
+      !rawSource ||
+      (!(rawSource instanceof SourceReference) && !(rawSource instanceof SaleSource))
+    ) {
       throw new InvalidSaleItemException(
-        'SourceReference is required and must be a valid SourceReference instance.',
+        'SourceReference is required and must be a valid SourceReference or SaleSource instance.',
       );
     }
     if (props.id !== undefined && !(props.id instanceof SaleItemId)) {
@@ -148,7 +155,7 @@ export class SaleItem implements Entity<SaleItemId> {
     return new SaleItem({
       id,
       saleId: props.saleId,
-      source: props.source,
+      source: rawSource,
       description: props.description.trim(),
       skuOrCode: props.skuOrCode ? props.skuOrCode.trim() : null,
       quantity: normalizedQuantity,
@@ -179,9 +186,13 @@ export class SaleItem implements Entity<SaleItemId> {
         throw new InvalidSaleItemException('Invalid saleId format on reconstitution.');
       }
     }
-    if (!props.source || !(props.source instanceof SourceReference)) {
+    const rawSource = props.sourceReference ?? props.source;
+    if (
+      !rawSource ||
+      (!(rawSource instanceof SourceReference) && !(rawSource instanceof SaleSource))
+    ) {
       throw new InvalidSaleItemException(
-        'SourceReference is required and must be a valid SourceReference instance.',
+        'SourceReference is required and must be a valid SourceReference or SaleSource instance.',
       );
     }
     if (
@@ -259,7 +270,7 @@ export class SaleItem implements Entity<SaleItemId> {
     return new SaleItem({
       id: props.id,
       saleId: resolvedSaleId,
-      source: props.source,
+      source: rawSource,
       description: props.description.trim(),
       skuOrCode: props.skuOrCode ? props.skuOrCode.trim() : null,
       quantity: normalizedQuantity,
@@ -281,11 +292,11 @@ export class SaleItem implements Entity<SaleItemId> {
     return this._saleId;
   }
 
-  public get source(): SourceReference {
+  public get source(): SourceReference | SaleSource {
     return this._source;
   }
 
-  public get sourceReference(): SourceReference {
+  public get sourceReference(): SourceReference | SaleSource {
     return this._source;
   }
 

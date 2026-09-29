@@ -102,6 +102,27 @@ export class SaleSource implements ValueObject<SaleSourceProps> {
     return this._referenceId;
   }
 
+  /**
+   * Compatibility alias matching existing event / persistence contracts.
+   */
+  public get sourceType(): SaleSourceType {
+    return this._type;
+  }
+
+  /**
+   * Compatibility alias matching existing event / persistence contracts.
+   */
+  public get sourceId(): string {
+    return this._referenceId;
+  }
+
+  /**
+   * Compatibility alias matching existing event / persistence contracts.
+   */
+  public get sourceCode(): string | null {
+    return null;
+  }
+
   public getValue(): SaleSourceProps {
     return {
       type: this._type,
@@ -109,7 +130,7 @@ export class SaleSource implements ValueObject<SaleSourceProps> {
     };
   }
 
-  public equals(other: ValueObject<SaleSourceProps> | undefined | null): boolean {
+  public equals(other: unknown): boolean {
     if (!other || !(other instanceof SaleSource)) {
       return false;
     }

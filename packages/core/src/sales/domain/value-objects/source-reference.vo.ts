@@ -63,7 +63,7 @@ export class SourceReference implements ValueObject<SourceReferenceProps> {
     };
   }
 
-  public equals(other: ValueObject<SourceReferenceProps> | undefined | null): boolean {
+  public equals(other: unknown): boolean {
     if (!other || !(other instanceof SourceReference)) {
       return false;
     }
