@@ -15,3 +15,4 @@ export * from './invalid-payment-transition.exception';
 export * from './receipt-domain.exception';
 export * from './duplicate-receipt.exception';
 export * from './duplicate-sale.exception';
+export * from './invalid-sale-source.exception';
