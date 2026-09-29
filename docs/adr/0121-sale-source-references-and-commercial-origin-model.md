@@ -216,28 +216,62 @@ Sales Bounded Context (Sale Aggregate / Ports)
 
 Sales **NEVER** depends on source-domain modules. Sales provides generic ports and commands; external orchestrators call Sales.
 
-### 4.15 Specification 15: Uniqueness Rules (ADR-0120)
+### 4.15 Specification 15: Uniqueness Semantics of SaleSource (0, 1, or Multiple Sales)
 
-Commercial transaction uniqueness is enforced via dual anchors:
+A critical architectural question is whether the same source reference (`type` + `referenceId`, e.g. `FOOD` + `order-123`) can produce 0, 1, or multiple `Sale` aggregates:
 
-1. **Technical Anchor**: `SaleId` (UUID primary key).
-2. **Business Anchor**:
-   - For single-billing operational entities (`KINESIOLOGY_SESSION`): `(tenantId, sourceType, sourceId)`. An operational session cannot be associated with more than one active (non-cancelled) Sale.
-   - For external order references: `(tenantId, sourceCode)` where `sourceCode` is non-generic.
+1. **Can a source reference represent 0 Sales?**
+   - **YES**. An entity or catalog item exists upstream in its source domain without ever being checked out or billed. Examples: an unbilled kinesiology session, an unsold inventory item in stock, an unassigned gym membership plan, or an unbooked room bay.
+2. **Can a source reference represent 1 Sale?**
+   - **YES**. Operational discrete service deliveries (e.g. a single completed `KINESIOLOGY_SESSION` or referenced external order ticket `sourceCode`) represent a single commercial debt obligation and must be billed in **at most one active (non-cancelled) Sale** (ADR-0120 / `SALE-010`).
+3. **Can a source reference represent Multiple Sales?**
+   - **YES**. Multiple Sales legitimately and frequently share the exact same `SaleSource`:
+     - **Retail Consumables (`FOOD`, `DRINK`)**: Multiple customers purchasing the same inventory item reference (e.g. `inv_protein_bar`), split-order tickets, or repeat meal orders referencing the same register/ticket (`FOOD + order-123`).
+     - **Gym Memberships (`GYM_MEMBERSHIP`)**: Hundreds of gym members purchasing the same membership plan reference (`plan_gold_annual`), or recurring monthly subscription renewals for a member agreement.
+     - **Facility Rentals (`ROOM_RENTAL`)**: A single physical room or studio (`room_bay_1`) booked and billed across separate calendar slots throughout the year.
+     - **Re-Billing Following Cancellation**: If a prior `Sale` for a clinical session reached terminal status `CANCELLED`, a new replacement `Sale` may be created for the same source reference.
 
-### 4.16 Specification 16: Duplicate-Source Behavior
+#### Rejection of Blanket Database `UNIQUE(sourceType, sourceId)` Constraint
 
-When a checkout request is received for an operational entity that already has an active Sale:
+The platform **strictly rejects** placing a database-level composite unique constraint `@@unique([sourceType, sourceId])` or `@@unique([tenantId, sourceType, sourceId])` on the `sales` table:
 
-1. **Idempotent Retry**: If the request parameters (tenant, client, currency, source) match an existing Sale, `CreateSaleHandler` returns the existing `SaleDTO` with `isSuccess = true`.
-2. **Conflicting Duplicate**: If an active Sale exists with differing parameters or a distinct ID, `CreateSaleHandler` rejects the request with `DuplicateSaleException` (HTTP 409 Conflict), preventing duplicate billing.
+- **Catastrophic Failure for Retail**: Would restrict the business to selling exactly one bottle of water or protein bar in its entire operating lifetime.
+- **Catastrophic Failure for Memberships & Rooms**: Would allow only one customer to ever purchase the Gold Plan, and only one hour to ever be billed for Studio A.
+- **Deadlock on Cancelled Sales**: If an initial checkout is cancelled due to cashier error, a physical database unique constraint would permanently block that session from ever being re-billed, locking revenue.
 
-### 4.17 Specification 17: Concurrency Implications
+#### Architectural Classification of Evaluated Models
 
-Under concurrent checkout requests for the same source entity:
+| Evaluated Architectural Model                                      |             Platform Decision             | Architectural Rationale                                                                                                              |
+| :----------------------------------------------------------------- | :---------------------------------------: | :----------------------------------------------------------------------------------------------------------------------------------- |
+| **Model 1: One source $\to$ One Sale**                             |       **REJECTED** (as global rule)       | Destroys retail sales, multi-customer membership plans, recurring subscriptions, and post-cancellation re-billing.                   |
+| **Model 2: One source $\to$ Multiple Sales**                       | **ACCEPTED** (for retail, plans, rentals) | Accurately models retail consumables, catalog plans, room turnover, and replacement checkouts.                                       |
+| **Model 3: Source uniqueness enforced by source domain**           |               **ACCEPTED**                | The upstream source domain (e.g. Kinesiology) owns the state of whether an operational session is `BILLED` or eligible for checkout. |
+| **Model 4: Source references for traceability without uniqueness** |     **ACCEPTED** (Canonical baseline)     | `SaleSource` is a loose correlation and audit reference ("References Over Ownership"), not a relational foreign key.                 |
 
-- Uniqueness is guarded by `PrismaSaleRepository.findBySourceReference()` and relational transactional constraints.
-- Race conditions during parallel checkouts are caught by atomic database unique constraints or transaction isolation, throwing `DuplicateSaleException` with clean rollback.
+### 4.16 Specification 16: Operational Single-Billing & Duplicate-Source Behavior
+
+While global relational uniqueness is rejected, the platform enforces **Operational Single-Billing (`SALE-010`)** specifically for operational clinical deliveries (`KINESIOLOGY_SESSION` / `TREATMENT_SESSION`):
+
+1. **Active Collision Enforcement**:
+   - `CreateSaleHandler` queries `findBySourceReference(sourceType, sourceId, tenantId)`.
+   - If an active (status $\ne$ `CANCELLED`) Sale already exists for that session:
+     - **Idempotent Retry**: If the incoming request has matching parameters, the existing `SaleDTO` is returned idempotently (`isSuccess = true`).
+     - **Conflicting Duplicate**: If parameters conflict or a separate transaction attempts duplicate checkout, the request is rejected with [`DuplicateSaleException`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/exceptions/duplicate-sale.exception.ts) (HTTP 409 Conflict).
+2. **Re-Billing Permitted Post-Cancellation**:
+   - Cancelled sales (`status === CANCELLED`) do not block subsequent checkout for the same session.
+
+### 4.17 Specification 17: Concurrency & Determinism (No Distributed Locking)
+
+The platform evaluates concurrent simultaneous requests using the same source reference deterministically **without distributed locks (Redis / Redlock)**:
+
+1. **Concurrent Retail / Plan Requests (`FOOD`, `DRINK`, `GYM_MEMBERSHIP`, `ROOM_RENTAL`)**:
+   - Two simultaneous checkout requests for the same source reference succeed deterministically.
+   - Each request receives a distinct, canonical `SaleId` and commits an independent commercial transaction.
+   - If client passes an explicit idempotency key, application idempotency prevents accidental double-billing.
+2. **Concurrent Single-Billing Requests (`KINESIOLOGY_SESSION` / `TREATMENT_SESSION`)**:
+   - Two simultaneous checkout requests racing to bill the same session are serialized within PostgreSQL ACID transactions (`prisma.$transaction`).
+   - Inside `PrismaSaleRepository.save()`, the atomic `findFirst` query detects the concurrent winner; the racing runner-up is deterministically rejected with [`DuplicateSaleException`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/exceptions/duplicate-sale.exception.ts).
+   - This provides absolute financial determinism under high concurrency with zero distributed infrastructure overhead.
 
 ### 4.18 Specification 18: Persistence Representation
 

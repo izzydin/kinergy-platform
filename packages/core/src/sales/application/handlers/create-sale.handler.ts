@@ -8,7 +8,9 @@ import { SaleId } from '../../domain/value-objects/sale-id.vo';
 import { Money } from '../../domain/value-objects/money.vo';
 import { Discount } from '../../domain/value-objects/discount.vo';
 import { SourceReference } from '../../domain/value-objects/source-reference.vo';
+import { SaleSource } from '../../domain/value-objects/sale-source.vo';
 import { SourceType } from '../../domain/enums/source-type.enum';
+import { SaleSourceType, isValidSaleSourceType } from '../../domain/enums/sale-source-type.enum';
 import { DuplicateSaleException } from '../../domain/exceptions/duplicate-sale.exception';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
@@ -58,11 +60,13 @@ export class CreateSaleHandler implements SalesCommandHandler<
         }
       }
 
-      // 2. Operational Single-Billing Entity Invariant: TreatmentSession must be billed at most once
-      if (
-        input.source.sourceType === SourceType.TREATMENT_SESSION &&
-        this.saleRepository.findBySourceReference
-      ) {
+      // 2. Operational Single-Billing Entity Invariant: Clinical session must be billed at most once
+      const isClinicalSession =
+        input.source.sourceType === SourceType.TREATMENT_SESSION ||
+        (input.source.sourceType as unknown) === 'KINESIOLOGY_SESSION' ||
+        (input.source.sourceType as unknown) === 'TREATMENT_SESSION';
+
+      if (isClinicalSession && this.saleRepository.findBySourceReference) {
         const existingForSession = await this.saleRepository.findBySourceReference(
           input.source.sourceType,
           input.source.sourceId.trim(),
@@ -74,9 +78,14 @@ export class CreateSaleHandler implements SalesCommandHandler<
             return SalesApplicationResult.ok(SaleMapper.toDTO(existingForSession));
           }
 
+          const sessionLabel =
+            input.source.sourceType === SourceType.TREATMENT_SESSION
+              ? 'TreatmentSession'
+              : input.source.sourceType;
+
           return SalesApplicationResult.fail(
             new DuplicateSaleException(
-              `An active Sale ('${existingForSession.id.value}') already exists for TreatmentSession '${input.source.sourceId}'. Duplicate sale creation is prohibited.`,
+              `An active Sale ('${existingForSession.id.value}') already exists for ${sessionLabel} '${input.source.sourceId}'. Duplicate sale creation is prohibited.`,
               existingForSession.id.value,
               input.tenantId,
             ),
@@ -119,11 +128,19 @@ export class CreateSaleHandler implements SalesCommandHandler<
         }
       }
 
-      const source = SourceReference.create({
-        sourceType: input.source.sourceType,
-        sourceId: input.source.sourceId,
-        sourceCode: input.source.sourceCode ?? null,
-      });
+      let source: SaleSource | SourceReference;
+      if (isValidSaleSourceType(input.source.sourceType)) {
+        source = SaleSource.create(
+          input.source.sourceType as SaleSourceType,
+          input.source.sourceId,
+        );
+      } else {
+        source = SourceReference.create({
+          sourceType: input.source.sourceType as SourceType,
+          sourceId: input.source.sourceId,
+          sourceCode: input.source.sourceCode ?? null,
+        });
+      }
 
       let orderDiscount: Discount | undefined;
       if (input.orderDiscount) {

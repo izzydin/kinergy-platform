@@ -17,7 +17,7 @@ export interface SaleRepositoryPort {
    * Enforces the operational single-billing invariant (e.g. at most one active Sale per TreatmentSession).
    */
   findBySourceReference?(
-    sourceType: SourceType,
+    sourceType: SourceType | string,
     sourceId: string,
     tenantId?: string,
   ): Promise<Sale | null>;

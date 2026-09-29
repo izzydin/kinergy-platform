@@ -107,8 +107,13 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
             );
           }
           // Invariant SALE-010: Operational Single-Billing Entity Protection
+          const isClinicalSession =
+            sale.source.sourceType === SourceType.TREATMENT_SESSION ||
+            (sale.source.sourceType as unknown) === 'KINESIOLOGY_SESSION' ||
+            (sale.source.sourceType as unknown) === 'TREATMENT_SESSION';
+
           if (
-            sale.source.sourceType === SourceType.TREATMENT_SESSION &&
+            isClinicalSession &&
             typeof (tx.sale as unknown as { findFirst?: unknown }).findFirst === 'function'
           ) {
             const existingBySource = await tx.sale.findFirst({

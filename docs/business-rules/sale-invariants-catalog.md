@@ -428,10 +428,11 @@ Persistence of the `Sale` aggregate in [`PrismaSaleRepository`](file:///c:/Proje
 - **Terminal State Persistence Guard**: If database state is already `CANCELLED` or `REFUNDED`, the repository rejects updates with `TERMINAL_SALE_IMMUTABLE`.
 - **Status Regression Guard**: Persisting a `DRAFT` payload over a non-draft record is rejected with `ILLEGAL_STATUS_REGRESSION`.
 
-### 4.9 Operational Single-Billing & Duplicate Transaction Rules
+### 4.9 Operational Single-Billing & Duplicate Transaction Rules (ADR-0120 & ADR-0121)
 
-- **Operational Single-Billing (SALE-010)**: For appointment sessions (`SourceType.TREATMENT_SESSION`), at most one active (non-cancelled) `Sale` may exist per operational source entity. During initial creation (`version === 1`), `PrismaSaleRepository.save()` inspects existing sales for the source and rejects duplicates with `DuplicateSaleException`.
-- **Idempotency Key Deduplication**: Cashier and POS checkout requests support `x-idempotency-key`. Retries return the existing sale without creating duplicate commercial debt.
+- **Operational Single-Billing (SALE-010)**: For discrete clinical appointment sessions (`KINESIOLOGY_SESSION` / `TREATMENT_SESSION`), at most one **active (non-cancelled)** `Sale` may exist per operational source entity per tenant. During initial creation (`version === 1`), `CreateSaleHandler` and `PrismaSaleRepository.save()` inspect existing sales and reject duplicates with `DuplicateSaleException`. When a prior sale is `CANCELLED`, a replacement sale is permitted.
+- **Multiple Sales Validity (Retail, Memberships & Rentals)**: For consumables (`FOOD`, `DRINK`), recurring membership plans (`GYM_MEMBERSHIP`), and space rentals (`ROOM_RENTAL`), multiple distinct Sales legitimately and frequently share the same `SaleSource` reference. No global composite database uniqueness constraint is enforced on `(sourceType, sourceId)`.
+- **Idempotency Key Deduplication**: Cashier and POS checkout requests support `x-idempotency-key` and `id`. Identical retries return the existing sale without creating duplicate commercial debt.
 
 ---
 
