@@ -20,3 +20,4 @@ export * from './get-receipt.handler';
 export * from './get-receipt-by-sale.handler';
 export * from './coordinate-sale-payment.handler';
 export * from './cancel-sale.handler';
+export * from './assign-sale-source.handler';

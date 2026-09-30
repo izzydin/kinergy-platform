@@ -1,5 +1,6 @@
 import { MoneyDTO } from './money.dto';
 import { SaleItemDTO } from './sale-item.dto';
+import { SaleSourceDTO } from './sale-source.dto';
 
 /**
  * Full Sale Aggregate Representation for external API clients.
@@ -11,6 +12,7 @@ export interface SaleDTO {
   readonly clientId?: string;
   readonly currency: string;
   readonly status: string;
+  readonly source: SaleSourceDTO;
 
   // --- Canonical Structured Monetary Representations ---
   readonly subtotal: MoneyDTO;

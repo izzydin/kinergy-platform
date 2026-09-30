@@ -176,7 +176,7 @@ export class SalesController {
     });
 
     const result = await this._createSaleHandler.execute(command);
-    return this.handleResult(result) as SaleResponseDto;
+    return this.handleResult(result);
   }
 
   @Get(':id')
@@ -201,7 +201,7 @@ export class SalesController {
   public async getSale(@Param('id') id: string): Promise<SaleResponseDto> {
     const query = new GetSaleByIdQuery({ saleId: id });
     const result = await this._getSaleByIdHandler.execute(query);
-    return this.handleResult(result) as SaleResponseDto;
+    return this.handleResult(result);
   }
 
   @Post(':id/items')
@@ -252,7 +252,7 @@ export class SalesController {
     });
 
     const result = await this._addSaleItemHandler.execute(command);
-    return this.handleResult(result) as SaleResponseDto;
+    return this.handleResult(result);
   }
 
   @Delete(':id/items/:itemId')
@@ -289,7 +289,7 @@ export class SalesController {
     });
 
     const result = await this._removeSaleItemHandler.execute(command);
-    return this.handleResult(result) as SaleResponseDto;
+    return this.handleResult(result);
   }
 
   @Post(':id/discount')
@@ -329,7 +329,7 @@ export class SalesController {
     });
 
     const result = await this._applyOrderDiscountHandler.execute(command);
-    return this.handleResult(result) as SaleResponseDto;
+    return this.handleResult(result);
   }
 
   @Delete(':id/discount')
@@ -357,7 +357,7 @@ export class SalesController {
     });
 
     const result = await this._removeOrderDiscountHandler.execute(command);
-    return this.handleResult(result) as SaleResponseDto;
+    return this.handleResult(result);
   }
 
   @Post([':id/finalize', ':id/submit-for-payment'])
@@ -385,7 +385,7 @@ export class SalesController {
   ): Promise<SaleResponseDto> {
     const command = new FinalizeSaleCommand({ saleId: id });
     const result = await this._finalizeSaleHandler.execute(command);
-    return this.handleResult(result) as SaleResponseDto;
+    return this.handleResult(result);
   }
 
   @Post(':id/cancel')
@@ -421,7 +421,7 @@ export class SalesController {
     });
 
     const result = await this._cancelSaleHandler.execute(command);
-    return this.handleResult(result) as SaleResponseDto;
+    return this.handleResult(result);
   }
 
   @Post(':id/coordinate-payment')
@@ -461,10 +461,10 @@ export class SalesController {
     });
 
     const result = await this._coordinateSalePaymentHandler.execute(command);
-    return this.handleResult(result) as SaleResponseDto;
+    return this.handleResult(result);
   }
 
-  private handleResult<T>(result: SalesApplicationResult<T, Error | string>): T {
+  private handleResult<T, R = unknown>(result: SalesApplicationResult<T, Error | string>): R {
     if (result.isFailure) {
       const error = result.getError();
       if (error instanceof Error) {
@@ -485,6 +485,6 @@ export class SalesController {
       }
       throw new BadRequestException(message);
     }
-    return result.getValue();
+    return result.getValue() as unknown as R;
   }
 }

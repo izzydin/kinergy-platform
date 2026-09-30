@@ -21,6 +21,11 @@ export class SaleMapper {
       clientId: sale.clientId,
       currency: sale.currency,
       status: sale.status,
+      source: {
+        sourceType: sale.source.sourceType,
+        sourceId: sale.source.sourceId,
+        sourceCode: sale.source.sourceCode,
+      },
       subtotal: subtotalDto,
       discountTotal: discountTotalDto,
       total: totalDto,

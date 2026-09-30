@@ -19,11 +19,13 @@ export interface CreateSaleInput {
   tenantId?: string;
   clientId?: string;
   currency?: string;
-  source: {
+  source?: {
     sourceType: SourceType | SaleSourceType | string;
     sourceId: string;
     sourceCode?: string | null;
-  };
+  } | null;
+  allowWalkInWithoutSource?: boolean;
+  expectedContext?: string;
   items?: CreateSaleItemInput[];
   orderDiscount?: {
     type: string;

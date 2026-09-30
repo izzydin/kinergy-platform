@@ -181,26 +181,52 @@ A `Sale` receives its `SaleSource` **exclusively at creation time** during `Sale
 
 ### 4.13 Specification 13: Source Validation Belongs to Application Orchestration
 
-Source existence validation and eligibility verification belong strictly to **Application Use Case Orchestration** prior to invoking Sales:
+Source existence validation and eligibility verification belong strictly to **Application Use Case Orchestration** prior to or during the invocation of Sales:
 
 ```
-┌──────────────────────────────────────────────────────────────┐
-│                    APPLICATION LAYER FLOW                    │
-│                                                              │
-│  1. Receive Checkout Request (e.g. CheckoutSessionRequest)   │
-│  2. Load & Validate Upstream Entity via its own repository:  │
-│     const session = await sessionRepo.findById(sessionId);   │
-│     if (!session || !session.isBillable()) throw ...;        │
-│  3. Construct Command with generic SaleSource:               │
-│     const command = new CreateSaleCommand({                  │
-│       source: { type: 'KINESIOLOGY_SESSION', referenceId }   │
-│     });                                                      │
-│  4. Invoke Sales Handler:                                    │
-│     await createSaleHandler.execute(command);                │
-└──────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       APPLICATION LAYER 5-STEP FLOW                         │
+│                                                                             │
+│  1. Validate Request Structure:                                             │
+│     - Check command payload structure. Fail-fast on empty reference ID or   │
+│       missing source when walk-in default is not permitted.                 │
+│     - If source is omitted and allowWalkInWithoutSource is true, default to │
+│       standardized POS terminal origin (e.g. DRINK + pos_checkout_terminal).│
+│                                                                             │
+│  2. Reject Unsupported Source Types Before Persistence:                     │
+│     - Verify type against SaleSourceType / SourceType before persistence.   │
+│     - Rejects unknown types immediately with UNSUPPORTED_SALE_SOURCE_TYPE.  │
+│                                                                             │
+│  3. Validate Source Ownership / Existence (if required by architecture):    │
+│     - Application invokes SaleSourceValidatorPort.                          │
+│     - Checks if entity exists in upstream domain (SOURCE_NOT_FOUND).        │
+│     - Checks if entity matches expected bounded context                     │
+│       (SOURCE_CONTEXT_MISMATCH).                                            │
+│                                                                             │
+│  4. Construct Sale Aggregate & Verify Invariants:                           │
+│     - Evaluate idempotency and single-billing invariants (SALE-010).         │
+│     - Construct immutable SaleSource Value Object.                          │
+│     - Construct Sale aggregate root in DRAFT status with exact zero totals. │
+│                                                                             │
+│  5. Persist the Aggregate Atomically:                                       │
+│     - Persist Sale aggregate via SaleRepositoryPort.save().                 │
+│     - Publish domain events atomically; clear uncommitted events.           │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 4.14 Specification 14: Dependency Direction
+#### Decision on Synchronous vs. Asynchronous Existence Validation
+
+The architecture intentionally decouples synchronous source existence validation from the core sales transaction:
+
+1. **Why Source Existence is NOT Validated Synchronously by Default**:
+   - **Availability & Fault Isolation**: Walk-in retail checkout (front desk POS) must remain 100% operational even if upstream medical scheduling or gym turnstile backends experience temporary downtime or network latency.
+   - **Temporal Decoupling**: In high-throughput hospitality and concession workflows (bar, cafe, merchandise), cashiers cannot be blocked by synchronous cross-context network calls on every draft sale item addition.
+   - **References Over Ownership Principle**: Sales treats external references as opaque correlation tokens. Upstream fulfillment pipelines or background reconcilers handle eventual consistency.
+2. **When Synchronous Validation IS Used**:
+   - For clinical session billing (`KINESIOLOGY_SESSION`) or high-value recurring membership enrollments (`GYM_MEMBERSHIP`), application orchestration injects [`SaleSourceValidatorPort`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/ports/sale-source-validator.port.ts) into [`CreateSaleHandler`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/handlers/create-sale.handler.ts) to verify existence, tenant ownership, and clinical completion before issuing the commercial contract.
+   - This provides absolute configurability: zero cross-aggregate coupling in the domain, with strict validation available at the application boundary.
+
+### 4.14 Specification 14: Dependency Direction & Port Isolation
 
 The dependency direction is strictly **outward from Sales**:
 
@@ -209,12 +235,17 @@ Source Domain (Kinesiology / Gym / Resources / Scheduling)
       │
       ▼
 Application Orchestration (Controllers / Orchestration Use Cases)
-      │
+      ├── SaleSourceValidatorPort (Cross-context validation adapter)
       ▼
-Sales Bounded Context (Sale Aggregate / Ports)
+Sales Bounded Context (Sale Aggregate / Ports / SaleRepositoryPort)
 ```
 
-Sales **NEVER** depends on source-domain modules. Sales provides generic ports and commands; external orchestrators call Sales.
+Sales **NEVER** depends on source-domain modules:
+
+- **NO** `Sale → FoodRepository`
+- **NO** `Sale → GymMembershipRepository`
+- **NO** `Sale → TreatmentSessionRepository`
+  All cross-context coordination is mediated via application ports ([`SaleSourceValidatorPort`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/ports/sale-source-validator.port.ts), [`ClientFacadePort`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/ports/client-facade.port.ts)).
 
 ### 4.15 Specification 15: Uniqueness Semantics of SaleSource (0, 1, or Multiple Sales)
 

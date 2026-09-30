@@ -10,3 +10,4 @@ export * from './receipt-issuance-rejected.exception';
 export * from './payment-not-completed.exception';
 export * from './payment-sale-mismatch.exception';
 export * from './insufficient-payment.exception';
+export * from './source-not-found.exception';

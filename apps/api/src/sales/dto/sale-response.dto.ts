@@ -33,6 +33,15 @@ export class SaleResponseDto {
   })
   status!: string;
 
+  @ApiPropertyOptional({
+    description: 'Commercial origin source reference',
+  })
+  source?: {
+    sourceType: string;
+    sourceId: string;
+    sourceCode?: string | null;
+  };
+
   // --- CANONICAL MONETARY FIELDS (STRUCTURED MONEY DTO) ---
 
   @ApiProperty({
