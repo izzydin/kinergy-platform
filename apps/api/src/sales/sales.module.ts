@@ -6,6 +6,7 @@ import {
   PrismaPaymentRepository,
   PrismaReceiptRepository,
   CreateSaleHandler,
+  AssignSaleSourceHandler,
   GetSaleByIdHandler,
   AddSaleItemHandler,
   RemoveSaleItemHandler,
@@ -56,6 +57,11 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     {
       provide: CreateSaleHandler,
       useFactory: (repo: SaleRepositoryPort) => new CreateSaleHandler(repo),
+      inject: [SALE_REPOSITORY_TOKEN],
+    },
+    {
+      provide: AssignSaleSourceHandler,
+      useFactory: (repo: SaleRepositoryPort) => new AssignSaleSourceHandler(repo),
       inject: [SALE_REPOSITORY_TOKEN],
     },
     {
@@ -198,6 +204,7 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     RECEIPT_REPOSITORY_TOKEN,
     SalesAuditEventPublisher,
     CreateSaleHandler,
+    AssignSaleSourceHandler,
     GetSaleByIdHandler,
     AddSaleItemHandler,
     RemoveSaleItemHandler,

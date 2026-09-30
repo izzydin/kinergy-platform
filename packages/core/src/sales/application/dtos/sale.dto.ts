@@ -13,6 +13,7 @@ export interface SaleDTO {
   readonly currency: string;
   readonly status: string;
   readonly source: SaleSourceDTO;
+  readonly sourceReference?: SaleSourceDTO;
 
   // --- Canonical Structured Monetary Representations ---
   readonly subtotal: MoneyDTO;

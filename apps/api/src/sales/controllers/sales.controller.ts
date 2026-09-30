@@ -19,6 +19,7 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
   SourceType,
+  isValidSourceType,
   SaleRepositoryInterface,
   PaymentRepositoryPort,
   CreateSaleHandler,
@@ -30,6 +31,7 @@ import {
   FinalizeSaleHandler,
   CancelSaleHandler,
   CoordinateSalePaymentHandler,
+  AssignSaleSourceHandler,
   CreateSaleCommand,
   GetSaleByIdQuery,
   AddSaleItemCommand,
@@ -39,6 +41,7 @@ import {
   FinalizeSaleCommand,
   CancelSaleCommand,
   CoordinateSalePaymentCommand,
+  AssignSaleSourceCommand,
   SalesApplicationResult,
   DuplicateSaleException,
 } from '@kinergy-platform/core';
@@ -53,11 +56,55 @@ import {
   ApplySaleDiscountRequestDto,
   CancelSaleRequestDto,
   CoordinateSalePaymentRequestDto,
+  AssignSaleSourceRequestDto,
 } from '../dto';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
 import { PAYMENT_REPOSITORY_TOKEN } from './payments.controller';
 
 export const SALE_REPOSITORY_TOKEN = 'SaleRepositoryInterface';
+
+interface NormalizedSourcePayload {
+  sourceType: string;
+  sourceId: string;
+  sourceCode?: string | null;
+}
+
+function normalizeSource(source: unknown): NormalizedSourcePayload | undefined {
+  if (!source || typeof source !== 'object') {
+    return undefined;
+  }
+  const s = source as Record<string, unknown>;
+  const type = (s.type ?? s.sourceType) as string | undefined;
+  const refId = (s.referenceId ?? s.sourceId) as string | undefined;
+  const code = (s.referenceCode ?? s.sourceCode) as string | null | undefined;
+  if (!type || !refId) {
+    return undefined;
+  }
+  return {
+    sourceType: type,
+    sourceId: refId,
+    sourceCode: code ?? null,
+  };
+}
+
+function mapToItemSourceType(rawType: string): SourceType {
+  switch (rawType) {
+    case 'FOOD':
+    case 'DRINK':
+      return SourceType.INVENTORY_ITEM;
+    case 'GYM_MEMBERSHIP':
+      return SourceType.MEMBERSHIP_PLAN;
+    case 'KINESIOLOGY_SESSION':
+      return SourceType.TREATMENT_SESSION;
+    case 'ROOM_RENTAL':
+      return SourceType.CUSTOM_SERVICE;
+    default:
+      if (isValidSourceType(rawType)) {
+        return rawType as SourceType;
+      }
+      return SourceType.CUSTOM_SERVICE;
+  }
+}
 
 @ApiTags('Sales')
 @ApiBearerAuth()
@@ -74,6 +121,7 @@ export class SalesController {
   private readonly _finalizeSaleHandler: FinalizeSaleHandler;
   private readonly _cancelSaleHandler: CancelSaleHandler;
   private readonly _coordinateSalePaymentHandler?: CoordinateSalePaymentHandler;
+  private readonly _assignSaleSourceHandler: AssignSaleSourceHandler;
 
   constructor(
     @Inject(SALE_REPOSITORY_TOKEN)
@@ -108,6 +156,9 @@ export class SalesController {
     @Optional()
     @Inject(CoordinateSalePaymentHandler)
     coordinateSalePaymentHandler?: CoordinateSalePaymentHandler,
+    @Optional()
+    @Inject(AssignSaleSourceHandler)
+    assignSaleSourceHandler?: AssignSaleSourceHandler,
   ) {
     this._createSaleHandler = createSaleHandler ?? new CreateSaleHandler(saleRepository);
     this._getSaleByIdHandler = getSaleByIdHandler ?? new GetSaleByIdHandler(saleRepository);
@@ -120,6 +171,8 @@ export class SalesController {
       removeOrderDiscountHandler ?? new RemoveOrderDiscountHandler(saleRepository);
     this._finalizeSaleHandler = finalizeSaleHandler ?? new FinalizeSaleHandler(saleRepository);
     this._cancelSaleHandler = cancelSaleHandler ?? new CancelSaleHandler(saleRepository);
+    this._assignSaleSourceHandler =
+      assignSaleSourceHandler ?? new AssignSaleSourceHandler(saleRepository);
 
     if (coordinateSalePaymentHandler) {
       this._coordinateSalePaymentHandler = coordinateSalePaymentHandler;
@@ -157,22 +210,19 @@ export class SalesController {
     @Body() dto: CreateSaleRequestDto,
     @Headers('x-idempotency-key') idempotencyKeyHeader?: string,
   ): Promise<SaleResponseDto> {
+    const incomingSource = dto.sourceReference ?? dto.source;
+    const normalized = normalizeSource(incomingSource);
+
     const command = new CreateSaleCommand({
       id: dto.id,
       idempotencyKey: dto.idempotencyKey || idempotencyKeyHeader,
       currency: dto.currency,
       clientId: dto.clientId,
-      source: dto.source
-        ? {
-            sourceType: dto.source.sourceType,
-            sourceId: dto.source.sourceId,
-            sourceCode: dto.source.sourceCode,
-          }
-        : {
-            sourceType: SourceType.CUSTOM_SERVICE,
-            sourceId: 'pos_checkout_terminal',
-            sourceCode: 'POS_REGISTER',
-          },
+      source: normalized ?? {
+        sourceType: 'DRINK',
+        sourceId: 'pos_checkout_terminal',
+        sourceCode: 'POS_REGISTER',
+      },
     });
 
     const result = await this._createSaleHandler.execute(command);
@@ -204,6 +254,48 @@ export class SalesController {
     return this.handleResult(result);
   }
 
+  @Post(':id/source')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist')
+  @Permissions('sales.create')
+  @ApiOperation({
+    summary: 'Assign or update commercial origin source reference',
+    description:
+      'Invokes explicit AssignSaleSourceCommand. Enforces aggregate immutability invariants: fails with Conflict (409) if source is already assigned or Sale is not in DRAFT status.',
+  })
+  @ApiParam({ name: 'id', description: 'Sale ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: SaleResponseDto,
+    description: 'Source assigned successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid source type or empty referenceId',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description: 'Source is immutable or sale is finalized/cancelled',
+  })
+  public async assignSource(
+    @Param('id') id: string,
+    @Body() dto: AssignSaleSourceRequestDto,
+  ): Promise<SaleResponseDto> {
+    const incomingSource = dto.sourceReference ?? dto.source;
+    const normalized = normalizeSource(incomingSource);
+    if (!normalized) {
+      throw new BadRequestException('sourceReference is required.');
+    }
+
+    const command = new AssignSaleSourceCommand({
+      saleId: id,
+      source: normalized,
+    });
+
+    const result = await this._assignSaleSourceHandler.execute(command);
+    return this.handleResult(result);
+  }
+
   @Post(':id/items')
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
@@ -231,12 +323,18 @@ export class SalesController {
     @Param('id') id: string,
     @Body() dto: AddSaleItemRequestDto,
   ): Promise<SaleResponseDto> {
+    const incomingSource = dto.sourceReference ?? dto.source;
+    const normalized = normalizeSource(incomingSource);
+    if (!normalized) {
+      throw new BadRequestException('sourceReference is required for line items.');
+    }
+
     const command = new AddSaleItemCommand({
       saleId: id,
       source: {
-        sourceType: dto.source.sourceType,
-        sourceId: dto.source.sourceId,
-        sourceCode: dto.source.sourceCode,
+        sourceType: mapToItemSourceType(normalized.sourceType),
+        sourceId: normalized.sourceId,
+        sourceCode: normalized.sourceCode,
       },
       description: dto.description,
       skuOrCode: dto.skuOrCode,
@@ -485,6 +583,26 @@ export class SalesController {
       }
       throw new BadRequestException(message);
     }
-    return result.getValue() as unknown as R;
+    const val = result.getValue() as Record<string, unknown>;
+    if (val && typeof val === 'object') {
+      if ('source' in val && !('sourceReference' in val)) {
+        val.sourceReference = val.source;
+      }
+      if ('items' in val && Array.isArray(val.items)) {
+        for (const item of val.items) {
+          if (item && typeof item === 'object' && !('sourceReference' in item)) {
+            item.sourceReference = {
+              type: item.sourceType,
+              referenceId: item.sourceId,
+              referenceCode: item.sourceCode ?? null,
+              sourceType: item.sourceType,
+              sourceId: item.sourceId,
+              sourceCode: item.sourceCode ?? null,
+            };
+          }
+        }
+      }
+    }
+    return val as unknown as R;
   }
 }

@@ -1,4 +1,5 @@
 import { MoneyDTO } from './money.dto';
+import { SaleSourceDTO } from './sale-source.dto';
 
 export interface ItemDiscountDTO {
   readonly type: string;
@@ -11,6 +12,7 @@ export interface SaleItemDTO {
   readonly sourceType: string;
   readonly sourceId: string;
   readonly sourceCode: string | null;
+  readonly sourceReference?: SaleSourceDTO;
   readonly description: string;
   readonly skuOrCode: string | null;
   readonly quantity: number;

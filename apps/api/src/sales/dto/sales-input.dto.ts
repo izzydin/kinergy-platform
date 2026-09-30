@@ -13,22 +13,26 @@ import {
 import { Type } from 'class-transformer';
 import { SourceType } from '@kinergy-platform/core';
 
-export class SourceReferenceInputDto {
-  @ApiProperty({
+import { SourceReferenceInputDto } from './source-reference.dto';
+export { SourceReferenceInputDto } from './source-reference.dto';
+
+export class ItemSourceInputDto {
+  @ApiPropertyOptional({
     enum: SourceType,
     description: 'Catalog origin category',
     example: SourceType.INVENTORY_ITEM,
   })
   @IsEnum(SourceType)
-  sourceType!: SourceType;
+  @IsOptional()
+  sourceType?: SourceType;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'Identifier of catalog origin entity',
     example: 'inv_123',
   })
   @IsString()
-  @IsNotEmpty()
-  sourceId!: string;
+  @IsOptional()
+  sourceId?: string;
 
   @ApiPropertyOptional({
     description: 'Business catalog code',
@@ -77,13 +81,22 @@ export class CreateSaleRequestDto {
   clientId?: string;
 
   @ApiPropertyOptional({
-    description: 'Origin source reference initiating checkout session',
+    description: 'Commercial origin source reference initiating checkout session (ADR-0121)',
     type: () => SourceReferenceInputDto,
   })
   @IsOptional()
   @ValidateNested()
   @Type(() => SourceReferenceInputDto)
-  source?: SourceReferenceInputDto;
+  sourceReference?: SourceReferenceInputDto;
+
+  @ApiPropertyOptional({
+    description: 'Legacy origin source reference initiating checkout session',
+    type: () => ItemSourceInputDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ItemSourceInputDto)
+  source?: ItemSourceInputDto;
 }
 
 export class ItemDiscountInputDto {
@@ -115,13 +128,23 @@ export class ItemDiscountInputDto {
 }
 
 export class AddSaleItemRequestDto {
-  @ApiProperty({
-    description: 'Commercial origin source reference',
+  @ApiPropertyOptional({
+    description: 'Commercial origin source reference (ADR-0121)',
     type: () => SourceReferenceInputDto,
   })
+  @IsOptional()
   @ValidateNested()
   @Type(() => SourceReferenceInputDto)
-  source!: SourceReferenceInputDto;
+  sourceReference?: SourceReferenceInputDto;
+
+  @ApiPropertyOptional({
+    description: 'Legacy commercial origin source reference',
+    type: () => ItemSourceInputDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ItemSourceInputDto)
+  source?: ItemSourceInputDto;
 
   @ApiProperty({
     description: 'Line item description snapshot at checkout',

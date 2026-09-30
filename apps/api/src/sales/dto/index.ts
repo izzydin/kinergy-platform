@@ -7,3 +7,4 @@ export * from './payment-lifecycle-request.dto';
 export * from './payment-response.dto';
 export * from './issue-receipt-request.dto';
 export * from './receipt-response.dto';
+export * from './source-reference.dto';

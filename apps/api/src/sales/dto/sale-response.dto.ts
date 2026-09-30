@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MoneyResponseDto } from './money-response.dto';
 import { SaleItemResponseDto } from './sale-item-response.dto';
+import { SaleSourceResponseDto } from './source-reference.dto';
 
 export class SaleResponseDto {
   @ApiProperty({
@@ -33,8 +34,14 @@ export class SaleResponseDto {
   })
   status!: string;
 
+  @ApiProperty({
+    description: 'Commercial origin source reference (ADR-0121)',
+    type: () => SaleSourceResponseDto,
+  })
+  sourceReference!: SaleSourceResponseDto;
+
   @ApiPropertyOptional({
-    description: 'Commercial origin source reference',
+    description: 'Legacy commercial origin source reference',
   })
   source?: {
     sourceType: string;

@@ -63,11 +63,22 @@ export class SalesExceptionFilter implements ExceptionFilter {
       return;
     }
 
-    if (exception instanceof SaleAlreadyFinalizedException) {
+    if (
+      exception instanceof SaleAlreadyFinalizedException ||
+      (exception instanceof InvalidSaleStateException &&
+        (exception.code === 'SALE_SOURCE_IMMUTABLE' ||
+          exception.code === 'CANNOT_MODIFY_CANCELLED_SALE' ||
+          exception.code === 'TERMINAL_SALE_IMMUTABLE'))
+    ) {
+      const code =
+        'code' in exception && typeof (exception as { code: unknown }).code === 'string'
+          ? (exception as { code: string }).code
+          : 'CONFLICT';
+
       response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,
         error: 'Conflict',
-        code: exception.code,
+        code,
         message: exception.message,
       });
       return;
@@ -77,7 +88,8 @@ export class SalesExceptionFilter implements ExceptionFilter {
     if (
       exception instanceof SaleNotFoundException ||
       exception instanceof PaymentNotFoundException ||
-      exception instanceof ReceiptNotFoundException
+      exception instanceof ReceiptNotFoundException ||
+      (exception instanceof Error && exception.name === 'SourceNotFoundException')
     ) {
       response.status(HttpStatus.NOT_FOUND).json({
         statusCode: HttpStatus.NOT_FOUND,
