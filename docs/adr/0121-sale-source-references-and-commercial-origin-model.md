@@ -324,6 +324,7 @@ model Sale {
 
 - **Zero Polymorphic Tables**: All sales share the same relational schema.
 - **No Foreign Keys to Source Tables**: `source_id` is an indexed `TEXT` column without a SQL `FOREIGN KEY` constraint to `treatment_sessions` or `memberships`. This preserves bounded context autonomy and prevents cascading deletion failures.
+- **Database Migration Decision**: See [SaleSource Database Migration Architecture & Decision Record](file:///c:/Projects/kinergy-platform/docs/architecture/sale-source-database-migration-decision.md) and migration script [`20260930000000_add_sale_source_correlation_indexes`](file:///c:/Projects/kinergy-platform/prisma/migrations/20260930000000_add_sale_source_correlation_indexes/migration.sql).
 
 ### 4.19 Specification 19: API Representation
 

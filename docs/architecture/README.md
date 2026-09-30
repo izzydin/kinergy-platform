@@ -88,3 +88,5 @@ graph TD
     - Authoritative state machine transitions, freeze/renewal mathematical rules, access eligibility engine, and canonical time model.
 11. **[Resources Management Architecture Hub (Phase 6)](./resources/README.md)**
     - Central architecture documentation hub, baseline discovery, and governance for Phase 6: Consumable Inventory & Fixed Assets.
+12. **[SaleSource Database Migration Architecture & Decision Record](./sale-source-database-migration-decision.md)**
+    - Authoritative database migration strategy, pre-migration schema inspection, rollback procedures, and index optimization for commercial origins (`SaleSource`).
