@@ -29,11 +29,13 @@ export class SaleItemResponseDto {
   })
   id!: string;
 
-  @ApiProperty({
-    description: 'Commercial origin source reference (ADR-0121)',
+  @ApiPropertyOptional({
+    description:
+      'Commercial origin source reference (ADR-0121), or null if the line item has no upstream source',
     type: () => SaleSourceResponseDto,
+    nullable: true,
   })
-  sourceReference!: SaleSourceResponseDto;
+  sourceReference!: SaleSourceResponseDto | null;
 
   @ApiProperty({
     description: 'Classification of origin entity (INVENTORY_ITEM, MEMBERSHIP_PLAN, etc.)',

@@ -9,7 +9,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import { SaleSourceType } from '@kinergy-platform/core';
+import { SaleSource, SaleSourceType } from '@kinergy-platform/core';
 
 /**
  * Validated Input DTO representing a commercial origin reference (ADR-0121).
@@ -60,6 +60,7 @@ export class SourceReferenceInputDto {
 
 /**
  * Response DTO exposing commercial origin source reference (ADR-0121).
+ * Represents the generic reference without leaking implementation details.
  */
 export class SaleSourceResponseDto {
   @ApiProperty({
@@ -76,20 +77,56 @@ export class SaleSourceResponseDto {
   referenceId!: string;
 
   @ApiPropertyOptional({
-    description: 'Optional human order reference or terminal code',
+    description: 'Optional human order reference or terminal code, or null if absent',
     example: 'ORD-2026-0042',
+    nullable: true,
   })
   referenceCode?: string | null;
 
   // Legacy compatibility aliases
-  @ApiPropertyOptional({ description: 'Legacy compatibility alias for type' })
+  @ApiPropertyOptional({
+    description: 'Legacy compatibility alias for type',
+    deprecated: true,
+  })
   sourceType?: string;
 
-  @ApiPropertyOptional({ description: 'Legacy compatibility alias for referenceId' })
+  @ApiPropertyOptional({
+    description: 'Legacy compatibility alias for referenceId',
+    deprecated: true,
+  })
   sourceId?: string;
 
-  @ApiPropertyOptional({ description: 'Legacy compatibility alias for referenceCode' })
+  @ApiPropertyOptional({
+    description: 'Legacy compatibility alias for referenceCode',
+    deprecated: true,
+    nullable: true,
+  })
   sourceCode?: string | null;
+
+  public static fromDomain(
+    source: SaleSource | Record<string, unknown> | null | undefined,
+  ): SaleSourceResponseDto | null {
+    if (!source) {
+      return null;
+    }
+    const dto = new SaleSourceResponseDto();
+    if (source instanceof SaleSource) {
+      dto.type = source.type;
+      dto.referenceId = source.referenceId;
+      dto.referenceCode = null;
+    } else {
+      const src = source as Record<string, unknown>;
+      const resolvedType = (src.type ?? src.sourceType) as string | undefined;
+      const resolvedRefId = (src.referenceId ?? src.sourceId) as string | undefined;
+      if (!resolvedType || !resolvedRefId) {
+        return null;
+      }
+      dto.type = resolvedType;
+      dto.referenceId = resolvedRefId;
+      dto.referenceCode = ((src.referenceCode ?? src.sourceCode) as string | null) ?? null;
+    }
+    return dto;
+  }
 }
 
 /**

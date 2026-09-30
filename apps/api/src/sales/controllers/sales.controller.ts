@@ -50,6 +50,7 @@ import { AuthorizationGuard } from '../../platform/identity/authorization/author
 import { Permissions, Roles } from '../../platform/identity/decorators';
 import {
   SaleResponseDto,
+  SaleSourceResponseDto,
   CreateSaleRequestDto,
   AddSaleItemRequestDto,
   FinalizeSaleRequestDto,
@@ -585,20 +586,34 @@ export class SalesController {
     }
     const val = result.getValue() as Record<string, unknown>;
     if (val && typeof val === 'object') {
-      if ('source' in val && !('sourceReference' in val)) {
-        val.sourceReference = val.source;
+      if ('sourceReference' in val && val.sourceReference) {
+        val.sourceReference = SaleSourceResponseDto.fromDomain(
+          val.sourceReference as Record<string, unknown>,
+        );
+      } else if ('source' in val && val.source) {
+        val.sourceReference = SaleSourceResponseDto.fromDomain(
+          val.source as Record<string, unknown>,
+        );
+      } else {
+        val.sourceReference = null;
       }
       if ('items' in val && Array.isArray(val.items)) {
         for (const item of val.items) {
-          if (item && typeof item === 'object' && !('sourceReference' in item)) {
-            item.sourceReference = {
-              type: item.sourceType,
-              referenceId: item.sourceId,
-              referenceCode: item.sourceCode ?? null,
-              sourceType: item.sourceType,
-              sourceId: item.sourceId,
-              sourceCode: item.sourceCode ?? null,
-            };
+          if (item && typeof item === 'object') {
+            const itemRecord = item as Record<string, unknown>;
+            if ('sourceReference' in itemRecord && itemRecord.sourceReference) {
+              itemRecord.sourceReference = SaleSourceResponseDto.fromDomain(
+                itemRecord.sourceReference as Record<string, unknown>,
+              );
+            } else if (itemRecord.sourceType && itemRecord.sourceId) {
+              itemRecord.sourceReference = SaleSourceResponseDto.fromDomain({
+                type: String(itemRecord.sourceType),
+                referenceId: String(itemRecord.sourceId),
+                referenceCode: itemRecord.sourceCode ? String(itemRecord.sourceCode) : null,
+              });
+            } else {
+              itemRecord.sourceReference = null;
+            }
           }
         }
       }

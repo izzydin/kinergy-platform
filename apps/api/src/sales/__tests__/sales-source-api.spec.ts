@@ -165,8 +165,8 @@ describe('SaleSource API Specification (ADR-0121)', () => {
 
       expect(result.id).toBeDefined();
       expect(result.sourceReference).toBeDefined();
-      expect(result.sourceReference.type).toBe('FOOD');
-      expect(result.sourceReference.referenceId).toBe('food_order_1001');
+      expect(result.sourceReference!.type).toBe('FOOD');
+      expect(result.sourceReference!.referenceId).toBe('food_order_1001');
 
       // Verify persisted aggregate in repository
       const savedAggregate = await saleRepo.findById(result.id);
@@ -202,8 +202,8 @@ describe('SaleSource API Specification (ADR-0121)', () => {
       const item = result.items[0];
       expect(item).toBeDefined();
       expect(item!.sourceReference).toBeDefined();
-      expect(item!.sourceReference.type).toBe('INVENTORY_ITEM');
-      expect(item!.sourceReference.referenceId).toBe('drink_item_smoothie');
+      expect(item!.sourceReference!.type).toBe('INVENTORY_ITEM');
+      expect(item!.sourceReference!.referenceId).toBe('drink_item_smoothie');
     });
   });
 
