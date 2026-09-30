@@ -2,6 +2,7 @@ import { PrismaClient, Prisma, SaleStatus as PrismaSaleStatus } from '@prisma/cl
 import { Sale } from '../../../../domain/sale.aggregate';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { SourceType } from '../../../../domain/enums/source-type.enum';
+import { SaleSourceType } from '../../../../domain/enums/sale-source-type.enum';
 import { SaleOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
 import { InvalidSaleStateException } from '../../../../domain/exceptions/invalid-sale-state.exception';
 import { DuplicateSaleException } from '../../../../domain/exceptions/duplicate-sale.exception';
@@ -30,7 +31,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
   }
 
   public async findBySourceReference(
-    sourceType: SourceType,
+    sourceType: SourceType | SaleSourceType | string,
     sourceId: string,
     tenantId?: string,
   ): Promise<Sale | null> {

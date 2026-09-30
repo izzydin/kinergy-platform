@@ -718,6 +718,8 @@ model Sale {
   @@index([clientId])
   @@index([status])
   @@index([createdAt(sort: Desc)])
+  @@index([tenantId, sourceType, sourceId])
+  @@index([sourceType, sourceId])
   @@map("sales")
 }
 
@@ -745,6 +747,7 @@ model SaleItem {
 
   @@index([saleId])
   @@index([skuOrCode])
+  @@index([sourceType, sourceId])
   @@map("sale_items")
 }
 

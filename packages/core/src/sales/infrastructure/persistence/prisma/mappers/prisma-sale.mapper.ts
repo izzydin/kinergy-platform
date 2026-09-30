@@ -7,7 +7,12 @@ import {
 import { Sale } from '../../../../domain/sale.aggregate';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { SourceReference } from '../../../../domain/value-objects/source-reference.vo';
+import { SaleSource } from '../../../../domain/value-objects/sale-source.vo';
 import { SourceType } from '../../../../domain/enums/source-type.enum';
+import {
+  SaleSourceType,
+  isValidSaleSourceType,
+} from '../../../../domain/enums/sale-source-type.enum';
 import { SaleStatus } from '../../../../domain/enums/sale-status.enum';
 import { Discount } from '../../../../domain/value-objects/discount.vo';
 import { DiscountType } from '../../../../domain/enums/discount-type.enum';
@@ -38,17 +43,24 @@ export class PrismaSaleMapper {
 
     const items = raw.items ? raw.items.map(PrismaSaleItemMapper.toDomain) : [];
 
+    let source: SaleSource | SourceReference;
+    if (isValidSaleSourceType(raw.sourceType)) {
+      source = SaleSource.create(raw.sourceType as SaleSourceType, raw.sourceId);
+    } else {
+      source = SourceReference.create({
+        sourceType: raw.sourceType as SourceType,
+        sourceId: raw.sourceId,
+        sourceCode: raw.sourceCode ?? undefined,
+      });
+    }
+
     return Sale.reconstitute({
       id: SaleId.create(raw.id),
       tenantId: raw.tenantId ?? undefined,
       clientId: raw.clientId ?? undefined,
       status: raw.status as unknown as SaleStatus,
       currency,
-      source: SourceReference.create({
-        sourceType: raw.sourceType as SourceType,
-        sourceId: raw.sourceId,
-        sourceCode: raw.sourceCode ?? undefined,
-      }),
+      source,
       orderDiscount,
       items,
       subtotal: PrismaMoneyMapper.toMoney(raw.subtotalAmount, currency),

@@ -3,7 +3,12 @@ import { SaleItem } from '../../../../domain/entities/sale-item.entity';
 import { SaleItemId } from '../../../../domain/value-objects/sale-item-id.vo';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { SourceReference } from '../../../../domain/value-objects/source-reference.vo';
+import { SaleSource } from '../../../../domain/value-objects/sale-source.vo';
 import { SourceType } from '../../../../domain/enums/source-type.enum';
+import {
+  SaleSourceType,
+  isValidSaleSourceType,
+} from '../../../../domain/enums/sale-source-type.enum';
 import { Discount } from '../../../../domain/value-objects/discount.vo';
 import { DiscountType } from '../../../../domain/enums/discount-type.enum';
 import { InvalidSaleStateException } from '../../../../domain/exceptions/invalid-sale-state.exception';
@@ -25,14 +30,21 @@ export class PrismaSaleItemMapper {
 
     const quantityNum = parseFloat(raw.quantity.toString());
 
-    return SaleItem.reconstitute({
-      id: SaleItemId.create(raw.id),
-      saleId: raw.saleId ? SaleId.create(raw.saleId) : undefined,
-      source: SourceReference.create({
+    let source: SaleSource | SourceReference;
+    if (isValidSaleSourceType(raw.sourceType)) {
+      source = SaleSource.create(raw.sourceType as SaleSourceType, raw.sourceId);
+    } else {
+      source = SourceReference.create({
         sourceType: raw.sourceType as SourceType,
         sourceId: raw.sourceId,
         sourceCode: raw.sourceCode ?? undefined,
-      }),
+      });
+    }
+
+    return SaleItem.reconstitute({
+      id: SaleItemId.create(raw.id),
+      saleId: raw.saleId ? SaleId.create(raw.saleId) : undefined,
+      source,
       description: raw.description,
       skuOrCode: raw.skuOrCode ?? null,
       quantity: quantityNum,
