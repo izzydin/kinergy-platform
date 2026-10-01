@@ -344,4 +344,348 @@ describe('SaleSource Persistence Architecture Integration (Prisma)', () => {
       expect(result).toBeNull();
     });
   });
+
+  // ==========================================================================
+  // 4. Persistence Lifecycle: Save, Retrieve & End-to-End Round-Trip
+  // ==========================================================================
+  describe('4. Persistence Lifecycle: Save, Retrieve & End-to-End Round-Trip', () => {
+    it.each([
+      SaleSourceType.KINESIOLOGY_SESSION,
+      SaleSourceType.GYM_MEMBERSHIP,
+      SaleSourceType.FOOD,
+      SaleSourceType.DRINK,
+      SaleSourceType.ROOM_RENTAL,
+    ])('completes lossless domain -> persistence -> domain round-trip for %s', (type) => {
+      const source = SaleSource.create(type, `roundtrip-${type.toLowerCase()}-789`);
+      const originalSale = Sale.create(
+        {
+          id: SaleId.create(`sale-rt-${type.toLowerCase()}`),
+          tenantId: 'tenant-rt-99',
+          clientId: 'client-rt-88',
+          currency: 'USD',
+          source,
+        },
+        clock,
+      );
+
+      originalSale.addItem(
+        {
+          id: SaleItemId.create(`item-rt-${type.toLowerCase()}`),
+          source,
+          description: `Line item for ${type}`,
+          quantity: 2,
+          unitPrice: Money.create(50, 'USD'),
+        },
+        clock,
+      );
+
+      // 1. Domain -> Persistence mapping
+      const { sale: persistedSale, items: persistedItems } =
+        PrismaSaleMapper.toPersistence(originalSale);
+
+      // 2. Mock DB representation returned from storage
+      const rawDbRecord = {
+        ...persistedSale,
+        createdAt: originalSale.createdAt,
+        updatedAt: originalSale.updatedAt,
+        items: persistedItems.map((item) => ({
+          ...item,
+          createdAt: originalSale.createdAt,
+          updatedAt: originalSale.updatedAt,
+        })),
+      };
+
+      // 3. Persistence -> Domain reconstitution
+      const reconstitutedSale = PrismaSaleMapper.toDomain(rawDbRecord);
+
+      // Verify domain aggregate equality & source value object integrity
+      expect(reconstitutedSale.id.equals(originalSale.id)).toBe(true);
+      expect(reconstitutedSale.source).toBeInstanceOf(SaleSource);
+      const reconstitutedSource = reconstitutedSale.source as SaleSource;
+      expect(reconstitutedSource.type).toBe(type);
+      expect(reconstitutedSource.referenceId).toBe(source.referenceId);
+      expect(reconstitutedSource.equals(source)).toBe(true);
+
+      // Verify items round-trip
+      expect(reconstitutedSale.items).toHaveLength(1);
+      const reconstitutedItemSource = reconstitutedSale.items[0]!.source as SaleSource;
+      expect(reconstitutedItemSource).toBeInstanceOf(SaleSource);
+      expect(reconstitutedItemSource.equals(source)).toBe(true);
+      expect(reconstitutedSale.total.equals(originalSale.total)).toBe(true);
+    });
+
+    it('persists and retrieves Sale using PrismaSaleRepository.save and findById', async () => {
+      const { mockPrisma, mockTx } = createMockPrisma();
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+
+      const source = SaleSource.create(SaleSourceType.FOOD, 'food-order-777');
+      const sale = Sale.create(
+        {
+          id: SaleId.create('sale-save-repo-01'),
+          tenantId: 'tenant-1',
+          currency: 'USD',
+          source,
+        },
+        clock,
+      );
+
+      // Execute save
+      await repo.save(sale);
+
+      expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
+      expect(mockTx.sale.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'sale-save-repo-01' },
+          create: expect.objectContaining({
+            sourceType: 'FOOD',
+            sourceId: 'food-order-777',
+            sourceCode: null,
+          }),
+        }),
+      );
+
+      // Setup findById return
+      const rawDbRow = {
+        id: 'sale-save-repo-01',
+        tenantId: 'tenant-1',
+        clientId: null,
+        status: PrismaSaleStatus.DRAFT,
+        currency: 'USD',
+        sourceType: 'FOOD',
+        sourceId: 'food-order-777',
+        sourceCode: null,
+        subtotalAmount: new Prisma.Decimal('0.00'),
+        discountTotalAmount: new Prisma.Decimal('0.00'),
+        totalAmount: new Prisma.Decimal('0.00'),
+        orderDiscountType: null,
+        orderDiscountValue: null,
+        orderDiscountReason: null,
+        cancellationReason: null,
+        cancelledAt: null,
+        completedAt: null,
+        refundedAt: null,
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        items: [],
+      };
+      mockPrisma.sale.findUnique.mockResolvedValue(rawDbRow);
+
+      const retrieved = await repo.findById('sale-save-repo-01');
+      expect(retrieved).not.toBeNull();
+      expect(retrieved?.id.value).toBe('sale-save-repo-01');
+      expect(retrieved?.source).toBeInstanceOf(SaleSource);
+      expect((retrieved?.source as SaleSource).type).toBe(SaleSourceType.FOOD);
+      expect((retrieved?.source as SaleSource).referenceId).toBe('food-order-777');
+    });
+  });
+
+  // ==========================================================================
+  // 5. Composite Uniqueness & Compound Index Alignment
+  // ==========================================================================
+  describe('5. Composite Uniqueness & Compound Index Alignment', () => {
+    it('verifies queries align with compound index @@index([tenantId, sourceType, sourceId])', async () => {
+      const { mockPrisma } = createMockPrisma();
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+
+      await repo.findBySourceReference(
+        SaleSourceType.GYM_MEMBERSHIP,
+        'membership-vip-001',
+        'tenant-alpha',
+      );
+
+      expect(mockPrisma.sale.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            sourceType: SaleSourceType.GYM_MEMBERSHIP,
+            sourceId: 'membership-vip-001',
+            tenantId: 'tenant-alpha',
+            status: { not: 'CANCELLED' },
+          },
+        }),
+      );
+    });
+
+    it('verifies queries align with compound index @@index([sourceType, sourceId]) when tenantId is omitted', async () => {
+      const { mockPrisma } = createMockPrisma();
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+
+      await repo.findBySourceReference(SaleSourceType.ROOM_RENTAL, 'room-studio-2');
+
+      expect(mockPrisma.sale.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            sourceType: SaleSourceType.ROOM_RENTAL,
+            sourceId: 'room-studio-2',
+            status: { not: 'CANCELLED' },
+          },
+        }),
+      );
+    });
+  });
+
+  // ==========================================================================
+  // 6. Concurrent Duplicate Source Prevention & Operational Single-Billing
+  // ==========================================================================
+  describe('6. Concurrent Duplicate Source Behavior & Single-Billing Invariant', () => {
+    it('rejects concurrent duplicate sale creation for KINESIOLOGY_SESSION in save() transaction', async () => {
+      const { mockPrisma, mockTx } = createMockPrisma();
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+
+      const source = SaleSource.create(
+        SaleSourceType.KINESIOLOGY_SESSION,
+        'session-kin-double-bill',
+      );
+      const sale = Sale.create(
+        {
+          id: SaleId.create('sale-new-session'),
+          tenantId: 'tenant-clinic',
+          currency: 'USD',
+          source,
+        },
+        clock,
+      );
+
+      // Simulate concurrent transaction already inserted active sale for this session
+      mockTx.sale.findFirst.mockResolvedValue({
+        id: 'sale-existing-session',
+      });
+
+      await expect(repo.save(sale)).rejects.toThrow(
+        /An active Sale \('sale-existing-session'\) already exists for KINESIOLOGY_SESSION 'session-kin-double-bill'/,
+      );
+    });
+
+    it('allows concurrent non-clinical source types (e.g. FOOD, DRINK) to create multiple sales for same reference if desired', async () => {
+      const { mockPrisma, mockTx } = createMockPrisma();
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+
+      const source = SaleSource.create(SaleSourceType.FOOD, 'food-item-retail-ref');
+      const sale = Sale.create(
+        {
+          id: SaleId.create('sale-food-retail-01'),
+          tenantId: 'tenant-cafe',
+          currency: 'USD',
+          source,
+        },
+        clock,
+      );
+
+      // Does not check or block duplicate retail sales
+      await expect(repo.save(sale)).resolves.not.toThrow();
+      expect(mockTx.sale.upsert).toHaveBeenCalled();
+    });
+
+    it('translates database unique constraint violation (P2002 / 23505) into DuplicateSaleException', async () => {
+      const { mockPrisma, mockTx } = createMockPrisma();
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+
+      const source = SaleSource.create(SaleSourceType.FOOD, 'food-001');
+      const sale = Sale.create(
+        {
+          id: SaleId.create('sale-duplicate-p2002'),
+          tenantId: 'tenant-1',
+          currency: 'USD',
+          source,
+        },
+        clock,
+      );
+
+      const p2002Error = new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+        code: 'P2002',
+        clientVersion: '6.3.1',
+      });
+      mockTx.sale.upsert.mockRejectedValue(p2002Error);
+
+      await expect(repo.save(sale)).rejects.toThrow(
+        /Unique constraint violation: A Sale with ID 'sale-duplicate-p2002' already exists/,
+      );
+    });
+  });
+
+  // ==========================================================================
+  // 7. Null & Optional Semantics in Persistence
+  // ==========================================================================
+  describe('7. Null & Optional Semantics in Persistence', () => {
+    it('strictly maps sourceCode to null when saving SaleSource (pure conceptual pair)', () => {
+      const source = SaleSource.create(SaleSourceType.DRINK, 'drink-smoothie-01');
+      const sale = Sale.create(
+        {
+          id: SaleId.create('sale-null-check-01'),
+          currency: 'USD',
+          source,
+        },
+        clock,
+      );
+
+      const { sale: persistedSale } = PrismaSaleMapper.toPersistence(sale);
+
+      expect(persistedSale.sourceType).toBe('DRINK');
+      expect(persistedSale.sourceId).toBe('drink-smoothie-01');
+      expect(persistedSale.sourceCode).toBeNull();
+      expect(persistedSale.tenantId).toBeNull();
+      expect(persistedSale.clientId).toBeNull();
+      expect(persistedSale.cancellationReason).toBeNull();
+      expect(persistedSale.cancelledAt).toBeNull();
+      expect(persistedSale.completedAt).toBeNull();
+      expect(persistedSale.refundedAt).toBeNull();
+    });
+
+    it('correctly populates optional tenantId and clientId when provided alongside SaleSource', () => {
+      const source = SaleSource.create(SaleSourceType.ROOM_RENTAL, 'studio-b');
+      const sale = Sale.create(
+        {
+          id: SaleId.create('sale-with-tenancy'),
+          tenantId: 'tenant-rehab-99',
+          clientId: 'client-athlete-77',
+          currency: 'USD',
+          source,
+        },
+        clock,
+      );
+
+      const { sale: persistedSale } = PrismaSaleMapper.toPersistence(sale);
+
+      expect(persistedSale.tenantId).toBe('tenant-rehab-99');
+      expect(persistedSale.clientId).toBe('client-athlete-77');
+    });
+
+    it('reconstitutes optional fields as undefined when raw database record has null values', () => {
+      const rawDbRow = {
+        id: 'sale-null-props',
+        tenantId: null,
+        clientId: null,
+        status: PrismaSaleStatus.DRAFT,
+        currency: 'USD',
+        sourceType: 'FOOD',
+        sourceId: 'food-order-nulls',
+        sourceCode: null,
+        subtotalAmount: new Prisma.Decimal('0.00'),
+        discountTotalAmount: new Prisma.Decimal('0.00'),
+        totalAmount: new Prisma.Decimal('0.00'),
+        orderDiscountType: null,
+        orderDiscountValue: null,
+        orderDiscountReason: null,
+        cancellationReason: null,
+        cancelledAt: null,
+        completedAt: null,
+        refundedAt: null,
+        version: 1,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        items: [],
+      };
+
+      const domainSale = PrismaSaleMapper.toDomain(rawDbRow);
+
+      expect(domainSale.tenantId).toBeUndefined();
+      expect(domainSale.clientId).toBeUndefined();
+      expect(domainSale.cancellationReason).toBeUndefined();
+      expect(domainSale.cancelledAt).toBeUndefined();
+      expect(domainSale.completedAt).toBeUndefined();
+      expect(domainSale.refundedAt).toBeUndefined();
+      expect(domainSale.source).toBeInstanceOf(SaleSource);
+      expect((domainSale.source as SaleSource).sourceCode).toBeNull();
+    });
+  });
 });

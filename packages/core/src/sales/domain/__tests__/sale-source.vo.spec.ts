@@ -64,6 +64,45 @@ describe('SaleSource Value Object (ADR-0121)', () => {
       },
     );
 
+    it.each(supportedTypes)(
+      'verifies complete lifecycle properties (construction, reference, serialization, equality, immutability) for $type',
+      ({ type, sampleRefId }) => {
+        // 1. Valid construction
+        const source1 = SaleSource.create(type, sampleRefId);
+        const source2 = new SaleSource(type, sampleRefId);
+
+        // 2. Valid reference extraction
+        expect(source1.type).toBe(type);
+        expect(source1.referenceId).toBe(sampleRefId);
+        expect(source1.sourceType).toBe(type);
+        expect(source1.sourceId).toBe(sampleRefId);
+        expect(source1.sourceCode).toBeNull();
+
+        // 3. Serialization
+        expect(source1.getValue()).toEqual({ type, referenceId: sampleRefId });
+        expect(source1.toJSON()).toEqual({ type, referenceId: sampleRefId });
+        expect(JSON.stringify(source1)).toBe(JSON.stringify({ type, referenceId: sampleRefId }));
+        const reconstituted = SaleSource.fromJSON(source1.toJSON());
+        expect(reconstituted.type).toBe(type);
+        expect(reconstituted.referenceId).toBe(sampleRefId);
+
+        // 4. Deterministic equality
+        expect(source1.equals(source2)).toBe(true);
+        expect(source2.equals(source1)).toBe(true);
+        const diffRef = SaleSource.create(type, 'different_ref_id_999');
+        expect(source1.equals(diffRef)).toBe(false);
+
+        // 5. Immutability
+        expect(Object.isFrozen(source1)).toBe(true);
+        expect(() => {
+          (source1 as unknown as Record<string, unknown>)['type'] = 'OTHER';
+        }).toThrow();
+        expect(() => {
+          (source1 as unknown as Record<string, unknown>)['referenceId'] = 'tampered';
+        }).toThrow();
+      },
+    );
+
     it('confirms isValidSaleSourceType recognizes exactly the five supported enum values', () => {
       expect(isValidSaleSourceType('KINESIOLOGY_SESSION')).toBe(true);
       expect(isValidSaleSourceType('GYM_MEMBERSHIP')).toBe(true);

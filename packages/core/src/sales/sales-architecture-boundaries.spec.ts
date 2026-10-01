@@ -1,5 +1,12 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { Sale } from './domain/sale.aggregate';
+import { SaleId } from './domain/value-objects/sale-id.vo';
+import { SaleSource } from './domain/value-objects/sale-source.vo';
+import { SaleSourceType } from './domain/enums/sale-source-type.enum';
+import { SaleSourceValidatorPort } from './application/ports/sale-source-validator.port';
+import { SaleRepositoryPort } from './application/ports/sale-repository.port';
+import { CreateSaleHandler } from './application/handlers/create-sale.handler';
 
 describe('Sales Bounded Context Architecture & Source Domain Boundary Purity (ADR-0121)', () => {
   const salesRootDir = path.resolve(__dirname);
@@ -239,6 +246,100 @@ describe('Sales Bounded Context Architecture & Source Domain Boundary Purity (AD
           });
         }
       }
+    });
+
+    it('proves valid reference can be stored in Sales without loading or resolving concrete source entities', () => {
+      // Create Sale using pure SaleSource without needing or instantiating any source entities
+      const source = SaleSource.create(SaleSourceType.KINESIOLOGY_SESSION, 'sess_cross_ctx_999');
+      const sale = Sale.create({
+        id: SaleId.create('sale-isolated-01'),
+        tenantId: 'tenant-pure',
+        clientId: 'client-pure',
+        currency: 'USD',
+        source,
+      });
+
+      // Verify Sale aggregate only holds the scalar (type, referenceId) pair
+      expect(sale.source).toBeInstanceOf(SaleSource);
+      expect(sale.source.sourceType).toBe(SaleSourceType.KINESIOLOGY_SESSION);
+      expect(sale.source.sourceId).toBe('sess_cross_ctx_999');
+      // No entity graph or foreign models attached
+      expect((sale as unknown as Record<string, unknown>)['treatmentSession']).toBeUndefined();
+      expect((sale as unknown as Record<string, unknown>)['concreteEntity']).toBeUndefined();
+    });
+
+    it('proves source validation occurs in application layer via SaleSourceValidatorPort without aggregate coupling', async () => {
+      const mockValidator: SaleSourceValidatorPort = {
+        validateSource: jest.fn().mockResolvedValue({
+          isValid: true,
+          exists: true,
+          belongsToContext: true,
+          actualContext: 'KINESIOLOGY',
+        }),
+      };
+
+      const mockRepo: SaleRepositoryPort = {
+        findById: jest.fn().mockResolvedValue(null),
+        save: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const handler = new CreateSaleHandler(mockRepo, undefined, undefined, mockValidator);
+
+      const result = await handler.execute({
+        input: {
+          currency: 'USD',
+          tenantId: 'tenant-1',
+          clientId: 'client-1',
+          source: {
+            sourceType: SaleSourceType.KINESIOLOGY_SESSION,
+            sourceId: 'sess_valid_01',
+          },
+          expectedContext: 'KINESIOLOGY',
+        },
+      });
+
+      expect(result.isSuccess).toBe(true);
+      expect(mockValidator.validateSource).toHaveBeenCalledWith({
+        sourceType: SaleSourceType.KINESIOLOGY_SESSION,
+        sourceId: 'sess_valid_01',
+        sourceCode: null,
+        tenantId: 'tenant-1',
+        expectedContext: 'KINESIOLOGY',
+      });
+      expect(mockRepo.save).toHaveBeenCalled();
+    });
+
+    it('proves application layer rejects creation when SaleSourceValidatorPort reports non-existent entity', async () => {
+      const mockValidator: SaleSourceValidatorPort = {
+        validateSource: jest.fn().mockResolvedValue({
+          isValid: false,
+          exists: false,
+          errorMessage: 'Treatment session not found in kinesiology registry.',
+        }),
+      };
+
+      const mockRepo: SaleRepositoryPort = {
+        findById: jest.fn().mockResolvedValue(null),
+        save: jest.fn().mockResolvedValue(undefined),
+      };
+
+      const handler = new CreateSaleHandler(mockRepo, undefined, undefined, mockValidator);
+
+      const result = await handler.execute({
+        input: {
+          currency: 'USD',
+          source: {
+            sourceType: SaleSourceType.KINESIOLOGY_SESSION,
+            sourceId: 'sess_non_existent',
+          },
+        },
+      });
+
+      expect(result.isSuccess).toBe(false);
+      expect((result.getError() as Error).message).toContain(
+        'Treatment session not found in kinesiology registry',
+      );
+      expect(mockRepo.save).not.toHaveBeenCalled();
     });
   });
 
