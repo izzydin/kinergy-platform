@@ -69,14 +69,15 @@ graph TD
 
 ## 2. Bounded Context Catalog & Specifications
 
-| Bounded Context          | Package / Directory               | Core Aggregates                                              | Specification Document                                                     |
-| :----------------------- | :-------------------------------- | :----------------------------------------------------------- | :------------------------------------------------------------------------- |
-| **Identity (IAM)**       | `apps/api/src/platform/identity/` | `User`, `Role`, `Permission`, `RefreshToken`                 | [Identity Domain Model](./identity-domain-model.md)                        |
-| **Client Management**    | `modules/client/`                 | `Client`, `ClientTimelineEntry`                              | [Client Subsystem Architecture](../../modules/client/docs/ARCHITECTURE.md) |
-| **Scheduling**           | `packages/core/src/scheduling/`   | `Appointment`, `RecurrenceSeries`, `Room`                    | [Scheduling Architecture](../scheduling/architecture.md)                   |
-| **Kinesiology**          | `packages/core/src/kinesiology/`  | `TreatmentSession`, `SessionNotes` (SOAP)                    | [Kinesiology Specification](./contexts/kinesiology.md)                     |
-| **Gym Management**       | `packages/core/src/gym/`          | `Membership`, `MembershipPlan`, `AttendanceRecord`           | [Gym Specification](./contexts/gym.md)                                     |
-| **Resources Management** | `packages/core/src/resources/`    | `InventoryItem`, `StockMovement`, `FixedAsset`, AssetHistory | [Resources Specification](./contexts/resources.md)                         |
+| Bounded Context          | Package / Directory               | Core Aggregates                                              | Specification Document                                                                                            |
+| :----------------------- | :-------------------------------- | :----------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------- |
+| **Identity (IAM)**       | `apps/api/src/platform/identity/` | `User`, `Role`, `Permission`, `RefreshToken`                 | [Identity Domain Model](./identity-domain-model.md)                                                               |
+| **Client Management**    | `modules/client/`                 | `Client`, `ClientTimelineEntry`                              | [Client Subsystem Architecture](../../modules/client/docs/ARCHITECTURE.md)                                        |
+| **Scheduling**           | `packages/core/src/scheduling/`   | `Appointment`, `RecurrenceSeries`, `Room`                    | [Scheduling Architecture](../scheduling/architecture.md)                                                          |
+| **Kinesiology**          | `packages/core/src/kinesiology/`  | `TreatmentSession`, `SessionNotes` (SOAP)                    | [Kinesiology Specification](./contexts/kinesiology.md)                                                            |
+| **Gym Management**       | `packages/core/src/gym/`          | `Membership`, `MembershipPlan`, `AttendanceRecord`           | [Gym Specification](./contexts/gym.md)                                                                            |
+| **Resources Management** | `packages/core/src/resources/`    | `InventoryItem`, `StockMovement`, `FixedAsset`, AssetHistory | [Resources Specification](./contexts/resources.md)                                                                |
+| **Sales & Payments**     | `packages/core/src/sales/`        | `Sale`, `Payment`, `Receipt`                                 | [Sales & Payments Specification](./sales-payments.md), [SaleSource Specification](./sale-source-specification.md) |
 
 ---
 

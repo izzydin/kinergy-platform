@@ -90,3 +90,7 @@ graph TD
     - Central architecture documentation hub, baseline discovery, and governance for Phase 6: Consumable Inventory & Fixed Assets.
 12. **[SaleSource Database Migration Architecture & Decision Record](./sale-source-database-migration-decision.md)**
     - Authoritative database migration strategy, pre-migration schema inspection, rollback procedures, and index optimization for commercial origins (`SaleSource`).
+13. **[SaleSource Extensibility Review & Design Guardrails](./sale-source-extensibility-review.md)**
+    - Evaluation of future source extensibility, design guardrails, and non-polymorphic evolution.
+14. **[SaleSource Commercial Origin Architecture Specification (Milestone 7.9)](./sale-source-specification.md)**
+    - Authoritative technical specification for `SaleSource`: purpose, structure, supported types, aggregate ownership, bounded context boundaries, persistence, API, and traceability matrix.
