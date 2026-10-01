@@ -295,4 +295,44 @@ describe('Sales Bounded Context Architecture & Source Domain Boundary Purity (AD
       }
     });
   });
+
+  describe('7. Receipt Milestone 7.7 vs Milestone 7.9 Architectural Decoupling', () => {
+    const receiptAggregatePath = path.resolve(salesDomainPath, 'receipt.aggregate.ts');
+    const receiptDtoPath = path.resolve(salesRootDir, 'application/dtos/receipt.dto.ts');
+
+    it('proves Receipt aggregate root does NOT have sourceReference or sourceType properties at the root', () => {
+      const content = fs.readFileSync(receiptAggregatePath, 'utf-8');
+      expect(content).not.toMatch(/private\s+(?:readonly\s+)?_sourceReference/);
+      expect(content).not.toMatch(/public\s+get\s+sourceReference\(\)/);
+      expect(content).not.toMatch(/public\s+get\s+sourceType\(\)/);
+    });
+
+    it('proves ReceiptDTO does NOT expose sourceReference or sourceType at the root', () => {
+      const content = fs.readFileSync(receiptDtoPath, 'utf-8');
+      expect(content).not.toMatch(/readonly\s+sourceReference/);
+    });
+
+    it('proves Receipt aggregate and handlers have ZERO imports of SaleSource or foreign source entities', () => {
+      const receiptFiles = [
+        receiptAggregatePath,
+        path.resolve(salesRootDir, 'application/handlers/issue-receipt.handler.ts'),
+        path.resolve(salesRootDir, 'domain/value-objects/receipt-item-snapshot.vo.ts'),
+      ];
+
+      for (const filePath of receiptFiles) {
+        if (!fs.existsSync(filePath)) continue;
+        const content = fs.readFileSync(filePath, 'utf-8');
+
+        expect(content).not.toMatch(/from\s+['"].*sale-source\.vo['"]/);
+        expect(content).not.toMatch(/from\s+['"].*sale-source-type\.enum['"]/);
+
+        for (const entityName of forbiddenConcreteEntities) {
+          const namedImportRegex = new RegExp(
+            `import\\s+(?:type\\s+)?(?:\\{[^}]*\\b${entityName}\\b[^}]*\\}|${entityName})\\s+from`,
+          );
+          expect(namedImportRegex.test(content)).toBe(false);
+        }
+      }
+    });
+  });
 });

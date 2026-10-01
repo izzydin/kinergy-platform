@@ -256,3 +256,15 @@ Receipt operations reuse the platform's established permission framework:
 
 - **Storage Denormalization**: Storing snapshot text, descriptions, and customer contact data duplicates storage. This is an intentional and necessary trade-off for legal document immutability.
 - **Sequence Coordination**: Generating monotonic, gap-free receipt numbers per tenant requires atomic database sequence management.
+
+---
+
+## 8. Addendum: Evaluation of Milestone 7.9 SaleSource Integration
+
+Following the introduction of `SaleSource` (ADR-0121 / Milestone 7.9), the platform reviewed whether `Receipt` should capture source information:
+
+1. **Root Decision**: `Receipt` contains **NEITHER** `sourceType` nor `sourceReference` at the root.
+   - A `Receipt` is a customer-facing legal proof-of-purchase voucher. It evidences what was purchased and paid for, not internal operational routing.
+   - Pointers to upstream operational workflows belong to `Sale.sourceReference` and are navigated via `saleId`.
+2. **Item-Level Preservation**: Line items already snapshot commercial catalog categories (`sourceType`) and catalog IDs (`sourceId`), along with the frozen `description` and `skuOrCode`.
+3. **Decoupling and Non-Expansion**: `Receipt` maintains zero dependencies on source domains and never performs dynamic reads during rendering. Milestone 7.9 does not expand the scope or schema of Milestone 7.7.

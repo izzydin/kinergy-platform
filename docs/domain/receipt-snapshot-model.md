@@ -56,18 +56,19 @@ The platform's client entity resides in the Client Bounded Context (`modules/cli
 
 The `Sale` aggregate is the commercial source of truth.
 
-| Sale Attribute             | Copied to Receipt? | Target Field                | Reason & Architectural Justification                                                                                                                                    |
-| :------------------------- | :----------------- | :-------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **`id`**                   | **YES**            | `saleId`                    | **Reference**. Scalar identifier linking the receipt to the commercial transaction.                                                                                     |
-| **`id.value` / Reference** | **YES**            | `saleReference`             | **Snapshot**. Human-readable commercial reference. Even if the sale aggregate is archived, cold-stored, or partitioned, the voucher displays the order number directly. |
-| **`status`**               | **NO**             | _Evaluated as Precondition_ | Receipt creation is permitted **only** when `sale.status === PAID                                                                                                       |     | COMPLETED`. Once issued, the receipt does not mirror future sale state transitions. |
-| **`subtotal`**             | **YES**            | `subtotal`                  | **Snapshot**. Frozen sum of line items before order-level discounts.                                                                                                    |
-| **`discountTotal`**        | **YES**            | `discountTotal`             | **Snapshot**. Frozen total reduction applied to the sale.                                                                                                               |
-| **`total`**                | **YES**            | `total`                     | **Snapshot**. Frozen final payable and settled amount.                                                                                                                  |
-| **`currency`**             | **YES**            | `currency`                  | **Derived / Verified**. Enforces single-currency homogeneity across items, totals, and tenders.                                                                         |
-| _`version`_                | **NO**             | _Excluded_                  | Internal concurrency version of `Sale`. `Receipt` maintains its own aggregate version.                                                                                  |
-| _`uncommittedEvents`_      | **NO**             | _Excluded_                  | In-memory domain event queue; non-persistent runtime state.                                                                                                             |
-| _`cancellationReason`_     | **NO**             | _Excluded_                  | Invariant: Cancelled sales cannot issue receipts (ADR-0117 Invariant 9).                                                                                                |
+| Sale Attribute                   | Copied to Receipt? | Target Field                | Reason & Architectural Justification                                                                                                                                                                                                                 |
+| :------------------------------- | :----------------- | :-------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`id`**                         | **YES**            | `saleId`                    | **Reference**. Scalar identifier linking the receipt to the commercial transaction.                                                                                                                                                                  |
+| **`id.value` / Reference**       | **YES**            | `saleReference`             | **Snapshot**. Human-readable commercial reference. Even if the sale aggregate is archived, cold-stored, or partitioned, the voucher displays the order number directly.                                                                              |
+| **`status`**                     | **NO**             | _Evaluated as Precondition_ | Receipt creation is permitted **only** when `sale.status === PAID                                                                                                                                                                                    |     | COMPLETED`. Once issued, the receipt does not mirror future sale state transitions. |
+| **`subtotal`**                   | **YES**            | `subtotal`                  | **Snapshot**. Frozen sum of line items before order-level discounts.                                                                                                                                                                                 |
+| **`discountTotal`**              | **YES**            | `discountTotal`             | **Snapshot**. Frozen total reduction applied to the sale.                                                                                                                                                                                            |
+| **`total`**                      | **YES**            | `total`                     | **Snapshot**. Frozen final payable and settled amount.                                                                                                                                                                                               |
+| **`currency`**                   | **YES**            | `currency`                  | **Derived / Verified**. Enforces single-currency homogeneity across items, totals, and tenders.                                                                                                                                                      |
+| **`source` / `sourceReference`** | **NO**             | _Excluded_                  | Operational origin correlation token (ADR-0121). Evaluated against Milestone 7.7: Excluded from Receipt root. Receipts are customer-facing proof-of-purchase vouchers; operational origin routing is preserved on `Sale` and navigated via `saleId`. |
+| _`version`_                      | **NO**             | _Excluded_                  | Internal concurrency version of `Sale`. `Receipt` maintains its own aggregate version.                                                                                                                                                               |
+| _`uncommittedEvents`_            | **NO**             | _Excluded_                  | In-memory domain event queue; non-persistent runtime state.                                                                                                                                                                                          |
+| _`cancellationReason`_           | **NO**             | _Excluded_                  | Invariant: Cancelled sales cannot issue receipts (ADR-0117 Invariant 9).                                                                                                                                                                             |
 
 ### 2.3 SaleItem Model Evaluation (`SaleItem` Entity)
 
@@ -99,6 +100,30 @@ The `Payment` aggregate is the tender source of truth.
 | **`reference`**                     | **YES**            | `reference`  | **Snapshot**. External reference (card authorization approval code, bank transfer receipt hash, POS slip number).            |
 | **`paidAt`**                        | **YES**            | `paidAt`     | **Snapshot**. Exact timestamp when the tender was captured and settled.                                                      |
 | _`version`_ / _`uncommittedEvents`_ | **NO**             | _Excluded_   | Internal aggregate lifecycle plumbing.                                                                                       |
+
+### 2.5 Evaluation of SaleSource (Milestone 7.9 Integration Review vs. Milestone 7.7 Receipt)
+
+Following the implementation of Milestone 7.9 (Sale Source References — ADR-0121), the platform formally reviewed whether `Receipt` should contain:
+
+1. `source type` (`SaleSourceType`);
+2. `source reference` (`SaleSource`);
+3. `neither`;
+4. `a snapshot of the source description`.
+
+#### Architectural Decision: NEITHER source type NOR source reference is added to the Receipt root.
+
+- **Documented Business Purpose**: Under ADR-0117 §1 & §2, a `Receipt` is an immutable, customer-facing legal proof-of-purchase voucher. It documents finalized items, totals, tenders, and customer attribution. It is not an internal operational workflow dispatcher.
+- **Why Source Type is Excluded from Receipt Root**: A Sale may consolidate multi-item lines originating across different facility operations in a single checkout (e.g. a clinical rehabilitation session, an electrolyte smoothie, and a gym towel). Placing a single `sourceType` on the root of a Receipt would falsely classify a multi-department checkout or create conflicting visual hierarchy with line-item breakdowns.
+- **Why Source Reference is Excluded from Receipt Root**: `SaleSource` exists exclusively on `Sale` to enforce operational single-billing invariants (`SALE-010`), deduplicate operational checkout inception, and provide upstream fulfillment correlation. None of these belong to the `Receipt` lifecycle.
+- **How Source Information is Classified**:
+  1. **Commercial Transaction Origin (`saleReference`)**: Classified as a **Historical Snapshot**. The human-readable order/voucher code (e.g. `ORD-2026-0042`) is snapshotted directly on the Receipt root.
+  2. **Domain Transaction Lineage (`saleId`)**: Classified as a **Scalar Reference**. Operational tracing back to the commercial aggregate root and its upstream `SaleSource` is navigated via `saleId`.
+  3. **Commercial Line Item Categorization (`items[].sourceType` & `sourceId`)**: Classified as a **Snapshot & Scalar Reference**. Line items already snapshot the commercial catalog category (`INVENTORY_ITEM`, `MEMBERSHIP_PLAN`, `TREATMENT_SESSION`) for fiscal/tax grouping.
+  4. **Item Presentation Description (`items[].description`)**: Classified as a **Historical Snapshot**. The item description is frozen at checkout and never re-queried.
+- **Historical Integrity & Decoupling Guarantees**:
+  - `Receipt` maintains **ZERO** dependencies on source domains (`FoodOrder`, `GymMembership`, `TreatmentSession`, `Room`).
+  - `Receipt` rendering **NEVER** performs dynamic queries or joins against source bounded contexts.
+  - Milestone 7.9 does **NOT** expand the scope, entity structure, or database schema of Milestone 7.7.
 
 ---
 
