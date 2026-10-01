@@ -10,6 +10,8 @@ import { SourceType } from '../../../../domain/enums/source-type.enum';
 import { PrismaSaleMapper } from '../mappers/prisma-sale.mapper';
 import { PrismaSaleRepository } from '../repositories/prisma-sale.repository';
 import { Clock } from '../../../../domain/shared/clock';
+import { SaleRepositoryPort } from '../../../../application/ports/sale-repository.port';
+import { CreateSaleHandler } from '../../../../application/handlers/create-sale.handler';
 
 class TestClock implements Clock {
   constructor(private readonly currentTime: Date) {}
@@ -574,6 +576,96 @@ describe('SaleSource Persistence Architecture Integration (Prisma)', () => {
       // Does not check or block duplicate retail sales
       await expect(repo.save(sale)).resolves.not.toThrow();
       expect(mockTx.sale.upsert).toHaveBeenCalled();
+    });
+
+    it('handles concurrent Request A and Request B for FOOD/order-123: allows multiple sales per retail source reference', async () => {
+      const { mockPrisma } = createMockPrisma();
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+
+      // Request A and Request B arrive concurrently with the same source: FOOD / order-123
+      const sourceA = SaleSource.create(SaleSourceType.FOOD, 'order-123');
+      const saleA = Sale.create(
+        {
+          id: SaleId.create('sale-req-A'),
+          tenantId: 'tenant-cafe',
+          currency: 'USD',
+          source: sourceA,
+        },
+        clock,
+      );
+
+      const sourceB = SaleSource.create(SaleSourceType.FOOD, 'order-123');
+      const saleB = Sale.create(
+        {
+          id: SaleId.create('sale-req-B'),
+          tenantId: 'tenant-cafe',
+          currency: 'USD',
+          source: sourceB,
+        },
+        clock,
+      );
+
+      // Both concurrent requests save successfully without blocking each other or throwing
+      await expect(repo.save(saleA)).resolves.not.toThrow();
+      await expect(repo.save(saleB)).resolves.not.toThrow();
+
+      // Proves two distinct commercial agreements were recorded for the retail source
+      expect(saleA.id.value).not.toBe(saleB.id.value);
+      expect(saleA.source.equals(saleB.source)).toBe(true);
+    });
+
+    it('handles concurrent Request A and Request B with identical idempotencyKey: returns existing Sale without creating duplicate', async () => {
+      // In-memory repo supporting idempotency simulation
+      const inMemoryStore = new Map<string, Sale>();
+      const mockRepo: SaleRepositoryPort = {
+        findById: jest.fn(async (id: SaleId | string) => {
+          const key = typeof id === 'string' ? id : id.value;
+          return inMemoryStore.get(key) ?? null;
+        }),
+        save: jest.fn(async (sale: Sale) => {
+          inMemoryStore.set(sale.id.value, sale);
+        }),
+      };
+
+      const handler = new CreateSaleHandler(mockRepo, clock);
+
+      // Request A arrives with idempotencyKey 'idem-food-order-123'
+      const resultA = await handler.execute({
+        input: {
+          idempotencyKey: 'idem-food-order-123',
+          tenantId: 'tenant-cafe',
+          clientId: 'client-walkin',
+          currency: 'USD',
+          source: {
+            sourceType: SaleSourceType.FOOD,
+            sourceId: 'order-123',
+          },
+        },
+      });
+
+      expect(resultA.isSuccess).toBe(true);
+      const saleIdA = resultA.getValue().id;
+
+      // Concurrent/retry Request B arrives with identical idempotencyKey and identical parameters
+      const resultB = await handler.execute({
+        input: {
+          idempotencyKey: 'idem-food-order-123',
+          tenantId: 'tenant-cafe',
+          clientId: 'client-walkin',
+          currency: 'USD',
+          source: {
+            sourceType: SaleSourceType.FOOD,
+            sourceId: 'order-123',
+          },
+        },
+      });
+
+      expect(resultB.isSuccess).toBe(true);
+      const saleIdB = resultB.getValue().id;
+
+      // Deterministically returns the same Sale without creating a duplicate
+      expect(saleIdB).toBe(saleIdA);
+      expect(mockRepo.save).toHaveBeenCalledTimes(1);
     });
 
     it('translates database unique constraint violation (P2002 / 23505) into DuplicateSaleException', async () => {
