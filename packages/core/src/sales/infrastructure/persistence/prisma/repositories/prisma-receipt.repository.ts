@@ -8,6 +8,7 @@ import { PrismaReceiptMapper } from '../mappers/prisma-receipt.mapper';
 import { PrismaReceiptSequenceGenerator } from '../services/prisma-receipt-sequence.generator';
 import { ReceiptOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
 import { DuplicateReceiptException } from '../../../../domain/exceptions/duplicate-receipt.exception';
+import { PrismaDatabaseErrorMapper } from '../mappers/prisma-database-error.mapper';
 
 /**
  * PostgreSQL and Prisma implementation of the ReceiptRepositoryPort.
@@ -132,6 +133,11 @@ export class PrismaReceiptRepository implements ReceiptRepositoryPort {
 
       if (this.isUniqueConstraintError(error)) {
         throw new DuplicateReceiptException(receipt.saleId.value, receipt.tenantId);
+      }
+
+      const checkError = PrismaDatabaseErrorMapper.mapCheckConstraintError(error);
+      if (checkError) {
+        throw checkError;
       }
 
       throw error;

@@ -4,6 +4,7 @@ import { PaymentId } from '../../../../domain/value-objects/payment-id.vo';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { PaymentOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
 import { PrismaPaymentMapper } from '../mappers/prisma-payment.mapper';
+import { PrismaDatabaseErrorMapper } from '../mappers/prisma-database-error.mapper';
 
 import { PaymentRepositoryPort } from '../../../../application/ports/payment-repository.port';
 
@@ -52,39 +53,52 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
   public async save(payment: Payment): Promise<void> {
     const paymentData = PrismaPaymentMapper.toPersistence(payment);
 
-    await this.prisma.$transaction(async (tx) => {
-      if (payment.version === 1) {
-        // Initial insert or idempotent initial save
-        // Guard against stale version 1 overwriting a record that has already progressed past version 1
-        const existing = await tx.payment.findUnique({
-          where: { id: paymentData.id },
-          select: { id: true, version: true },
-        });
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        if (payment.version === 1) {
+          // Initial insert or idempotent initial save
+          // Guard against stale version 1 overwriting a record that has already progressed past version 1
+          const existing = await tx.payment.findUnique({
+            where: { id: paymentData.id },
+            select: { id: true, version: true },
+          });
 
-        if (existing && existing.version > 1) {
-          throw new PaymentOptimisticLockException(paymentData.id, existing.version);
+          if (existing && existing.version > 1) {
+            throw new PaymentOptimisticLockException(paymentData.id, existing.version);
+          }
+
+          await tx.payment.upsert({
+            where: { id: paymentData.id },
+            create: paymentData,
+            update: paymentData,
+          });
+        } else {
+          // Optimistic concurrency control check against prior version
+          const priorVersion = payment.version - 1;
+          const result = await tx.payment.updateMany({
+            where: {
+              id: paymentData.id,
+              version: priorVersion,
+            },
+            data: paymentData,
+          });
+
+          if (result.count === 0) {
+            throw new PaymentOptimisticLockException(paymentData.id, priorVersion);
+          }
         }
-
-        await tx.payment.upsert({
-          where: { id: paymentData.id },
-          create: paymentData,
-          update: paymentData,
-        });
-      } else {
-        // Optimistic concurrency control check against prior version
-        const priorVersion = payment.version - 1;
-        const result = await tx.payment.updateMany({
-          where: {
-            id: paymentData.id,
-            version: priorVersion,
-          },
-          data: paymentData,
-        });
-
-        if (result.count === 0) {
-          throw new PaymentOptimisticLockException(paymentData.id, priorVersion);
-        }
+      });
+    } catch (error: unknown) {
+      if (error instanceof PaymentOptimisticLockException) {
+        throw error;
       }
-    });
+
+      const checkError = PrismaDatabaseErrorMapper.mapCheckConstraintError(error);
+      if (checkError) {
+        throw checkError;
+      }
+
+      throw error;
+    }
   }
 }

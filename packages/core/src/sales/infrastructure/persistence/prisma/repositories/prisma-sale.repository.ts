@@ -7,6 +7,7 @@ import { SaleOptimisticLockException } from '../../../../domain/exceptions/optim
 import { InvalidSaleStateException } from '../../../../domain/exceptions/invalid-sale-state.exception';
 import { DuplicateSaleException } from '../../../../domain/exceptions/duplicate-sale.exception';
 import { PrismaSaleMapper } from '../mappers/prisma-sale.mapper';
+import { PrismaDatabaseErrorMapper } from '../mappers/prisma-database-error.mapper';
 
 import { SaleRepositoryPort } from '../../../../application/ports/sale-repository.port';
 
@@ -243,6 +244,11 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
           sale.id.value,
           sale.tenantId,
         );
+      }
+
+      const checkError = PrismaDatabaseErrorMapper.mapCheckConstraintError(error);
+      if (checkError) {
+        throw checkError;
       }
 
       throw error;
