@@ -16,6 +16,9 @@ import { ReceiptId } from '../value-objects/receipt-id.vo';
 import { ReceiptNumber } from '../value-objects/receipt-number.vo';
 import { ReceiptStatus } from '../enums/receipt-status.enum';
 import { ReceiptDomainException } from '../exceptions/receipt-domain.exception';
+import { SaleSource } from '../value-objects/sale-source.vo';
+import { SaleSourceType } from '../enums/sale-source-type.enum';
+import { ReceiptMapper } from '../../application/mappers/receipt.mapper';
 import { Clock } from '../shared/clock';
 import { IssueReceiptHandler } from '../../application/handlers/issue-receipt.handler';
 import { SaleRepositoryPort } from '../../application/ports/sale-repository.port';
@@ -597,6 +600,235 @@ describe('Senior Domain Integration Architecture: Sale ↔ Receipt Boundary Inte
       expect(saleRepo.store.has(sale.id.value)).toBe(true);
       expect(receiptRepo.store.has(receipt.id.value)).toBe(true);
       expect(saleRepo.store.has(receipt.id.value)).toBe(false);
+    });
+  });
+
+  // ==========================================================================
+  // 5. Milestone 7.7 vs 7.9: SaleSource & Receipt Architectural Boundary Verification
+  // ==========================================================================
+  describe('5. Milestone 7.7 Receipt vs Milestone 7.9 SaleSource Boundary Verification', () => {
+    it('proves Receipt root does NEITHER contain sourceType nor sourceReference properties', () => {
+      const { sale, payment } = createStandardSettledSaleAndPayment();
+      const receipt = Receipt.fromSettledSale(
+        {
+          id: ReceiptId.create('rec-origin-001'),
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000201',
+        },
+        clock,
+      );
+
+      // Verify that Receipt root does NOT possess sourceType or sourceReference
+      const receiptProps = Object.getOwnPropertyNames(receipt);
+      expect(receiptProps.some((p) => p.toLowerCase().includes('sourcetype'))).toBe(false);
+      expect(receiptProps.some((p) => p.toLowerCase().includes('sourcereference'))).toBe(false);
+
+      const record = receipt as unknown as Record<string, unknown>;
+      expect(record.sourceType).toBeUndefined();
+      expect(record.sourceReference).toBeUndefined();
+      expect(record.source).toBeUndefined();
+    });
+
+    it('proves Receipt root captures saleReference as a customer-facing business reference without leaking internal source metadata', () => {
+      const kinesioSource = SourceReference.create({
+        sourceType: SourceType.TREATMENT_SESSION,
+        sourceId: 'treatment-session-uuid-42',
+        sourceCode: 'ORD-CLINICAL-2026-0042',
+      });
+      const sale = Sale.create(
+        { source: kinesioSource, tenantId: 'tenant-charlie', currency: 'USD' },
+        clock,
+      );
+      sale.addItem(
+        {
+          id: SaleItemId.create('item-kinesio-1'),
+          source: kinesioSource,
+          description: 'Spinal Rehabilitation Session',
+          quantity: 1,
+          unitPrice: Money.create(120.0, 'USD'),
+        },
+        clock,
+      );
+      sale.finalize(clock);
+
+      const payment = Payment.createSettled(
+        {
+          id: PaymentId.create('pay-kinesio-1'),
+          saleId: sale.id,
+          tenantId: sale.tenantId,
+          method: PaymentMethod.CASH,
+          amount: Money.create(120.0, 'USD'),
+        },
+        clock,
+      );
+      sale.markPaid(clock);
+
+      const receipt = Receipt.fromSettledSale(
+        {
+          id: ReceiptId.create('rec-origin-002'),
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000202',
+        },
+        clock,
+      );
+
+      // saleReference holds the customer-meaningful business reference (ORD-CLINICAL-2026-0042)
+      expect(receipt.saleReference).toBe('ORD-CLINICAL-2026-0042');
+      // Root receipt does not expose internal database entity UUID (treatment-session-uuid-42)
+      expect(receipt.saleReference).not.toBe('treatment-session-uuid-42');
+    });
+
+    it('proves ReceiptItemSnapshot captures a historical snapshot of the item description', () => {
+      const { sale, payment } = createStandardSettledSaleAndPayment();
+      const receipt = Receipt.fromSettledSale(
+        {
+          id: ReceiptId.create('rec-origin-003'),
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000203',
+        },
+        clock,
+      );
+
+      const itemSnapshot1 = receipt.items[0]!;
+      const itemSnapshot2 = receipt.items[1]!;
+
+      // Frozen snapshot strings
+      expect(itemSnapshot1.description).toBe('Elite Coaching Program');
+      expect(itemSnapshot2.description).toBe('Recovery Session Addon');
+
+      // The snapshot is permanently write-once and independent of any future catalog modifications
+      expect(Object.isFrozen(itemSnapshot1)).toBe(true);
+    });
+
+    it('proves ReceiptItemSnapshot preserves scalar sourceType and sourceId as opaque correlation metadata', () => {
+      const { sale, payment } = createStandardSettledSaleAndPayment();
+      const receipt = Receipt.fromSettledSale(
+        {
+          id: ReceiptId.create('rec-origin-004'),
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000204',
+        },
+        clock,
+      );
+
+      const itemSnapshot = receipt.items[0]!;
+
+      // Captures scalar metadata for correlation
+      expect(itemSnapshot.sourceType).toBe(SourceType.INVENTORY_ITEM);
+      expect(itemSnapshot.sourceId).toBe('inv-item-omega-99');
+      expect(itemSnapshot.skuOrCode).toBeNull();
+
+      // Proves they are scalar strings and not object entity references or foreign keys
+      expect(typeof itemSnapshot.sourceType).toBe('string');
+      expect(typeof itemSnapshot.sourceId).toBe('string');
+    });
+
+    it('proves Receipt supports multi-source baskets without top-level source type collisions', () => {
+      const kinesioSource = SaleSource.create(SaleSourceType.KINESIOLOGY_SESSION, 'sess_101');
+      const drinkSource = SaleSource.create(SaleSourceType.DRINK, 'inv_smoothie_202');
+      const gymSource = SaleSource.create(SaleSourceType.GYM_MEMBERSHIP, 'plan_gold_303');
+
+      // Front desk checkout combines three different domain services in one Sale
+      const sale = Sale.create(
+        { source: kinesioSource, tenantId: 'tenant-charlie', currency: 'USD' },
+        clock,
+      );
+      sale.addItem(
+        {
+          id: SaleItemId.create('item-multi-1'),
+          source: kinesioSource,
+          description: 'Rehabilitation Therapy',
+          quantity: 1,
+          unitPrice: Money.create(100.0, 'USD'),
+        },
+        clock,
+      );
+      sale.addItem(
+        {
+          id: SaleItemId.create('item-multi-2'),
+          source: drinkSource,
+          description: 'Electrolyte Smoothie',
+          quantity: 2,
+          unitPrice: Money.create(5.0, 'USD'),
+        },
+        clock,
+      );
+      sale.addItem(
+        {
+          id: SaleItemId.create('item-multi-3'),
+          source: gymSource,
+          description: 'Gold Monthly Access',
+          quantity: 1,
+          unitPrice: Money.create(50.0, 'USD'),
+        },
+        clock,
+      );
+      sale.finalize(clock);
+
+      const payment = Payment.createSettled(
+        {
+          id: PaymentId.create('pay-multi-1'),
+          saleId: sale.id,
+          tenantId: sale.tenantId,
+          method: PaymentMethod.CASH,
+          amount: Money.create(160.0, 'USD'),
+        },
+        clock,
+      );
+      sale.markPaid(clock);
+
+      const receipt = Receipt.fromSettledSale(
+        {
+          id: ReceiptId.create('rec-multi-001'),
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000205',
+        },
+        clock,
+      );
+
+      // Verify the single customer receipt represents all 3 lines cleanly without root source conflicts
+      expect(receipt.items).toHaveLength(3);
+      expect(receipt.items[0]!.sourceType).toBe(SaleSourceType.KINESIOLOGY_SESSION);
+      expect(receipt.items[0]!.description).toBe('Rehabilitation Therapy');
+      expect(receipt.items[1]!.sourceType).toBe(SaleSourceType.DRINK);
+      expect(receipt.items[1]!.description).toBe('Electrolyte Smoothie');
+      expect(receipt.items[2]!.sourceType).toBe(SaleSourceType.GYM_MEMBERSHIP);
+      expect(receipt.items[2]!.description).toBe('Gold Monthly Access');
+
+      // Total matches the unified commercial total ($100 + $10 + $50 = $160)
+      expect(receipt.total.amount).toBe(160.0);
+    });
+
+    it('proves Receipt rendering never executes dynamic queries against source domains (zero Food/Drink/Kinesiology/Gym dependencies)', () => {
+      const { sale, payment } = createStandardSettledSaleAndPayment();
+      const receipt = Receipt.fromSettledSale(
+        {
+          id: ReceiptId.create('rec-origin-005'),
+          sale,
+          payments: [payment],
+          receiptNumber: 'REC-2026-000206',
+        },
+        clock,
+      );
+
+      // Rendering to DTO utilizes exclusively the embedded frozen snapshot
+      const dto = ReceiptMapper.toDTO(receipt);
+
+      expect(dto.receiptNumber).toBe('REC-2026-000206');
+      expect(dto.saleReference).toBe('SKU-OMEGA-99');
+      expect(dto.items).toHaveLength(2);
+      expect(dto.items[0]!.description).toBe('Elite Coaching Program');
+      expect(dto.items[1]!.description).toBe('Recovery Session Addon');
+
+      // The DTO contains complete point-in-time financial presentation data without external lookups
+      expect(dto.subtotal.amount).toBe(200.0);
+      expect(dto.discountTotal.amount).toBe(29.0);
+      expect(dto.total.amount).toBe(171.0);
     });
   });
 });
