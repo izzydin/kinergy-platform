@@ -715,8 +715,8 @@ model Sale {
   receipts Receipt[]  @relation("SaleToReceipts")
 
   @@index([tenantId])
-  @@index([clientId])
-  @@index([status])
+  @@index([clientId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
   @@index([tenantId, sourceType, sourceId])
   @@index([sourceType, sourceId])
@@ -782,8 +782,8 @@ model Payment {
   @@index([tenantId])
   @@index([tenantId, saleId])
   @@index([tenantId, status])
-  @@index([saleId])
-  @@index([status])
+  @@index([saleId, createdAt])
+  @@index([status, createdAt(sort: Desc)])
   @@index([createdAt(sort: Desc)])
   @@map("payments")
 }

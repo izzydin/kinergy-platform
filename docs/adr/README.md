@@ -102,6 +102,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0120](file:///c:/Projects/kinergy-platform/docs/adr/0120-commercial-transaction-uniqueness-and-sale-idempotency.md)                                                 | Commercial Transaction Uniqueness, Idempotency, and Exactly-One-Sale Invariant                               | Accepted   | 2026-09-28              |
 | [0121](file:///c:/Projects/kinergy-platform/docs/adr/0121-sale-source-references-and-commercial-origin-model.md)                                                     | Sale Source References and Commercial Origin Model                                                           | Accepted   | 2026-09-29              |
 | [0122](file:///c:/Projects/kinergy-platform/docs/adr/0122-phase-7-financial-persistence-architecture.md)                                                             | Phase 7 Financial Persistence Architecture and Relational Integrity Model                                    | Accepted   | 2026-10-01              |
+| [0123](file:///c:/Projects/kinergy-platform/docs/adr/0123-phase-7-financial-database-index-strategy.md)                                                              | Phase 7 Financial Model Database Index Strategy and Query Optimization                                       | Accepted   | 2026-10-02              |
 
 ## Format
 
