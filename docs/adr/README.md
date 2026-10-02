@@ -105,6 +105,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0123](file:///c:/Projects/kinergy-platform/docs/adr/0123-phase-7-financial-database-index-strategy.md)                                                              | Phase 7 Financial Model Database Index Strategy and Query Optimization                                       | Accepted   | 2026-10-02              |
 | [0124](file:///c:/Projects/kinergy-platform/docs/adr/0124-phase-7-financial-models-uniqueness-audit.md)                                                              | Phase 7 Financial Models Uniqueness Audit and Constraint Architecture                                        | Accepted   | 2026-10-02              |
 | [0125](file:///c:/Projects/kinergy-platform/docs/adr/0125-phase-7-transaction-architecture-and-atomic-boundaries.md)                                                 | Phase 7 Transaction Architecture and Atomic Persistence Boundaries                                           | Accepted   | 2026-10-02              |
+| [0126](file:///c:/Projects/kinergy-platform/docs/adr/0126-phase-7-hexagonal-architecture-repository-reconciliation.md)                                               | Phase 7 Hexagonal Architecture Repository Reconciliation and Clean Persistence Boundaries                    | Accepted   | 2026-10-02              |
 
 ## Format
 
