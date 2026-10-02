@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { seedIdentity } from './seeds/identity.seed';
+import { seedSales } from './seeds/sales.seed';
 
 const prisma = new PrismaClient();
 
@@ -15,6 +16,9 @@ async function main(): Promise<void> {
   // 1. Execute Identity Bounded Context Seed
   const identitySummary = await seedIdentity(prisma);
 
+  // 2. Execute Sales & Financial Bounded Context Seed (Phase 7)
+  const salesSummary = await seedSales(prisma);
+
   const duration = Date.now() - startTime;
 
   console.log('\n✅ Database Seeding Completed Successfully!');
@@ -23,6 +27,10 @@ async function main(): Promise<void> {
   console.log(`- Roles Seeded:            ${identitySummary.rolesCount}`);
   console.log(`- Role-Permissions Seeded: ${identitySummary.rolePermissionsCount}`);
   console.log(`- Bootstrap Owner Account: ${identitySummary.ownerEmail}`);
+  console.log(`- Sales Orders Seeded:     ${salesSummary.salesCount}`);
+  console.log(`- Sale Items Seeded:       ${salesSummary.saleItemsCount}`);
+  console.log(`- Payments Seeded:         ${salesSummary.paymentsCount}`);
+  console.log(`- Receipts Seeded:         ${salesSummary.receiptsCount}`);
   console.log(`- Total Execution Time:    ${duration}ms`);
   console.log('================================================\n');
 }

@@ -107,6 +107,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0125](file:///c:/Projects/kinergy-platform/docs/adr/0125-phase-7-transaction-architecture-and-atomic-boundaries.md)                                                 | Phase 7 Transaction Architecture and Atomic Persistence Boundaries                                           | Accepted   | 2026-10-02              |
 | [0126](file:///c:/Projects/kinergy-platform/docs/adr/0126-phase-7-hexagonal-architecture-repository-reconciliation.md)                                               | Phase 7 Hexagonal Architecture Repository Reconciliation and Clean Persistence Boundaries                    | Accepted   | 2026-10-02              |
 | [0127](file:///c:/Projects/kinergy-platform/docs/adr/0127-phase-7-database-migration-review-and-validation.md)                                                       | Phase 7 Database Migration Review, Data Compatibility, and Verification                                      | Accepted   | 2026-10-02              |
+| [0128](file:///c:/Projects/kinergy-platform/docs/adr/0128-phase-7-test-infrastructure-and-seed-reconciliation.md)                                                    | Phase 7 Test Infrastructure, Fixtures, Builders, and Seeds Reconciliation                                    | Accepted   | 2026-10-02              |
 
 ## Format
 
