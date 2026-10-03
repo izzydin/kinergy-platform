@@ -94,3 +94,5 @@ graph TD
     - Evaluation of future source extensibility, design guardrails, and non-polymorphic evolution.
 14. **[SaleSource Commercial Origin Architecture Specification (Milestone 7.9)](./sale-source-specification.md)**
     - Authoritative technical specification for `SaleSource`: purpose, structure, supported types, aggregate ownership, bounded context boundaries, persistence, API, and traceability matrix.
+15. **[Phase 7 Financial Persistence Architecture & Relational Engineering Specification (Milestone 7.10)](./sales-persistence-specification.md)**
+    - Authoritative technical specification for Phase 7 persistence: Sale, SaleItem, Discount, Payment, Receipt, SaleSource, database constraints, index strategy, transaction boundaries, bounded context isolation, and end-to-end traceability matrix.
