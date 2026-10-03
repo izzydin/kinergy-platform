@@ -599,5 +599,69 @@ describe('Sale Repository Aggregate Boundary & Persistence Hardening (Integratio
       // The transaction boundary ensures that partial state is never committed.
       expect(mockPrisma.$transaction).toHaveBeenCalledTimes(1);
     });
+
+    it('rejects updating an already CANCELLED sale record in persistence', async () => {
+      const { mockPrisma, mockTx } = createMockPrisma();
+      mockTx.sale.findUnique.mockResolvedValue({ status: 'CANCELLED' });
+
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+      const sale = Sale.create(
+        { id: SaleId.create('sale-cancelled-01'), source: validSource },
+        clock,
+      );
+      sale.addItem(
+        {
+          source: validSource,
+          description: 'Item',
+          quantity: 1,
+          unitPrice: Money.create(10.0, 'USD'),
+        },
+        clock,
+      );
+      sale.cancel('Customer declined transaction at point of sale', clock);
+
+      await expect(repo.save(sale)).rejects.toThrow(InvalidSaleStateException);
+      await expect(repo.save(sale)).rejects.toThrow(
+        /Sale is already in terminal CANCELLED status in persistence/,
+      );
+
+      expect(mockTx.sale.upsert).not.toHaveBeenCalled();
+      expect(mockTx.sale.updateMany).not.toHaveBeenCalled();
+      expect(mockTx.saleItem.upsert).not.toHaveBeenCalled();
+      expect(mockTx.saleItem.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it('permits transitioning a DRAFT or PENDING_PAYMENT sale to CANCELLED in persistence', async () => {
+      const { mockPrisma, mockTx } = createMockPrisma();
+      mockTx.sale.findUnique.mockResolvedValue({ status: 'PENDING_PAYMENT' });
+      mockTx.sale.updateMany.mockResolvedValue({ count: 1 });
+
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+      const sale = Sale.create(
+        { id: SaleId.create('sale-cancel-transition'), source: validSource },
+        clock,
+      );
+      sale.addItem(
+        {
+          source: validSource,
+          description: 'Item',
+          quantity: 1,
+          unitPrice: Money.create(10.0, 'USD'),
+        },
+        clock,
+      );
+      sale.cancel('Customer declined transaction at point of sale', clock);
+
+      await expect(repo.save(sale)).resolves.not.toThrow();
+      expect(mockTx.sale.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: sale.id.value, version: 1 },
+          data: expect.objectContaining({
+            status: 'CANCELLED',
+            cancellationReason: 'Customer declined transaction at point of sale',
+          }),
+        }),
+      );
+    });
   });
 });

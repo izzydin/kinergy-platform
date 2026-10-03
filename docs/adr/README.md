@@ -109,6 +109,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0127](file:///c:/Projects/kinergy-platform/docs/adr/0127-phase-7-database-migration-review-and-validation.md)                                                       | Phase 7 Database Migration Review, Data Compatibility, and Verification                                      | Accepted   | 2026-10-02              |
 | [0128](file:///c:/Projects/kinergy-platform/docs/adr/0128-phase-7-test-infrastructure-and-seed-reconciliation.md)                                                    | Phase 7 Test Infrastructure, Fixtures, Builders, and Seeds Reconciliation                                    | Accepted   | 2026-10-02              |
 | [0129](file:///c:/Projects/kinergy-platform/docs/adr/0129-phase-7-prisma-schema-architectural-review.md)                                                             | Phase 7 Prisma Schema Architectural Review and Final Integrity Verification                                  | Accepted   | 2026-10-03              |
+| [0130](file:///c:/Projects/kinergy-platform/docs/adr/0130-phase-7-persistence-boundary-audit-and-domain-purity.md)                                                   | Phase 7 Persistence-Boundary Audit and Domain Purity Hardening                                               | Accepted   | 2026-10-03              |
 
 ## Format
 

@@ -3,7 +3,10 @@ import { Payment } from '../../../../domain/payment.aggregate';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { Money } from '../../../../domain/value-objects/money.vo';
 import { PaymentMethod } from '../../../../domain/enums/payment-method.enum';
-import { PaymentStatus } from '../../../../domain/enums/payment-status.enum';
+import {
+  PaymentStatus,
+  SUPPORTED_PAYMENT_STATUSES,
+} from '../../../../domain/enums/payment-status.enum';
 import {
   SaleOptimisticLockException,
   PaymentOptimisticLockException,
@@ -1099,6 +1102,51 @@ describe('Payment Persistence & PostgreSQL Exact Decimal Representation (ADR-011
       };
 
       expect(() => PrismaPaymentMapper.toDomain(corrupted)).toThrow(PaymentDomainException);
+    });
+
+    it('converts domain PaymentStatus to Prisma persistence status without loss', () => {
+      expect(PrismaPaymentMapper.toPersistenceStatus(PaymentStatus.PENDING)).toBe(
+        PrismaPaymentStatus.PENDING,
+      );
+      expect(PrismaPaymentMapper.toPersistenceStatus(PaymentStatus.COMPLETED)).toBe(
+        PrismaPaymentStatus.SETTLED,
+      );
+      expect(PrismaPaymentMapper.toPersistenceStatus(PaymentStatus.FAILED)).toBe(
+        PrismaPaymentStatus.FAILED,
+      );
+      expect(PrismaPaymentMapper.toPersistenceStatus(PaymentStatus.CANCELLED)).toBe(
+        PrismaPaymentStatus.CANCELLED,
+      );
+    });
+
+    it('converts Prisma persistence status back to domain PaymentStatus accurately', () => {
+      expect(PrismaPaymentMapper.toDomainStatus(PrismaPaymentStatus.PENDING)).toBe(
+        PaymentStatus.PENDING,
+      );
+      expect(PrismaPaymentMapper.toDomainStatus(PrismaPaymentStatus.SETTLED)).toBe(
+        PaymentStatus.COMPLETED,
+      );
+      expect(PrismaPaymentMapper.toDomainStatus(PrismaPaymentStatus.FAILED)).toBe(
+        PaymentStatus.FAILED,
+      );
+      expect(PrismaPaymentMapper.toDomainStatus(PrismaPaymentStatus.CANCELLED)).toBe(
+        PaymentStatus.CANCELLED,
+      );
+    });
+
+    it('guarantees bidirectional roundtrip consistency across all supported states', () => {
+      for (const domainStatus of SUPPORTED_PAYMENT_STATUSES) {
+        const persistenceStatus = PrismaPaymentMapper.toPersistenceStatus(domainStatus);
+        const reconstitutedDomainStatus = PrismaPaymentMapper.toDomainStatus(persistenceStatus);
+        expect(reconstitutedDomainStatus).toBe(domainStatus);
+      }
+    });
+
+    it('rejects unknown or invalid persistence status strings at the mapper boundary', () => {
+      expect(() => PrismaPaymentMapper.toDomainStatus('UNKNOWN_STATUS')).toThrow(
+        InvalidPaymentStatusException,
+      );
+      expect(() => PrismaPaymentMapper.toDomainStatus('')).toThrow(InvalidPaymentStatusException);
     });
   });
 });

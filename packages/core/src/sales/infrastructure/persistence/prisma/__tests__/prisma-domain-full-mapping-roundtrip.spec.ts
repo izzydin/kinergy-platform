@@ -20,6 +20,7 @@ import { SaleSource } from '../../../../domain/value-objects/sale-source.vo';
 import { SourceType } from '../../../../domain/enums/source-type.enum';
 import { SaleSourceType } from '../../../../domain/enums/sale-source-type.enum';
 import { SaleStatus } from '../../../../domain/enums/sale-status.enum';
+import { InvalidSaleStateException } from '../../../../domain/exceptions/invalid-sale-state.exception';
 import { Payment } from '../../../../domain/payment.aggregate';
 import { PaymentId } from '../../../../domain/value-objects/payment-id.vo';
 import { PaymentStatus } from '../../../../domain/enums/payment-status.enum';
@@ -799,6 +800,43 @@ describe('Prisma Persistence & Domain Model Full Mapping Roundtrip Specification
       expect(reconstituted.items.length).toBe(1);
       expect(reconstituted.payments.length).toBe(1);
       expect(reconstituted.total.cents).toBe(250);
+    });
+
+    it('reconstitution strictly asserts that database totals reconcile with line items', () => {
+      const clock = new DeterministicClock(new Date('2026-09-28T12:00:00.000Z'));
+      const validSource = SourceReference.create({
+        sourceType: SourceType.INVENTORY_ITEM,
+        sourceId: 'inv-item-001',
+      });
+      const sale = Sale.create(
+        { id: SaleId.create('sale-recon-tamper'), source: validSource },
+        clock,
+      );
+      sale.addItem(
+        {
+          source: validSource,
+          description: 'Item',
+          quantity: 1,
+          unitPrice: Money.create(50.0, 'USD'),
+        },
+        clock,
+      );
+
+      const { sale: persistedSale, items: persistedItems } = PrismaSaleMapper.toPersistence(sale);
+
+      // Simulate malicious tampering of totalAmount directly in PostgreSQL
+      const tamperedSale = {
+        ...persistedSale,
+        totalAmount: new Prisma.Decimal('0.01'), // Tampered!
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        items: persistedItems.map((i) => ({ ...i, createdAt: new Date(), updatedAt: new Date() })),
+      };
+
+      expect(() => PrismaSaleMapper.toDomain(tamperedSale)).toThrow(InvalidSaleStateException);
+      expect(() => PrismaSaleMapper.toDomain(tamperedSale)).toThrow(
+        /Persisted total .* does not reconcile with subtotal - discountTotal/,
+      );
     });
   });
 });

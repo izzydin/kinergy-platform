@@ -9,8 +9,6 @@ import { SourceType } from '../enums/source-type.enum';
 import { InvalidSaleStateException } from '../exceptions/invalid-sale-state.exception';
 import { SaleAlreadyFinalizedException } from '../exceptions/sale-already-finalized.exception';
 import { SaleStatus } from '../enums/sale-status.enum';
-import { PrismaSaleItemMapper } from '../../infrastructure/persistence/prisma/mappers/prisma-sale-item.mapper';
-import { PrismaSaleMapper } from '../../infrastructure/persistence/prisma/mappers/prisma-sale.mapper';
 
 describe('SaleItem Ownership Hardening & Aggregate Boundaries', () => {
   const clp1000 = Money.create(1000, 'CLP');
@@ -395,77 +393,6 @@ describe('SaleItem Ownership Hardening & Aggregate Boundaries', () => {
       expect(item.quantity).toBe(1);
       expect(sale.items[0]?.quantity).toBe(1);
       expect(sale.total.amount).toBe(1000);
-    });
-  });
-
-  describe('7. Persistence Consistency & Anti-Bypass Protections', () => {
-    it('PrismaSaleItemMapper.toPersistence must strictly reject detached items without parent saleId', () => {
-      const detachedItem = SaleItem.create({
-        description: 'Detached Item',
-        quantity: 1,
-        unitPrice: clp1000,
-        source: sourceRef,
-      });
-
-      expect(() => PrismaSaleItemMapper.toPersistence(detachedItem)).toThrow(
-        expect.objectContaining({
-          code: 'DETACHED_SALE_ITEM_PERSISTENCE_PROHIBITED',
-        }),
-      );
-    });
-
-    it('PrismaSaleItemMapper.toPersistence must strictly reject cross-Sale persistence mismatch', () => {
-      const itemBelongingToSaleA = SaleItem.create({
-        saleId: SaleId.create('sale-A'),
-        description: 'Item of Sale A',
-        quantity: 1,
-        unitPrice: clp1000,
-        source: sourceRef,
-      });
-
-      expect(() => PrismaSaleItemMapper.toPersistence(itemBelongingToSaleA, 'sale-B')).toThrow(
-        expect.objectContaining({
-          code: 'CROSS_SALE_PERSISTENCE_PROHIBITED',
-        }),
-      );
-    });
-
-    it('PrismaSaleItemMapper.toPersistence succeeds and correctly binds saleId when consistent', () => {
-      const item = SaleItem.create({
-        saleId: SaleId.create('sale-A'),
-        description: 'Consistent Item',
-        quantity: 2,
-        unitPrice: clp1000,
-        source: sourceRef,
-      });
-
-      const persisted = PrismaSaleItemMapper.toPersistence(item, 'sale-A');
-      expect(persisted.saleId).toBe('sale-A');
-      expect(persisted.id).toBe(item.id.value);
-    });
-
-    it('PrismaSaleMapper.toPersistence guarantees all mapped items belong strictly to the Sale aggregate id', () => {
-      const sale = createDraftSale('sale-root-001');
-      sale.addItem({
-        description: 'Item 1',
-        quantity: 2,
-        unitPrice: clp1000,
-        source: sourceRef,
-      });
-      sale.addItem({
-        description: 'Item 2',
-        quantity: 3,
-        unitPrice: clp2000,
-        source: sourceRef,
-      });
-
-      const { sale: persistedSale, items: persistedItems } = PrismaSaleMapper.toPersistence(sale);
-
-      expect(persistedSale.id).toBe('sale-root-001');
-      expect(persistedItems).toHaveLength(2);
-      for (const item of persistedItems) {
-        expect(item.saleId).toBe('sale-root-001');
-      }
     });
   });
 });

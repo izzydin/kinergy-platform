@@ -9,8 +9,6 @@ import { Clock } from '../shared/clock';
 import { SaleAlreadyFinalizedException } from '../exceptions/sale-already-finalized.exception';
 import { InvalidSaleTransitionException } from '../exceptions/invalid-sale-transition.exception';
 import { InvalidSaleStateException } from '../exceptions/invalid-sale-state.exception';
-import { PrismaSaleRepository } from '../../infrastructure/persistence/prisma/repositories/prisma-sale.repository';
-import { PrismaClient } from '@prisma/client';
 
 class TestClock implements Clock {
   constructor(private currentDate: Date = new Date('2026-09-28T10:00:00.000Z')) {}
@@ -384,73 +382,6 @@ describe('Cancelled Sale Immutability & Financial Integrity Hardening', () => {
       }).toThrow(TypeError);
 
       expect(sale.status).toBe(SaleStatus.CANCELLED);
-    });
-  });
-
-  describe('7. Persistence-Level Immutability Guard', () => {
-    type MockPrisma = {
-      $transaction: jest.Mock;
-      sale: {
-        findUnique: jest.Mock;
-        upsert: jest.Mock;
-        updateMany: jest.Mock;
-      };
-      saleItem: {
-        upsert: jest.Mock;
-        deleteMany: jest.Mock;
-      };
-    };
-
-    const createMockPrisma = (saleFindUniqueResult: unknown, updateManyCount = 1): MockPrisma => {
-      const mock: MockPrisma = {
-        $transaction: jest.fn(async (cb: (tx: unknown) => Promise<unknown>) => cb(mock)),
-        sale: {
-          findUnique: jest.fn().mockResolvedValue(saleFindUniqueResult),
-          upsert: jest.fn().mockResolvedValue({}),
-          updateMany: jest.fn().mockResolvedValue({ count: updateManyCount }),
-        },
-        saleItem: {
-          upsert: jest.fn().mockResolvedValue({}),
-          deleteMany: jest.fn().mockResolvedValue({}),
-        },
-      };
-      return mock;
-    };
-
-    it('PrismaSaleRepository.save rejects updating an already CANCELLED sale record', async () => {
-      const mockPrisma = createMockPrisma({ status: 'CANCELLED' });
-
-      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
-      const { sale } = createCancelledSale();
-
-      await expect(repo.save(sale)).rejects.toThrow(InvalidSaleStateException);
-      await expect(repo.save(sale)).rejects.toThrow(
-        /Sale is already in terminal CANCELLED status in persistence/,
-      );
-
-      // Verify no write operations were dispatched
-      expect(mockPrisma.sale.upsert).not.toHaveBeenCalled();
-      expect(mockPrisma.sale.updateMany).not.toHaveBeenCalled();
-      expect(mockPrisma.saleItem.upsert).not.toHaveBeenCalled();
-      expect(mockPrisma.saleItem.deleteMany).not.toHaveBeenCalled();
-    });
-
-    it('PrismaSaleRepository.save permits transitioning a DRAFT or PENDING_PAYMENT sale to CANCELLED', async () => {
-      const mockPrisma = createMockPrisma({ status: 'PENDING_PAYMENT' }, 1);
-
-      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
-      const { sale } = createCancelledSale();
-
-      await expect(repo.save(sale)).resolves.not.toThrow();
-      expect(mockPrisma.sale.updateMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: sale.id.value, version: 1 },
-          data: expect.objectContaining({
-            status: 'CANCELLED',
-            cancellationReason: 'Customer declined transaction at point of sale',
-          }),
-        }),
-      );
     });
   });
 });
