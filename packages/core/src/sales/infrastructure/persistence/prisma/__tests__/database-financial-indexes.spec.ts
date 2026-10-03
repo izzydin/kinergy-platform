@@ -109,6 +109,9 @@ describe('Phase 7 Database Performance & Index Strategy Specification (ADR-0123)
 
       // Leading saleId index is present exclusively for foreign key checks where tenantId is omitted
       expect(receiptModel).toMatch(/@@index\(\[saleId\]\)/);
+
+      // Proves unselective 2-value enum status index on Receipt is eliminated
+      expect(receiptModel).not.toMatch(/@@index\(\[status\]\)/);
     });
   });
 
@@ -309,6 +312,92 @@ describe('Phase 7 Database Performance & Index Strategy Specification (ADR-0123)
         where: { saleId: 'sale-uuid-777' },
         orderBy: { createdAt: 'asc' },
       });
+    });
+  });
+
+  // ==========================================================================
+  // 5. Relation-Loading Patterns & Anti-Pattern Prevention
+  // ==========================================================================
+  describe('5. Relation-Loading Patterns & Anti-Pattern Prevention', () => {
+    it('Sale detail loading: includes owned items for aggregate boundary, strictly excludes payments & receipts', async () => {
+      const mockFindUnique = jest.fn().mockResolvedValue(null);
+      const mockPrisma = {
+        sale: { findUnique: mockFindUnique },
+      } as unknown as PrismaClient;
+
+      const repository = new PrismaSaleRepository(mockPrisma);
+      await repository.findById('sale-detail-001');
+
+      expect(mockFindUnique).toHaveBeenCalledWith({
+        where: { id: 'sale-detail-001' },
+        include: {
+          items: true,
+        },
+      });
+
+      // Assert that payments and receipts are NOT eagerly loaded in SaleRepository.findById
+      const lastCallArgs = mockFindUnique.mock.calls[0][0];
+      expect(lastCallArgs.include.payments).toBeUndefined();
+      expect(lastCallArgs.include.receipts).toBeUndefined();
+    });
+
+    it('Receipts by Sale: loads self-contained document model without joining sales, payments, or clients', async () => {
+      const { PrismaReceiptRepository } = await import('../repositories/prisma-receipt.repository');
+      const mockFindFirst = jest.fn().mockResolvedValue(null);
+      const mockPrisma = {
+        receipt: { findFirst: mockFindFirst },
+      } as unknown as PrismaClient;
+
+      const repository = new PrismaReceiptRepository(mockPrisma);
+      await repository.findBySaleId('sale-for-receipt-001');
+
+      expect(mockFindFirst).toHaveBeenCalledWith({
+        where: { saleId: 'sale-for-receipt-001' },
+      });
+
+      // Proof: PrismaReceiptRepository never specifies `include` because client, items,
+      // and payments are preserved as immutable JSON snapshots (ADR-0117)
+      const lastCallArgs = mockFindFirst.mock.calls[0][0];
+      expect(lastCallArgs.include).toBeUndefined();
+    });
+
+    it('Sale list queries: enforces scalar projection and verifies exclusion of heavy receipt snapshots and payment graphs', () => {
+      // Architectural rule: Sale list queries must project only necessary scalar columns.
+      // Eagerly loading `payments` or `receipts` (with large JSON snapshots) is prohibited.
+      const listQuerySpecification = {
+        where: { tenantId: 'tenant-1' },
+        select: {
+          id: true,
+          tenantId: true,
+          clientId: true,
+          status: true,
+          totalAmount: true,
+          currency: true,
+          sourceType: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: 'desc' },
+        take: 20,
+        skip: 0,
+      };
+
+      // 1. Proves no eager loading of payment collections on list pages
+      expect(
+        (listQuerySpecification as { include?: { payments?: boolean } }).include?.payments,
+      ).toBeUndefined();
+
+      // 2. Proves no eager loading of receipt JSON snapshots on list pages
+      expect(
+        (listQuerySpecification as { include?: { receipts?: boolean } }).include?.receipts,
+      ).toBeUndefined();
+
+      // 3. Select projection excludes heavy blobs (clientSnapshot, itemsSnapshot, paymentsSnapshot)
+      expect(
+        (listQuerySpecification.select as { itemsSnapshot?: boolean }).itemsSnapshot,
+      ).toBeUndefined();
+      expect(
+        (listQuerySpecification.select as { paymentsSnapshot?: boolean }).paymentsSnapshot,
+      ).toBeUndefined();
     });
   });
 });

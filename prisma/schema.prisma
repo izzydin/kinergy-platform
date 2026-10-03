@@ -834,7 +834,6 @@ model Receipt {
   @@unique([tenantId, receiptNumber], name: "unique_tenant_receipt_number")
   @@index([tenantId])
   @@index([saleId])
-  @@index([status])
   @@index([issuedAt(sort: Desc)])
   @@map("receipts")
 }
