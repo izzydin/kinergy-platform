@@ -108,6 +108,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0126](file:///c:/Projects/kinergy-platform/docs/adr/0126-phase-7-hexagonal-architecture-repository-reconciliation.md)                                               | Phase 7 Hexagonal Architecture Repository Reconciliation and Clean Persistence Boundaries                    | Accepted   | 2026-10-02              |
 | [0127](file:///c:/Projects/kinergy-platform/docs/adr/0127-phase-7-database-migration-review-and-validation.md)                                                       | Phase 7 Database Migration Review, Data Compatibility, and Verification                                      | Accepted   | 2026-10-02              |
 | [0128](file:///c:/Projects/kinergy-platform/docs/adr/0128-phase-7-test-infrastructure-and-seed-reconciliation.md)                                                    | Phase 7 Test Infrastructure, Fixtures, Builders, and Seeds Reconciliation                                    | Accepted   | 2026-10-02              |
+| [0129](file:///c:/Projects/kinergy-platform/docs/adr/0129-phase-7-prisma-schema-architectural-review.md)                                                             | Phase 7 Prisma Schema Architectural Review and Final Integrity Verification                                  | Accepted   | 2026-10-03              |
 
 ## Format
 
