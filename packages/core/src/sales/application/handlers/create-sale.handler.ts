@@ -13,10 +13,14 @@ import { SourceType, isValidSourceType } from '../../domain/enums/source-type.en
 import { SaleSourceType, isValidSaleSourceType } from '../../domain/enums/sale-source-type.enum';
 import { DuplicateSaleException } from '../../domain/exceptions/duplicate-sale.exception';
 import { InvalidSaleSourceException } from '../../domain/exceptions/invalid-sale-source.exception';
+import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
 import { SaleSourceValidatorPort } from '../ports/sale-source-validator.port';
+import { ClientFacadePort } from '../ports/client-facade.port';
 import { SourceNotFoundException } from '../exceptions/source-not-found.exception';
+import { ClientNotFoundException } from '../exceptions/client-not-found.exception';
+import { DiscountType } from '../../domain/enums/discount-type.enum';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 
 export class CreateSaleHandler implements SalesCommandHandler<
@@ -28,6 +32,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
     private readonly clock: Clock = new SystemClock(),
     private readonly eventPublisher?: SalesEventPublisherPort,
     private readonly sourceValidator?: SaleSourceValidatorPort,
+    private readonly clientFacade?: ClientFacadePort,
   ) {}
 
   public async execute(command: CreateSaleCommand): Promise<SalesApplicationResult<SaleDTO>> {
@@ -40,7 +45,43 @@ export class CreateSaleHandler implements SalesCommandHandler<
 
       const { input } = command;
 
-      // 1. Request Structure & Source Reference Validation
+      // 1. Precondition Validation: Tenant boundary
+      if (input.tenantId !== undefined && input.tenantId !== null) {
+        if (input.tenantId.trim() === '') {
+          return SalesApplicationResult.fail(
+            new InvalidSaleStateException('tenantId cannot be empty or whitespace.'),
+          );
+        }
+      }
+
+      // 2. Precondition Validation & Resolution: Client
+      let resolvedClientId: string | undefined = undefined;
+      if (input.clientId !== undefined && input.clientId !== null) {
+        const trimmedClientId = input.clientId.trim();
+        if (trimmedClientId === '') {
+          return SalesApplicationResult.fail(
+            new InvalidSaleStateException('clientId cannot be empty or whitespace.'),
+          );
+        }
+        if (this.clientFacade) {
+          const clientSummary = await this.clientFacade.getClientSummary(trimmedClientId);
+          if (!clientSummary) {
+            return SalesApplicationResult.fail(new ClientNotFoundException(trimmedClientId));
+          }
+        }
+        resolvedClientId = trimmedClientId;
+      }
+
+      // 3. Precondition Validation: Currency formatting
+      const rawCurrency = input.currency ?? Money.DEFAULT_CURRENCY;
+      if (typeof rawCurrency !== 'string' || !/^[A-Z]{3}$/.test(rawCurrency.trim().toUpperCase())) {
+        return SalesApplicationResult.fail(
+          new InvalidSaleStateException(`Invalid ISO-4217 currency code '${input.currency}'.`),
+        );
+      }
+      const currency = rawCurrency.trim().toUpperCase();
+
+      // 4. Request Structure & Source Reference Validation
       let sourceInput = input.source;
       if (!sourceInput) {
         if (input.allowWalkInWithoutSource === true) {
@@ -73,7 +114,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
         );
       }
 
-      // 2. Reject unsupported source types before persistence
+      // 5. Reject unsupported source types before persistence
       const rawSourceType = sourceInput.sourceType;
       const isSaleSourceType = isValidSaleSourceType(rawSourceType);
       const isLegacySourceType = isValidSourceType(rawSourceType);
@@ -87,7 +128,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
         );
       }
 
-      // 3. Source Existence & Context Ownership Validation (if configured)
+      // 6. Source Existence & Context Ownership Validation (if configured)
       if (this.sourceValidator) {
         const validation = await this.sourceValidator.validateSource({
           sourceType: rawSourceType,
@@ -128,19 +169,15 @@ export class CreateSaleHandler implements SalesCommandHandler<
         }
       }
 
-      const currency = input.currency
-        ? input.currency.trim().toUpperCase()
-        : Money.DEFAULT_CURRENCY;
-
       const effectiveId = input.id?.trim() || input.idempotencyKey?.trim();
 
-      // 4. Idempotency Check: Caller-supplied transaction identity
+      // 7. Idempotency Check: Caller-supplied transaction identity
       if (effectiveId) {
         const existingSale = await this.saleRepository.findById(effectiveId);
         if (existingSale) {
           const isMatchingRetry =
             (existingSale.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
-            (existingSale.clientId ?? '') === (input.clientId?.trim() ?? '') &&
+            (existingSale.clientId ?? '') === (resolvedClientId ?? '') &&
             existingSale.currency === currency &&
             existingSale.source.sourceType === sourceInput.sourceType &&
             existingSale.source.sourceId === sourceInput.sourceId.trim();
@@ -159,7 +196,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
         }
       }
 
-      // 5. Operational Single-Billing Entity Invariant: Clinical session must be billed at most once
+      // 8. Operational Single-Billing Entity Invariant: Clinical session must be billed at most once
       const isClinicalSession =
         sourceInput.sourceType === SourceType.TREATMENT_SESSION ||
         (sourceInput.sourceType as unknown) === 'KINESIOLOGY_SESSION' ||
@@ -192,7 +229,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
         }
       }
 
-      // 6. External Order Reference Uniqueness: sourceCode (non-generic POS terminal tag)
+      // 9. External Order Reference Uniqueness: sourceCode (non-generic POS terminal tag)
       if (sourceInput.sourceCode && this.saleRepository.findBySourceCode) {
         const trimmedCode = sourceInput.sourceCode.trim();
         if (trimmedCode !== 'POS_REGISTER' && trimmedCode !== 'pos_checkout_terminal') {
@@ -208,7 +245,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
 
             const isMatch =
               (existingForCode.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
-              (existingForCode.clientId ?? '') === (input.clientId?.trim() ?? '') &&
+              (existingForCode.clientId ?? '') === (resolvedClientId ?? '') &&
               existingForCode.currency === currency &&
               existingForCode.source.sourceId === sourceInput.sourceId.trim();
 
@@ -227,6 +264,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
         }
       }
 
+      // 10. Construct Domain Value Objects
       let source: SaleSource | SourceReference;
       if (isSaleSourceType) {
         source = SaleSource.create(rawSourceType as SaleSourceType, sourceInput.sourceId.trim());
@@ -240,25 +278,37 @@ export class CreateSaleHandler implements SalesCommandHandler<
 
       let orderDiscount: Discount | undefined;
       if (input.orderDiscount) {
-        const typeStr = input.orderDiscount.type.toUpperCase();
+        const typeStr = input.orderDiscount.type?.toUpperCase();
         if (typeStr === 'PERCENTAGE') {
           orderDiscount = Discount.percentage(
             input.orderDiscount.value,
             input.orderDiscount.reason,
           );
-        } else {
+        } else if (typeStr === 'FIXED') {
           orderDiscount = Discount.fixed(input.orderDiscount.value, input.orderDiscount.reason);
+        } else {
+          orderDiscount = Discount.create({
+            type: input.orderDiscount.type as unknown as DiscountType,
+            value: input.orderDiscount.value,
+            reason: input.orderDiscount.reason,
+          });
         }
       }
 
       const items = input.items?.map((itemInput) => {
         let itemDiscount: Discount | null = null;
         if (itemInput.discount) {
-          const typeStr = itemInput.discount.type.toUpperCase();
+          const typeStr = itemInput.discount.type?.toUpperCase();
           if (typeStr === 'PERCENTAGE') {
             itemDiscount = Discount.percentage(itemInput.discount.value, itemInput.discount.reason);
-          } else {
+          } else if (typeStr === 'FIXED') {
             itemDiscount = Discount.fixed(itemInput.discount.value, itemInput.discount.reason);
+          } else {
+            itemDiscount = Discount.create({
+              type: itemInput.discount.type as unknown as DiscountType,
+              value: itemInput.discount.value,
+              reason: itemInput.discount.reason,
+            });
           }
         }
 
@@ -272,11 +322,12 @@ export class CreateSaleHandler implements SalesCommandHandler<
         };
       });
 
+      // 11. Instantiate Sale Aggregate using Domain Factory
       const sale = Sale.create(
         {
           id: effectiveId ? SaleId.create(effectiveId) : undefined,
-          tenantId: input.tenantId,
-          clientId: input.clientId,
+          tenantId: input.tenantId ? input.tenantId.trim() : undefined,
+          clientId: resolvedClientId,
           currency,
           source,
           items,
@@ -285,14 +336,17 @@ export class CreateSaleHandler implements SalesCommandHandler<
         this.clock,
       );
 
+      // 12. Persist through Repository
       await this.saleRepository.save(sale);
 
+      // 13. Dispatch Domain Events
       const events = sale.getUncommittedEvents();
       if (this.eventPublisher && events.length > 0) {
         await this.eventPublisher.publish(events);
       }
       sale.clearEvents();
 
+      // 14. Return Approved Application Result
       return SalesApplicationResult.ok(SaleMapper.toDTO(sale));
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));
