@@ -18,6 +18,8 @@ import { PaymentNotCompletedException } from '../exceptions/payment-not-complete
 import { PaymentCurrencyMismatchException } from '../exceptions/payment-currency-mismatch.exception';
 import { InsufficientPaymentException } from '../exceptions/insufficient-payment.exception';
 import { InvalidSaleTransitionException } from '../../domain/exceptions/invalid-sale-transition.exception';
+import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
+import { InvalidMoneyException } from '../../domain/exceptions/invalid-money.exception';
 
 export interface CoordinateSalePaymentSettlementParams {
   saleId: SaleId | string;
@@ -60,10 +62,14 @@ export class SalePaymentCoordinationService {
         params.paymentId instanceof PaymentId ? params.paymentId.value : params.paymentId?.trim();
 
       if (!saleIdString) {
-        return SalesApplicationResult.fail(new Error('Sale ID cannot be empty.'));
+        return SalesApplicationResult.fail(
+          new InvalidSaleStateException('Sale ID cannot be empty or whitespace.'),
+        );
       }
       if (!paymentIdString) {
-        return SalesApplicationResult.fail(new Error('Payment ID cannot be empty.'));
+        return SalesApplicationResult.fail(
+          new InvalidSaleStateException('Payment ID cannot be empty or whitespace.'),
+        );
       }
 
       // Step 1: Verify Sale exists and enforce tenant isolation
@@ -107,7 +113,9 @@ export class SalePaymentCoordinationService {
 
       if (payment.amount.cents <= 0) {
         return SalesApplicationResult.fail(
-          new Error(`Payment amount must be positive. Received: ${payment.amount.toString()}`),
+          new InvalidMoneyException(
+            `Payment amount must be positive. Received: ${payment.amount.toString()}`,
+          ),
         );
       }
 

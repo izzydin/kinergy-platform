@@ -7,6 +7,9 @@ import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 
+import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
+import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
+
 export class RemoveOrderDiscountHandler implements SalesCommandHandler<
   RemoveOrderDiscountCommand,
   SalesApplicationResult<SaleDTO>
@@ -24,12 +27,14 @@ export class RemoveOrderDiscountHandler implements SalesCommandHandler<
       const { input } = command;
       const saleId = input.saleId?.trim();
       if (!saleId) {
-        return SalesApplicationResult.fail(new Error('Sale ID cannot be empty.'));
+        return SalesApplicationResult.fail(
+          new InvalidSaleStateException('Sale ID cannot be empty or whitespace.'),
+        );
       }
 
       const sale = await this.saleRepository.findById(saleId);
       if (!sale) {
-        return SalesApplicationResult.fail(new Error(`Sale with ID '${saleId}' was not found.`));
+        return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
       }
 
       sale.removeOrderDiscount(this.clock);
