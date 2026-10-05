@@ -4,6 +4,7 @@ export * from './update-sale-item-quantity.handler';
 export * from './remove-sale-item.handler';
 export * from './apply-item-discount.handler';
 export * from './remove-item-discount.handler';
+export * from './apply-discount.handler';
 export * from './apply-order-discount.handler';
 export * from './remove-order-discount.handler';
 export * from './finalize-sale.handler';

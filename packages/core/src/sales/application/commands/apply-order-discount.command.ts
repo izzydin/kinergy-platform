@@ -1,12 +1,5 @@
-export interface ApplyOrderDiscountInput {
-  saleId: string;
-  discount: {
-    type: string;
-    value: number;
-    reason?: string | null;
-  };
-}
+import { ApplyDiscountCommand, ApplyDiscountInput } from './apply-discount.command';
 
-export class ApplyOrderDiscountCommand {
-  constructor(public readonly input: ApplyOrderDiscountInput) {}
-}
+export type ApplyOrderDiscountInput = ApplyDiscountInput;
+export const ApplyOrderDiscountCommand = ApplyDiscountCommand;
+export type ApplyOrderDiscountCommand = ApplyDiscountCommand;

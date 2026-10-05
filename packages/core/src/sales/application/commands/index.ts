@@ -4,6 +4,7 @@ export * from './update-sale-item-quantity.command';
 export * from './remove-sale-item.command';
 export * from './apply-item-discount.command';
 export * from './remove-item-discount.command';
+export * from './apply-discount.command';
 export * from './apply-order-discount.command';
 export * from './remove-order-discount.command';
 export * from './finalize-sale.command';

@@ -43,6 +43,13 @@ export class SaleMapper {
       subtotalAmount: subtotalDto.amount,
       discountTotalAmount: discountTotalDto.amount,
       totalAmount: totalDto.amount,
+      orderDiscount: sale.orderDiscount
+        ? {
+            type: sale.orderDiscount.type,
+            value: sale.orderDiscount.value,
+            reason: sale.orderDiscount.reason,
+          }
+        : null,
       itemCount: sale.itemCount,
       items: sale.items.map((item) => SaleItemMapper.toDTO(item)),
       version: sale.version,

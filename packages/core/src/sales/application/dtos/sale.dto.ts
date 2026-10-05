@@ -1,5 +1,5 @@
 import { MoneyDTO } from './money.dto';
-import { SaleItemDTO } from './sale-item.dto';
+import { SaleItemDTO, ItemDiscountDTO } from './sale-item.dto';
 import { SaleSourceDTO } from './sale-source.dto';
 
 /**
@@ -24,6 +24,8 @@ export interface SaleDTO {
   readonly subtotalAmount: number;
   readonly discountTotalAmount: number;
   readonly totalAmount: number;
+
+  readonly orderDiscount?: ItemDiscountDTO | null;
 
   readonly itemCount: number;
   readonly items: readonly SaleItemDTO[];
