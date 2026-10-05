@@ -1,3 +1,5 @@
+export * from './get-sale.query';
+export * from './get-sale.handler';
 export * from './get-sale-by-id.query';
 export * from './get-sale-by-id.handler';
 export * from './calculate-sale.query';

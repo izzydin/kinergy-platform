@@ -280,21 +280,33 @@ In alignment with Kinergy's existing architecture:
 
 ---
 
-### 4.6 GetSale (Query)
+### 4.6 GetSale (Query / Authoritative Commercial Read Representation)
 
-- **Purpose**: Retrieves the complete commercial state of a specific sale order by its domain identifier, including all line items and deterministic monetary breakdowns.
-- **Classification**: **QUERY** ([`GetSaleByIdQuery`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/queries/get-sale-by-id.query.ts), [`GetSaleByIdHandler`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/queries/get-sale-by-id.handler.ts)).
-- **Input Contract (`GetSaleByIdInput`)**:
+- **Purpose**: Retrieves the complete commercial state of a specific sale order by its domain identifier, including all line items, applied discounts, origin source reference, and deterministic monetary breakdowns without leaking domain entities or mutating aggregate state.
+- **Classification**: **QUERY** ([`GetSaleQuery`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/queries/get-sale.query.ts), [`GetSaleHandler`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/queries/get-sale.handler.ts)).
+- **Architectural Boundary Evaluation**:
+  - **Return Representation Decision (Application DTO vs. Domain Aggregate vs. Read Model)**:
+    - _Domain Aggregate Rejected_: Leaking the mutable domain aggregate root across the application boundary violates DDD and Hexagonal architecture, coupling external callers to domain internal methods and failing to provide JSON-serializable primitives.
+    - _Raw Prisma Entity Rejected_: Application layer must never expose direct ORM models or leak SQL relational structures.
+    - _Separate Asynchronous Read Model Rejected_: For single-record checkout inquiry, an asynchronous read model risks eventual consistency lag immediately following checkout mutations; read-your-own-writes consistency is mandatory.
+    - _Application DTO (`SaleDTO`) Accepted_: The query loads the aggregate via `SaleRepositoryPort.findById` and serializes it through [`SaleMapper.toDTO(sale)`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/mappers/sale.mapper.ts), producing an immutable, strongly-typed DTO containing canonical `MoneyDTO` structures and flat numeric projections.
+  - **Aggregate Boundary Evaluation (What to Include vs. What NOT to Eagerly Load)**:
+    - _SaleItems_: **Included**. Line items (`SaleItem`) belong strictly to the `Sale` aggregate root boundary and are loaded with the aggregate.
+    - _Discounts_: **Included**. Line discounts on `items` and order-level discount (`orderDiscount`) are intrinsic commercial terms belonging to the `Sale` aggregate.
+    - _SourceReference / SaleSource_: **Included**. Commercial origin context (`SaleSourceDTO`) is a direct Value Object of the `Sale` aggregate (Milestone 7.9, ADR-0121).
+    - _Client Reference_: **Included by identity only (`clientId?: string`)**. Does NOT eagerly fetch the full `Client` aggregate from the client-domain context, maintaining bounded context autonomy.
+    - _Payment Summary / Payments_: **NOT eagerly loaded**. In Kinergy's DDD architecture (Milestones 7.5, 7.6, ADR-0115), `Payment` is an independent Aggregate Root. Payments are queried independently via [`GetPaymentsBySaleIdQuery`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/queries/get-payments-by-sale-id.query.ts) to avoid accidental coupling and aggregate boundary contamination.
+    - _Receipt_: **NOT eagerly loaded**. In Kinergy's DDD architecture (Milestone 7.7, ADR-0117), `Receipt` is an independent Aggregate Root. Receipts are queried independently via [`GetReceiptBySaleQuery`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/queries/get-receipt-by-sale.query.ts).
+- **Input Contract (`GetSaleInput` / `GetSaleByIdInput`)**:
   - `saleId: string` (Sale unique identifier).
-  - `tenantId?: string` (Optional tenant isolation check).
 - **Output Contract**: `SalesApplicationResult<SaleDTO>`.
 - **Repositories Required**:
-  - [`SaleRepositoryPort`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/ports/sale-repository.port.ts)
-- **Domain Operations Invoked**: None (Read-only query).
+  - [`SaleRepositoryPort`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/ports/sale-repository.port.ts) (Read-only `findById`).
+- **Domain Operations Invoked**: None (Strictly read-only query; zero business rules implemented in query handler).
 - **Transaction Requirements**: Zero database transaction (Read-only query execution).
 - **Expected Errors**:
-  - `SaleNotFoundException` (Sale does not exist).
-  - `PaymentUnauthorizedException` (Cross-tenant boundary violation).
+  - `SaleNotFoundException` (Sale does not exist in repository).
+  - `InvalidSaleStateException` (Sale ID is empty or whitespace).
 - **Authorization Considerations**: Requires `sales.read` permission; roles: `Owner`, `Manager`, `Receptionist`, `Trainer`, `Kitchen Staff`.
 - **Idempotency Considerations**: Pure read query; 100% idempotent.
 
