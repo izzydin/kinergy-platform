@@ -40,6 +40,10 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
     return PrismaSaleMapper.toDomain(raw);
   }
 
+  public async getById(id: SaleId | string): Promise<Sale | null> {
+    return this.findById(id);
+  }
+
   public async findBySourceReference(
     sourceType: SourceType | SaleSourceType | string,
     sourceId: string,
@@ -189,6 +193,14 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
       items,
       total,
     };
+  }
+
+  public async list(
+    criteria: FindSalesCriteria,
+    pagination: FindSalesPagination,
+    sort: FindSalesSort,
+  ): Promise<FindSalesResult> {
+    return this.findMany(criteria, pagination, sort);
   }
 
   public async save(sale: Sale): Promise<void> {

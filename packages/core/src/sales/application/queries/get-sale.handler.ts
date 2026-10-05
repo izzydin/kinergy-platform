@@ -44,8 +44,11 @@ export class GetSaleHandler implements SalesQueryHandler<
         );
       }
 
-      // 1. Load Sale through SaleRepositoryPort
-      const sale = await this.saleRepository.findById(saleId);
+      // 1. Load Sale through SaleRepositoryPort (prefers domain-oriented getById, falls back to findById)
+      const loadFn = this.saleRepository.getById
+        ? this.saleRepository.getById.bind(this.saleRepository)
+        : this.saleRepository.findById.bind(this.saleRepository);
+      const sale = await loadFn(saleId);
 
       // 2. Validate Sale existence & map to established error
       if (!sale) {

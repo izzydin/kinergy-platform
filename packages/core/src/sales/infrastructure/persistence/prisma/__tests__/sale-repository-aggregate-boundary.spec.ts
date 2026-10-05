@@ -750,5 +750,34 @@ describe('Sale Repository Aggregate Boundary & Persistence Hardening (Integratio
       expect(item.source?.sourceType).toBe('FOOD');
       expect(item.source?.sourceId).toBe('src-789');
     });
+
+    it('delegates list() directly to findMany() with identical arguments', async () => {
+      const { mockPrisma } = createMockPrisma();
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+
+      jest.spyOn(repo, 'findMany').mockResolvedValueOnce({
+        items: [],
+        total: 0,
+      });
+
+      const criteria = { tenantId: 'tenant-123' };
+      const pagination = { page: 1, limit: 10 };
+      const sort = { field: 'createdAt' as const, direction: 'desc' as const };
+
+      const res = await repo.list(criteria, pagination, sort);
+      expect(repo.findMany).toHaveBeenCalledWith(criteria, pagination, sort);
+      expect(res.total).toBe(0);
+    });
+
+    it('delegates getById() directly to findById() with identical arguments', async () => {
+      const { mockPrisma } = createMockPrisma();
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+
+      jest.spyOn(repo, 'findById').mockResolvedValueOnce(null);
+
+      const res = await repo.getById('sale-999');
+      expect(repo.findById).toHaveBeenCalledWith('sale-999');
+      expect(res).toBeNull();
+    });
   });
 });

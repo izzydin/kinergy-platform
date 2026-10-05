@@ -47,6 +47,11 @@ export interface SaleRepositoryPort {
   findById(id: SaleId | string): Promise<Sale | null>;
 
   /**
+   * Domain-oriented alias for resolving a Sale aggregate by its unique domain identifier.
+   */
+  getById?(id: SaleId | string): Promise<Sale | null>;
+
+  /**
    * Resolves an active (non-cancelled) Sale aggregate by its originating source reference.
    * Enforces the operational single-billing invariant (e.g. at most one active Sale per TreatmentSession).
    */
@@ -66,6 +71,15 @@ export interface SaleRepositoryPort {
    * Never leaks ORM query objects or un-encapsulated dynamic SQL.
    */
   findMany?(
+    criteria: FindSalesCriteria,
+    pagination: FindSalesPagination,
+    sort: FindSalesSort,
+  ): Promise<FindSalesResult>;
+
+  /**
+   * Domain-oriented method for resolving a paginated, filtered, and deterministically sorted collection of sales summary projections.
+   */
+  list?(
     criteria: FindSalesCriteria,
     pagination: FindSalesPagination,
     sort: FindSalesSort,

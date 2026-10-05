@@ -170,8 +170,14 @@ export class ListSalesHandler implements SalesQueryHandler<
         );
       }
 
-      // 4. Delegate to repository
-      if (!this.saleRepository.findMany) {
+      // 4. Delegate to repository (prefers domain-oriented list, falls back to findMany)
+      const listFn = this.saleRepository.list
+        ? this.saleRepository.list.bind(this.saleRepository)
+        : this.saleRepository.findMany
+          ? this.saleRepository.findMany.bind(this.saleRepository)
+          : null;
+
+      if (!listFn) {
         return SalesApplicationResult.fail(
           new Error('SaleRepository does not implement findMany operation.'),
         );
@@ -197,7 +203,7 @@ export class ListSalesHandler implements SalesQueryHandler<
         direction: sortDirection,
       };
 
-      const repoResult = await this.saleRepository.findMany(criteria, pagination, sort);
+      const repoResult = await listFn(criteria, pagination, sort);
 
       const total = repoResult.total;
       const totalPages = total === 0 ? 0 : Math.ceil(total / limit);
