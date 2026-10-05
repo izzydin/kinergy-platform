@@ -46,6 +46,8 @@ describe('Sale Repository Aggregate Boundary & Persistence Hardening (Integratio
     sale: {
       findUnique: jest.Mock;
       findFirst: jest.Mock;
+      findMany: jest.Mock;
+      count: jest.Mock;
       upsert: jest.Mock;
       updateMany: jest.Mock;
     };
@@ -74,6 +76,8 @@ describe('Sale Repository Aggregate Boundary & Persistence Hardening (Integratio
       sale: {
         findUnique: jest.fn().mockResolvedValue(null),
         findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
         upsert: jest.fn().mockResolvedValue({}),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       },
@@ -662,6 +666,89 @@ describe('Sale Repository Aggregate Boundary & Persistence Hardening (Integratio
           }),
         }),
       );
+    });
+  });
+
+  // ==========================================================================
+  // 8. findMany Query Projection & Deterministic Ordering
+  // ==========================================================================
+  describe('8. findMany Query Projection & Deterministic Ordering', () => {
+    it('executes prisma.sale.findMany and count with filters and deterministic secondary sorting', async () => {
+      const { mockPrisma } = createMockPrisma();
+      const rawRecords = [
+        {
+          id: 'sale-001',
+          tenantId: 'tenant-123',
+          clientId: 'client-456',
+          status: 'COMPLETED',
+          currency: 'USD',
+          sourceType: 'FOOD',
+          sourceId: 'src-789',
+          sourceCode: 'CODE-999',
+          subtotalAmount: new Prisma.Decimal(100.0),
+          discountTotalAmount: new Prisma.Decimal(10.0),
+          totalAmount: new Prisma.Decimal(90.0),
+          _count: { items: 2 },
+          createdAt: new Date('2026-10-01T12:00:00.000Z'),
+          updatedAt: new Date('2026-10-01T12:05:00.000Z'),
+        },
+      ];
+
+      mockPrisma.sale.findMany.mockResolvedValue(rawRecords);
+      mockPrisma.sale.count.mockResolvedValue(1);
+
+      const repo = new PrismaSaleRepository(mockPrisma as unknown as PrismaClient);
+
+      const result = await repo.findMany(
+        {
+          tenantId: 'tenant-123',
+          clientId: 'client-456',
+          status: 'COMPLETED',
+          sourceType: 'FOOD',
+          sourceReferenceId: 'src-789',
+          fromDate: new Date('2026-10-01T00:00:00.000Z'),
+          toDate: new Date('2026-10-02T00:00:00.000Z'),
+        },
+        { page: 2, limit: 10 },
+        { field: 'total', direction: 'desc' },
+      );
+
+      expect(mockPrisma.sale.findMany).toHaveBeenCalledWith({
+        where: {
+          tenantId: 'tenant-123',
+          clientId: 'client-456',
+          status: 'COMPLETED',
+          sourceType: 'FOOD',
+          sourceId: 'src-789',
+          createdAt: {
+            gte: new Date('2026-10-01T00:00:00.000Z'),
+            lte: new Date('2026-10-02T00:00:00.000Z'),
+          },
+        },
+        orderBy: [{ totalAmount: 'desc' }, { id: 'asc' }],
+        skip: 10,
+        take: 10,
+        include: {
+          _count: { select: { items: true } },
+        },
+      });
+
+      expect(mockPrisma.sale.count).toHaveBeenCalledWith({
+        where: expect.objectContaining({
+          tenantId: 'tenant-123',
+          clientId: 'client-456',
+          status: 'COMPLETED',
+        }),
+      });
+
+      expect(result.total).toBe(1);
+      expect(result.items.length).toBe(1);
+      const item = result.items[0]!;
+      expect(item.id).toBe('sale-001');
+      expect(item.totalAmount).toBe(90.0);
+      expect(item.itemCount).toBe(2);
+      expect(item.source?.sourceType).toBe('FOOD');
+      expect(item.source?.sourceId).toBe('src-789');
     });
   });
 });

@@ -1,6 +1,7 @@
 import { PrismaClient, Prisma, SaleStatus as PrismaSaleStatus } from '@prisma/client';
 import { Sale } from '../../../../domain/sale.aggregate';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
+import { Money } from '../../../../domain/value-objects/money.vo';
 import { SourceType } from '../../../../domain/enums/source-type.enum';
 import { SaleSourceType } from '../../../../domain/enums/sale-source-type.enum';
 import { SaleOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
@@ -9,7 +10,15 @@ import { DuplicateSaleException } from '../../../../domain/exceptions/duplicate-
 import { PrismaSaleMapper } from '../mappers/prisma-sale.mapper';
 import { PrismaDatabaseErrorMapper } from '../mappers/prisma-database-error.mapper';
 
-import { SaleRepositoryPort } from '../../../../application/ports/sale-repository.port';
+import {
+  SaleRepositoryPort,
+  FindSalesCriteria,
+  FindSalesPagination,
+  FindSalesSort,
+  FindSalesResult,
+} from '../../../../application/ports/sale-repository.port';
+import { SaleSummaryDTO } from '../../../../application/dtos/sale.dto';
+import { MoneyMapper } from '../../../../application/mappers/money.mapper';
 
 export class PrismaSaleRepository implements SaleRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
@@ -74,6 +83,112 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
     }
 
     return PrismaSaleMapper.toDomain(raw);
+  }
+
+  public async findMany(
+    criteria: FindSalesCriteria,
+    pagination: FindSalesPagination,
+    sort: FindSalesSort,
+  ): Promise<FindSalesResult> {
+    const page = Math.max(1, pagination.page);
+    const limit = Math.max(1, pagination.limit);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.SaleWhereInput = {};
+
+    if (criteria.tenantId) {
+      where.tenantId = criteria.tenantId;
+    }
+    if (criteria.clientId) {
+      where.clientId = criteria.clientId;
+    }
+    if (criteria.status) {
+      where.status = criteria.status as PrismaSaleStatus;
+    }
+    if (criteria.sourceType) {
+      where.sourceType = criteria.sourceType;
+    }
+    if (criteria.sourceReferenceId) {
+      where.sourceId = criteria.sourceReferenceId;
+    }
+    if (criteria.fromDate || criteria.toDate) {
+      where.createdAt = {
+        ...(criteria.fromDate ? { gte: criteria.fromDate } : {}),
+        ...(criteria.toDate ? { lte: criteria.toDate } : {}),
+      };
+    }
+
+    const direction: 'asc' | 'desc' = sort.direction === 'asc' ? 'asc' : 'desc';
+    let orderBy: Prisma.SaleOrderByWithRelationInput[];
+
+    switch (sort.field) {
+      case 'total':
+        orderBy = [{ totalAmount: direction }, { id: 'asc' }];
+        break;
+      case 'status':
+        orderBy = [{ status: direction }, { id: 'asc' }];
+        break;
+      case 'createdAt':
+      default:
+        orderBy = [{ createdAt: direction }, { id: 'asc' }];
+        break;
+    }
+
+    const [records, total] = await Promise.all([
+      this.prisma.sale.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+        include: {
+          _count: {
+            select: { items: true },
+          },
+        },
+      }),
+      this.prisma.sale.count({ where }),
+    ]);
+
+    const items: SaleSummaryDTO[] = records.map((record) => {
+      const currency = record.currency;
+      const subtotalDto = MoneyMapper.toDTO(
+        Money.create(record.subtotalAmount.toString(), currency),
+      );
+      const discountTotalDto = MoneyMapper.toDTO(
+        Money.create(record.discountTotalAmount.toString(), currency),
+      );
+      const totalDto = MoneyMapper.toDTO(Money.create(record.totalAmount.toString(), currency));
+
+      return {
+        id: record.id,
+        tenantId: record.tenantId ?? undefined,
+        clientId: record.clientId ?? undefined,
+        currency,
+        status: record.status,
+        source: {
+          sourceType: record.sourceType,
+          sourceId: record.sourceId,
+          sourceCode: record.sourceCode ?? null,
+          type: record.sourceType,
+          referenceId: record.sourceId,
+          referenceCode: record.sourceCode ?? null,
+        },
+        subtotal: subtotalDto,
+        discountTotal: discountTotalDto,
+        total: totalDto,
+        subtotalAmount: subtotalDto.amount,
+        discountTotalAmount: discountTotalDto.amount,
+        totalAmount: totalDto.amount,
+        itemCount: record._count?.items ?? 0,
+        createdAt: record.createdAt.toISOString(),
+        updatedAt: record.updatedAt.toISOString(),
+      };
+    });
+
+    return {
+      items,
+      total,
+    };
   }
 
   public async save(sale: Sale): Promise<void> {

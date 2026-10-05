@@ -5,3 +5,4 @@ export * from './money.dto';
 export * from './receipt.dto';
 export * from './sale-source.dto';
 export * from './sale-totals.dto';
+export * from './paginated-result.dto';

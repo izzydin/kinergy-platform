@@ -4,3 +4,4 @@ export * from './gym';
 export * from './resources';
 export * from './sales';
 export { Money, MoneyProps, InvalidMoneyException } from './sales';
+export type { PaginatedResultDTO } from './sales';

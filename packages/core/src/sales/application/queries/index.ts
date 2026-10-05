@@ -10,3 +10,5 @@ export * from './get-receipt.query';
 export * from './get-receipt-by-sale.query';
 export * from '../handlers/get-receipt.handler';
 export * from '../handlers/get-receipt-by-sale.handler';
+export * from './list-sales.query';
+export * from './list-sales.handler';

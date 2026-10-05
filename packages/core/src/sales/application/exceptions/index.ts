@@ -12,3 +12,4 @@ export * from './payment-sale-mismatch.exception';
 export * from './insufficient-payment.exception';
 export * from './source-not-found.exception';
 export * from './client-not-found.exception';
+export * from './invalid-sale-query.exception';

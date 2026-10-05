@@ -47,6 +47,7 @@ export interface SaleSummaryDTO {
   readonly clientId?: string;
   readonly currency: string;
   readonly status: string;
+  readonly source?: SaleSourceDTO;
 
   readonly subtotal: MoneyDTO;
   readonly discountTotal: MoneyDTO;
