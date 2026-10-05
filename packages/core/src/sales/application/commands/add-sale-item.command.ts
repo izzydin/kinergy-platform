@@ -1,9 +1,10 @@
 import { SourceType } from '../../domain/enums/source-type.enum';
+import { SaleSourceType } from '../../domain/enums/sale-source-type.enum';
 
 export interface AddSaleItemInput {
   saleId: string;
-  source: {
-    sourceType: SourceType;
+  source?: {
+    sourceType: SourceType | SaleSourceType | string;
     sourceId: string;
     sourceCode?: string | null;
   };
