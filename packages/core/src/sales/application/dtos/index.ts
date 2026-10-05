@@ -4,3 +4,4 @@ export * from './payment.dto';
 export * from './money.dto';
 export * from './receipt.dto';
 export * from './sale-source.dto';
+export * from './sale-totals.dto';

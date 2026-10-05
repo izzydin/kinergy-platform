@@ -1,5 +1,6 @@
 import { Sale } from '../../domain/sale.aggregate';
 import { SaleDTO, SaleSummaryDTO } from '../dtos/sale.dto';
+import { SaleTotalsDTO } from '../dtos/sale-totals.dto';
 import { MoneyMapper } from './money.mapper';
 import { SaleItemMapper } from './sale-item.mapper';
 
@@ -85,6 +86,34 @@ export class SaleMapper {
       itemCount: sale.itemCount,
       createdAt: sale.createdAt.toISOString(),
       updatedAt: sale.updatedAt.toISOString(),
+    };
+  }
+
+  /**
+   * Maps Sale aggregate to authoritative SaleTotalsDTO.
+   */
+  public static toTotalsDTO(sale: Sale): SaleTotalsDTO {
+    const subtotalDto = MoneyMapper.toDTO(sale.subtotal);
+    const discountTotalDto = MoneyMapper.toDTO(sale.discountTotal);
+    const totalDto = MoneyMapper.toDTO(sale.total);
+
+    return {
+      saleId: sale.id.value,
+      currency: sale.currency,
+      subtotal: subtotalDto,
+      discountTotal: discountTotalDto,
+      total: totalDto,
+      subtotalAmount: subtotalDto.amount,
+      discountTotalAmount: discountTotalDto.amount,
+      totalAmount: totalDto.amount,
+      itemCount: sale.itemCount,
+      orderDiscount: sale.orderDiscount
+        ? {
+            type: sale.orderDiscount.type,
+            value: sale.orderDiscount.value,
+            reason: sale.orderDiscount.reason,
+          }
+        : null,
     };
   }
 }

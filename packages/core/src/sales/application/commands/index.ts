@@ -6,6 +6,7 @@ export * from './apply-item-discount.command';
 export * from './remove-item-discount.command';
 export * from './apply-discount.command';
 export * from './apply-order-discount.command';
+export * from '../queries/calculate-sale.query';
 export * from './remove-order-discount.command';
 export * from './finalize-sale.command';
 export * from './record-payment.command';

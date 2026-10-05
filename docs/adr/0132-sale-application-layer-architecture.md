@@ -253,26 +253,30 @@ In alignment with Kinergy's existing architecture:
 
 ---
 
-### 4.5 CalculateSale (Query / Pricing Preview)
+### 4.5 CalculateSale (Query / Authoritative Financial Calculation)
 
-- **Purpose**: Provides in-memory recalculation and preview of financial totals (subtotal, line discounts, order discount, net total) for a hypothetical or modified basket without persisting changes to the database.
-- **Classification**: **QUERY** ([`CalculateSaleQuery`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/queries/index.ts)).
+- **Purpose**: Exposes the Sale Aggregate's authoritative financial calculations (subtotal, line discounts, order discount, net total) through the application boundary by delegating strictly to the domain implementation established in Milestone 7.4.
+- **Classification**: **QUERY** ([`CalculateSaleQuery`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/queries/calculate-sale.query.ts), [`CalculateSaleHandler`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/queries/calculate-sale.handler.ts)).
+- **Architectural Decision (Command with Persistence vs. Query without Persistence)**:
+  - **Decision**: Classified as a **read-only QUERY** without database persistence.
+  - **Rationale**:
+    1. _No Stale Totals Invariant_: In Kinergy's DDD persistence architecture (ADR-0114, ADR-0119, ADR-0125), every state-mutating command (`CreateSale`, `AddSaleItem`, `RemoveSaleItem`, `ApplyDiscount`, `UpdateSaleItemQuantity`) executes `sale.recalculateTotals()` synchronously before committing to PostgreSQL. Furthermore, `Sale.reconstitute()` asserts that persisted totals match recalculated totals down to the cent, preventing any stored financial desynchronization.
+    2. _CQRS Integrity_: Calculating or verifying totals is semantically an inquiry. Persisting would introduce write operations, row locks, database I/O, and OCC version increments to a read operation, creating unnecessary write load and concurrency contention.
+    3. _Single Authoritative Calculation Path_: The application layer does **NOT** compute `subtotal = items.reduce(...)`, `discountTotal`, or `total`. It delegates execution directly to `sale.calculateTotals()` on the aggregate root and maps the resulting value objects.
 - **Input Contract (`CalculateSaleInput`)**:
-  - `currency: string` (Target currency).
-  - `items: Array<{ quantity: number; unitPriceAmount: number; discount?: { type: string; value: number } | null }>`
-  - `orderDiscount?: { type: string; value: number } | null`
-- **Output Contract**: `SalesApplicationResult<SaleTotalsSummaryDTO>`.
-- **Repositories Required**: None (Executed purely in-memory using domain Value Objects and Aggregate calculation formulas).
+  - `saleId: string` (Target sale identifier).
+- **Output Contract**: `SalesApplicationResult<SaleTotalsDTO>`.
+- **Repositories Required**:
+  - [`SaleRepositoryPort`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/ports/sale-repository.port.ts) (Read-only `findById`).
 - **Domain Operations Invoked**:
-  - `Money.create()`
-  - `Discount.create()`
-  - Pure domain formula: Gross Subtotal $\to$ Line Discounts $\to$ Net Pre-Order $\to$ Order Discount $\to$ Total.
-- **Transaction Requirements**: Zero database connection or transaction.
+  - `sale.calculateTotals()`: executes the 13 canonical reconciliation formulas established in Milestone 7.4 (ADR-0114).
+- **Transaction Requirements**: Zero database write transaction. Side-effect free read query.
 - **Expected Errors**:
-  - `InvalidMoneyException` (Invalid currency or amount).
-  - `InvalidDiscountException` (Excessive discount value).
-- **Authorization Considerations**: Public / Authenticated; accessible to UI pricing preview widgets.
-- **Idempotency Considerations**: Pure mathematical function; 100% idempotent and deterministic.
+  - `SaleNotFoundException` (Sale does not exist).
+  - `SaleAlreadyFinalizedException` (Attempting calculation on a finalized or cancelled sale where terms are permanently frozen).
+  - `InvalidSaleStateException` (Empty/invalid `saleId` or negative total violation).
+- **Authorization Considerations**: Requires `sales.read` or `sales.create` permission; accessible to cashier carts and checkout summary widgets.
+- **Idempotency Considerations**: Pure inquiry; 100% idempotent and deterministic.
 
 ---
 
