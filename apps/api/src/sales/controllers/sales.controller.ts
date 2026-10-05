@@ -13,6 +13,7 @@ import {
   Optional,
   Param,
   Post,
+  Query,
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
@@ -32,8 +33,12 @@ import {
   CancelSaleHandler,
   CoordinateSalePaymentHandler,
   AssignSaleSourceHandler,
+  CalculateSaleHandler,
+  ListSalesHandler,
   CreateSaleCommand,
   GetSaleByIdQuery,
+  CalculateSaleQuery,
+  ListSalesQuery,
   AddSaleItemCommand,
   RemoveSaleItemCommand,
   ApplyOrderDiscountCommand,
@@ -44,6 +49,9 @@ import {
   AssignSaleSourceCommand,
   SalesApplicationResult,
   DuplicateSaleException,
+  PaginatedResultDTO,
+  SaleSummaryDTO,
+  SaleTotalsDTO,
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
@@ -123,6 +131,8 @@ export class SalesController {
   private readonly _cancelSaleHandler: CancelSaleHandler;
   private readonly _coordinateSalePaymentHandler?: CoordinateSalePaymentHandler;
   private readonly _assignSaleSourceHandler: AssignSaleSourceHandler;
+  private readonly _calculateSaleHandler?: CalculateSaleHandler;
+  private readonly _listSalesHandler?: ListSalesHandler;
 
   constructor(
     @Inject(SALE_REPOSITORY_TOKEN)
@@ -160,6 +170,12 @@ export class SalesController {
     @Optional()
     @Inject(AssignSaleSourceHandler)
     assignSaleSourceHandler?: AssignSaleSourceHandler,
+    @Optional()
+    @Inject(CalculateSaleHandler)
+    calculateSaleHandler?: CalculateSaleHandler,
+    @Optional()
+    @Inject(ListSalesHandler)
+    listSalesHandler?: ListSalesHandler,
   ) {
     this._createSaleHandler = createSaleHandler ?? new CreateSaleHandler(saleRepository);
     this._getSaleByIdHandler = getSaleByIdHandler ?? new GetSaleByIdHandler(saleRepository);
@@ -174,6 +190,10 @@ export class SalesController {
     this._cancelSaleHandler = cancelSaleHandler ?? new CancelSaleHandler(saleRepository);
     this._assignSaleSourceHandler =
       assignSaleSourceHandler ?? new AssignSaleSourceHandler(saleRepository);
+    this._calculateSaleHandler =
+      calculateSaleHandler ?? (saleRepository ? new CalculateSaleHandler(saleRepository) : undefined);
+    this._listSalesHandler =
+      listSalesHandler ?? (saleRepository ? new ListSalesHandler(saleRepository) : undefined);
 
     if (coordinateSalePaymentHandler) {
       this._coordinateSalePaymentHandler = coordinateSalePaymentHandler;
@@ -230,6 +250,52 @@ export class SalesController {
     return this.handleResult(result);
   }
 
+  @Get()
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
+  @Permissions('sales.read')
+  @ApiOperation({
+    summary: 'List sales orders with pagination, sorting, and justified filters',
+    description:
+      'Returns paginated sale order summaries adhering to Kinergy query conventions.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Paginated sales retrieved successfully',
+  })
+  public async listSales(
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('clientId') clientId?: string,
+    @Query('status') status?: string,
+    @Query('sourceType') sourceType?: string,
+    @Query('sourceReferenceId') sourceReferenceId?: string,
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
+    @Query('sortField') sortField?: string,
+    @Query('sortDirection') sortDirection?: string,
+  ): Promise<PaginatedResultDTO<SaleSummaryDTO>> {
+    if (!this._listSalesHandler) {
+      throw new BadRequestException('List sales handler is unavailable.');
+    }
+
+    const query = new ListSalesQuery({
+      page: page ? parseInt(page, 10) : undefined,
+      limit: limit ? parseInt(limit, 10) : undefined,
+      clientId,
+      status,
+      sourceType,
+      sourceReferenceId,
+      fromDate,
+      toDate,
+      sortField,
+      sortDirection,
+    });
+
+    const result = await this._listSalesHandler.execute(query);
+    return this.handleResult(result);
+  }
+
   @Get(':id')
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
@@ -252,6 +318,34 @@ export class SalesController {
   public async getSale(@Param('id') id: string): Promise<SaleResponseDto> {
     const query = new GetSaleByIdQuery({ saleId: id });
     const result = await this._getSaleByIdHandler.execute(query);
+    return this.handleResult(result);
+  }
+
+  @Get(':id/calculate')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
+  @Permissions('sales.read')
+  @ApiOperation({
+    summary: 'Calculate authoritative totals for a sale order without persistence',
+    description:
+      'Invokes domain calculation behavior on the Sale aggregate and returns exact monetary breakdown.',
+  })
+  @ApiParam({ name: 'id', description: 'Sale ID' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Authoritative totals calculated successfully',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Sale order not found',
+  })
+  public async calculateSale(@Param('id') id: string): Promise<SaleTotalsDTO> {
+    if (!this._calculateSaleHandler) {
+      throw new BadRequestException('Calculate sale handler is unavailable.');
+    }
+
+    const query = new CalculateSaleQuery({ saleId: id });
+    const result = await this._calculateSaleHandler.execute(query);
     return this.handleResult(result);
   }
 
@@ -489,8 +583,8 @@ export class SalesController {
 
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
-  @Permissions('sales.create')
+  @Roles('Owner', 'Manager', 'Receptionist')
+  @Permissions('sales.cancel')
   @ApiOperation({
     summary: 'Cancel an active sale order (DRAFT, PENDING_PAYMENT, or PARTIALLY_PAID)',
     description:

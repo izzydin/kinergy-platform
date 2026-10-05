@@ -15,6 +15,8 @@ import {
   FinalizeSaleHandler,
   CancelSaleHandler,
   CoordinateSalePaymentHandler,
+  CalculateSaleHandler,
+  ListSalesHandler,
   RecordPaymentHandler,
   GetPaymentByIdHandler,
   GetPaymentsBySaleIdHandler,
@@ -100,6 +102,16 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
       useFactory: (repo: SaleRepositoryPort, auditPublisher: SalesAuditEventPublisher) =>
         new CancelSaleHandler(repo, undefined, auditPublisher),
       inject: [SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
+    },
+    {
+      provide: CalculateSaleHandler,
+      useFactory: (repo: SaleRepositoryPort) => new CalculateSaleHandler(repo),
+      inject: [SALE_REPOSITORY_TOKEN],
+    },
+    {
+      provide: ListSalesHandler,
+      useFactory: (repo: SaleRepositoryPort) => new ListSalesHandler(repo),
+      inject: [SALE_REPOSITORY_TOKEN],
     },
     {
       provide: CoordinateSalePaymentHandler,
@@ -212,6 +224,8 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     RemoveOrderDiscountHandler,
     FinalizeSaleHandler,
     CancelSaleHandler,
+    CalculateSaleHandler,
+    ListSalesHandler,
     CoordinateSalePaymentHandler,
     RecordPaymentHandler,
     GetPaymentByIdHandler,
