@@ -317,17 +317,22 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
             }
           }
 
-          // Initial insert or draft update with full child line-item synchronization
+          // Initial insert or draft update with full child line-item synchronization.
+          // On update of existing draft record, atomically advance version to 2 so concurrent v1 updates collide.
+          const targetVersion = existing ? 2 : 1;
+
           await tx.sale.upsert({
             where: { id: saleData.id },
             create: {
               ...saleData,
+              version: 1,
               items: {
                 create: itemsData,
               },
             },
             update: {
               ...saleData,
+              version: targetVersion,
             },
           });
 
@@ -348,8 +353,17 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
             });
           }
         } else {
-          // Optimistic concurrency control check against prior version
-          const priorVersion = sale.version - 1;
+          // Optimistic concurrency control check:
+          // 1. If status is NOT DRAFT (finalize, cancel, markPaid, markCompleted, markRefunded):
+          //    The domain explicitly incremented this._version++ on state transition.
+          //    Expected prior version is strictly sale.version - 1, targetVersion is sale.version.
+          // 2. If status IS DRAFT (consecutive intra-draft mutations like AddSaleItem, RemoveSaleItem, ApplyDiscount):
+          //    The domain did not increment version. Expected prior version is existing.version,
+          //    and targetVersion is existing.version + 1.
+          const isTransition = sale.status !== 'DRAFT';
+          const priorVersion = isTransition ? sale.version - 1 : sale.version;
+          const targetVersion = priorVersion + 1;
+
           const result = await tx.sale.updateMany({
             where: {
               id: saleData.id,
@@ -357,12 +371,16 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
             },
             data: {
               ...saleData,
+              version: targetVersion,
             },
           });
 
           if (result.count === 0) {
             throw new SaleOptimisticLockException('Sale', saleData.id, priorVersion);
           }
+
+          // Keep in-memory aggregate version synchronized
+          (sale as unknown as { _version: number })._version = targetVersion;
 
           // Synchronize child line items: delete removed items and upsert current items
           const currentItemIds = itemsData.map((item) => item.id);
