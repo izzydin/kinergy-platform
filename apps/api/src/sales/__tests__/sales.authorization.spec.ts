@@ -1,12 +1,6 @@
 import { ExecutionContext, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import {
-  Sale,
-  Money,
-  SaleStatus,
-  SourceReference,
-  SourceType,
-} from '@kinergy-platform/core';
+import { Sale, Money, SaleStatus, SourceReference, SourceType } from '@kinergy-platform/core';
 import { SalesController } from '../controllers/sales.controller';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
 import { DefaultAuthorizationEvaluator } from '../../platform/identity/authorization/default-authorization-evaluator';

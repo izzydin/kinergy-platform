@@ -191,7 +191,8 @@ export class SalesController {
     this._assignSaleSourceHandler =
       assignSaleSourceHandler ?? new AssignSaleSourceHandler(saleRepository);
     this._calculateSaleHandler =
-      calculateSaleHandler ?? (saleRepository ? new CalculateSaleHandler(saleRepository) : undefined);
+      calculateSaleHandler ??
+      (saleRepository ? new CalculateSaleHandler(saleRepository) : undefined);
     this._listSalesHandler =
       listSalesHandler ?? (saleRepository ? new ListSalesHandler(saleRepository) : undefined);
 
@@ -256,8 +257,7 @@ export class SalesController {
   @Permissions('sales.read')
   @ApiOperation({
     summary: 'List sales orders with pagination, sorting, and justified filters',
-    description:
-      'Returns paginated sale order summaries adhering to Kinergy query conventions.',
+    description: 'Returns paginated sale order summaries adhering to Kinergy query conventions.',
   })
   @ApiResponse({
     status: HttpStatus.OK,
