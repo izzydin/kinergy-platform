@@ -5,6 +5,7 @@ import { SaleDTO } from '../dtos/sale.dto';
 import { SaleMapper } from '../mappers/sale.mapper';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
+import { DomainEvent } from '../../domain/shared/domain-event';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
@@ -40,30 +41,45 @@ export class RemoveSaleItemHandler implements SalesCommandHandler<
         );
       }
 
-      // 1. Load Sale
-      const sale = await this.saleRepository.findById(saleId);
+      const runInTx = this.saleRepository.withTransaction
+        ? (fn: (repo: SaleRepositoryPort) => Promise<SalesApplicationResult<SaleDTO>>) =>
+            this.saleRepository.withTransaction!(fn)
+        : (fn: (repo: SaleRepositoryPort) => Promise<SalesApplicationResult<SaleDTO>>) =>
+            fn(this.saleRepository);
 
-      // 2. Validate Sale existence
-      if (!sale) {
-        return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
+      let eventsToPublish: ReadonlyArray<DomainEvent> = [];
+
+      const result = await runInTx(async (repo) => {
+        // 1. Load Sale from transactional repository
+        const sale = await repo.findById(saleId);
+
+        // 2. Validate Sale existence
+        if (!sale) {
+          return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
+        }
+
+        // 3. Identify the requested SaleItem & 4. Invoke approved domain operation for removal
+        // 5. Recalculates totals through domain recalculateTotals() inside sale.removeItem
+        sale.removeItem(input.itemId.trim(), this.clock);
+
+        // 6. Persist the modified aggregate (item deletion and sale totals update)
+        await repo.save(sale);
+
+        // Capture uncommitted domain events to dispatch only after successful transaction commit
+        eventsToPublish = sale.getUncommittedEvents();
+        sale.clearEvents();
+
+        // Return the approved Sale representation
+        return SalesApplicationResult.ok(SaleMapper.toDTO(sale));
+      });
+
+      // Dispatch domain events strictly after successful transaction commit
+      if (result.isSuccess && this.eventPublisher && eventsToPublish.length > 0) {
+        await this.eventPublisher.publish(eventsToPublish);
       }
-
-      // 3. Identify the requested SaleItem & 4. Invoke approved domain operation for removal
-      // 5. Recalculates totals through domain recalculateTotals() inside sale.removeItem
-      sale.removeItem(input.itemId.trim(), this.clock);
-
-      // 6. Persist the modified aggregate
-      await this.saleRepository.save(sale);
-
-      // Dispatch domain events
-      const events = sale.getUncommittedEvents();
-      if (this.eventPublisher && events.length > 0) {
-        await this.eventPublisher.publish(events);
-      }
-      sale.clearEvents();
 
       // 7. Return the approved Sale representation
-      return SalesApplicationResult.ok(SaleMapper.toDTO(sale));
+      return result;
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));
       return SalesApplicationResult.fail(error);

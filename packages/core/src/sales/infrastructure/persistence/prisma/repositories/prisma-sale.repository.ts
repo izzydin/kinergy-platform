@@ -203,11 +203,37 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
     return this.findMany(criteria, pagination, sort);
   }
 
+  public async withTransaction<T>(work: (repo: SaleRepositoryPort) => Promise<T>): Promise<T> {
+    const client = this.prisma;
+    if (typeof (client as unknown as { $transaction: unknown }).$transaction === 'function') {
+      return (
+        client as unknown as {
+          $transaction: (cb: (tx: PrismaClient) => Promise<T>) => Promise<T>;
+        }
+      ).$transaction(async (tx: PrismaClient) => {
+        const transactionalRepo = new PrismaSaleRepository(tx);
+        return work(transactionalRepo);
+      });
+    }
+    return work(this);
+  }
+
   public async save(sale: Sale): Promise<void> {
     const { sale: saleData, items: itemsData } = PrismaSaleMapper.toPersistence(sale);
 
+    const client = this.prisma;
+    const runInTx =
+      typeof (client as unknown as { $transaction: unknown }).$transaction === 'function'
+        ? (cb: (tx: PrismaClient) => Promise<void>) =>
+            (
+              client as unknown as {
+                $transaction: (cb: (tx: PrismaClient) => Promise<void>) => Promise<void>;
+              }
+            ).$transaction(cb)
+        : (cb: (tx: PrismaClient) => Promise<void>) => cb(client);
+
     try {
-      await this.prisma.$transaction(async (tx) => {
+      await runInTx(async (tx) => {
         // Persistence Guard: If record in persistence is already CANCELLED or REFUNDED, reject any mutation.
         // CANCELLED and REFUNDED sales are immutable terminal states; no persistence updates may alter them.
         const existing = await tx.sale.findUnique({

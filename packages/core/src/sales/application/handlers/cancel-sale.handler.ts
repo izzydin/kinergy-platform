@@ -5,6 +5,7 @@ import { SaleDTO } from '../dtos/sale.dto';
 import { SaleMapper } from '../mappers/sale.mapper';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
+import { DomainEvent } from '../../domain/shared/domain-event';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
@@ -15,7 +16,7 @@ import { enforceTenantIsolation } from '../shared/payment-authorization';
  *
  * Responsibilities:
  * 1. Accept and validate the CancelSaleCommand input shape (saleId required).
- * 2. Load the Sale Aggregate through SaleRepositoryPort.
+ * 2. Load the Sale Aggregate through SaleRepositoryPort inside a transaction boundary.
  * 3. Verify Sale exists (and enforce tenant isolation when tenantId is supplied).
  * 4. Invoke domain operation: sale.cancel(reason, clock).
  *    - Never directly sets status = CANCELLED.
@@ -23,8 +24,9 @@ import { enforceTenantIsolation } from '../shared/payment-authorization';
  *    - The Sale Aggregate owns whether cancellation is allowed, valid lifecycle transitions,
  *      and cancellation invariants.
  *    - Preserves aggregate boundaries without silently mutating Payment or Receipt states.
- * 5. Persist the updated aggregate via SaleRepositoryPort.save().
- * 6. Publish uncommitted domain events (SaleCancelledEvent).
+ * 5. Persist the updated aggregate via SaleRepositoryPort.save() atomically.
+ *    - Guarantees the Sale cannot be left in a partially modified state on failure.
+ * 6. Publish uncommitted domain events (SaleCancelledEvent) strictly after transaction commit.
  * 7. Return the updated application representation (SaleDTO).
  */
 export class CancelSaleHandler implements SalesCommandHandler<
@@ -53,34 +55,49 @@ export class CancelSaleHandler implements SalesCommandHandler<
         );
       }
 
-      // 1. Load Sale from repository
-      const sale = await this.saleRepository.findById(saleId);
+      const runInTx = this.saleRepository.withTransaction
+        ? (fn: (repo: SaleRepositoryPort) => Promise<SalesApplicationResult<SaleDTO>>) =>
+            this.saleRepository.withTransaction!(fn)
+        : (fn: (repo: SaleRepositoryPort) => Promise<SalesApplicationResult<SaleDTO>>) =>
+            fn(this.saleRepository);
 
-      // 2. Verify Sale exists
-      if (!sale) {
-        return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
+      let eventsToPublish: ReadonlyArray<DomainEvent> = [];
+
+      const result = await runInTx(async (repo) => {
+        // 1. Load Sale from transactional repository
+        const sale = await repo.findById(saleId);
+
+        // 2. Verify Sale exists
+        if (!sale) {
+          return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
+        }
+
+        // Enforce multi-tenant isolation if tenantId is provided in command
+        if (input.tenantId) {
+          enforceTenantIsolation(sale.tenantId, input.tenantId);
+        }
+
+        // 3. Invoke domain operation - domain owns lifecycle rules and cancellation invariants
+        sale.cancel(input.reason, this.clock);
+
+        // 4. Persist aggregate through repository atomically
+        await repo.save(sale);
+
+        // Capture uncommitted domain events to dispatch only after successful transaction commit
+        eventsToPublish = sale.getUncommittedEvents();
+        sale.clearEvents();
+
+        // Return updated representation
+        return SalesApplicationResult.ok(SaleMapper.toDTO(sale));
+      });
+
+      // 5. Publish domain events (SaleCancelledEvent) strictly after successful transaction commit
+      if (result.isSuccess && this.eventPublisher && eventsToPublish.length > 0) {
+        await this.eventPublisher.publish(eventsToPublish);
       }
-
-      // Enforce multi-tenant isolation if tenantId is provided in command
-      if (input.tenantId) {
-        enforceTenantIsolation(sale.tenantId, input.tenantId);
-      }
-
-      // 3. Invoke domain operation - domain owns lifecycle rules and cancellation invariants
-      sale.cancel(input.reason, this.clock);
-
-      // 4. Persist aggregate through repository
-      await this.saleRepository.save(sale);
-
-      // 5. Publish domain events (SaleCancelledEvent)
-      const events = sale.getUncommittedEvents();
-      if (this.eventPublisher && events.length > 0) {
-        await this.eventPublisher.publish(events);
-      }
-      sale.clearEvents();
 
       // 6. Return updated representation
-      return SalesApplicationResult.ok(SaleMapper.toDTO(sale));
+      return result;
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));
       return SalesApplicationResult.fail(error);

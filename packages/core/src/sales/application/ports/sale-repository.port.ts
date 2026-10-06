@@ -86,6 +86,12 @@ export interface SaleRepositoryPort {
   ): Promise<FindSalesResult>;
 
   /**
+   * Optional transactional execution wrapper for atomic multi-step aggregate operations.
+   * Surrounds load aggregate -> domain mutation -> persistence when atomicity requires it.
+   */
+  withTransaction?<T>(work: (transactionalRepo: SaleRepositoryPort) => Promise<T>): Promise<T>;
+
+  /**
    * Persists a Sale aggregate (handles initial insertion, line item mutations, and status transitions).
    */
   save(sale: Sale): Promise<void>;

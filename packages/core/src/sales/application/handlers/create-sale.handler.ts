@@ -21,6 +21,7 @@ import { ClientFacadePort } from '../ports/client-facade.port';
 import { SourceNotFoundException } from '../exceptions/source-not-found.exception';
 import { ClientNotFoundException } from '../exceptions/client-not-found.exception';
 import { DiscountType } from '../../domain/enums/discount-type.enum';
+import { DomainEvent } from '../../domain/shared/domain-event';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 
 export class CreateSaleHandler implements SalesCommandHandler<
@@ -171,183 +172,197 @@ export class CreateSaleHandler implements SalesCommandHandler<
 
       const effectiveId = input.id?.trim() || input.idempotencyKey?.trim();
 
-      // 7. Idempotency Check: Caller-supplied transaction identity
-      if (effectiveId) {
-        const existingSale = await this.saleRepository.findById(effectiveId);
-        if (existingSale) {
-          const isMatchingRetry =
-            (existingSale.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
-            (existingSale.clientId ?? '') === (resolvedClientId ?? '') &&
-            existingSale.currency === currency &&
-            existingSale.source.sourceType === sourceInput.sourceType &&
-            existingSale.source.sourceId === sourceInput.sourceId.trim();
+      const runInTx = this.saleRepository.withTransaction
+        ? (fn: (repo: SaleRepositoryPort) => Promise<SalesApplicationResult<SaleDTO>>) =>
+            this.saleRepository.withTransaction!(fn)
+        : (fn: (repo: SaleRepositoryPort) => Promise<SalesApplicationResult<SaleDTO>>) =>
+            fn(this.saleRepository);
 
-          if (isMatchingRetry) {
-            return SalesApplicationResult.ok(SaleMapper.toDTO(existingSale));
-          }
+      let eventsToPublish: ReadonlyArray<DomainEvent> = [];
 
-          return SalesApplicationResult.fail(
-            new DuplicateSaleException(
-              `A Sale with ID '${effectiveId}' already exists with different transaction parameters.`,
-              existingSale.id.value,
-              existingSale.tenantId,
-            ),
-          );
-        }
-      }
+      const result = await runInTx(async (repo) => {
+        // 7. Idempotency Check: Caller-supplied transaction identity
+        if (effectiveId) {
+          const existingSale = await repo.findById(effectiveId);
+          if (existingSale) {
+            const isMatchingRetry =
+              (existingSale.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
+              (existingSale.clientId ?? '') === (resolvedClientId ?? '') &&
+              existingSale.currency === currency &&
+              existingSale.source.sourceType === sourceInput.sourceType &&
+              existingSale.source.sourceId === sourceInput.sourceId.trim();
 
-      // 8. Operational Single-Billing Entity Invariant: Clinical session must be billed at most once
-      const isClinicalSession =
-        sourceInput.sourceType === SourceType.TREATMENT_SESSION ||
-        (sourceInput.sourceType as unknown) === 'KINESIOLOGY_SESSION' ||
-        (sourceInput.sourceType as unknown) === 'TREATMENT_SESSION';
-
-      if (isClinicalSession && this.saleRepository.findBySourceReference) {
-        const existingForSession = await this.saleRepository.findBySourceReference(
-          sourceInput.sourceType,
-          sourceInput.sourceId.trim(),
-          input.tenantId,
-        );
-
-        if (existingForSession) {
-          if (effectiveId && existingForSession.id.value === effectiveId) {
-            return SalesApplicationResult.ok(SaleMapper.toDTO(existingForSession));
-          }
-
-          const sessionLabel =
-            sourceInput.sourceType === SourceType.TREATMENT_SESSION
-              ? 'TreatmentSession'
-              : sourceInput.sourceType;
-
-          return SalesApplicationResult.fail(
-            new DuplicateSaleException(
-              `An active Sale ('${existingForSession.id.value}') already exists for ${sessionLabel} '${sourceInput.sourceId}'. Duplicate sale creation is prohibited.`,
-              existingForSession.id.value,
-              input.tenantId,
-            ),
-          );
-        }
-      }
-
-      // 9. External Order Reference Uniqueness: sourceCode (non-generic POS terminal tag)
-      if (sourceInput.sourceCode && this.saleRepository.findBySourceCode) {
-        const trimmedCode = sourceInput.sourceCode.trim();
-        if (trimmedCode !== 'POS_REGISTER' && trimmedCode !== 'pos_checkout_terminal') {
-          const existingForCode = await this.saleRepository.findBySourceCode(
-            trimmedCode,
-            input.tenantId,
-          );
-
-          if (existingForCode) {
-            if (effectiveId && existingForCode.id.value === effectiveId) {
-              return SalesApplicationResult.ok(SaleMapper.toDTO(existingForCode));
-            }
-
-            const isMatch =
-              (existingForCode.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
-              (existingForCode.clientId ?? '') === (resolvedClientId ?? '') &&
-              existingForCode.currency === currency &&
-              existingForCode.source.sourceId === sourceInput.sourceId.trim();
-
-            if (isMatch) {
-              return SalesApplicationResult.ok(SaleMapper.toDTO(existingForCode));
+            if (isMatchingRetry) {
+              return SalesApplicationResult.ok(SaleMapper.toDTO(existingSale));
             }
 
             return SalesApplicationResult.fail(
               new DuplicateSaleException(
-                `An active Sale ('${existingForCode.id.value}') already exists with order reference '${trimmedCode}'. Duplicate sale creation is prohibited.`,
-                existingForCode.id.value,
+                `A Sale with ID '${effectiveId}' already exists with different transaction parameters.`,
+                existingSale.id.value,
+                existingSale.tenantId,
+              ),
+            );
+          }
+        }
+
+        // 8. Operational Single-Billing Entity Invariant: Clinical session must be billed at most once
+        const isClinicalSession =
+          sourceInput.sourceType === SourceType.TREATMENT_SESSION ||
+          (sourceInput.sourceType as unknown) === 'KINESIOLOGY_SESSION' ||
+          (sourceInput.sourceType as unknown) === 'TREATMENT_SESSION';
+
+        if (isClinicalSession && repo.findBySourceReference) {
+          const existingForSession = await repo.findBySourceReference(
+            sourceInput.sourceType,
+            sourceInput.sourceId.trim(),
+            input.tenantId,
+          );
+
+          if (existingForSession) {
+            if (effectiveId && existingForSession.id.value === effectiveId) {
+              return SalesApplicationResult.ok(SaleMapper.toDTO(existingForSession));
+            }
+
+            const sessionLabel =
+              sourceInput.sourceType === SourceType.TREATMENT_SESSION
+                ? 'TreatmentSession'
+                : sourceInput.sourceType;
+
+            return SalesApplicationResult.fail(
+              new DuplicateSaleException(
+                `An active Sale ('${existingForSession.id.value}') already exists for ${sessionLabel} '${sourceInput.sourceId}'. Duplicate sale creation is prohibited.`,
+                existingForSession.id.value,
                 input.tenantId,
               ),
             );
           }
         }
-      }
 
-      // 10. Construct Domain Value Objects
-      let source: SaleSource | SourceReference;
-      if (isSaleSourceType) {
-        source = SaleSource.create(rawSourceType as SaleSourceType, sourceInput.sourceId.trim());
-      } else {
-        source = SourceReference.create({
-          sourceType: rawSourceType as SourceType,
-          sourceId: sourceInput.sourceId.trim(),
-          sourceCode: sourceInput.sourceCode?.trim() ?? null,
-        });
-      }
+        // 9. External Order Reference Uniqueness: sourceCode (non-generic POS terminal tag)
+        if (sourceInput.sourceCode && repo.findBySourceCode) {
+          const trimmedCode = sourceInput.sourceCode.trim();
+          if (trimmedCode !== 'POS_REGISTER' && trimmedCode !== 'pos_checkout_terminal') {
+            const existingForCode = await repo.findBySourceCode(trimmedCode, input.tenantId);
 
-      let orderDiscount: Discount | undefined;
-      if (input.orderDiscount) {
-        const typeStr = input.orderDiscount.type?.toUpperCase();
-        if (typeStr === 'PERCENTAGE') {
-          orderDiscount = Discount.percentage(
-            input.orderDiscount.value,
-            input.orderDiscount.reason,
-          );
-        } else if (typeStr === 'FIXED') {
-          orderDiscount = Discount.fixed(input.orderDiscount.value, input.orderDiscount.reason);
+            if (existingForCode) {
+              if (effectiveId && existingForCode.id.value === effectiveId) {
+                return SalesApplicationResult.ok(SaleMapper.toDTO(existingForCode));
+              }
+
+              const isMatch =
+                (existingForCode.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
+                (existingForCode.clientId ?? '') === (resolvedClientId ?? '') &&
+                existingForCode.currency === currency &&
+                existingForCode.source.sourceId === sourceInput.sourceId.trim();
+
+              if (isMatch) {
+                return SalesApplicationResult.ok(SaleMapper.toDTO(existingForCode));
+              }
+
+              return SalesApplicationResult.fail(
+                new DuplicateSaleException(
+                  `An active Sale ('${existingForCode.id.value}') already exists with order reference '${trimmedCode}'. Duplicate sale creation is prohibited.`,
+                  existingForCode.id.value,
+                  input.tenantId,
+                ),
+              );
+            }
+          }
+        }
+
+        // 10. Construct Domain Value Objects
+        let source: SaleSource | SourceReference;
+        if (isSaleSourceType) {
+          source = SaleSource.create(rawSourceType as SaleSourceType, sourceInput.sourceId.trim());
         } else {
-          orderDiscount = Discount.create({
-            type: input.orderDiscount.type as unknown as DiscountType,
-            value: input.orderDiscount.value,
-            reason: input.orderDiscount.reason,
+          source = SourceReference.create({
+            sourceType: rawSourceType as SourceType,
+            sourceId: sourceInput.sourceId.trim(),
+            sourceCode: sourceInput.sourceCode?.trim() ?? null,
           });
         }
-      }
 
-      const items = input.items?.map((itemInput) => {
-        let itemDiscount: Discount | null = null;
-        if (itemInput.discount) {
-          const typeStr = itemInput.discount.type?.toUpperCase();
+        let orderDiscount: Discount | undefined;
+        if (input.orderDiscount) {
+          const typeStr = input.orderDiscount.type?.toUpperCase();
           if (typeStr === 'PERCENTAGE') {
-            itemDiscount = Discount.percentage(itemInput.discount.value, itemInput.discount.reason);
+            orderDiscount = Discount.percentage(
+              input.orderDiscount.value,
+              input.orderDiscount.reason,
+            );
           } else if (typeStr === 'FIXED') {
-            itemDiscount = Discount.fixed(itemInput.discount.value, itemInput.discount.reason);
+            orderDiscount = Discount.fixed(input.orderDiscount.value, input.orderDiscount.reason);
           } else {
-            itemDiscount = Discount.create({
-              type: itemInput.discount.type as unknown as DiscountType,
-              value: itemInput.discount.value,
-              reason: itemInput.discount.reason,
+            orderDiscount = Discount.create({
+              type: input.orderDiscount.type as unknown as DiscountType,
+              value: input.orderDiscount.value,
+              reason: input.orderDiscount.reason,
             });
           }
         }
 
-        return {
-          source,
-          description: itemInput.description,
-          skuOrCode: itemInput.skuOrCode ?? null,
-          quantity: itemInput.quantity,
-          unitPrice: Money.create(itemInput.unitPriceAmount, currency),
-          discount: itemDiscount,
-        };
+        const items = input.items?.map((itemInput) => {
+          let itemDiscount: Discount | null = null;
+          if (itemInput.discount) {
+            const typeStr = itemInput.discount.type?.toUpperCase();
+            if (typeStr === 'PERCENTAGE') {
+              itemDiscount = Discount.percentage(
+                itemInput.discount.value,
+                itemInput.discount.reason,
+              );
+            } else if (typeStr === 'FIXED') {
+              itemDiscount = Discount.fixed(itemInput.discount.value, itemInput.discount.reason);
+            } else {
+              itemDiscount = Discount.create({
+                type: itemInput.discount.type as unknown as DiscountType,
+                value: itemInput.discount.value,
+                reason: itemInput.discount.reason,
+              });
+            }
+          }
+
+          return {
+            source,
+            description: itemInput.description,
+            skuOrCode: itemInput.skuOrCode ?? null,
+            quantity: itemInput.quantity,
+            unitPrice: Money.create(itemInput.unitPriceAmount, currency),
+            discount: itemDiscount,
+          };
+        });
+
+        // 11. Instantiate Sale Aggregate using Domain Factory
+        const sale = Sale.create(
+          {
+            id: effectiveId ? SaleId.create(effectiveId) : undefined,
+            tenantId: input.tenantId ? input.tenantId.trim() : undefined,
+            clientId: resolvedClientId,
+            currency,
+            source,
+            items,
+            orderDiscount,
+          },
+          this.clock,
+        );
+
+        // 12. Persist through Repository (ensures atomic persistence of Sale and all nested SaleItems)
+        await repo.save(sale);
+
+        // Capture uncommitted domain events to dispatch only after successful transaction commit
+        eventsToPublish = sale.getUncommittedEvents();
+        sale.clearEvents();
+
+        // Return Approved Application Result
+        return SalesApplicationResult.ok(SaleMapper.toDTO(sale));
       });
 
-      // 11. Instantiate Sale Aggregate using Domain Factory
-      const sale = Sale.create(
-        {
-          id: effectiveId ? SaleId.create(effectiveId) : undefined,
-          tenantId: input.tenantId ? input.tenantId.trim() : undefined,
-          clientId: resolvedClientId,
-          currency,
-          source,
-          items,
-          orderDiscount,
-        },
-        this.clock,
-      );
-
-      // 12. Persist through Repository
-      await this.saleRepository.save(sale);
-
-      // 13. Dispatch Domain Events
-      const events = sale.getUncommittedEvents();
-      if (this.eventPublisher && events.length > 0) {
-        await this.eventPublisher.publish(events);
+      // 13. Dispatch Domain Events strictly after successful transaction commit
+      if (result.isSuccess && this.eventPublisher && eventsToPublish.length > 0) {
+        await this.eventPublisher.publish(eventsToPublish);
       }
-      sale.clearEvents();
 
-      // 14. Return Approved Application Result
-      return SalesApplicationResult.ok(SaleMapper.toDTO(sale));
+      return result;
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));
       return SalesApplicationResult.fail(error);
