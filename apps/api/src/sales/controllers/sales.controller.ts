@@ -68,9 +68,9 @@ import {
   AssignSaleSourceRequestDto,
 } from '../dto';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
-import { PAYMENT_REPOSITORY_TOKEN } from './payments.controller';
+import { SALE_REPOSITORY_TOKEN, PAYMENT_REPOSITORY_TOKEN } from '../sales.tokens';
 
-export const SALE_REPOSITORY_TOKEN = 'SaleRepositoryInterface';
+export { SALE_REPOSITORY_TOKEN };
 
 interface NormalizedSourcePayload {
   sourceType: string;

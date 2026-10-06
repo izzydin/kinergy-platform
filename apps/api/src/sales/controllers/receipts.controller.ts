@@ -35,10 +35,13 @@ import { AuthenticatedUserContext } from '../../platform/identity/context/authen
 import { RequestContext } from '../../platform/identity/request-context';
 import { IssueReceiptRequestDto, IssueReceiptDirectRequestDto, ReceiptResponseDto } from '../dto';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
-import { SALE_REPOSITORY_TOKEN } from './sales.controller';
-import { PAYMENT_REPOSITORY_TOKEN } from './payments.controller';
+import {
+  SALE_REPOSITORY_TOKEN,
+  PAYMENT_REPOSITORY_TOKEN,
+  RECEIPT_REPOSITORY_TOKEN,
+} from '../sales.tokens';
 
-export const RECEIPT_REPOSITORY_TOKEN = 'ReceiptRepositoryPort';
+export { RECEIPT_REPOSITORY_TOKEN };
 
 @ApiTags('Receipts')
 @ApiBearerAuth()

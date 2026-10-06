@@ -31,9 +31,14 @@ import {
   PaymentRepositoryPort,
   ReceiptRepositoryPort,
 } from '@kinergy-platform/core';
-import { SalesController, SALE_REPOSITORY_TOKEN } from './controllers/sales.controller';
-import { PaymentsController, PAYMENT_REPOSITORY_TOKEN } from './controllers/payments.controller';
-import { ReceiptsController, RECEIPT_REPOSITORY_TOKEN } from './controllers/receipts.controller';
+import { SalesController } from './controllers/sales.controller';
+import { PaymentsController } from './controllers/payments.controller';
+import { ReceiptsController } from './controllers/receipts.controller';
+import {
+  SALE_REPOSITORY_TOKEN,
+  PAYMENT_REPOSITORY_TOKEN,
+  RECEIPT_REPOSITORY_TOKEN,
+} from './sales.tokens';
 import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-publisher';
 
 @Module({

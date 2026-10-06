@@ -49,9 +49,9 @@ import {
   CancelPaymentRequestDto,
 } from '../dto';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
-import { SALE_REPOSITORY_TOKEN } from './sales.controller';
+import { PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN } from '../sales.tokens';
 
-export const PAYMENT_REPOSITORY_TOKEN = 'PaymentRepositoryPort';
+export { PAYMENT_REPOSITORY_TOKEN };
 
 @ApiTags('Payments')
 @ApiBearerAuth()
