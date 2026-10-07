@@ -5,21 +5,22 @@ import { PaymentDTO } from '../dtos/payment.dto';
 import { PaymentMapper } from '../mappers/payment.mapper';
 import { MoneyMapper } from '../mappers/money.mapper';
 import { PaymentStatus } from '../../domain/enums/payment-status.enum';
-import { SaleStatus } from '../../domain/enums/sale-status.enum';
 import { Money } from '../../domain/value-objects/money.vo';
 import { PaymentRepositoryPort } from '../ports/payment-repository.port';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
+import { SalesTransactionCoordinatorPort } from '../ports/sales-transaction-coordinator.port';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 import { PaymentNotFoundException } from '../exceptions/payment-not-found.exception';
 import { PaymentUnauthorizedException } from '../exceptions/payment-unauthorized.exception';
-import { SaleNotPayableException } from '../exceptions/sale-not-payable.exception';
+import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
+import { PaymentCurrencyMismatchException } from '../exceptions/payment-currency-mismatch.exception';
 import { PaymentOverpaymentException } from '../exceptions/payment-overpayment.exception';
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 
 /**
  * Application command handler orchestrating explicit Payment completion.
- * Transitions a PENDING payment to COMPLETED, persists state with OCC verification,
+ * Transitions a PENDING payment to COMPLETED, persists state atomically with OCC verification,
  * and synchronizes parent Sale settlement totals without duplicating domain rules.
  */
 export class CompletePaymentHandler implements SalesCommandHandler<
@@ -31,6 +32,7 @@ export class CompletePaymentHandler implements SalesCommandHandler<
     private readonly saleRepository: SaleRepositoryPort,
     private readonly clock: Clock = new SystemClock(),
     private readonly eventPublisher?: SalesEventPublisherPort,
+    private readonly transactionCoordinator?: SalesTransactionCoordinatorPort,
   ) {}
 
   public async execute(
@@ -63,74 +65,77 @@ export class CompletePaymentHandler implements SalesCommandHandler<
         );
       }
 
-      // 4b. Verify Associated Sale Access Before Domain Mutation
+      // 5. Resolve Associated Sale Aggregate
       const sale = await this.saleRepository.findById(payment.saleId);
-      if (sale) {
-        enforceTenantIsolation(sale.tenantId, input.tenantId);
-        enforceTenantIsolation(sale.tenantId, payment.tenantId);
-
-        if (sale.status === SaleStatus.CANCELLED || sale.isTerminal()) {
-          return SalesApplicationResult.fail(
-            new SaleNotPayableException(sale.id.value, sale.status),
-          );
-        }
-
-        // Verify remaining balance & prevent overpayment
-        const allPayments = await this.paymentRepository.findBySaleId(sale.id);
-        const settledTotalBefore = allPayments
-          .filter((p) => p.status === PaymentStatus.COMPLETED && p.id.value !== payment.id.value)
-          .reduce((acc, p) => acc.add(p.amount), Money.zero(sale.currency));
-
-        const remainingBalance = sale.total.subtract(settledTotalBefore, { allowNegative: true });
-        if (payment.amount.greaterThan(remainingBalance)) {
-          return SalesApplicationResult.fail(
-            new PaymentOverpaymentException(
-              MoneyMapper.toDTO(payment.amount).formatted,
-              MoneyMapper.toDTO(remainingBalance).formatted,
-              sale.currency,
-            ),
-          );
-        }
+      if (!sale) {
+        return SalesApplicationResult.fail(new SaleNotFoundException(payment.saleId.value));
       }
 
-      // 5. Invoke Explicit Domain Behavior
+      enforceTenantIsolation(sale.tenantId, input.tenantId);
+      enforceTenantIsolation(sale.tenantId, payment.tenantId);
+
+      // 6. Currency Parity Precondition Check
+      if (payment.amount.currency !== sale.currency) {
+        return SalesApplicationResult.fail(
+          new PaymentCurrencyMismatchException(payment.amount.currency, sale.currency),
+        );
+      }
+
+      // 7. Verify Remaining Balance & Prevent Overpayments
+      const allPayments = await this.paymentRepository.findBySaleId(sale.id);
+      const settledTotalBefore = allPayments
+        .filter((p) => p.status === PaymentStatus.COMPLETED && p.id.value !== payment.id.value)
+        .reduce((acc, p) => acc.add(p.amount), Money.zero(sale.currency));
+
+      const remainingBalance = sale.total.subtract(settledTotalBefore, { allowNegative: true });
+      if (payment.amount.greaterThan(remainingBalance)) {
+        return SalesApplicationResult.fail(
+          new PaymentOverpaymentException(
+            MoneyMapper.toDTO(payment.amount).formatted,
+            MoneyMapper.toDTO(remainingBalance).formatted,
+            sale.currency,
+          ),
+        );
+      }
+
+      // 8. Invoke Payment Domain Behavior: payment.complete()
+      // Payment aggregate decides whether transition is legal (throws InvalidPaymentTransitionException)
       payment.complete({
         reference: input.reference,
         paidAt: input.paidAt,
         clock: this.clock,
       });
 
-      // 6. Persist Payment Aggregate (Enforces OCC version check at persistence layer)
-      await this.paymentRepository.save(payment);
-
-      // 7. Synchronize Associated Sale Settlement Balance
-      if (sale) {
-        const allPayments = await this.paymentRepository.findBySaleId(sale.id);
-        const settledTotal = allPayments
-          .filter((p) => p.status === PaymentStatus.COMPLETED)
-          .reduce((acc, p) => acc.add(p.amount), Money.zero(sale.currency));
-
-        if (settledTotal.greaterThanOrEqual(sale.total)) {
-          sale.markPaid(this.clock);
-        } else if (sale.status === SaleStatus.PENDING_PAYMENT) {
-          sale.markPartiallyPaid(this.clock);
-        }
-        await this.saleRepository.save(sale);
+      // 9. Invoke Sale Domain Behavior: sale.markPaid(...) or sale.markPartiallyPaid(...)
+      // Sale aggregate decides whether transition is legal (throws InvalidSaleTransitionException)
+      const cumulativeSettled = settledTotalBefore.add(payment.amount);
+      if (cumulativeSettled.greaterThanOrEqual(sale.total)) {
+        sale.markPaid(this.clock);
+      } else {
+        sale.markPartiallyPaid(this.clock);
       }
 
-      // 8. Publish Domain Events
-      const events = [
-        ...payment.getUncommittedEvents(),
-        ...(sale ? sale.getUncommittedEvents() : []),
-      ];
+      // 10. Persist State Atomically
+      const persistWork = async () => {
+        await this.paymentRepository.save(payment);
+        await this.saleRepository.save(sale);
+      };
+
+      if (this.transactionCoordinator) {
+        await this.transactionCoordinator.runInTransaction(persistWork);
+      } else {
+        await persistWork();
+      }
+
+      // 11. Publish Domain Events Post-Commit
+      const events = [...payment.getUncommittedEvents(), ...sale.getUncommittedEvents()];
       if (this.eventPublisher && events.length > 0) {
         await this.eventPublisher.publish(events);
       }
       payment.clearEvents();
-      if (sale) {
-        sale.clearEvents();
-      }
+      sale.clearEvents();
 
+      // 12. Return Final Application Representation
       return SalesApplicationResult.ok(PaymentMapper.toDTO(payment));
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));

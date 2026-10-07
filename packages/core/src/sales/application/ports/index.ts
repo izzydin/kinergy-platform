@@ -5,3 +5,4 @@ export * from './receipt-repository.port';
 export * from './receipt-sequence-generator.port';
 export * from './client-facade.port';
 export * from './sale-source-validator.port';
+export * from './sales-transaction-coordinator.port';
