@@ -112,6 +112,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0130](file:///c:/Projects/kinergy-platform/docs/adr/0130-phase-7-persistence-boundary-audit-and-domain-purity.md)                                                   | Phase 7 Persistence-Boundary Audit and Domain Purity Hardening                                               | Accepted   | 2026-10-03              |
 | [0131](file:///c:/Projects/kinergy-platform/docs/adr/0131-phase-7-query-patterns-index-optimization-and-relation-loading.md)                                         | Phase 7 Query Patterns, Index Optimization, and Relation-Loading Strategy                                    | Accepted   | 2026-10-03              |
 | [0132](file:///c:/Projects/kinergy-platform/docs/adr/0132-sale-application-layer-architecture.md)                                                                    | Sale Application Layer Architecture, Use Case Inventory, and Orchestration Contracts                         | Accepted   | 2026-10-05              |
+| [0133](file:///c:/Projects/kinergy-platform/docs/adr/0133-payment-application-layer-architecture.md)                                                                 | Payment Application Layer Architecture, Cross-Aggregate Settlement Orchestration, and Use Case Inventory     | Accepted   | 2026-10-07              |
 
 ## Format
 
