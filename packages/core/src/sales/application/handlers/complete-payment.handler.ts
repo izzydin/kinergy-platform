@@ -3,6 +3,7 @@ import { SalesApplicationResult } from '../shared/sales-application-result';
 import { CompletePaymentCommand } from '../commands/complete-payment.command';
 import { PaymentDTO } from '../dtos/payment.dto';
 import { PaymentMapper } from '../mappers/payment.mapper';
+import { MoneyMapper } from '../mappers/money.mapper';
 import { PaymentStatus } from '../../domain/enums/payment-status.enum';
 import { SaleStatus } from '../../domain/enums/sale-status.enum';
 import { Money } from '../../domain/value-objects/money.vo';
@@ -13,6 +14,7 @@ import { Clock, SystemClock } from '../../domain/shared/clock';
 import { PaymentNotFoundException } from '../exceptions/payment-not-found.exception';
 import { PaymentUnauthorizedException } from '../exceptions/payment-unauthorized.exception';
 import { SaleNotPayableException } from '../exceptions/sale-not-payable.exception';
+import { PaymentOverpaymentException } from '../exceptions/payment-overpayment.exception';
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 
 /**
@@ -70,6 +72,23 @@ export class CompletePaymentHandler implements SalesCommandHandler<
         if (sale.status === SaleStatus.CANCELLED || sale.isTerminal()) {
           return SalesApplicationResult.fail(
             new SaleNotPayableException(sale.id.value, sale.status),
+          );
+        }
+
+        // Verify remaining balance & prevent overpayment
+        const allPayments = await this.paymentRepository.findBySaleId(sale.id);
+        const settledTotalBefore = allPayments
+          .filter((p) => p.status === PaymentStatus.COMPLETED && p.id.value !== payment.id.value)
+          .reduce((acc, p) => acc.add(p.amount), Money.zero(sale.currency));
+
+        const remainingBalance = sale.total.subtract(settledTotalBefore, { allowNegative: true });
+        if (payment.amount.greaterThan(remainingBalance)) {
+          return SalesApplicationResult.fail(
+            new PaymentOverpaymentException(
+              MoneyMapper.toDTO(payment.amount).formatted,
+              MoneyMapper.toDTO(remainingBalance).formatted,
+              sale.currency,
+            ),
           );
         }
       }
