@@ -19,14 +19,28 @@ import {
 } from '../../../../application/ports/sale-repository.port';
 import { SaleSummaryDTO } from '../../../../application/dtos/sale.dto';
 import { MoneyMapper } from '../../../../application/mappers/money.mapper';
+import { PrismaSalesUnitOfWork } from '../services/prisma-sales-unit-of-work';
 
 export class PrismaSaleRepository implements SaleRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
 
+  private get client(): PrismaClient {
+    const ambientTx = PrismaSalesUnitOfWork.getCurrentTransactionClient();
+    if (ambientTx) {
+      return ambientTx as PrismaClient;
+    }
+    if (
+      typeof (this.prisma as unknown as { getClient?: () => PrismaClient }).getClient === 'function'
+    ) {
+      return (this.prisma as unknown as { getClient: () => PrismaClient }).getClient();
+    }
+    return this.prisma;
+  }
+
   public async findById(id: SaleId | string): Promise<Sale | null> {
     const saleIdStr = typeof id === 'string' ? id.trim() : id.value;
 
-    const raw = await this.prisma.sale.findUnique({
+    const raw = await this.client.sale.findUnique({
       where: { id: saleIdStr },
       include: {
         items: true,
@@ -49,7 +63,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
     sourceId: string,
     tenantId?: string,
   ): Promise<Sale | null> {
-    const raw = await this.prisma.sale.findFirst({
+    const raw = await this.client.sale.findFirst({
       where: {
         sourceType,
         sourceId,
@@ -70,7 +84,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
   }
 
   public async findBySourceCode(sourceCode: string, tenantId?: string): Promise<Sale | null> {
-    const raw = await this.prisma.sale.findFirst({
+    const raw = await this.client.sale.findFirst({
       where: {
         sourceCode,
         ...(tenantId ? { tenantId } : {}),
@@ -139,7 +153,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
     }
 
     const [records, total] = await Promise.all([
-      this.prisma.sale.findMany({
+      this.client.sale.findMany({
         where,
         orderBy,
         skip,
@@ -150,7 +164,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
           },
         },
       }),
-      this.prisma.sale.count({ where }),
+      this.client.sale.count({ where }),
     ]);
 
     const items: SaleSummaryDTO[] = records.map((record) => {
@@ -204,7 +218,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
   }
 
   public async withTransaction<T>(work: (repo: SaleRepositoryPort) => Promise<T>): Promise<T> {
-    const client = this.prisma;
+    const client = this.client;
     if (typeof (client as unknown as { $transaction: unknown }).$transaction === 'function') {
       return (
         client as unknown as {
@@ -221,7 +235,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
   public async save(sale: Sale): Promise<void> {
     const { sale: saleData, items: itemsData } = PrismaSaleMapper.toPersistence(sale);
 
-    const client = this.prisma;
+    const client = this.client;
     const runInTx =
       typeof (client as unknown as { $transaction: unknown }).$transaction === 'function'
         ? (cb: (tx: PrismaClient) => Promise<void>) =>

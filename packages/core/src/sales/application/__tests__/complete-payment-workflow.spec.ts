@@ -125,6 +125,10 @@ class MockTransactionalCoordinator implements SalesTransactionCoordinatorPort {
     private readonly saleRepo: InMemorySaleRepository,
   ) {}
 
+  async executeInTransaction<T>(work: () => Promise<T>): Promise<T> {
+    return this.runInTransaction(work);
+  }
+
   async runInTransaction<T>(work: () => Promise<T>): Promise<T> {
     // Snapshot repository stores before work
     const paymentSnapshot = new Map(this.paymentRepo.store);

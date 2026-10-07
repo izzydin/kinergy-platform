@@ -9,6 +9,7 @@ import { Money } from '../../domain/value-objects/money.vo';
 import { PaymentRepositoryPort } from '../ports/payment-repository.port';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
+import { IUnitOfWork } from '../ports/unit-of-work.port';
 import { SalesTransactionCoordinatorPort } from '../ports/sales-transaction-coordinator.port';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 import { PaymentNotFoundException } from '../exceptions/payment-not-found.exception';
@@ -32,7 +33,7 @@ export class CompletePaymentHandler implements SalesCommandHandler<
     private readonly saleRepository: SaleRepositoryPort,
     private readonly clock: Clock = new SystemClock(),
     private readonly eventPublisher?: SalesEventPublisherPort,
-    private readonly transactionCoordinator?: SalesTransactionCoordinatorPort,
+    private readonly unitOfWork?: IUnitOfWork | SalesTransactionCoordinatorPort,
   ) {}
 
   public async execute(
@@ -116,13 +117,31 @@ export class CompletePaymentHandler implements SalesCommandHandler<
       }
 
       // 10. Persist State Atomically
+      // Enclose strictly the persistence step in the unit of work to keep the transaction boundary minimal.
       const persistWork = async () => {
         await this.paymentRepository.save(payment);
         await this.saleRepository.save(sale);
       };
 
-      if (this.transactionCoordinator) {
-        await this.transactionCoordinator.runInTransaction(persistWork);
+      if (this.unitOfWork) {
+        if (
+          'executeInTransaction' in this.unitOfWork &&
+          typeof this.unitOfWork.executeInTransaction === 'function'
+        ) {
+          await this.unitOfWork.executeInTransaction(persistWork);
+        } else if (
+          'runInTransaction' in this.unitOfWork &&
+          typeof (this.unitOfWork as unknown as { runInTransaction: unknown }).runInTransaction ===
+            'function'
+        ) {
+          await (
+            this.unitOfWork as unknown as {
+              runInTransaction: (fn: () => Promise<void>) => Promise<void>;
+            }
+          ).runInTransaction(persistWork);
+        } else {
+          await persistWork();
+        }
       } else {
         await persistWork();
       }

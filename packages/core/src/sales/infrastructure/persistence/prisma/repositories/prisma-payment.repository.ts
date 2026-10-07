@@ -5,6 +5,7 @@ import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
 import { PaymentOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
 import { PrismaPaymentMapper } from '../mappers/prisma-payment.mapper';
 import { PrismaDatabaseErrorMapper } from '../mappers/prisma-database-error.mapper';
+import { PrismaSalesUnitOfWork } from '../services/prisma-sales-unit-of-work';
 
 import { PaymentRepositoryPort } from '../../../../application/ports/payment-repository.port';
 
@@ -21,14 +22,28 @@ export type PaymentRepositoryInterface = PaymentRepositoryPort;
  * - Exact PostgreSQL DECIMAL(12, 2) monetary storage via PrismaPaymentMapper.
  * - Optimistic Concurrency Control (OCC) against version collisions.
  * - Multi-payment retrieval per Sale (1 Sale -> N Payments).
+ * - Ambient unit-of-work transaction participation without leaking ORM handles.
  */
 export class PrismaPaymentRepository implements PaymentRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
 
+  private get client(): PrismaClient {
+    const ambientTx = PrismaSalesUnitOfWork.getCurrentTransactionClient();
+    if (ambientTx) {
+      return ambientTx as PrismaClient;
+    }
+    if (
+      typeof (this.prisma as unknown as { getClient?: () => PrismaClient }).getClient === 'function'
+    ) {
+      return (this.prisma as unknown as { getClient: () => PrismaClient }).getClient();
+    }
+    return this.prisma;
+  }
+
   public async findById(id: PaymentId | string): Promise<Payment | null> {
     const paymentIdStr = typeof id === 'string' ? id.trim() : id.value;
 
-    const raw = await this.prisma.payment.findUnique({
+    const raw = await this.client.payment.findUnique({
       where: { id: paymentIdStr },
     });
 
@@ -42,7 +57,7 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
   public async findBySaleId(saleId: SaleId | string): Promise<Payment[]> {
     const saleIdStr = typeof saleId === 'string' ? saleId.trim() : saleId.value;
 
-    const records = await this.prisma.payment.findMany({
+    const records = await this.client.payment.findMany({
       where: { saleId: saleIdStr },
       orderBy: { createdAt: 'asc' },
     });
@@ -50,11 +65,37 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
     return records.map((record) => PrismaPaymentMapper.toDomain(record));
   }
 
+  public async withTransaction<T>(work: (repo: PaymentRepositoryPort) => Promise<T>): Promise<T> {
+    const client = this.client;
+    if (typeof (client as unknown as { $transaction: unknown }).$transaction === 'function') {
+      return (
+        client as unknown as {
+          $transaction: (cb: (tx: PrismaClient) => Promise<T>) => Promise<T>;
+        }
+      ).$transaction(async (tx: PrismaClient) => {
+        const transactionalRepo = new PrismaPaymentRepository(tx);
+        return work(transactionalRepo);
+      });
+    }
+    return work(this);
+  }
+
   public async save(payment: Payment): Promise<void> {
     const paymentData = PrismaPaymentMapper.toPersistence(payment);
 
+    const client = this.client;
+    const runInTx =
+      typeof (client as unknown as { $transaction: unknown }).$transaction === 'function'
+        ? (cb: (tx: PrismaClient) => Promise<void>) =>
+            (
+              client as unknown as {
+                $transaction: (cb: (tx: PrismaClient) => Promise<void>) => Promise<void>;
+              }
+            ).$transaction(cb)
+        : (cb: (tx: PrismaClient) => Promise<void>) => cb(client);
+
     try {
-      await this.prisma.$transaction(async (tx) => {
+      await runInTx(async (tx) => {
         if (payment.version === 1) {
           // Initial insert or idempotent initial save
           // Guard against stale version 1 overwriting a record that has already progressed past version 1
