@@ -1054,6 +1054,85 @@ describe('Payment Application Layer Test Suite', () => {
       expect(failRes.getError()).toBeInstanceOf(InvalidPaymentTransitionException);
     });
 
+    it('should return InvalidPaymentTransitionException when failing an already FAILED payment (FAILED -> FAILED)', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const paymentDto = createRes.getValue();
+
+      // First failure succeeds (PENDING -> FAILED)
+      const firstFailRes = await failPaymentHandler.execute(
+        new FailPaymentCommand({
+          paymentId: paymentDto.id,
+          reason: 'Bank timeout',
+          tenantId,
+        }),
+      );
+      expect(firstFailRes.isSuccess).toBe(true);
+
+      // Second failure attempt must be rejected (FAILED -> FAILED)
+      const secondFailRes = await failPaymentHandler.execute(
+        new FailPaymentCommand({
+          paymentId: paymentDto.id,
+          reason: 'Repeated decline',
+          tenantId,
+        }),
+      );
+
+      expect(secondFailRes.isFailure).toBe(true);
+      expect(secondFailRes.getError()).toBeInstanceOf(InvalidPaymentTransitionException);
+    });
+
+    it('should return InvalidPaymentTransitionException when failing an already CANCELLED payment (CANCELLED -> FAILED)', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const paymentDto = createRes.getValue();
+
+      // Cancel the pending payment (PENDING -> CANCELLED)
+      const cancelRes = await cancelPaymentHandler.execute(
+        new CancelPaymentCommand({
+          paymentId: paymentDto.id,
+          reason: 'Customer cancelled checkout',
+          tenantId,
+          currentUser: {
+            id: 'mgr_1',
+            roles: ['Manager'],
+            permissions: ['payments.manage'],
+          },
+        }),
+      );
+      expect(cancelRes.isSuccess).toBe(true);
+
+      // Attempting to fail the cancelled payment must be rejected (CANCELLED -> FAILED)
+      const failRes = await failPaymentHandler.execute(
+        new FailPaymentCommand({
+          paymentId: paymentDto.id,
+          reason: 'Attempting fail after cancel',
+          tenantId,
+        }),
+      );
+
+      expect(failRes.isFailure).toBe(true);
+      expect(failRes.getError()).toBeInstanceOf(InvalidPaymentTransitionException);
+    });
+
     it('should return PaymentUnauthorizedException when caller lacks payments.create/manage', async () => {
       const sale = createPayableSale(100.0, 'USD');
 

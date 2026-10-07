@@ -10,7 +10,6 @@ interface AsyncLocalStorageLike<T> {
 // Dynamically resolve AsyncLocalStorage in Node.js runtime without static type dependency on node types
 let globalStorage: AsyncLocalStorageLike<unknown> | null = null;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const globalRef = globalThis as unknown as {
     AsyncLocalStorage?: new <T>() => AsyncLocalStorageLike<T>;
   };
