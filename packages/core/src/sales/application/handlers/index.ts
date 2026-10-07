@@ -10,6 +10,7 @@ export * from '../queries/calculate-sale.handler';
 export * from './remove-order-discount.handler';
 export * from './finalize-sale.handler';
 export * from './record-payment.handler';
+export * from './create-payment.handler';
 export * from './complete-payment.handler';
 export * from './settle-payment.handler';
 export * from './fail-payment.handler';

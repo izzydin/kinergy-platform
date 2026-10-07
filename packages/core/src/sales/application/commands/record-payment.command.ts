@@ -1,25 +1,9 @@
-import { PaymentMethod } from '../../domain/enums/payment-method.enum';
-import { PaymentStatus } from '../../domain/enums/payment-status.enum';
+import {
+  CreatePaymentCommand,
+  CreatePaymentCurrentUser,
+  CreatePaymentInput,
+} from './create-payment.command';
 
-export interface RecordPaymentCurrentUser {
-  id?: string;
-  userId?: string;
-  email?: string;
-  permissions?: string[];
-  roles?: string[];
-}
-
-export interface RecordPaymentInput {
-  saleId: string;
-  amount: number;
-  currency?: string;
-  method: PaymentMethod | string;
-  status?: PaymentStatus | string;
-  reference?: string | null;
-  tenantId?: string;
-  currentUser?: RecordPaymentCurrentUser;
-}
-
-export class RecordPaymentCommand {
-  constructor(public readonly input: RecordPaymentInput) {}
-}
+export type RecordPaymentCurrentUser = CreatePaymentCurrentUser;
+export type RecordPaymentInput = CreatePaymentInput;
+export { CreatePaymentCommand as RecordPaymentCommand };

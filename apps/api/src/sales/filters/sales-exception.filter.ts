@@ -12,6 +12,7 @@ import {
   ReceiptOptimisticLockException,
   DuplicateReceiptException,
   DuplicateSaleException,
+  DuplicatePaymentReferenceException,
   InvalidSaleTransitionException,
   InvalidSaleStateException,
   SaleNotFoundException,
@@ -47,7 +48,8 @@ export class SalesExceptionFilter implements ExceptionFilter {
       exception instanceof PaymentOptimisticLockException ||
       exception instanceof ReceiptOptimisticLockException ||
       exception instanceof DuplicateReceiptException ||
-      exception instanceof DuplicateSaleException
+      exception instanceof DuplicateSaleException ||
+      exception instanceof DuplicatePaymentReferenceException
     ) {
       const code =
         'code' in exception && typeof (exception as { code: unknown }).code === 'string'
