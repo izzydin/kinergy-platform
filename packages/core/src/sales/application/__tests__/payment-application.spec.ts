@@ -1240,7 +1240,7 @@ describe('Payment Application Layer Test Suite', () => {
       expect(result.getError()).toBeInstanceOf(PaymentNotFoundException);
     });
 
-    it('should return InvalidPaymentTransitionException when cancelling an already CANCELLED payment', async () => {
+    it('should return InvalidPaymentTransitionException when cancelling an already CANCELLED payment (CANCELLED -> CANCELLED)', async () => {
       const sale = createPayableSale(100.0, 'USD');
 
       const createRes = await recordPaymentHandler.execute(
@@ -1272,6 +1272,68 @@ describe('Payment Application Layer Test Suite', () => {
 
       expect(secondRes.isFailure).toBe(true);
       expect(secondRes.getError()).toBeInstanceOf(InvalidPaymentTransitionException);
+    });
+
+    it('should return InvalidPaymentTransitionException when cancelling an already COMPLETED payment (COMPLETED -> CANCELLED)', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.CASH, // Immediate COMPLETED
+          tenantId,
+        }),
+      );
+      const paymentDto = createRes.getValue();
+
+      const cancelRes = await cancelPaymentHandler.execute(
+        new CancelPaymentCommand({
+          paymentId: paymentDto.id,
+          reason: 'Customer requested void after settlement',
+          tenantId,
+        }),
+      );
+
+      expect(cancelRes.isFailure).toBe(true);
+      expect(cancelRes.getError()).toBeInstanceOf(InvalidPaymentTransitionException);
+    });
+
+    it('should return InvalidPaymentTransitionException when cancelling an already FAILED payment (FAILED -> CANCELLED)', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+
+      const createRes = await recordPaymentHandler.execute(
+        new RecordPaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.QR,
+          status: PaymentStatus.PENDING,
+          tenantId,
+        }),
+      );
+      const paymentDto = createRes.getValue();
+
+      // Fail payment first
+      const failRes = await failPaymentHandler.execute(
+        new FailPaymentCommand({
+          paymentId: paymentDto.id,
+          reason: 'Bank decline',
+          tenantId,
+        }),
+      );
+      expect(failRes.isSuccess).toBe(true);
+
+      // Attempting to cancel a failed payment must be rejected
+      const cancelRes = await cancelPaymentHandler.execute(
+        new CancelPaymentCommand({
+          paymentId: paymentDto.id,
+          reason: 'Attempting cancel after failure',
+          tenantId,
+        }),
+      );
+
+      expect(cancelRes.isFailure).toBe(true);
+      expect(cancelRes.getError()).toBeInstanceOf(InvalidPaymentTransitionException);
     });
 
     it('should reject cancellation when user lacks payments.manage permission', async () => {
