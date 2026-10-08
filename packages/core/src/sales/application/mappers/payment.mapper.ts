@@ -23,6 +23,7 @@ export class PaymentMapper {
       reference: payment.reference ? payment.reference.value : null,
       paidAt: payment.paidAt ? payment.paidAt.toISOString() : null,
       createdAt: payment.createdAt.toISOString(),
+      updatedAt: payment.updatedAt ? payment.updatedAt.toISOString() : undefined,
       version: payment.version,
     };
   }

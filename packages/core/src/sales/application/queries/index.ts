@@ -4,6 +4,8 @@ export * from './get-sale-by-id.query';
 export * from './get-sale-by-id.handler';
 export * from './calculate-sale.query';
 export * from './calculate-sale.handler';
+export * from './get-payment.query';
+export * from './get-payment.handler';
 export * from './get-payment-by-id.query';
 export * from './get-payments-by-sale-id.query';
 export * from './get-receipt.query';

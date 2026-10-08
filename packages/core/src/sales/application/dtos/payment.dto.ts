@@ -58,6 +58,11 @@ export interface PaymentDTO {
   readonly createdAt: string;
 
   /**
+   * ISO 8601 UTC last-modified / lifecycle transition timestamp.
+   */
+  readonly updatedAt?: string;
+
+  /**
    * Optimistic Concurrency Control integer version sequence.
    */
   readonly version: number;
