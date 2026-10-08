@@ -7,6 +7,8 @@ export * from './calculate-sale.handler';
 export * from './get-payment.query';
 export * from './get-payment.handler';
 export * from './get-payment-by-id.query';
+export * from './get-sale-payment-history.query';
+export * from './get-sale-payment-history.handler';
 export * from './get-payments-by-sale-id.query';
 export * from './get-receipt.query';
 export * from './get-receipt-by-sale.query';
