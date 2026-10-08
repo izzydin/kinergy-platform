@@ -1,4 +1,5 @@
 import { SaleSummaryDTO } from './sale.dto';
+import { PaymentDTO } from './payment.dto';
 
 /**
  * Generic container for paginated query results across the Sales bounded context.
@@ -18,3 +19,8 @@ export interface PaginatedResultDTO<T> {
  * Strongly-typed paginated sales projection result.
  */
 export type PaginatedSalesDTO = PaginatedResultDTO<SaleSummaryDTO>;
+
+/**
+ * Strongly-typed paginated payment projection result.
+ */
+export type PaginatedPaymentsDTO = PaginatedResultDTO<PaymentDTO>;

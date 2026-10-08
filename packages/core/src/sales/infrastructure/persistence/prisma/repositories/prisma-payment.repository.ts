@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { Prisma, PrismaClient, PaymentMethod as PrismaPaymentMethod } from '@prisma/client';
 import { Payment } from '../../../../domain/payment.aggregate';
 import { PaymentId } from '../../../../domain/value-objects/payment-id.vo';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
@@ -6,8 +6,15 @@ import { PaymentOptimisticLockException } from '../../../../domain/exceptions/op
 import { PrismaPaymentMapper } from '../mappers/prisma-payment.mapper';
 import { PrismaDatabaseErrorMapper } from '../mappers/prisma-database-error.mapper';
 import { PrismaSalesUnitOfWork } from '../services/prisma-sales-unit-of-work';
-
-import { PaymentRepositoryPort } from '../../../../application/ports/payment-repository.port';
+import { PaymentMapper } from '../../../../application/mappers/payment.mapper';
+import {
+  PaymentRepositoryPort,
+  FindPaymentsCriteria,
+  FindPaymentsPagination,
+  FindPaymentsSort,
+  FindPaymentsResult,
+} from '../../../../application/ports/payment-repository.port';
+import { PaymentStatus } from '../../../../domain/enums/payment-status.enum';
 
 /**
  * Domain repository port contract for autonomous Payment Aggregate Roots.
@@ -63,6 +70,87 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
     });
 
     return records.map((record) => PrismaPaymentMapper.toDomain(record));
+  }
+
+  public async findMany(
+    criteria: FindPaymentsCriteria,
+    pagination: FindPaymentsPagination,
+    sort: FindPaymentsSort,
+  ): Promise<FindPaymentsResult> {
+    const page = Math.max(1, pagination.page);
+    const limit = Math.max(1, pagination.limit);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.PaymentWhereInput = {};
+
+    if (criteria.tenantId) {
+      where.tenantId = criteria.tenantId;
+    }
+    if (criteria.saleId) {
+      where.saleId = criteria.saleId;
+    }
+    if (criteria.status) {
+      where.status = PrismaPaymentMapper.toPersistenceStatus(criteria.status as PaymentStatus);
+    }
+    if (criteria.method) {
+      where.method = criteria.method as PrismaPaymentMethod;
+    }
+    if (criteria.createdAtFrom || criteria.createdAtTo) {
+      where.createdAt = {
+        ...(criteria.createdAtFrom ? { gte: criteria.createdAtFrom } : {}),
+        ...(criteria.createdAtTo ? { lte: criteria.createdAtTo } : {}),
+      };
+    }
+    if (criteria.paidAtFrom || criteria.paidAtTo) {
+      where.paidAt = {
+        ...(criteria.paidAtFrom ? { gte: criteria.paidAtFrom } : {}),
+        ...(criteria.paidAtTo ? { lte: criteria.paidAtTo } : {}),
+      };
+    }
+
+    const direction: 'asc' | 'desc' = sort.direction === 'asc' ? 'asc' : 'desc';
+    let orderBy: Prisma.PaymentOrderByWithRelationInput[];
+
+    switch (sort.field) {
+      case 'paidAt':
+        orderBy = [{ paidAt: direction }, { id: 'asc' }];
+        break;
+      case 'amount':
+        orderBy = [{ amount: direction }, { id: 'asc' }];
+        break;
+      case 'status':
+        orderBy = [{ status: direction }, { id: 'asc' }];
+        break;
+      case 'createdAt':
+      default:
+        orderBy = [{ createdAt: direction }, { id: 'asc' }];
+        break;
+    }
+
+    const [records, total] = await Promise.all([
+      this.client.payment.findMany({
+        where,
+        orderBy,
+        skip,
+        take: limit,
+      }),
+      this.client.payment.count({ where }),
+    ]);
+
+    const items = records.map((record) => {
+      const domain = PrismaPaymentMapper.toDomain(record);
+      return PaymentMapper.toDTO(domain);
+    });
+
+    return { items, total };
+  }
+
+  public async list(
+    criteria: FindPaymentsCriteria,
+    pagination: FindPaymentsPagination,
+    sort: FindPaymentsSort,
+  ): Promise<FindPaymentsResult> {
+    return this.findMany(criteria, pagination, sort);
   }
 
   public async withTransaction<T>(work: (repo: PaymentRepositoryPort) => Promise<T>): Promise<T> {
