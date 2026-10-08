@@ -436,4 +436,76 @@ describe('Sales Bounded Context Architecture & Source Domain Boundary Purity (AD
       }
     });
   });
+
+  describe('8. Payment & Sale Aggregate Boundary & Application Orchestration Purity (ADR-0115, ADR-0116, ADR-0122)', () => {
+    const paymentAggregatePath = path.resolve(salesDomainPath, 'payment.aggregate.ts');
+    const saleAggregatePath = path.resolve(salesDomainPath, 'sale.aggregate.ts');
+    const completePaymentHandlerPath = path.resolve(
+      salesRootDir,
+      'application/handlers/complete-payment.handler.ts',
+    );
+
+    it('proves Payment aggregate has ZERO imports of Sale aggregate, entity, or domain implementation', () => {
+      const paymentContent = fs.readFileSync(paymentAggregatePath, 'utf-8');
+
+      // Must not import Sale aggregate
+      expect(paymentContent).not.toMatch(/from\s+['"].*sale\.aggregate['"]/);
+      expect(paymentContent).not.toMatch(
+        /import\s+(?:type\s+)?(?:\{[^}]*\bSale\b[^}]*\}|\bSale\b)\s+from/,
+      );
+
+      // Must only reference SaleId value object
+      expect(paymentContent).toMatch(/import\s+(?:type\s+)?\{[^}]*SaleId[^}]*\}\s+from/);
+      expect(paymentContent).toMatch(/private\s+readonly\s+_saleId:\s*SaleId/);
+    });
+
+    it('proves Sale aggregate has ZERO imports of Payment aggregate, entity, or status', () => {
+      const saleContent = fs.readFileSync(saleAggregatePath, 'utf-8');
+
+      // Must not import Payment aggregate or Payment value objects/enums
+      expect(saleContent).not.toMatch(/from\s+['"].*payment\.aggregate['"]/);
+      expect(saleContent).not.toMatch(/from\s+['"].*payment-id\.vo['"]/);
+      expect(saleContent).not.toMatch(/from\s+['"].*payment-status\.enum['"]/);
+      expect(saleContent).not.toMatch(/from\s+['"].*payment-method\.enum['"]/);
+      expect(saleContent).not.toMatch(
+        /import\s+(?:type\s+)?(?:\{[^}]*\bPayment\b[^}]*\}|\bPayment\b)\s+from/,
+      );
+    });
+
+    it('proves Payment.complete() has ZERO domain knowledge or invocation of Sale.markPaid()', () => {
+      const paymentContent = fs.readFileSync(paymentAggregatePath, 'utf-8');
+
+      // Payment.complete must not call markPaid or reference Sale methods
+      expect(paymentContent).not.toMatch(/markPaid/);
+      expect(paymentContent).not.toMatch(/markPartiallyPaid/);
+      expect(paymentContent).not.toMatch(/sale\.status/i);
+    });
+
+    it('proves Sale.markPaid() has ZERO domain knowledge or invocation of Payment methods', () => {
+      const saleContent = fs.readFileSync(saleAggregatePath, 'utf-8');
+
+      // Sale.markPaid must only guard its own internal lifecycle status
+      expect(saleContent).not.toMatch(/payment\.complete/i);
+      expect(saleContent).not.toMatch(/payment\.settle/i);
+      expect(saleContent).not.toMatch(/PaymentRepository/i);
+    });
+
+    it('proves CompletePaymentHandler orchestrates Payment and Sale without merging aggregates', () => {
+      const handlerContent = fs.readFileSync(completePaymentHandlerPath, 'utf-8');
+
+      // Application service coordinates Payment -> Application Service -> Sale
+      expect(handlerContent).toMatch(/paymentRepository/);
+      expect(handlerContent).toMatch(/saleRepository/);
+      expect(handlerContent).toMatch(/payment\.complete\(/);
+      expect(handlerContent).toMatch(/sale\.markPaid\(/);
+
+      // Orchestrates cross-aggregate invariants (sale scoping, currency parity, remaining balance)
+      expect(handlerContent).toMatch(/SaleNotFoundException/);
+      expect(handlerContent).toMatch(/PaymentCurrencyMismatchException/);
+      expect(handlerContent).toMatch(/PaymentOverpaymentException/);
+
+      // Guarantees atomic cross-aggregate persistence via unitOfWork
+      expect(handlerContent).toMatch(/unitOfWork/);
+    });
+  });
 });
