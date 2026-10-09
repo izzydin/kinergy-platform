@@ -8,3 +8,4 @@ export * from './authorization.interface';
 export * from './default-permission-resolver';
 export * from './default-authorization.service';
 export * from './authorization.guard';
+export * from './permissions';

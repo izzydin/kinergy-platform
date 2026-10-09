@@ -130,5 +130,93 @@ describe('DefaultAuthorizationEvaluator', () => {
       }),
     );
     expect(decision.isAuthorized).toBe(true);
+
+    // receipts.manage implies receipts.read
+    mockPermissionResolver.resolvePermissions.mockResolvedValueOnce(['receipts.manage']);
+    decision = await evaluator.evaluate(
+      defaultUserContext,
+      new AuthorizationRequirements({
+        requiredPermissions: ['receipts.read'],
+      }),
+    );
+    expect(decision.isAuthorized).toBe(true);
+  });
+
+  describe('Colon-Notation Normalization & Safe Denial (ADR-0135)', () => {
+    it('should normalize and match colon notation requirements to canonical dot-notation permissions', async () => {
+      // User has canonical dot-notation, requirement uses colon notation
+      mockPermissionResolver.resolvePermissions.mockResolvedValueOnce([
+        'sales.read',
+        'payments.read',
+        'receipts.read',
+      ]);
+      let decision = await evaluator.evaluate(
+        defaultUserContext,
+        new AuthorizationRequirements({
+          requiredPermissions: ['sales:read', 'payments:read', 'receipts:read'],
+        }),
+      );
+      expect(decision.isAuthorized).toBe(true);
+
+      // User has colon notation, requirement uses canonical dot-notation
+      mockPermissionResolver.resolvePermissions.mockResolvedValueOnce([
+        'sales:manage',
+        'payments:manage',
+      ]);
+      decision = await evaluator.evaluate(
+        defaultUserContext,
+        new AuthorizationRequirements({
+          requiredPermissions: ['sales.manage', 'payments.manage'],
+        }),
+      );
+      expect(decision.isAuthorized).toBe(true);
+
+      // receipts.manage implies receipts:read
+      mockPermissionResolver.resolvePermissions.mockResolvedValueOnce(['receipts.manage']);
+      decision = await evaluator.evaluate(
+        defaultUserContext,
+        new AuthorizationRequirements({
+          requiredPermissions: ['receipts:read'],
+        }),
+      );
+      expect(decision.isAuthorized).toBe(true);
+    });
+
+    it('should safely deny access when caller has invalid, unregistered, or arbitrary permissions', async () => {
+      mockPermissionResolver.resolvePermissions.mockResolvedValueOnce([
+        'invalid.permission',
+        'arbitrary:privilege',
+        'sales.read',
+      ]);
+
+      const decision = await evaluator.evaluate(
+        defaultUserContext,
+        new AuthorizationRequirements({
+          requiredPermissions: ['sales.manage'],
+        }),
+      );
+
+      expect(decision.isAuthorized).toBe(false);
+      expect(decision.failedRequirement).toBe('PERMISSIONS');
+      expect(decision.reason).toContain('Access denied: required permission missing.');
+    });
+
+    it('should safely deny access when requirement requests an unknown permission code', async () => {
+      mockPermissionResolver.resolvePermissions.mockResolvedValueOnce([
+        'sales.read',
+        'payments.read',
+        'receipts.read',
+      ]);
+
+      const decision = await evaluator.evaluate(
+        defaultUserContext,
+        new AuthorizationRequirements({
+          requiredPermissions: ['unknown.super.admin'],
+        }),
+      );
+
+      expect(decision.isAuthorized).toBe(false);
+      expect(decision.failedRequirement).toBe('PERMISSIONS');
+    });
   });
 });

@@ -63,51 +63,54 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
   }
 
   private hasPermissionPattern(resolvedPermissions: string[], requiredPerm: string): boolean {
+    const normalize = (p: string) => p.replace(/:/g, '.');
+    const normRequired = normalize(requiredPerm);
+    const normResolved = resolvedPermissions.map(normalize);
+
     if (
       resolvedPermissions.includes('*') ||
       resolvedPermissions.includes('*:*:*') ||
-      resolvedPermissions.includes(requiredPerm)
+      normResolved.includes('*') ||
+      normResolved.includes('*.*.*') ||
+      normResolved.includes(normRequired)
     ) {
       return true;
     }
 
-    // ADR-0111 Backward Compatibility Mappings:
+    // ADR-0111 / ADR-0135 Backward Compatibility Mappings:
     // billing.read implies sales.read, payments.read, receipts.read
     if (
-      resolvedPermissions.includes('billing.read') &&
-      ['sales.read', 'payments.read', 'receipts.read'].includes(requiredPerm)
+      normResolved.includes('billing.read') &&
+      ['sales.read', 'payments.read', 'receipts.read'].includes(normRequired)
     ) {
       return true;
     }
 
     // billing.write implies sales.create, payments.create
     if (
-      resolvedPermissions.includes('billing.write') &&
-      ['sales.create', 'payments.create'].includes(requiredPerm)
+      normResolved.includes('billing.write') &&
+      ['sales.create', 'payments.create'].includes(normRequired)
     ) {
       return true;
     }
 
     // payments.manage implies payments.create and payments.read
     if (
-      resolvedPermissions.includes('payments.manage') &&
-      ['payments.create', 'payments.read'].includes(requiredPerm)
+      normResolved.includes('payments.manage') &&
+      ['payments.create', 'payments.read'].includes(normRequired)
     ) {
       return true;
     }
 
     // receipts.manage implies receipts.read
-    if (
-      resolvedPermissions.includes('receipts.manage') &&
-      ['receipts.read'].includes(requiredPerm)
-    ) {
+    if (normResolved.includes('receipts.manage') && ['receipts.read'].includes(normRequired)) {
       return true;
     }
 
-    return resolvedPermissions.some((perm) => {
-      if (perm.endsWith(':*') || perm.endsWith('.*')) {
+    return normResolved.some((perm) => {
+      if (perm.endsWith('.*')) {
         const prefix = perm.slice(0, -2);
-        return requiredPerm.startsWith(prefix);
+        return normRequired.startsWith(prefix);
       }
       return false;
     });

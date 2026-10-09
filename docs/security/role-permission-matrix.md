@@ -33,48 +33,52 @@ $$\text{<module>}.\text{[resource]}.\text{<action>}$$
 
 ---
 
-## 3. Seeded Permission Catalog (22 Total Permissions)
+## 3. Seeded Permission Catalog (34 Total Permissions across 13 Modules)
 
-The platform seeds **22 permissions** across **9 functional modules** into the PostgreSQL database (`permissions` table).
+The platform seeds **34 permissions** across **13 functional modules** into the PostgreSQL database (`permissions` table). Reference: [ADR-0025](../adr/0025-role-and-permission-authorization-framework.md), [ADR-0111](../adr/0111-sales-payments-authorization-and-audit.md), and [ADR-0135](../adr/0135-sales-payments-receipts-authorization-and-security.md).
 
-| Module           | Permission Code             | Description                                   |
-| :--------------- | :-------------------------- | :-------------------------------------------- |
-| **Users**        | `users.read`                | View user accounts                            |
-|                  | `users.write`               | Create and update user accounts               |
-|                  | `users.delete`              | Deactivate or remove user accounts            |
-| **Clients**      | `clients.read`              | View client profiles                          |
-|                  | `clients.write`             | Create and update client profiles             |
-|                  | `clients.delete`            | Delete client profiles                        |
-| **Appointments** | `appointments.read`         | View appointment schedules                    |
-|                  | `appointments.create`       | Schedule new appointments                     |
-|                  | `appointments.update`       | Modify existing appointments                  |
-|                  | `appointments.delete`       | Cancel or delete appointments                 |
-| **Kitchen**      | `kitchen.read`              | View kitchen orders and menu items            |
-|                  | `kitchen.orders.manage`     | Update order status and manage kitchen queue  |
-| **Inventory**    | `inventory.read`            | View stock levels and inventory items         |
-|                  | `inventory.write`           | Update stock levels and manage inventory      |
-| **Billing**      | `billing.read`              | View invoices and payment history (legacy)    |
-|                  | `billing.write`             | Process payments and issue invoices (legacy)  |
-| **Sales**        | `sales.read`                | View commercial sales orders and details      |
-|                  | `sales.create`              | Create sales checkout sessions and items      |
-|                  | `sales.manage`              | Discretionary discount overrides and control  |
-|                  | `sales.cancel`              | Cancel or void commercial sale orders         |
-| **Payments**     | `payments.read`             | View payment transaction history and records  |
-|                  | `payments.create`           | Record payment tender (Cash, QR) against sale |
-|                  | `payments.manage`           | Settle pending payments or void tender        |
-| **Reports**      | `reports.read`              | View operational and business reports         |
-| **Reports**      | `reports.export`            | Export report data and analytics              |
-| **Settings**     | `settings.read`             | View system configuration settings            |
-|                  | `settings.write`            | Modify system configuration settings          |
-| **Identity**     | `identity.roles.read`       | View system roles and permissions             |
-|                  | `identity.roles.write`      | Manage system roles and permissions           |
-|                  | `identity.permissions.read` | View permission catalog                       |
+| Module           | Permission Code             | Description                                                          |
+| :--------------- | :-------------------------- | :------------------------------------------------------------------- |
+| **Users**        | `users.read`                | View user accounts                                                   |
+|                  | `users.write`               | Create and update user accounts                                      |
+|                  | `users.delete`              | Deactivate or remove user accounts                                   |
+| **Clients**      | `clients.read`              | View client profiles                                                 |
+|                  | `clients.write`             | Create and update client profiles                                    |
+|                  | `clients.delete`            | Delete client profiles                                               |
+| **Appointments** | `appointments.read`         | View appointment schedules                                           |
+|                  | `appointments.create`       | Schedule new appointments                                            |
+|                  | `appointments.update`       | Modify existing appointments                                         |
+|                  | `appointments.delete`       | Cancel or delete appointments                                        |
+| **Kitchen**      | `kitchen.read`              | View kitchen orders and menu items                                   |
+|                  | `kitchen.orders.manage`     | Update order status and manage kitchen queue                         |
+| **Inventory**    | `inventory.read`            | View stock levels and inventory items                                |
+|                  | `inventory.write`           | Update stock levels and manage inventory                             |
+| **Assets**       | `assets.read`               | View fixed assets and equipment                                      |
+|                  | `assets.write`              | Manage and update fixed assets                                       |
+| **Billing**      | `billing.read`              | View invoices and payment history (legacy)                           |
+|                  | `billing.write`             | Process payments and issue invoices (legacy)                         |
+| **Sales**        | `sales.read`                | View commercial sales orders and details                             |
+|                  | `sales.create`              | Create sales checkout sessions and items                             |
+|                  | `sales.manage`              | Discretionary discount overrides and control                         |
+|                  | `sales.cancel`              | Cancel or void commercial sale orders                                |
+| **Payments**     | `payments.read`             | View payment transaction history and records                         |
+|                  | `payments.create`           | Record payment tender (Cash, QR) against sale                        |
+|                  | `payments.manage`           | Settle pending payments or void tender                               |
+| **Receipts**     | `receipts.read`             | View and download customer receipt vouchers for settled transactions |
+|                  | `receipts.manage`           | Authorize receipt reprints, issue duplicate vouchers, credit notes   |
+| **Reports**      | `reports.read`              | View operational and business reports                                |
+|                  | `reports.export`            | Export report data and analytics                                     |
+| **Settings**     | `settings.read`             | View system configuration settings                                   |
+|                  | `settings.write`            | Modify system configuration settings                                 |
+| **Identity**     | `identity.roles.read`       | View system roles and permissions                                    |
+|                  | `identity.roles.write`      | Manage system roles and permissions                                  |
+|                  | `identity.permissions.read` | View permission catalog                                              |
 
 ---
 
 ## 4. Role $\rightarrow$ Permission Assignment Matrix
 
-The following matrix documents the exact permissions assigned to each system role in the seeded database (`roles` and `role_permissions` tables) along with Phase 7 Sales & Payments authorization:
+The following matrix documents the exact permissions assigned to each system role in the seeded database (`roles` and `role_permissions` tables) along with Phase 7 Sales, Payments & Receipts authorization ([ADR-0135](../adr/0135-sales-payments-receipts-authorization-and-security.md)):
 
 | Permission Code             | Owner (System Super Admin) | Manager / Gym Manager | Trainer | Kitchen Staff | Receptionist |
 | :-------------------------- | :------------------------: | :-------------------: | :-----: | :-----------: | :----------: |
@@ -101,6 +105,8 @@ The following matrix documents the exact permissions assigned to each system rol
 | `payments.read`             |             ✅             |          ✅           |   ❌    |      ✅       |      ✅      |
 | `payments.create`           |             ✅             |          ✅           |   ❌    |      ✅       |      ✅      |
 | `payments.manage`           |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
+| `receipts.read`             |             ✅             |          ✅           |   ✅    |      ✅       |      ✅      |
+| `receipts.manage`           |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
 | `reports.read`              |             ✅             |          ✅           |   ✅    |      ❌       |      ❌      |
 | `reports.export`            |             ✅             |          ✅           |   ❌    |      ❌       |      ❌      |
 | `settings.read`             |             ✅             |          ✅           |   ❌    |      ❌       |      ❌      |
@@ -113,9 +119,10 @@ The following matrix documents the exact permissions assigned to each system rol
 
 For tokens issued during Phase 1:
 
-- `billing.read` automatically grants `payments.read` and `sales.read`.
+- `billing.read` automatically grants `payments.read`, `sales.read`, and `receipts.read`.
 - `billing.write` automatically grants `payments.create` and `sales.create`.
 - `payments.manage` covers `payments.create` and `payments.read`.
+- `receipts.manage` covers `receipts.read`.
 
 ---
 

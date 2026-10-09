@@ -23,7 +23,7 @@ describe('Identity Database Seed Specification', () => {
   });
 
   describe('PERMISSION_CATALOG', () => {
-    it('should contain all required module permission groups', () => {
+    it('should contain all required module permission groups including Sales, Payments, and Receipts', () => {
       const groups = Object.keys(PERMISSION_CATALOG);
 
       expect(groups).toContain('Users');
@@ -33,18 +33,58 @@ describe('Identity Database Seed Specification', () => {
       expect(groups).toContain('Inventory');
       expect(groups).toContain('Assets');
       expect(groups).toContain('Billing');
+      expect(groups).toContain('Sales');
+      expect(groups).toContain('Payments');
+      expect(groups).toContain('Receipts');
       expect(groups).toContain('Reports');
       expect(groups).toContain('Settings');
       expect(groups).toContain('Identity');
+      expect(groups.length).toBe(13);
     });
 
-    it('should have unique permission codes across all modules', () => {
+    it('should have unique permission codes across all modules (registered exactly once)', () => {
       const codes = new Set<string>();
       const allPermissions = Object.values(PERMISSION_CATALOG).flat();
 
       for (const perm of allPermissions) {
         expect(codes.has(perm.code)).toBe(false);
         codes.add(perm.code);
+      }
+      expect(allPermissions.length).toBe(34);
+    });
+
+    it('should register approved Sales permissions conforming to hierarchical dot-notation', () => {
+      const salesPermissions = PERMISSION_CATALOG['Sales']?.map((p) => p.code);
+      expect(salesPermissions).toEqual([
+        'sales.read',
+        'sales.create',
+        'sales.manage',
+        'sales.cancel',
+      ]);
+      expect(salesPermissions?.length).toBe(4);
+    });
+
+    it('should register approved Payments permissions conforming to hierarchical dot-notation', () => {
+      const paymentsPermissions = PERMISSION_CATALOG['Payments']?.map((p) => p.code);
+      expect(paymentsPermissions).toEqual(['payments.read', 'payments.create', 'payments.manage']);
+      expect(paymentsPermissions?.length).toBe(3);
+    });
+
+    it('should register approved Receipts permissions conforming to hierarchical dot-notation', () => {
+      const receiptsPermissions = PERMISSION_CATALOG['Receipts']?.map((p) => p.code);
+      expect(receiptsPermissions).toEqual(['receipts.read', 'receipts.manage']);
+      expect(receiptsPermissions?.length).toBe(2);
+    });
+
+    it('should enforce that all permission codes strictly follow dot-notation convention without uppercase or colons', () => {
+      const allPermissions = Object.values(PERMISSION_CATALOG).flat();
+      const dotNotationPattern = /^[a-z]+(\.[a-z]+)+$/;
+
+      for (const perm of allPermissions) {
+        expect(perm.code).toMatch(dotNotationPattern);
+        expect(perm.code).not.toContain(':');
+        expect(perm.code).toEqual(perm.code.toLowerCase());
+        expect(perm.description.trim().length).toBeGreaterThan(5);
       }
     });
   });
