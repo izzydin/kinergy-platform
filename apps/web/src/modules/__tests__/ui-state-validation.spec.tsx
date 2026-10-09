@@ -61,7 +61,7 @@ function renderWithProviders(
     <QueryClientProvider client={queryClient}>
       <NotificationProvider>
         <MemoryRouter initialEntries={initialEntries}>
-          <AuthProvider>
+          <AuthProvider skipBootstrap>
             <FeatureFlagProvider>
               <NavigationProvider>
                 <BreadcrumbProvider>
@@ -428,7 +428,7 @@ describe('A5.6 — State Transition: Error → Retry → Success', () => {
     rerender(
       <QueryClientProvider client={createTestQueryClient()}>
         <MemoryRouter>
-          <AuthProvider>
+          <AuthProvider skipBootstrap>
             <FeatureFlagProvider>
               <NavigationProvider>
                 <BreadcrumbProvider>
@@ -460,7 +460,7 @@ describe('A5.6 — State Transition: Error → Retry → Success', () => {
     rerender(
       <QueryClientProvider client={createTestQueryClient()}>
         <MemoryRouter>
-          <AuthProvider>
+          <AuthProvider skipBootstrap>
             <FeatureFlagProvider>
               <NavigationProvider>
                 <BreadcrumbProvider>
@@ -481,7 +481,7 @@ describe('A5.6 — State Transition: Error → Retry → Success', () => {
     rerender(
       <QueryClientProvider client={createTestQueryClient()}>
         <MemoryRouter>
-          <AuthProvider>
+          <AuthProvider skipBootstrap>
             <FeatureFlagProvider>
               <NavigationProvider>
                 <BreadcrumbProvider>
@@ -514,7 +514,7 @@ describe('A5.6 — State Transition: Error → Retry → Success', () => {
     rerender(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
-          <AuthProvider>
+          <AuthProvider skipBootstrap>
             <FeatureFlagProvider>
               <NavigationProvider>
                 <BreadcrumbProvider>

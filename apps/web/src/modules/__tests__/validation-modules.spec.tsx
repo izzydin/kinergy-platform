@@ -31,7 +31,7 @@ function renderWithProviders(ui: React.ReactElement, { initialEntries = ['/'] } 
   return render(
     <QueryClientProvider client={testQueryClient}>
       <MemoryRouter initialEntries={initialEntries}>
-        <AuthProvider>
+        <AuthProvider skipBootstrap>
           <FeatureFlagProvider>
             <NavigationProvider>
               <BreadcrumbProvider>

@@ -18,7 +18,7 @@ import { defaultNavigationItems } from '../../../../app/navigation/navigation.co
 function renderSidebar(initialEntries: string[] = ['/dashboard']) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <AuthProvider>
+      <AuthProvider skipBootstrap>
         <FeatureFlagProvider>
           <NavigationProvider initialItems={defaultNavigationItems}>
             <Routes>

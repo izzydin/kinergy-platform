@@ -11,9 +11,13 @@ import {
 } from '../app/providers';
 import { createQueryClient } from '../shared/query/query-client.factory';
 
+import type { AuthUser } from '../modules/auth/domain/auth-state.types';
+
 export interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
   initialRoute?: string;
   queryClient?: QueryClient;
+  initialSessionOverride?: AuthUser | null;
+  skipBootstrap?: boolean;
 }
 
 /**
@@ -26,6 +30,8 @@ export function renderWithProviders(
   {
     initialRoute = '/',
     queryClient = createQueryClient({ maxRetries: 0 }),
+    initialSessionOverride,
+    skipBootstrap = true,
     ...renderOptions
   }: ExtendedRenderOptions = {},
 ): RenderResult {
@@ -34,7 +40,10 @@ export function renderWithProviders(
       <QueryClientProvider client={queryClient}>
         <ThemeProvider defaultTheme="dark">
           <NotificationProvider>
-            <AuthProvider>
+            <AuthProvider
+              initialSessionOverride={initialSessionOverride}
+              skipBootstrap={skipBootstrap}
+            >
               <LocaleProvider>
                 <FeatureFlagProvider>
                   <MemoryRouter initialEntries={[initialRoute]}>{children}</MemoryRouter>

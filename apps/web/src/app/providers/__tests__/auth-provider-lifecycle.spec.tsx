@@ -106,7 +106,7 @@ describe('Track B — Step B2.1: AuthProvider Lifecycle', () => {
   // ─── 1. Initial Bootstrap & Session Restoration ────────────────────────────
 
   describe('1. Initial Bootstrap & Session Restoration', () => {
-    it('starts in BOOTSTRAPPING status without prematurely rendering authenticated UI', () => {
+    it('starts in BOOTSTRAPPING status without prematurely rendering authenticated UI', async () => {
       let resolveRefresh!: (res: Response) => void;
       fetchSpy.mockImplementationOnce(
         () =>
@@ -132,8 +132,9 @@ describe('Track B — Step B2.1: AuthProvider Lifecycle', () => {
       expect(screen.getByTestId('bootstrapping')).toHaveTextContent('true');
       expect(screen.getByTestId('user')).toHaveTextContent('none');
 
-      act(() => {
-        resolveRefresh(createMockResponse({ accessToken: 'token' }, 200));
+      resolveRefresh(createMockResponse({ accessToken: 'token' }, 200));
+      await waitFor(() => {
+        expect(screen.getByTestId('status')).toHaveTextContent('AUTHENTICATED');
       });
     });
 
@@ -338,6 +339,24 @@ describe('Track B — Step B2.1: AuthProvider Lifecycle', () => {
       await act(async () => {
         resolveRefresh(createMockResponse({ accessToken: 'post-unmount-token' }, 200));
       });
+    });
+
+    it('does not trigger background network bootstrap or async state updates when skipBootstrap is true', () => {
+      const Consumer: React.FC = () => {
+        const { status, isAuthenticated } = useAuth();
+        return (
+          <div>
+            <span data-testid="status">{status}</span>
+            <span data-testid="authenticated">{String(isAuthenticated)}</span>
+          </div>
+        );
+      };
+
+      renderWithAuthProvider(<Consumer />, { skipBootstrap: true });
+
+      expect(screen.getByTestId('status')).toHaveTextContent('AUTHENTICATED');
+      expect(screen.getByTestId('authenticated')).toHaveTextContent('true');
+      expect(fetchSpy).not.toHaveBeenCalled();
     });
   });
 
