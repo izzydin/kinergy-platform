@@ -25,6 +25,7 @@ import {
   SettlePaymentHandler,
   FailPaymentHandler,
   CancelPaymentHandler,
+  ListPaymentsHandler,
   RecordPaymentCommand,
   GetPaymentByIdQuery,
   GetPaymentsBySaleIdQuery,
@@ -32,6 +33,7 @@ import {
   SettlePaymentCommand,
   FailPaymentCommand,
   CancelPaymentCommand,
+  ListPaymentsQuery,
   SalesApplicationResult,
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
@@ -66,6 +68,7 @@ export class PaymentsController {
   private readonly _settlePaymentHandler: SettlePaymentHandler;
   private readonly _failPaymentHandler: FailPaymentHandler;
   private readonly _cancelPaymentHandler: CancelPaymentHandler;
+  private readonly _listPaymentsHandler: ListPaymentsHandler;
 
   constructor(
     @Inject(PAYMENT_REPOSITORY_TOKEN)
@@ -93,6 +96,9 @@ export class PaymentsController {
     @Optional()
     @Inject(CancelPaymentHandler)
     cancelPaymentHandler?: CancelPaymentHandler,
+    @Optional()
+    @Inject(ListPaymentsHandler)
+    listPaymentsHandler?: ListPaymentsHandler,
   ) {
     this._recordPaymentHandler =
       recordPaymentHandler ?? new RecordPaymentHandler(paymentRepository, saleRepository);
@@ -113,6 +119,7 @@ export class PaymentsController {
       failPaymentHandler ?? new FailPaymentHandler(paymentRepository, saleRepository);
     this._cancelPaymentHandler =
       cancelPaymentHandler ?? new CancelPaymentHandler(paymentRepository, saleRepository);
+    this._listPaymentsHandler = listPaymentsHandler ?? new ListPaymentsHandler(paymentRepository);
   }
 
   @Post('sales/:saleId/payments')
@@ -256,6 +263,88 @@ export class PaymentsController {
 
     const result = await this._getPaymentByIdHandler.execute(query);
     return this.handleResult(result) as unknown as PaymentResponseDto;
+  }
+
+  @Get('payments')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist')
+  @Permissions('payments.read')
+  @ApiOperation({
+    summary: 'List payment transactions with pagination, filtering, and sorting',
+    description:
+      'Retrieves paginated payment records matching filter criteria across the caller tenant scope.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Paginated list of payment records',
+  })
+  public async listPayments(
+    @Query() queryDto: Record<string, unknown> = {},
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ): Promise<unknown> {
+    const query = new ListPaymentsQuery({
+      ...queryDto,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: user
+        ? {
+            id: user.id,
+            userId: user.id,
+            email: user.email,
+            roles: user.roles,
+            permissions: user.permissions,
+          }
+        : undefined,
+    });
+
+    const result = await this._listPaymentsHandler.execute(query);
+    return this.handleResult(result);
+  }
+
+  @Post(['payments', 'sales/:saleId/payments/create'])
+  @HttpCode(HttpStatus.CREATED)
+  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Permissions('payments.create')
+  @ApiOperation({
+    summary:
+      'Create payment tender against a finalized commercial sale order (alias for recordPayment)',
+    description:
+      'Creates a payment tender against a sale order in accordance with CQRS conventions.',
+  })
+  public async createPayment(
+    @Param('saleId') saleId: string,
+    @Body() dto: RecordPaymentRequestDto,
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ): Promise<PaymentResponseDto> {
+    return this.recordPayment(saleId, dto, user);
+  }
+
+  @Get('payments/:paymentId/detail')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist')
+  @Permissions('payments.read')
+  @ApiOperation({
+    summary: 'Retrieve individual payment transaction by identifier (alias for getPaymentById)',
+  })
+  public async getPayment(
+    @Param('paymentId') paymentId: string,
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ): Promise<PaymentResponseDto> {
+    return this.getPaymentById(paymentId, user);
+  }
+
+  @Get('sales/:saleId/payments/history')
+  @HttpCode(HttpStatus.OK)
+  @Roles('Owner', 'Manager', 'Receptionist')
+  @Permissions('payments.read')
+  @ApiOperation({
+    summary:
+      'List all payment transactions associated with a commercial sale (alias for getPaymentsBySaleId)',
+  })
+  public async getSalePaymentHistory(
+    @Param('saleId') saleId: string,
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ): Promise<PaymentResponseDto[]> {
+    return this.getPaymentsBySaleId(saleId, user);
   }
 
   @Post(['payments/:id/complete', ':saleId/payments/:id/complete'])

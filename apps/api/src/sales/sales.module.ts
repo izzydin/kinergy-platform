@@ -24,6 +24,7 @@ import {
   SettlePaymentHandler,
   FailPaymentHandler,
   CancelPaymentHandler,
+  ListPaymentsHandler,
   IssueReceiptHandler,
   GetReceiptHandler,
   GetReceiptBySaleHandler,
@@ -179,6 +180,11 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
         auditPublisher: SalesAuditEventPublisher,
       ) => new CancelPaymentHandler(paymentRepo, saleRepo, undefined, auditPublisher),
       inject: [PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
+    },
+    {
+      provide: ListPaymentsHandler,
+      useFactory: (paymentRepo: PaymentRepositoryPort) => new ListPaymentsHandler(paymentRepo),
+      inject: [PAYMENT_REPOSITORY_TOKEN],
     },
     {
       provide: IssueReceiptHandler,
