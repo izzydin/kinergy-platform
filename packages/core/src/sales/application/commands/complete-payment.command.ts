@@ -4,7 +4,7 @@ export interface CompletePaymentInput {
   paymentId: string;
   saleId?: string;
   reference?: string | null;
-  paidAt?: Date;
+  paidAt?: Date | string;
   tenantId?: string;
   currentUser?: RecordPaymentCurrentUser;
 }

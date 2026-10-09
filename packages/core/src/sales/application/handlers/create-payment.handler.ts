@@ -64,9 +64,14 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         return SalesApplicationResult.fail(new Error('Sale ID cannot be empty.'));
       }
 
-      if (typeof input.amount !== 'number' || isNaN(input.amount) || !isFinite(input.amount)) {
+      const hasAmount =
+        typeof input.amount === 'number' && !isNaN(input.amount) && isFinite(input.amount);
+      const hasCents =
+        typeof input.cents === 'number' && Number.isInteger(input.cents) && isFinite(input.cents);
+
+      if (!hasAmount && !hasCents) {
         return SalesApplicationResult.fail(
-          new Error('Payment amount must be a valid finite number.'),
+          new Error('Payment amount must be a valid finite number or exact integer cents.'),
         );
       }
 
@@ -105,7 +110,9 @@ export class CreatePaymentHandler implements SalesCommandHandler<
       const method = input.method as PaymentMethod;
 
       // 6. Validate Amount Through Payment Domain (canonical Money VO invariants)
-      const paymentAmount = Money.create(input.amount, paymentCurrency);
+      const paymentAmount = hasCents
+        ? Money.fromCents(input.cents!, paymentCurrency)
+        : Money.create(input.amount!, paymentCurrency);
       if (paymentAmount.cents <= 0) {
         return SalesApplicationResult.fail(
           new PaymentDomainException(

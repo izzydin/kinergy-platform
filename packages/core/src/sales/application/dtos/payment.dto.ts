@@ -38,6 +38,22 @@ export interface PaymentDTO {
   readonly amountValue: number;
 
   /**
+   * Normalized 3-letter uppercase ISO-4217 currency code (e.g., 'USD').
+   */
+  readonly currency?: string;
+
+  /**
+   * Exact integer amount in minor currency units (cents, e.g., 4999).
+   * Eliminates floating-point precision loss across API consumers.
+   */
+  readonly cents?: number;
+
+  /**
+   * Deterministic string representation with exact 2 decimal places (e.g., '49.99').
+   */
+  readonly formattedAmount?: string;
+
+  /**
    * Current lifecycle state (PENDING, SETTLED, FAILED, CANCELLED).
    */
   readonly status: PaymentStatus;

@@ -11,7 +11,8 @@ export interface CreatePaymentCurrentUser {
 
 export interface CreatePaymentInput {
   saleId: string;
-  amount: number;
+  amount?: number;
+  cents?: number;
   currency?: string;
   method: PaymentMethod | string;
   status?: PaymentStatus | string;

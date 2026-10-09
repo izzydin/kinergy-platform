@@ -101,9 +101,12 @@ export class CompletePaymentHandler implements SalesCommandHandler<
 
       // 8. Invoke Payment Domain Behavior: payment.complete()
       // Payment aggregate decides whether transition is legal (throws InvalidPaymentTransitionException)
+      const resolvedPaidAt =
+        typeof input.paidAt === 'string' ? new Date(input.paidAt) : input.paidAt;
+
       payment.complete({
         reference: input.reference,
-        paidAt: input.paidAt,
+        paidAt: resolvedPaidAt,
         clock: this.clock,
       });
 
