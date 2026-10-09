@@ -690,5 +690,38 @@ describe('CreatePaymentHandler Specification Suite (Milestone 7.12)', () => {
       expect(result.isFailure).toBe(true);
       expect(result.getError()).toBeInstanceOf(SaleNotPayableException);
     });
+
+    it('executes atomic multi-aggregate persistence inside UnitOfWork transaction when provided', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+      let transactionExecuted = false;
+      const unitOfWork = {
+        async executeInTransaction<T>(work: () => Promise<T>): Promise<T> {
+          transactionExecuted = true;
+          return await work();
+        },
+      };
+
+      const transactionalHandler = new CreatePaymentHandler(
+        paymentRepo,
+        saleRepo,
+        clock,
+        eventPublisher,
+        unitOfWork,
+      );
+
+      const result = await transactionalHandler.execute(
+        new CreatePaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.CASH,
+          tenantId,
+        }),
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(transactionExecuted).toBe(true);
+      const updatedSale = await saleRepo.findById(sale.id);
+      expect(updatedSale?.status).toBe(SaleStatus.PAID);
+    });
   });
 });

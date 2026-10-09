@@ -13,6 +13,8 @@ import { PaymentReference } from '../../domain/value-objects/payment-reference.v
 import { PaymentRepositoryPort } from '../ports/payment-repository.port';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
+import { IUnitOfWork } from '../ports/unit-of-work.port';
+import { SalesTransactionCoordinatorPort } from '../ports/sales-transaction-coordinator.port';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { SaleNotPayableException } from '../exceptions/sale-not-payable.exception';
@@ -50,6 +52,7 @@ export class CreatePaymentHandler implements SalesCommandHandler<
     private readonly saleRepository: SaleRepositoryPort,
     private readonly clock: Clock = new SystemClock(),
     private readonly eventPublisher?: SalesEventPublisherPort,
+    private readonly unitOfWork?: IUnitOfWork | SalesTransactionCoordinatorPort,
   ) {}
 
   public async execute(command: CreatePaymentCommand): Promise<SalesApplicationResult<PaymentDTO>> {
@@ -213,10 +216,7 @@ export class CreatePaymentHandler implements SalesCommandHandler<
               this.clock,
             );
 
-      // 11. Persist Payment Through PaymentRepositoryPort
-      await this.paymentRepository.save(payment);
-
-      // 12. Establish / Coordinate Sale Relationship and State Transition If Completed
+      // 11. Coordinate Sale Relationship and State Transition If Completed
       // Application layer invokes domain methods (markPaid / markPartiallyPaid) - does NOT mutate Sale directly
       if (payment.status === PaymentStatus.COMPLETED) {
         const newSettledTotal = settledTotal.add(payment.amount);
@@ -225,7 +225,37 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         } else if (sale.status === SaleStatus.PENDING_PAYMENT) {
           sale.markPartiallyPaid(this.clock);
         }
-        await this.saleRepository.save(sale);
+      }
+
+      // 12. Persist State Atomically Through Repository Ports (and UnitOfWork if provided)
+      const persistWork = async () => {
+        await this.paymentRepository.save(payment);
+        if (payment.status === PaymentStatus.COMPLETED) {
+          await this.saleRepository.save(sale);
+        }
+      };
+
+      if (this.unitOfWork) {
+        if (
+          'executeInTransaction' in this.unitOfWork &&
+          typeof this.unitOfWork.executeInTransaction === 'function'
+        ) {
+          await this.unitOfWork.executeInTransaction(persistWork);
+        } else if (
+          'runInTransaction' in this.unitOfWork &&
+          typeof (this.unitOfWork as unknown as { runInTransaction: unknown }).runInTransaction ===
+            'function'
+        ) {
+          await (
+            this.unitOfWork as unknown as {
+              runInTransaction: (fn: () => Promise<void>) => Promise<void>;
+            }
+          ).runInTransaction(persistWork);
+        } else {
+          await persistWork();
+        }
+      } else {
+        await persistWork();
       }
 
       // 13. Dispatch Domain Events Post-Commit
