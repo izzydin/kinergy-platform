@@ -5,6 +5,7 @@ import {
   PrismaSaleRepository,
   PrismaPaymentRepository,
   PrismaReceiptRepository,
+  PrismaSalesUnitOfWork,
   CreateSaleHandler,
   AssignSaleSourceHandler,
   GetSaleByIdHandler,
@@ -20,6 +21,7 @@ import {
   RecordPaymentHandler,
   GetPaymentByIdHandler,
   GetPaymentsBySaleIdHandler,
+  GetSalePaymentHistoryHandler,
   CompletePaymentHandler,
   SettlePaymentHandler,
   FailPaymentHandler,
@@ -39,6 +41,7 @@ import {
   SALE_REPOSITORY_TOKEN,
   PAYMENT_REPOSITORY_TOKEN,
   RECEIPT_REPOSITORY_TOKEN,
+  UNIT_OF_WORK_TOKEN,
 } from './sales.tokens';
 import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-publisher';
 
@@ -47,6 +50,11 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
   controllers: [SalesController, PaymentsController, ReceiptsController],
   providers: [
     SalesAuditEventPublisher,
+    {
+      provide: UNIT_OF_WORK_TOKEN,
+      useFactory: (prisma: PrismaService) => new PrismaSalesUnitOfWork(prisma),
+      inject: [PrismaService],
+    },
     {
       provide: SALE_REPOSITORY_TOKEN,
       useFactory: (prisma: PrismaService) => new PrismaSaleRepository(prisma),
@@ -146,13 +154,25 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
       inject: [PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN],
     },
     {
+      provide: GetSalePaymentHistoryHandler,
+      useFactory: (paymentRepo: PaymentRepositoryPort, saleRepo: SaleRepositoryPort) =>
+        new GetSalePaymentHistoryHandler(paymentRepo, saleRepo),
+      inject: [PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN],
+    },
+    {
       provide: CompletePaymentHandler,
       useFactory: (
         paymentRepo: PaymentRepositoryPort,
         saleRepo: SaleRepositoryPort,
         auditPublisher: SalesAuditEventPublisher,
-      ) => new CompletePaymentHandler(paymentRepo, saleRepo, undefined, auditPublisher),
-      inject: [PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
+        unitOfWork: PrismaSalesUnitOfWork,
+      ) => new CompletePaymentHandler(paymentRepo, saleRepo, undefined, auditPublisher, unitOfWork),
+      inject: [
+        PAYMENT_REPOSITORY_TOKEN,
+        SALE_REPOSITORY_TOKEN,
+        SalesAuditEventPublisher,
+        UNIT_OF_WORK_TOKEN,
+      ],
     },
     {
       provide: SettlePaymentHandler,
@@ -160,8 +180,14 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
         paymentRepo: PaymentRepositoryPort,
         saleRepo: SaleRepositoryPort,
         auditPublisher: SalesAuditEventPublisher,
-      ) => new SettlePaymentHandler(paymentRepo, saleRepo, undefined, auditPublisher),
-      inject: [PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
+        unitOfWork: PrismaSalesUnitOfWork,
+      ) => new SettlePaymentHandler(paymentRepo, saleRepo, undefined, auditPublisher, unitOfWork),
+      inject: [
+        PAYMENT_REPOSITORY_TOKEN,
+        SALE_REPOSITORY_TOKEN,
+        SalesAuditEventPublisher,
+        UNIT_OF_WORK_TOKEN,
+      ],
     },
     {
       provide: FailPaymentHandler,
@@ -222,6 +248,7 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     },
   ],
   exports: [
+    UNIT_OF_WORK_TOKEN,
     SALE_REPOSITORY_TOKEN,
     PAYMENT_REPOSITORY_TOKEN,
     RECEIPT_REPOSITORY_TOKEN,
@@ -241,6 +268,7 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     RecordPaymentHandler,
     GetPaymentByIdHandler,
     GetPaymentsBySaleIdHandler,
+    GetSalePaymentHistoryHandler,
     CompletePaymentHandler,
     SettlePaymentHandler,
     FailPaymentHandler,

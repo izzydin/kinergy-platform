@@ -21,6 +21,7 @@ import {
   RecordPaymentHandler,
   GetPaymentByIdHandler,
   GetPaymentsBySaleIdHandler,
+  GetSalePaymentHistoryHandler,
   CompletePaymentHandler,
   SettlePaymentHandler,
   FailPaymentHandler,
@@ -29,6 +30,7 @@ import {
   RecordPaymentCommand,
   GetPaymentByIdQuery,
   GetPaymentsBySaleIdQuery,
+  GetSalePaymentHistoryQuery,
   CompletePaymentCommand,
   SettlePaymentCommand,
   FailPaymentCommand,
@@ -64,6 +66,7 @@ export class PaymentsController {
   private readonly _recordPaymentHandler: RecordPaymentHandler;
   private readonly _getPaymentByIdHandler: GetPaymentByIdHandler;
   private readonly _getPaymentsBySaleIdHandler: GetPaymentsBySaleIdHandler;
+  private readonly _getSalePaymentHistoryHandler: GetSalePaymentHistoryHandler;
   private readonly _completePaymentHandler: CompletePaymentHandler;
   private readonly _settlePaymentHandler: SettlePaymentHandler;
   private readonly _failPaymentHandler: FailPaymentHandler;
@@ -84,6 +87,9 @@ export class PaymentsController {
     @Optional()
     @Inject(GetPaymentsBySaleIdHandler)
     getPaymentsBySaleIdHandler?: GetPaymentsBySaleIdHandler,
+    @Optional()
+    @Inject(GetSalePaymentHistoryHandler)
+    getSalePaymentHistoryHandler?: GetSalePaymentHistoryHandler,
     @Optional()
     @Inject(CompletePaymentHandler)
     completePaymentHandler?: CompletePaymentHandler,
@@ -107,6 +113,9 @@ export class PaymentsController {
     this._getPaymentsBySaleIdHandler =
       getPaymentsBySaleIdHandler ??
       new GetPaymentsBySaleIdHandler(paymentRepository, saleRepository);
+    this._getSalePaymentHistoryHandler =
+      getSalePaymentHistoryHandler ??
+      new GetSalePaymentHistoryHandler(paymentRepository, saleRepository);
     this._completePaymentHandler =
       completePaymentHandler ??
       settlePaymentHandler ??
@@ -338,13 +347,26 @@ export class PaymentsController {
   @Permissions('payments.read')
   @ApiOperation({
     summary:
-      'List all payment transactions associated with a commercial sale (alias for getPaymentsBySaleId)',
+      'List all payment transactions associated with a commercial sale using canonical history query',
   })
   public async getSalePaymentHistory(
     @Param('saleId') saleId: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto[]> {
-    return this.getPaymentsBySaleId(saleId, user);
+    const query = new GetSalePaymentHistoryQuery({
+      saleId,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: user
+        ? {
+            id: user.id,
+            roles: user.roles,
+            permissions: user.permissions,
+          }
+        : undefined,
+    });
+
+    const result = await this._getSalePaymentHistoryHandler.execute(query);
+    return this.handleResult(result) as unknown as PaymentResponseDto[];
   }
 
   @Post(['payments/:id/complete', ':saleId/payments/:id/complete'])
