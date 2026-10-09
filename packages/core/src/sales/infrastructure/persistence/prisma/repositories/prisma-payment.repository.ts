@@ -17,12 +17,6 @@ import {
 import { PaymentStatus } from '../../../../domain/enums/payment-status.enum';
 
 /**
- * Domain repository port contract for autonomous Payment Aggregate Roots.
- * Re-exported for backward compatibility.
- */
-export type PaymentRepositoryInterface = PaymentRepositoryPort;
-
-/**
  * Prisma and PostgreSQL implementation of the PaymentRepositoryPort.
  * Enforces:
  * - Isolation from Sale aggregate instances (scalar SaleId reference only).
@@ -47,6 +41,10 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
     return this.prisma;
   }
 
+  public async create(payment: Payment): Promise<void> {
+    return this.save(payment);
+  }
+
   public async findById(id: PaymentId | string): Promise<Payment | null> {
     const paymentIdStr = typeof id === 'string' ? id.trim() : id.value;
 
@@ -61,6 +59,10 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
     return PrismaPaymentMapper.toDomain(raw);
   }
 
+  public async getById(id: PaymentId | string): Promise<Payment | null> {
+    return this.findById(id);
+  }
+
   public async findBySaleId(saleId: SaleId | string): Promise<Payment[]> {
     const saleIdStr = typeof saleId === 'string' ? saleId.trim() : saleId.value;
 
@@ -70,6 +72,10 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
     });
 
     return records.map((record) => PrismaPaymentMapper.toDomain(record));
+  }
+
+  public async listBySaleId(saleId: SaleId | string): Promise<Payment[]> {
+    return this.findBySaleId(saleId);
   }
 
   public async findMany(

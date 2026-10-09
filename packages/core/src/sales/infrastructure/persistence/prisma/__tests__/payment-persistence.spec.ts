@@ -15,6 +15,7 @@ import { PaymentStatus } from '../../../../domain/enums/payment-status.enum';
 import { InvalidPaymentMethodException } from '../../../../domain/exceptions/invalid-payment-method.exception';
 import { InvalidPaymentStatusException } from '../../../../domain/exceptions/invalid-payment-status.exception';
 import { PrismaPaymentRepository } from '../repositories/prisma-payment.repository';
+import { PaymentRepositoryPort } from '../../../../application/ports/payment-repository.port';
 import { PrismaPaymentMapper } from '../mappers/prisma-payment.mapper';
 import { DeterministicClock } from '../../../../domain/shared/clock';
 
@@ -78,6 +79,25 @@ class MockPaymentRelationalDatabase {
               results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
             }
             return results;
+          },
+        ),
+        count: jest.fn(
+          async ({
+            where,
+          }: {
+            where?: { saleId?: string; tenantId?: string; status?: PrismaPaymentStatus };
+          } = {}) => {
+            let results = Array.from(bufferedPayments.values());
+            if (where?.saleId) {
+              results = results.filter((p) => p.saleId === where.saleId);
+            }
+            if (where?.tenantId) {
+              results = results.filter((p) => p.tenantId === where.tenantId);
+            }
+            if (where?.status) {
+              results = results.filter((p) => p.status === where.status);
+            }
+            return results.length;
           },
         ),
         upsert: jest.fn(
@@ -185,6 +205,25 @@ class MockPaymentRelationalDatabase {
               results.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
             }
             return results;
+          },
+        ),
+        count: jest.fn(
+          async ({
+            where,
+          }: {
+            where?: { saleId?: string; tenantId?: string; status?: PrismaPaymentStatus };
+          } = {}) => {
+            let results = Array.from(this.payments.values());
+            if (where?.saleId) {
+              results = results.filter((p) => p.saleId === where.saleId);
+            }
+            if (where?.tenantId) {
+              results = results.filter((p) => p.tenantId === where.tenantId);
+            }
+            if (where?.status) {
+              results = results.filter((p) => p.status === where.status);
+            }
+            return results.length;
           },
         ),
       },
@@ -675,6 +714,196 @@ describe('Payment Persistence Architecture & Model Reconciliation (Integration)'
       expect(retrieved!.saleId).toBeInstanceOf(SaleId);
       expect(retrieved!.amount).toBeInstanceOf(Money);
       expect(retrieved!.status).toBe(PaymentStatus.COMPLETED);
+    });
+  });
+
+  // ==========================================================================
+  // 10. Hexagonal Architecture: Milestone 7.12 Repository Capabilities
+  // ==========================================================================
+  describe('10. Hexagonal Architecture: Milestone 7.12 Repository Capabilities', () => {
+    it('supports create(payment) for persisting a newly created Payment aggregate', async () => {
+      const payment = Payment.createPending(
+        {
+          id: 'pay-hex-create-01',
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(25.0, 'USD'),
+          reference: 'QR-CREATE-REF',
+        },
+        clock,
+      );
+
+      await repository.create(payment);
+
+      const found = await repository.findById('pay-hex-create-01');
+      expect(found).not.toBeNull();
+      expect(found!.id.value).toBe('pay-hex-create-01');
+      expect(found!.status).toBe(PaymentStatus.PENDING);
+    });
+
+    it('supports getById(id) as a first-class domain-oriented alias for findById(id)', async () => {
+      const payment = Payment.createSettled(
+        {
+          id: 'pay-hex-getbyid-01',
+          tenantId,
+          saleId,
+          method: PaymentMethod.CASH,
+          amount: Money.create(40.0, 'USD'),
+        },
+        clock,
+      );
+      await repository.save(payment);
+
+      const byFind = await repository.findById('pay-hex-getbyid-01');
+      const byGet = await repository.getById('pay-hex-getbyid-01');
+
+      expect(byGet).not.toBeNull();
+      expect(byFind).not.toBeNull();
+      expect(byGet!.id.value).toBe(byFind!.id.value);
+      expect(byGet!.amount.amount).toBe(40.0);
+    });
+
+    it('supports listBySaleId(saleId) as a domain-oriented alias for findBySaleId(saleId)', async () => {
+      const p1 = Payment.createSettled(
+        {
+          id: 'pay-hex-sale-01',
+          tenantId,
+          saleId,
+          method: PaymentMethod.CASH,
+          amount: Money.create(10.0, 'USD'),
+        },
+        clock,
+      );
+      const p2 = Payment.createSettled(
+        {
+          id: 'pay-hex-sale-02',
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(20.0, 'USD'),
+        },
+        clock,
+      );
+
+      await repository.save(p1);
+      await repository.save(p2);
+
+      const listResult = await repository.listBySaleId(saleId);
+      const findResult = await repository.findBySaleId(saleId);
+
+      expect(listResult).toHaveLength(2);
+      expect(listResult.map((p) => p.id.value)).toEqual(findResult.map((p) => p.id.value));
+    });
+
+    it('supports list() for deterministic paginated and filtered queries', async () => {
+      const payment = Payment.createSettled(
+        {
+          id: 'pay-hex-list-01',
+          tenantId,
+          saleId,
+          method: PaymentMethod.CASH,
+          amount: Money.create(50.0, 'USD'),
+        },
+        clock,
+      );
+      await repository.save(payment);
+
+      const result = await repository.list(
+        { saleId: saleId.value, tenantId },
+        { page: 1, limit: 10 },
+        { field: 'createdAt', direction: 'asc' },
+      );
+
+      expect(result.total).toBeGreaterThanOrEqual(1);
+      expect(result.items.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('preserves aggregate encapsulation: requires domain transitions before save(payment)', async () => {
+      // 1. Initiate pending payment
+      const payment = Payment.createPending(
+        {
+          id: 'pay-hex-lifecycle-01',
+          tenantId,
+          saleId,
+          method: PaymentMethod.QR,
+          amount: Money.create(35.0, 'USD'),
+        },
+        clock,
+      );
+      await repository.save(payment);
+
+      // 2. Aggregate transitions through authoritative domain methods
+      payment.complete({
+        reference: 'AUTH-TX-99',
+        paidAt: new Date('2026-10-01T15:35:00.000Z'),
+        clock,
+      });
+
+      // 3. Repository persists full aggregate with incremented OCC version
+      await repository.save(payment);
+
+      const updated = await repository.getById('pay-hex-lifecycle-01');
+      expect(updated).not.toBeNull();
+      expect(updated!.status).toBe(PaymentStatus.COMPLETED);
+      expect(updated!.version).toBe(2);
+      expect(updated!.reference?.value).toBe('AUTH-TX-99');
+    });
+
+    it('supports transaction boundary coordination via withTransaction()', async () => {
+      const executed = await repository.withTransaction(async (txRepo: PaymentRepositoryPort) => {
+        const payment = Payment.createSettled(
+          {
+            id: 'pay-hex-tx-01',
+            tenantId,
+            saleId,
+            method: PaymentMethod.CASH,
+            amount: Money.create(15.0, 'USD'),
+          },
+          clock,
+        );
+        await txRepo.save(payment);
+        return true;
+      });
+
+      expect(executed).toBe(true);
+      const found = await repository.getById('pay-hex-tx-01');
+      expect(found).not.toBeNull();
+    });
+
+    it('verifies PaymentRepositoryPort adheres strictly to Hexagonal boundaries', () => {
+      // Type-level verification of required capabilities:
+      type PortMethods = keyof PaymentRepositoryPort;
+
+      // Must have required capabilities:
+      const hasCreate: 'create' extends PortMethods ? true : false = true;
+      const hasGetById: 'getById' extends PortMethods ? true : false = true;
+      const hasFindById: 'findById' extends PortMethods ? true : false = true;
+      const hasList: 'list' extends PortMethods ? true : false = true;
+      const hasListBySaleId: 'listBySaleId' extends PortMethods ? true : false = true;
+      const hasFindBySaleId: 'findBySaleId' extends PortMethods ? true : false = true;
+      const hasSave: 'save' extends PortMethods ? true : false = true;
+      const hasWithTx: 'withTransaction' extends PortMethods ? true : false = true;
+
+      expect(hasCreate).toBe(true);
+      expect(hasGetById).toBe(true);
+      expect(hasFindById).toBe(true);
+      expect(hasList).toBe(true);
+      expect(hasListBySaleId).toBe(true);
+      expect(hasFindBySaleId).toBe(true);
+      expect(hasSave).toBe(true);
+      expect(hasWithTx).toBe(true);
+
+      // Must FORBID partial update methods that bypass aggregate:
+      const hasUpdateStatus: 'updateStatus' extends PortMethods ? true : false = false;
+      const hasUpdateAmount: 'updateAmount' extends PortMethods ? true : false = false;
+      const hasUpdatePaidAt: 'updatePaidAt' extends PortMethods ? true : false = false;
+      const hasDelete: 'delete' extends PortMethods ? true : false = false;
+
+      expect(hasUpdateStatus).toBe(false);
+      expect(hasUpdateAmount).toBe(false);
+      expect(hasUpdatePaidAt).toBe(false);
+      expect(hasDelete).toBe(false);
     });
   });
 });

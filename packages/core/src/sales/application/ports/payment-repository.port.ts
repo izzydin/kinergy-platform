@@ -39,19 +39,35 @@ export interface FindPaymentsResult {
 }
 
 /**
- * Port interface for Payment persistence operations.
+ * Port interface for Payment persistence operations within the Sales bounded context.
  * Decouples domain and application logic from concrete database/ORM drivers.
  */
 export interface PaymentRepositoryPort {
+  /**
+   * Persists a newly created Payment aggregate.
+   * Can delegate directly to save(payment) or perform initial insert.
+   */
+  create?(payment: Payment): Promise<void>;
+
   /**
    * Resolves a Payment aggregate by its unique domain identifier.
    */
   findById(id: PaymentId | string): Promise<Payment | null>;
 
   /**
+   * Domain-oriented alias for resolving a Payment aggregate by its unique domain identifier.
+   */
+  getById?(id: PaymentId | string): Promise<Payment | null>;
+
+  /**
    * Retrieves all Payment aggregates associated with a given Sale.
    */
   findBySaleId(saleId: SaleId | string): Promise<Payment[]>;
+
+  /**
+   * Domain-oriented alias for retrieving all Payment aggregates associated with a given Sale.
+   */
+  listBySaleId?(saleId: SaleId | string): Promise<Payment[]>;
 
   /**
    * Persists a Payment aggregate (handles both initial creation and lifecycle updates).
@@ -76,4 +92,14 @@ export interface PaymentRepositoryPort {
     pagination: FindPaymentsPagination,
     sort: FindPaymentsSort,
   ): Promise<FindPaymentsResult>;
+
+  /**
+   * Optional transactional execution wrapper for atomic multi-step aggregate operations.
+   */
+  withTransaction?<T>(work: (transactionalRepo: PaymentRepositoryPort) => Promise<T>): Promise<T>;
 }
+
+/**
+ * Backward-compatible alias for PaymentRepositoryPort in application handlers and services.
+ */
+export type PaymentRepositoryInterface = PaymentRepositoryPort;

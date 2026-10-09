@@ -508,4 +508,65 @@ describe('Sales Bounded Context Architecture & Source Domain Boundary Purity (AD
       expect(handlerContent).toMatch(/unitOfWork/);
     });
   });
+
+  describe('9. PaymentRepository Hexagonal Architecture & Milestone 7.12 Capabilities (ADR-0115, ADR-0116, ADR-0122, ADR-0133)', () => {
+    const paymentRepoPortPath = path.resolve(
+      salesRootDir,
+      'application/ports/payment-repository.port.ts',
+    );
+    const prismaPaymentRepoPath = path.resolve(
+      salesRootDir,
+      'infrastructure/persistence/prisma/repositories/prisma-payment.repository.ts',
+    );
+
+    it('proves PaymentRepositoryPort has ZERO imports of Prisma, ORM, or database frameworks', () => {
+      const portContent = fs.readFileSync(paymentRepoPortPath, 'utf-8');
+
+      expect(portContent).not.toMatch(/@prisma/);
+      expect(portContent).not.toMatch(/prisma/i);
+      expect(portContent).not.toMatch(/typeorm/i);
+      expect(portContent).not.toMatch(/sequelize/i);
+      expect(portContent).not.toMatch(/from\s+['"]sqlite/i);
+      expect(portContent).not.toMatch(/from\s+['"]pg/i);
+    });
+
+    it('proves PaymentRepositoryPort forbids partial CRUD methods that bypass Payment Aggregate', () => {
+      const portContent = fs.readFileSync(paymentRepoPortPath, 'utf-8');
+
+      // Aggregate root lifecycle is authoritative: no anemic partial mutations
+      expect(portContent).not.toMatch(/updateStatus\s*\(/);
+      expect(portContent).not.toMatch(/updateAmount\s*\(/);
+      expect(portContent).not.toMatch(/updatePaidAt\s*\(/);
+      expect(portContent).not.toMatch(/updateReference\s*\(/);
+
+      // Financial and commercial records are immutable; no physical deletion
+      expect(portContent).not.toMatch(/delete\s*\(/);
+      expect(portContent).not.toMatch(/deleteById\s*\(/);
+    });
+
+    it('proves PaymentRepositoryPort and PrismaPaymentRepository expose all required Milestone 7.12 capabilities', () => {
+      const portContent = fs.readFileSync(paymentRepoPortPath, 'utf-8');
+      const adapterContent = fs.readFileSync(prismaPaymentRepoPath, 'utf-8');
+
+      // Required capabilities: create, getById / findById, list / findMany, listBySaleId / findBySaleId, save, withTransaction
+      expect(portContent).toMatch(/create\?\s*\(\s*payment:\s*Payment\s*\)/);
+      expect(portContent).toMatch(/findById\s*\(/);
+      expect(portContent).toMatch(/getById\?\s*\(/);
+      expect(portContent).toMatch(/findBySaleId\s*\(/);
+      expect(portContent).toMatch(/listBySaleId\?\s*\(/);
+      expect(portContent).toMatch(/save\s*\(\s*payment:\s*Payment\s*\)/);
+      expect(portContent).toMatch(/list\?\s*\(/);
+      expect(portContent).toMatch(/withTransaction\?(?:<[^>]+>)?\s*\(/);
+
+      // Concrete Prisma adapter implements every capability
+      expect(adapterContent).toMatch(/public\s+async\s+create\s*\(\s*payment:\s*Payment\s*\)/);
+      expect(adapterContent).toMatch(/public\s+async\s+findById\s*\(/);
+      expect(adapterContent).toMatch(/public\s+async\s+getById\s*\(/);
+      expect(adapterContent).toMatch(/public\s+async\s+findBySaleId\s*\(/);
+      expect(adapterContent).toMatch(/public\s+async\s+listBySaleId\s*\(/);
+      expect(adapterContent).toMatch(/public\s+async\s+save\s*\(\s*payment:\s*Payment\s*\)/);
+      expect(adapterContent).toMatch(/public\s+async\s+list\s*\(/);
+      expect(adapterContent).toMatch(/public\s+async\s+withTransaction(?:<[^>]+>)?\s*\(/);
+    });
+  });
 });
