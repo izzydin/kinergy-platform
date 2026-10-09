@@ -16,3 +16,8 @@ export * from './receipt-domain.exception';
 export * from './duplicate-receipt.exception';
 export * from './duplicate-sale.exception';
 export * from './invalid-sale-source.exception';
+export * from './invalid-payment-amount.exception';
+export * from './payment-already-completed.exception';
+export * from './payment-already-failed.exception';
+export * from './payment-already-cancelled.exception';
+export * from './sale-cannot-be-marked-paid.exception';

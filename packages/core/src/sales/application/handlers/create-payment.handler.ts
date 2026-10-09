@@ -20,7 +20,8 @@ import { PaymentCurrencyMismatchException } from '../exceptions/payment-currency
 import { PaymentOverpaymentException } from '../exceptions/payment-overpayment.exception';
 import { DuplicatePaymentReferenceException } from '../exceptions/duplicate-payment-reference.exception';
 import { InvalidPaymentStatusException } from '../../domain/exceptions/invalid-payment-status.exception';
-import { PaymentDomainException } from '../../domain/exceptions/payment-domain.exception';
+import { InvalidPaymentAmountException } from '../../domain/exceptions/invalid-payment-amount.exception';
+import { InvalidPaymentMethodException } from '../../domain/exceptions/invalid-payment-method.exception';
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 
 /**
@@ -71,7 +72,18 @@ export class CreatePaymentHandler implements SalesCommandHandler<
 
       if (!hasAmount && !hasCents) {
         return SalesApplicationResult.fail(
-          new Error('Payment amount must be a valid finite number or exact integer cents.'),
+          new InvalidPaymentAmountException(
+            'Payment amount must be a valid finite number or exact integer cents.',
+          ),
+        );
+      }
+
+      if ((hasAmount && input.amount! <= 0) || (hasCents && input.cents! <= 0)) {
+        return SalesApplicationResult.fail(
+          new InvalidPaymentAmountException(
+            'Payment amount must be strictly greater than zero.',
+            'PAYMENT_AMOUNT_MUST_BE_POSITIVE',
+          ),
         );
       }
 
@@ -80,7 +92,9 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         input.method === null ||
         (typeof input.method === 'string' && input.method.trim().length === 0)
       ) {
-        return SalesApplicationResult.fail(new Error('Payment method cannot be empty.'));
+        return SalesApplicationResult.fail(
+          new InvalidPaymentMethodException(input.method, 'Payment method cannot be empty.'),
+        );
       }
 
       // 3. Load Referenced Sale & Reject If Not Found
@@ -115,7 +129,7 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         : Money.create(input.amount!, paymentCurrency);
       if (paymentAmount.cents <= 0) {
         return SalesApplicationResult.fail(
-          new PaymentDomainException(
+          new InvalidPaymentAmountException(
             `Payment amount must be strictly greater than zero. Received: ${paymentAmount.toString()}.`,
             'PAYMENT_AMOUNT_MUST_BE_POSITIVE',
           ),

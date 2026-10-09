@@ -15,3 +15,4 @@ export * from './client-not-found.exception';
 export * from './invalid-sale-query.exception';
 export * from './invalid-payment-query.exception';
 export * from './duplicate-payment-reference.exception';
+export * from './payment-sale-consistency.exception';

@@ -7,6 +7,9 @@ import {
   assertValidPaymentStatus,
 } from '../enums/payment-status.enum';
 import { InvalidPaymentTransitionException } from '../exceptions/invalid-payment-transition.exception';
+import { PaymentAlreadyCompletedException } from '../exceptions/payment-already-completed.exception';
+import { PaymentAlreadyFailedException } from '../exceptions/payment-already-failed.exception';
+import { PaymentAlreadyCancelledException } from '../exceptions/payment-already-cancelled.exception';
 import { PaymentDomainException } from '../exceptions/payment-domain.exception';
 
 /**
@@ -195,6 +198,15 @@ export class PaymentLifecycleStateMachine {
 
     if (!this.canTransition(currentStatus, targetStatus)) {
       const reason = customReason ?? this.getInvalidTransitionReason(currentStatus, targetStatus);
+      if (currentStatus === PaymentStatus.COMPLETED) {
+        throw new PaymentAlreadyCompletedException(reason);
+      }
+      if (currentStatus === PaymentStatus.FAILED && targetStatus === PaymentStatus.FAILED) {
+        throw new PaymentAlreadyFailedException(reason);
+      }
+      if (currentStatus === PaymentStatus.CANCELLED && targetStatus === PaymentStatus.CANCELLED) {
+        throw new PaymentAlreadyCancelledException(reason);
+      }
       throw new InvalidPaymentTransitionException(currentStatus, targetStatus, reason);
     }
   }

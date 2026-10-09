@@ -4,7 +4,7 @@ import { PaymentDomainException } from './payment-domain.exception';
  * Thrown when an illegal lifecycle state transition is attempted on a Payment aggregate.
  */
 export class InvalidPaymentTransitionException extends PaymentDomainException {
-  public override readonly code = 'INVALID_PAYMENT_TRANSITION';
+  public override readonly code: string = 'INVALID_PAYMENT_TRANSITION';
 
   public get currentStatus(): string {
     return this.currentState;
@@ -25,6 +25,7 @@ export class InvalidPaymentTransitionException extends PaymentDomainException {
       'INVALID_PAYMENT_TRANSITION',
     );
     this.name = 'InvalidPaymentTransitionException';
-    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
+
+export { InvalidPaymentTransitionException as InvalidPaymentTransition };

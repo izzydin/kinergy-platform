@@ -16,3 +16,5 @@ export class InvalidPaymentMethodException extends PaymentDomainException {
     Object.setPrototypeOf(this, new.target.prototype);
   }
 }
+
+export { InvalidPaymentMethodException as InvalidPaymentMethod };

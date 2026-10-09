@@ -8,6 +8,10 @@ export class DuplicatePaymentReferenceException extends Error {
       `A payment with reference '${reference}' already exists for sale '${saleId}'. Duplicate payment references are prohibited.`,
     );
     this.name = 'DuplicatePaymentReferenceException';
-    Object.setPrototypeOf(this, new.target.prototype);
   }
 }
+
+export {
+  DuplicatePaymentReferenceException as PaymentReferenceAlreadyExistsException,
+  DuplicatePaymentReferenceException as PaymentReferenceAlreadyExists,
+};

@@ -13,6 +13,7 @@ import { EmptySaleException } from './exceptions/empty-sale.exception';
 import { SaleAlreadyFinalizedException } from './exceptions/sale-already-finalized.exception';
 import { InvalidSaleStateException } from './exceptions/invalid-sale-state.exception';
 import { InvalidSaleTransitionException } from './exceptions/invalid-sale-transition.exception';
+import { SaleCannotBeMarkedPaidException } from './exceptions/sale-cannot-be-marked-paid.exception';
 import {
   SaleCreatedEvent,
   SaleFinalizedEvent,
@@ -1051,9 +1052,8 @@ export class Sale implements AggregateRoot<SaleId> {
    */
   public markPaid(clock: Clock = new SystemClock()): void {
     if (this._status !== SaleStatus.PENDING_PAYMENT && this._status !== SaleStatus.PARTIALLY_PAID) {
-      throw new InvalidSaleTransitionException(
+      throw new SaleCannotBeMarkedPaidException(
         this._status,
-        SaleStatus.PAID,
         'Sale can only transition to PAID from PENDING_PAYMENT or PARTIALLY_PAID.',
       );
     }

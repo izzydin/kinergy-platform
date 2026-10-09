@@ -18,6 +18,7 @@ import { PrismaPaymentRepository } from '../repositories/prisma-payment.reposito
 import { PaymentRepositoryPort } from '../../../../application/ports/payment-repository.port';
 import { PrismaPaymentMapper } from '../mappers/prisma-payment.mapper';
 import { DeterministicClock } from '../../../../domain/shared/clock';
+import { SaleNotFoundException } from '../../../../application/exceptions/sale-not-found.exception';
 
 /**
  * Stateful relational test harness emulating PostgreSQL / Prisma relational mechanics,
@@ -627,9 +628,7 @@ describe('Payment Persistence Architecture & Model Reconciliation (Integration)'
         clock,
       );
 
-      await expect(repository.save(orphanPayment)).rejects.toThrow(
-        Prisma.PrismaClientKnownRequestError,
-      );
+      await expect(repository.save(orphanPayment)).rejects.toThrow(SaleNotFoundException);
     });
   });
 

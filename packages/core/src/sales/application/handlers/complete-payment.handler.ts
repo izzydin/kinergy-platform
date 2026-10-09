@@ -17,6 +17,8 @@ import { PaymentUnauthorizedException } from '../exceptions/payment-unauthorized
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { PaymentCurrencyMismatchException } from '../exceptions/payment-currency-mismatch.exception';
 import { PaymentOverpaymentException } from '../exceptions/payment-overpayment.exception';
+import { SaleCannotBeMarkedPaidException } from '../../domain/exceptions/sale-cannot-be-marked-paid.exception';
+import { SaleStatus } from '../../domain/enums/sale-status.enum';
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 
 /**
@@ -100,7 +102,7 @@ export class CompletePaymentHandler implements SalesCommandHandler<
       }
 
       // 8. Invoke Payment Domain Behavior: payment.complete()
-      // Payment aggregate decides whether transition is legal (throws InvalidPaymentTransitionException)
+      // Payment aggregate decides whether transition is legal (throws InvalidPaymentTransitionException / PaymentAlreadyCompletedException)
       const resolvedPaidAt =
         typeof input.paidAt === 'string' ? new Date(input.paidAt) : input.paidAt;
 
@@ -111,7 +113,14 @@ export class CompletePaymentHandler implements SalesCommandHandler<
       });
 
       // 9. Invoke Sale Domain Behavior: sale.markPaid(...) or sale.markPartiallyPaid(...)
-      // Sale aggregate decides whether transition is legal (throws InvalidSaleTransitionException)
+      // Sale aggregate decides whether transition is legal (throws SaleCannotBeMarkedPaidException / InvalidSaleTransitionException)
+      if (sale.status === SaleStatus.CANCELLED || sale.status === SaleStatus.DRAFT) {
+        throw new SaleCannotBeMarkedPaidException(
+          sale.status,
+          `Sale with status '${sale.status}' cannot be marked as paid. Expected PENDING_PAYMENT or PARTIALLY_PAID.`,
+        );
+      }
+
       const cumulativeSettled = settledTotalBefore.add(payment.amount);
       if (cumulativeSettled.greaterThanOrEqual(sale.total)) {
         sale.markPaid(this.clock);

@@ -9,3 +9,4 @@ export * from './persistence/prisma/repositories/prisma-receipt.repository';
 export * from './persistence/prisma/services/prisma-receipt-sequence.generator';
 export * from './persistence/prisma/services/prisma-sales-unit-of-work';
 export * from './services/in-memory-receipt-sequence.generator';
+export * from './persistence/prisma/exceptions/payment-persistence.exception';

@@ -17,6 +17,7 @@ import { InvalidPaymentTransitionException } from '../../../../domain/exceptions
 import { PrismaPaymentMapper } from '../mappers/prisma-payment.mapper';
 import { PrismaPaymentRepository } from '../repositories/prisma-payment.repository';
 import { DeterministicClock } from '../../../../domain/shared/clock';
+import { SaleNotFoundException } from '../../../../application/exceptions/sale-not-found.exception';
 
 type MockPrismaClient = {
   $transaction: jest.Mock;
@@ -589,11 +590,9 @@ describe('Payment Persistence & PostgreSQL Exact Decimal Representation (ADR-011
         clock,
       );
 
-      await expect(repo.save(paymentWithInvalidSale)).rejects.toThrow(
+      await expect(repo.save(paymentWithInvalidSale)).rejects.toThrow(SaleNotFoundException);
+      await expect(repo.save(paymentWithInvalidSale)).rejects.not.toThrow(
         Prisma.PrismaClientKnownRequestError,
-      );
-      await expect(repo.save(paymentWithInvalidSale)).rejects.toThrow(
-        /Foreign key constraint failed/i,
       );
     });
 

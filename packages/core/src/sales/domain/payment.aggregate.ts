@@ -8,6 +8,7 @@ import { PaymentReference } from './value-objects/payment-reference.vo';
 import { PaymentMethod, assertValidPaymentMethod } from './enums/payment-method.enum';
 import { PaymentStatus, assertValidPaymentStatus } from './enums/payment-status.enum';
 import { PaymentDomainException } from './exceptions/payment-domain.exception';
+import { InvalidPaymentAmountException } from './exceptions/invalid-payment-amount.exception';
 import { Clock, SystemClock } from './shared/clock';
 import { PaymentSettledEvent, PaymentFailedEvent, PaymentCancelledEvent } from './events';
 import {
@@ -133,14 +134,14 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
     assertValidPaymentStatus(props.status);
 
     if (!props.amount || !(props.amount instanceof Money)) {
-      throw new PaymentDomainException(
+      throw new InvalidPaymentAmountException(
         'Payment amount must be an instance of canonical Money VO.',
         'INVALID_PAYMENT_AMOUNT',
       );
     }
 
     if (props.amount.cents <= 0) {
-      throw new PaymentDomainException(
+      throw new InvalidPaymentAmountException(
         `Payment amount must be strictly greater than zero. Received: ${props.amount.toString()}.`,
         'PAYMENT_AMOUNT_MUST_BE_POSITIVE',
       );

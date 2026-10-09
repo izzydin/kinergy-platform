@@ -48,15 +48,19 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
   public async findById(id: PaymentId | string): Promise<Payment | null> {
     const paymentIdStr = typeof id === 'string' ? id.trim() : id.value;
 
-    const raw = await this.client.payment.findUnique({
-      where: { id: paymentIdStr },
-    });
+    try {
+      const raw = await this.client.payment.findUnique({
+        where: { id: paymentIdStr },
+      });
 
-    if (!raw) {
-      return null;
+      if (!raw) {
+        return null;
+      }
+
+      return PrismaPaymentMapper.toDomain(raw);
+    } catch (error: unknown) {
+      throw PrismaDatabaseErrorMapper.mapDatabaseError(error, { paymentId: paymentIdStr });
     }
-
-    return PrismaPaymentMapper.toDomain(raw);
   }
 
   public async getById(id: PaymentId | string): Promise<Payment | null> {
@@ -66,12 +70,16 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
   public async findBySaleId(saleId: SaleId | string): Promise<Payment[]> {
     const saleIdStr = typeof saleId === 'string' ? saleId.trim() : saleId.value;
 
-    const records = await this.client.payment.findMany({
-      where: { saleId: saleIdStr },
-      orderBy: { createdAt: 'asc' },
-    });
+    try {
+      const records = await this.client.payment.findMany({
+        where: { saleId: saleIdStr },
+        orderBy: { createdAt: 'asc' },
+      });
 
-    return records.map((record) => PrismaPaymentMapper.toDomain(record));
+      return records.map((record) => PrismaPaymentMapper.toDomain(record));
+    } catch (error: unknown) {
+      throw PrismaDatabaseErrorMapper.mapDatabaseError(error, { saleId: saleIdStr });
+    }
   }
 
   public async listBySaleId(saleId: SaleId | string): Promise<Payment[]> {
@@ -133,22 +141,28 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
         break;
     }
 
-    const [records, total] = await Promise.all([
-      this.client.payment.findMany({
-        where,
-        orderBy,
-        skip,
-        take: limit,
-      }),
-      this.client.payment.count({ where }),
-    ]);
+    try {
+      const [records, total] = await Promise.all([
+        this.client.payment.findMany({
+          where,
+          orderBy,
+          skip,
+          take: limit,
+        }),
+        this.client.payment.count({ where }),
+      ]);
 
-    const items = records.map((record) => {
-      const domain = PrismaPaymentMapper.toDomain(record);
-      return PaymentMapper.toDTO(domain);
-    });
+      const items = records.map((record) => {
+        const domain = PrismaPaymentMapper.toDomain(record);
+        return PaymentMapper.toDTO(domain);
+      });
 
-    return { items, total };
+      return { items, total };
+    } catch (error: unknown) {
+      throw PrismaDatabaseErrorMapper.mapDatabaseError(error, {
+        saleId: criteria.saleId,
+      });
+    }
   }
 
   public async list(
@@ -228,12 +242,11 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
         throw error;
       }
 
-      const checkError = PrismaDatabaseErrorMapper.mapCheckConstraintError(error);
-      if (checkError) {
-        throw checkError;
-      }
-
-      throw error;
+      throw PrismaDatabaseErrorMapper.mapDatabaseError(error, {
+        paymentId: payment.id.value,
+        saleId: payment.saleId.value,
+        reference: payment.reference?.value,
+      });
     }
   }
 }
