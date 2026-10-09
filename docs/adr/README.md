@@ -114,6 +114,7 @@ This directory contains records of key architectural and technical decisions mad
 | [0132](file:///c:/Projects/kinergy-platform/docs/adr/0132-sale-application-layer-architecture.md)                                                                    | Sale Application Layer Architecture, Use Case Inventory, and Orchestration Contracts                         | Accepted   | 2026-10-05              |
 | [0133](file:///c:/Projects/kinergy-platform/docs/adr/0133-payment-application-layer-architecture.md)                                                                 | Payment Application Layer Architecture, Cross-Aggregate Settlement Orchestration, and Use Case Inventory     | Accepted   | 2026-10-07              |
 | [0134](file:///c:/Projects/kinergy-platform/docs/adr/0134-financial-settlement-validation-and-overpayment-invariants.md)                                             | Financial Settlement Validation, Multi-Tender Boundaries & Overpayment Invariants                            | Accepted   | 2026-10-07              |
+| [0135](file:///c:/Projects/kinergy-platform/docs/adr/0135-sales-payments-receipts-authorization-and-security.md)                                                     | Sales, Payments & Receipts Authorization Architecture, IAM Integration & Security Boundaries                 | Accepted   | 2026-10-09              |
 
 ## Format
 
