@@ -92,6 +92,17 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
     }
 
     // ADR-0111 / ADR-0135 Backward Compatibility Mappings:
+    // billing.manage covers all billing, sales, payments, and receipts operations
+    if (
+      normResolved.includes('billing.manage') &&
+      (normRequired.startsWith('sales.') ||
+        normRequired.startsWith('payments.') ||
+        normRequired.startsWith('receipts.') ||
+        normRequired.startsWith('billing.'))
+    ) {
+      return true;
+    }
+
     // billing.read implies sales.read, payments.read, receipts.read
     if (
       normResolved.includes('billing.read') &&

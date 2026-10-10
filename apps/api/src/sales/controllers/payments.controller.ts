@@ -373,7 +373,11 @@ export class PaymentsController {
     return this.handleResult(result) as unknown as PaymentResponseDto[];
   }
 
-  @Post(['payments/:id/complete', ':saleId/payments/:id/complete'])
+  @Post([
+    'payments/:id/complete',
+    ':saleId/payments/:id/complete',
+    'sales/:saleId/payments/:id/complete',
+  ])
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist')
   @Permissions('payments.create', 'payments.manage')
@@ -458,7 +462,7 @@ export class PaymentsController {
     return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
-  @Post(['payments/:id/settle', ':saleId/payments/:id/settle'])
+  @Post(['payments/:id/settle', ':saleId/payments/:id/settle', 'sales/:saleId/payments/:id/settle'])
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist')
   @Permissions('payments.create', 'payments.manage')
@@ -543,7 +547,7 @@ export class PaymentsController {
     return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
-  @Post(['payments/:id/fail', ':saleId/payments/:id/fail'])
+  @Post(['payments/:id/fail', ':saleId/payments/:id/fail', 'sales/:saleId/payments/:id/fail'])
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist')
   @Permissions('payments.create', 'payments.manage')
@@ -628,7 +632,7 @@ export class PaymentsController {
     return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
-  @Post(['payments/:id/cancel', ':saleId/payments/:id/cancel'])
+  @Post(['payments/:id/cancel', ':saleId/payments/:id/cancel', 'sales/:saleId/payments/:id/cancel'])
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager')
   @Permissions('payments.manage')
