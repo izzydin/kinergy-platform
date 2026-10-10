@@ -1,5 +1,9 @@
+import { SaleCurrentUser } from '../shared/sale-authorization';
+
 export interface CalculateSaleInput {
   saleId: string;
+  tenantId?: string;
+  currentUser?: SaleCurrentUser;
 }
 
 /**

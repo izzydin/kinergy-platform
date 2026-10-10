@@ -13,17 +13,19 @@ import {
 } from '../ports/sale-repository.port';
 import { InvalidSaleQueryException } from '../exceptions/invalid-sale-query.exception';
 import { isValidSaleStatus, SaleStatus } from '../../domain/enums/sale-status.enum';
+import { checkSaleAuthorization } from '../shared/sale-authorization';
 
 /**
  * ListSalesHandler executes the ListSales query.
  *
  * Responsibilities:
- * 1. Accept and validate query inputs (pagination, sorting, and justified filters).
- * 2. Enforce pagination limits (default 20, max cap 100).
- * 3. Enforce strict sort whitelist ('createdAt', 'total', 'status') to prevent arbitrary SQL/ORM injections.
- * 4. Coordinate with SaleRepositoryPort.findMany() without loading full Sale aggregate trees.
- * 5. Provide deterministic secondary sorting (id asc) through the repository contract.
- * 6. Return standard PaginatedResultDTO<SaleSummaryDTO> wrapped in SalesApplicationResult.
+ * 1. Validate caller authorization (sales.read).
+ * 2. Accept and validate query inputs (pagination, sorting, and justified filters).
+ * 3. Enforce pagination limits (default 20, max cap 100).
+ * 4. Enforce strict sort whitelist ('createdAt', 'total', 'status') to prevent arbitrary SQL/ORM injections.
+ * 5. Coordinate with SaleRepositoryPort.findMany() without loading full Sale aggregate trees.
+ * 6. Provide deterministic secondary sorting (id asc) through the repository contract.
+ * 7. Return standard PaginatedResultDTO<SaleSummaryDTO> wrapped in SalesApplicationResult.
  */
 export class ListSalesHandler implements SalesQueryHandler<
   ListSalesQuery,
@@ -49,6 +51,9 @@ export class ListSalesHandler implements SalesQueryHandler<
       }
 
       const input = query.input;
+
+      // 0. Authorization: sales.read
+      checkSaleAuthorization(input.currentUser, ['sales.read']);
 
       // 1. Pagination Validation & Normalization
       const rawPage = input.pagination?.page ?? input.page;
@@ -109,8 +114,17 @@ export class ListSalesHandler implements SalesQueryHandler<
       const sortDirection: SaleSortDirection = normalizedSortDir;
 
       // 3. Filter Validation & Normalization
-      const tenantId = input.tenantId?.trim() || undefined;
-      const clientId = (input.filter?.clientId ?? input.clientId)?.trim() || undefined;
+      const tenantId = (input.currentUser?.tenantId ?? input.tenantId)?.trim() || undefined;
+      let clientId = (input.filter?.clientId ?? input.clientId)?.trim() || undefined;
+
+      // Client role scoping: clients can only list their own sales
+      if (input.currentUser) {
+        const roles = input.currentUser.roles ?? [];
+        if (roles.includes('Client') || roles.includes('Member')) {
+          clientId = input.currentUser.id;
+        }
+      }
+
       const sourceType = (input.filter?.sourceType ?? input.sourceType)?.trim() || undefined;
       const sourceReferenceId =
         (input.filter?.sourceReferenceId ?? input.sourceReferenceId)?.trim() || undefined;

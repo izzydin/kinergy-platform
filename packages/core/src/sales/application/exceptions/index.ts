@@ -3,6 +3,7 @@ export * from './payment-not-found.exception';
 export * from './sale-not-payable.exception';
 export * from './payment-overpayment.exception';
 export * from './payment-unauthorized.exception';
+export * from './sale-unauthorized.exception';
 export * from './payment-currency-mismatch.exception';
 export * from './receipt-not-found.exception';
 export * from './receipt-unauthorized.exception';

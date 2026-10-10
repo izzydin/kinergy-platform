@@ -10,6 +10,7 @@ import { SaleStatus } from '../../domain/enums/sale-status.enum';
 import { SaleSourceType } from '../../domain/enums/sale-source-type.enum';
 import { DeterministicClock } from '../../domain/shared/clock';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
+import { SaleUnauthorizedException } from '../exceptions/sale-unauthorized.exception';
 import { SaleAlreadyFinalizedException } from '../../domain/exceptions/sale-already-finalized.exception';
 import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
 
@@ -300,6 +301,128 @@ describe('CalculateSaleHandler Specification (Milestone 7.11, 7.4 & ADR-0132)', 
       expect(result.isFailure).toBe(true);
       expect(result.getError()).toBeInstanceOf(SaleNotFoundException);
       expect(getErrorMessage(result)).toContain(`Sale with ID '${nonExistentId}' was not found.`);
+    });
+  });
+
+  describe('6. Authorization, Multi-Tenant Boundary & Ownership Enforcement (ADR-0135)', () => {
+    it('authorizes caller with sales.read permission', async () => {
+      const sale = createSaleWithItems(
+        [{ description: 'Towel', quantity: 1, unitPriceAmount: 10.0 }],
+        null,
+        'sale_calc_auth_01',
+      );
+
+      const result = await handler.execute(
+        new CalculateSaleQuery({
+          saleId: sale.id.value,
+          tenantId: 'tenant_kinergy_main',
+          currentUser: {
+            id: 'user_frontdesk',
+            tenantId: 'tenant_kinergy_main',
+            roles: ['Receptionist'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.getValue().totalAmount).toBe(10.0);
+    });
+
+    it('rejects caller lacking sales.read permission with SaleUnauthorizedException', async () => {
+      const sale = createSaleWithItems(
+        [{ description: 'Towel', quantity: 1, unitPriceAmount: 10.0 }],
+        null,
+        'sale_calc_unauth_01',
+      );
+
+      const result = await handler.execute(
+        new CalculateSaleQuery({
+          saleId: sale.id.value,
+          tenantId: 'tenant_kinergy_main',
+          currentUser: {
+            id: 'user_intruder',
+            tenantId: 'tenant_kinergy_main',
+            roles: ['Kitchen Staff'],
+            permissions: ['kitchen.orders.manage'],
+          },
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(SaleUnauthorizedException);
+    });
+
+    it('rejects cross-tenant probing with SaleNotFoundException (uniform 404 per ADR-0135 §9)', async () => {
+      const sale = createSaleWithItems(
+        [{ description: 'Towel', quantity: 1, unitPriceAmount: 10.0 }],
+        null,
+        'sale_calc_tenant_01',
+      );
+
+      const result = await handler.execute(
+        new CalculateSaleQuery({
+          saleId: sale.id.value,
+          tenantId: 'tenant_competitor',
+          currentUser: {
+            id: 'user_other_manager',
+            tenantId: 'tenant_competitor',
+            roles: ['Manager'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(SaleNotFoundException);
+    });
+
+    it('allows client to calculate their own sale', async () => {
+      const sale = createSaleWithItems(
+        [{ description: 'Towel', quantity: 1, unitPriceAmount: 10.0 }],
+        null,
+        'sale_calc_client_own',
+      );
+
+      const result = await handler.execute(
+        new CalculateSaleQuery({
+          saleId: sale.id.value,
+          tenantId: 'tenant_kinergy_main',
+          currentUser: {
+            id: 'client_01', // Matches sale.clientId
+            tenantId: 'tenant_kinergy_main',
+            roles: ['Client'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.getValue().totalAmount).toBe(10.0);
+    });
+
+    it('strictly rejects client from calculating another client sale (Object-Level Ownership Boundary)', async () => {
+      const sale = createSaleWithItems(
+        [{ description: 'Towel', quantity: 1, unitPriceAmount: 10.0 }],
+        null,
+        'sale_calc_client_other',
+      );
+
+      const result = await handler.execute(
+        new CalculateSaleQuery({
+          saleId: sale.id.value,
+          tenantId: 'tenant_kinergy_main',
+          currentUser: {
+            id: 'different_client_99',
+            tenantId: 'tenant_kinergy_main',
+            roles: ['Client'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(SaleNotFoundException);
     });
   });
 });

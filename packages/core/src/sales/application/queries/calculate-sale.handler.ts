@@ -7,23 +7,30 @@ import { SaleMapper } from '../mappers/sale.mapper';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
+import {
+  checkSaleAuthorization,
+  enforceSaleTenantIsolation,
+  enforceSaleOwnershipBoundary,
+} from '../shared/sale-authorization';
 
 /**
  * CalculateSaleHandler exposes the Sale Aggregate's authoritative financial calculation
  * through the application boundary.
  *
  * Responsibilities:
- * 1. Load Sale from SaleRepositoryPort.
- * 2. Validate Sale existence (fail with SaleNotFoundException if missing).
- * 3. Invoke the domain calculation behavior (sale.calculateTotals()).
+ * 1. Validate caller authorization (sales.read).
+ * 2. Load Sale from SaleRepositoryPort.
+ * 3. Validate Sale existence (fail with SaleNotFoundException if missing).
+ * 4. Enforce multi-tenant isolation and object-level ownership scoping.
+ * 5. Invoke the domain calculation behavior (sale.calculateTotals()).
  *    - All calculations originate strictly from the Milestone 7.4 domain formulas in Sale.
  *    - The application layer does NOT calculate subtotal, discountTotal, or total.
  *    - Zero JavaScript floating-point arithmetic or custom Money calculators.
- * 4. Persistence Determination:
+ * 6. Persistence Determination:
  *    - In Kinergy's DDD & CQRS architecture (ADR-0114, ADR-0119, ADR-0132), persisted totals
  *      are maintained atomically by mutating commands and guaranteed reconciled upon reconstitution.
  *    - Therefore, CalculateSale is a pure, side-effect-free QUERY without database writes.
- * 5. Return the authoritative totals via SaleTotalsDTO.
+ * 7. Return the authoritative totals via SaleTotalsDTO.
  */
 export class CalculateSaleHandler
   implements
@@ -40,6 +47,9 @@ export class CalculateSaleHandler
         );
       }
 
+      // 1. Authorization: sales.read
+      checkSaleAuthorization(query.input.currentUser, ['sales.read']);
+
       const saleId = query.input.saleId?.trim();
       if (!saleId) {
         return SalesApplicationResult.fail(
@@ -47,15 +57,25 @@ export class CalculateSaleHandler
         );
       }
 
-      // 1. Load Sale
+      // 2. Load Sale
       const sale = await this.saleRepository.findById(saleId);
 
-      // 2. Validate Sale existence
+      // 3. Validate Sale existence
       if (!sale) {
         return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
       }
 
-      // 3. Invoke domain calculation behavior
+      // 4. Multi-Tenant Boundary Enforcement
+      enforceSaleTenantIsolation(
+        sale.tenantId,
+        query.input.tenantId ?? query.input.currentUser?.tenantId,
+        saleId,
+      );
+
+      // 5. Object-Level Ownership Boundary Enforcement
+      enforceSaleOwnershipBoundary(sale, query.input.currentUser);
+
+      // 6. Invoke domain calculation behavior
       // All totals are calculated authoritatively by the domain aggregate (Milestone 7.4)
       sale.calculateTotals();
 

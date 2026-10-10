@@ -55,7 +55,8 @@ import {
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
-import { Permissions, Roles } from '../../platform/identity/decorators';
+import { Permissions, Roles, CurrentUser } from '../../platform/identity/decorators';
+import { AuthenticatedUserPayload } from '../../platform/identity/decorators/current-user.decorator';
 import {
   SaleResponseDto,
   SaleSourceResponseDto,
@@ -274,6 +275,7 @@ export class SalesController {
     @Query('toDate') toDate?: string,
     @Query('sortField') sortField?: string,
     @Query('sortDirection') sortDirection?: string,
+    @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaginatedResultDTO<SaleSummaryDTO>> {
     if (!this._listSalesHandler) {
       throw new BadRequestException('List sales handler is unavailable.');
@@ -282,6 +284,7 @@ export class SalesController {
     const query = new ListSalesQuery({
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
+      tenantId: user?.tenantId ?? undefined,
       clientId,
       status,
       sourceType,
@@ -290,6 +293,7 @@ export class SalesController {
       toDate,
       sortField,
       sortDirection,
+      currentUser: this.mapCurrentUser(user),
     });
 
     const result = await this._listSalesHandler.execute(query);
@@ -315,8 +319,15 @@ export class SalesController {
     status: HttpStatus.NOT_FOUND,
     description: 'Sale order not found',
   })
-  public async getSale(@Param('id') id: string): Promise<SaleResponseDto> {
-    const query = new GetSaleByIdQuery({ saleId: id });
+  public async getSale(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ): Promise<SaleResponseDto> {
+    const query = new GetSaleByIdQuery({
+      saleId: id,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
+    });
     const result = await this._getSaleByIdHandler.execute(query);
     return this.handleResult(result);
   }
@@ -339,12 +350,19 @@ export class SalesController {
     status: HttpStatus.NOT_FOUND,
     description: 'Sale order not found',
   })
-  public async calculateSale(@Param('id') id: string): Promise<SaleTotalsDTO> {
+  public async calculateSale(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ): Promise<SaleTotalsDTO> {
     if (!this._calculateSaleHandler) {
       throw new BadRequestException('Calculate sale handler is unavailable.');
     }
 
-    const query = new CalculateSaleQuery({ saleId: id });
+    const query = new CalculateSaleQuery({
+      saleId: id,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
+    });
     const result = await this._calculateSaleHandler.execute(query);
     return this.handleResult(result);
   }
@@ -713,5 +731,15 @@ export class SalesController {
       }
     }
     return val as unknown as R;
+  }
+
+  private mapCurrentUser(user?: AuthenticatedUserPayload) {
+    if (!user) return undefined;
+    return {
+      id: user.id,
+      tenantId: user.tenantId ?? undefined,
+      roles: user.roles,
+      permissions: user.permissions,
+    };
   }
 }

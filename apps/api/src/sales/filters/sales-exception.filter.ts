@@ -22,6 +22,7 @@ import {
   PaymentOverpaymentException,
   PaymentUnauthorizedException,
   ReceiptUnauthorizedException,
+  SaleUnauthorizedException,
   PaymentCurrencyMismatchException,
   InvalidPaymentMethodException,
   InvalidPaymentReferenceException,
@@ -104,7 +105,8 @@ export class SalesExceptionFilter implements ExceptionFilter {
     // 3. Security & Multi-Tenant Authorization (403 Forbidden)
     if (
       exception instanceof PaymentUnauthorizedException ||
-      exception instanceof ReceiptUnauthorizedException
+      exception instanceof ReceiptUnauthorizedException ||
+      exception instanceof SaleUnauthorizedException
     ) {
       response.status(HttpStatus.FORBIDDEN).json({
         statusCode: HttpStatus.FORBIDDEN,

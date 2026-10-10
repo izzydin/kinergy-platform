@@ -17,6 +17,7 @@ import { DeterministicClock } from '../../domain/shared/clock';
 import { SaleMapper } from '../mappers/sale.mapper';
 import { SaleSummaryDTO } from '../dtos/sale.dto';
 import { InvalidSaleQueryException } from '../exceptions/invalid-sale-query.exception';
+import { SaleUnauthorizedException } from '../exceptions/sale-unauthorized.exception';
 
 class InMemorySaleRepository implements SaleRepositoryPort {
   public store = new Map<string, Sale>();
@@ -716,6 +717,58 @@ describe('ListSalesHandler Specification (Milestone 7.11 & ADR-0132 Section 4.7)
       const result = await handler.execute(null as unknown as ListSalesQuery);
       expect(result.isFailure).toBe(true);
       expect(getErrorMessage(result)).toContain('Query and input cannot be null or undefined');
+    });
+  });
+
+  describe('Authorization, Tenant Scoping & Client Scoping (ADR-0135)', () => {
+    it('authorizes caller with sales.read permission and scopes by caller tenantId', async () => {
+      const result = await handler.execute(
+        new ListSalesQuery({
+          currentUser: {
+            id: 'staff_01',
+            tenantId: 'tenant_kinergy_1',
+            roles: ['Receptionist'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(saleRepo.lastCriteria?.tenantId).toBe('tenant_kinergy_1');
+    });
+
+    it('rejects caller lacking sales.read permission with SaleUnauthorizedException', async () => {
+      const result = await handler.execute(
+        new ListSalesQuery({
+          currentUser: {
+            id: 'user_intruder',
+            tenantId: 'tenant_kinergy_1',
+            roles: ['Kitchen Staff'],
+            permissions: ['kitchen.orders.manage'],
+          },
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(SaleUnauthorizedException);
+    });
+
+    it('automatically scopes list query to clientId when caller is Client or Member', async () => {
+      const result = await handler.execute(
+        new ListSalesQuery({
+          clientId: 'spoofed_other_client', // Client tries to spoof another client's id
+          currentUser: {
+            id: 'client_me_123',
+            tenantId: 'tenant_kinergy_1',
+            roles: ['Client'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isSuccess).toBe(true);
+      // Must be forced to caller's client id
+      expect(saleRepo.lastCriteria?.clientId).toBe('client_me_123');
     });
   });
 });

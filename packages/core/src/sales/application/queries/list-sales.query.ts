@@ -1,4 +1,5 @@
 import { SaleStatus } from '../../domain/enums/sale-status.enum';
+import { SaleCurrentUser } from '../shared/sale-authorization';
 
 export interface ListSalesFilter {
   readonly clientId?: string;
@@ -24,6 +25,7 @@ export interface ListSalesSort {
 
 export interface ListSalesInput {
   readonly tenantId?: string;
+  readonly currentUser?: SaleCurrentUser;
 
   // Nested query structures (ADR-0132 Section 4.7)
   readonly filter?: ListSalesFilter;

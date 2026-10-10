@@ -302,4 +302,136 @@ describe('GetSaleHandler Specification (Milestone 7.11 & ADR-0132 Section 4.6)',
       expect(result.getValue().id).toBe(sale.id.value);
     });
   });
+
+  describe('6. Authorization, Multi-Tenant Boundary & Ownership Enforcement (ADR-0135)', () => {
+    it('authorizes caller with sales.read permission', async () => {
+      const sale = seedSampleSale('sale_auth_01');
+
+      const result = await handler.execute(
+        new GetSaleQuery({
+          saleId: sale.id.value,
+          tenantId: 'tenant_kinergy_main',
+          currentUser: {
+            id: 'user_frontdesk',
+            tenantId: 'tenant_kinergy_main',
+            roles: ['Receptionist'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.getValue().id).toBe(sale.id.value);
+    });
+
+    it('rejects caller lacking sales.read permission with SaleUnauthorizedException', async () => {
+      const sale = seedSampleSale('sale_auth_unauth');
+
+      const result = await handler.execute(
+        new GetSaleQuery({
+          saleId: sale.id.value,
+          tenantId: 'tenant_kinergy_main',
+          currentUser: {
+            id: 'user_intruder',
+            tenantId: 'tenant_kinergy_main',
+            roles: ['Kitchen Staff'],
+            permissions: ['kitchen.orders.manage'], // Lacks sales.read
+          },
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(getErrorMessage(result)).toContain('User does not possess required permissions');
+    });
+
+    it('rejects cross-tenant probing with SaleNotFoundException (uniform 404 per ADR-0135 §9)', async () => {
+      const sale = seedSampleSale('sale_tenant_a'); // Belongs to 'tenant_kinergy_main'
+
+      const result = await handler.execute(
+        new GetSaleQuery({
+          saleId: sale.id.value,
+          tenantId: 'tenant_competitor_rival', // Caller from different tenant
+          currentUser: {
+            id: 'user_rival_manager',
+            tenantId: 'tenant_competitor_rival',
+            roles: ['Manager'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(SaleNotFoundException);
+    });
+
+    it('allows client to access their own sale', async () => {
+      const sale = seedSampleSale('sale_client_own'); // Seeded with clientId 'client_vip_999'
+
+      const result = await handler.execute(
+        new GetSaleQuery({
+          saleId: sale.id.value,
+          tenantId: 'tenant_kinergy_main',
+          currentUser: {
+            id: 'client_vip_999', // Matches sale.clientId
+            tenantId: 'tenant_kinergy_main',
+            roles: ['Client'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(result.getValue().id).toBe(sale.id.value);
+    });
+
+    it('strictly rejects client from retrieving another client sale (Object-Level Ownership Boundary)', async () => {
+      const sale = seedSampleSale('sale_client_other'); // Seeded with clientId 'client_vip_999'
+
+      const result = await handler.execute(
+        new GetSaleQuery({
+          saleId: sale.id.value,
+          tenantId: 'tenant_kinergy_main',
+          currentUser: {
+            id: 'different_client_123', // Does not match sale.clientId
+            tenantId: 'tenant_kinergy_main',
+            roles: ['Client'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(SaleNotFoundException);
+    });
+
+    it('strictly rejects client from retrieving an anonymous sale without client assignment', async () => {
+      const anonymousSale = Sale.create(
+        {
+          id: SaleId.create('sale_anon_walkin'),
+          currency: 'USD',
+          tenantId: 'tenant_kinergy_main',
+          clientId: undefined, // Anonymous walk-in
+          source: SaleSource.create(SaleSourceType.FOOD, 'pos_terminal_01'),
+        },
+        clock,
+      );
+      saleRepo.store.set(anonymousSale.id.value, anonymousSale);
+
+      const result = await handler.execute(
+        new GetSaleQuery({
+          saleId: anonymousSale.id.value,
+          tenantId: 'tenant_kinergy_main',
+          currentUser: {
+            id: 'client_vip_999',
+            tenantId: 'tenant_kinergy_main',
+            roles: ['Client'],
+            permissions: ['sales.read'],
+          },
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(SaleNotFoundException);
+    });
+  });
 });
