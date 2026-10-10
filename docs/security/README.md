@@ -15,7 +15,8 @@ docs/security/
 ├── README.md                          ◄── Security Master Index & Quality Baseline
 ├── authentication.md                  ◄── Dual-Token JWT, RTR, Generic Errors & Timing Attack Defenses
 ├── authorization.md                   ◄── RBAC/ABAC Engine, Decision Evaluator & Decorators
-├── role-permission-matrix.md          ◄── Authoritative 22-Permission & System Role Matrix
+├── role-permission-matrix.md          ◄── Authoritative 34-Permission & System Role Matrix
+├── sales-payments-receipts-authorization-matrix.md ◄── Complete External Operations Authorization Matrix
 ├── identity-context.md                ◄── (Merged into docs/architecture/identity-domain-model.md)
 ├── password-policy.md                 ◄── Argon2id Parameters, NIST SP 800-63B & Reset Workflows
 ├── token-strategy.md                  ◄── Token Lifecycles, Version Invalidation & Rotation Rules
@@ -36,7 +37,8 @@ docs/security/
 ### 2. Authorization & Entitlement Engine
 
 - **[Authorization Framework](file:///c:/Projects/kinergy-platform/docs/security/authorization.md)**: Default-Deny architecture, thin `AuthorizationGuard`, application-layer decision engine (`DefaultAuthorizationEvaluator`), and wildcard permission resolution (`IPermissionResolver`).
-- **[Role & Permission Matrix](file:///c:/Projects/kinergy-platform/docs/security/role-permission-matrix.md)**: Authoritative matrix mapping system roles (`Owner`, `Trainer`, `Kitchen Staff`, `Receptionist`) to 22 seeded permission definitions across 9 functional modules.
+- **[Role & Permission Matrix](file:///c:/Projects/kinergy-platform/docs/security/role-permission-matrix.md)**: Authoritative matrix mapping system roles (`Owner`, `Trainer`, `Kitchen Staff`, `Receptionist`) to 34 seeded permission definitions across 13 functional modules.
+- **[Sales, Payments & Receipts Authorization Matrix](file:///c:/Projects/kinergy-platform/docs/security/sales-payments-receipts-authorization-matrix.md)**: Complete, fine-grained authorization matrix covering all 23 externally reachable operations and internal service isolation boundaries.
 
 ### 3. Identity Domain Architecture
 
