@@ -9,3 +9,8 @@ export const PERMISSIONS_KEY = 'permissions';
  */
 export const Permissions = (...permissions: (PermissionCode | string)[]) =>
   SetMetadata(PERMISSIONS_KEY, permissions);
+
+/**
+ * Authoritative alias matching repository architecture and ADR-0026 documentation.
+ */
+export const RequirePermissions = Permissions;

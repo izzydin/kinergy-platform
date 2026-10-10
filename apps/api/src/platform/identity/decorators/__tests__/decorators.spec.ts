@@ -2,8 +2,8 @@ import { ExecutionContext } from '@nestjs/common';
 import { ROUTE_ARGS_METADATA } from '@nestjs/common/constants';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY, Public } from '../public.decorator';
-import { ROLES_KEY, Roles } from '../roles.decorator';
-import { PERMISSIONS_KEY, Permissions } from '../permissions.decorator';
+import { ROLES_KEY, Roles, RequireRoles } from '../roles.decorator';
+import { PERMISSIONS_KEY, Permissions, RequirePermissions } from '../permissions.decorator';
 import { CurrentUser, AuthenticatedUserPayload } from '../current-user.decorator';
 
 describe('Security Decorators', () => {
@@ -27,7 +27,7 @@ describe('Security Decorators', () => {
     });
   });
 
-  describe('@Roles()', () => {
+  describe('@Roles() and @RequireRoles()', () => {
     it('should attach roles metadata array to controller handler', () => {
       class TestController {
         @Roles('ADMIN', 'MANAGER')
@@ -39,9 +39,21 @@ describe('Security Decorators', () => {
 
       expect(metadata).toEqual(['ADMIN', 'MANAGER']);
     });
+
+    it('should attach roles metadata via RequireRoles alias', () => {
+      class TestController {
+        @RequireRoles('ADMIN', 'RECEPTIONIST')
+        testEndpoint() {}
+      }
+
+      const instance = new TestController();
+      const metadata = reflector.get<string[]>(ROLES_KEY, instance.testEndpoint);
+
+      expect(metadata).toEqual(['ADMIN', 'RECEPTIONIST']);
+    });
   });
 
-  describe('@Permissions()', () => {
+  describe('@Permissions() and @RequirePermissions()', () => {
     it('should attach permissions metadata array to controller handler', () => {
       class TestController {
         @Permissions('read:users', 'write:users')
@@ -52,6 +64,18 @@ describe('Security Decorators', () => {
       const metadata = reflector.get<string[]>(PERMISSIONS_KEY, instance.testEndpoint);
 
       expect(metadata).toEqual(['read:users', 'write:users']);
+    });
+
+    it('should attach permissions metadata via RequirePermissions alias', () => {
+      class TestController {
+        @RequirePermissions('sales:read', 'payments:manage')
+        testEndpoint() {}
+      }
+
+      const instance = new TestController();
+      const metadata = reflector.get<string[]>(PERMISSIONS_KEY, instance.testEndpoint);
+
+      expect(metadata).toEqual(['sales:read', 'payments:manage']);
     });
   });
 

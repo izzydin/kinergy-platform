@@ -25,19 +25,33 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
       return AuthorizationDecision.authorized();
     }
 
-    // 1. Role Satisfaction Check
+    // 1. Principal Integrity Check (Fail-Closed)
+    if (!userContext.userId || userContext.userId.trim() === '') {
+      return AuthorizationDecision.denied(
+        'Access denied: missing authenticated identity.',
+        'IDENTITY',
+      );
+    }
+
+    if (userContext.status && userContext.status !== 'ACTIVE') {
+      return AuthorizationDecision.denied(
+        'Access denied: user account is inactive or disabled.',
+        'IDENTITY',
+      );
+    }
+
+    // 2. Role Satisfaction Check
     if (requirements.requiredRoles.length > 0) {
       const hasRole = requirements.requiredRoles.some((role) => userContext.hasRole(role));
       if (!hasRole) {
-        return AuthorizationDecision.denied(
-          `Access denied: required role missing. User roles: [${userContext.roles.join(', ')}]`,
-          'ROLES',
-          { requiredRoles: requirements.requiredRoles, userRoles: userContext.roles },
-        );
+        return AuthorizationDecision.denied('Access denied: required role missing.', 'ROLES', {
+          requiredRoles: requirements.requiredRoles,
+          userRoles: userContext.roles,
+        });
       }
     }
 
-    // 2. Permission Satisfaction Check
+    // 3. Permission Satisfaction Check
     if (requirements.requiredPermissions.length > 0) {
       const resolvedPermissions = await this.permissionResolver.resolvePermissions(
         userContext.userId,

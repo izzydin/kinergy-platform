@@ -218,5 +218,47 @@ describe('DefaultAuthorizationEvaluator', () => {
       expect(decision.isAuthorized).toBe(false);
       expect(decision.failedRequirement).toBe('PERMISSIONS');
     });
+
+    it('should fail closed and return denied when principal identity userId is empty or missing', async () => {
+      const invalidUserContext = new AuthenticatedUserContext({
+        userId: '',
+        email: 'user@example.com',
+        status: 'ACTIVE',
+        roles: ['MANAGER'],
+        permissions: ['sales.read'],
+      });
+
+      const decision = await evaluator.evaluate(
+        invalidUserContext,
+        new AuthorizationRequirements({
+          requiredPermissions: ['sales.read'],
+        }),
+      );
+
+      expect(decision.isAuthorized).toBe(false);
+      expect(decision.failedRequirement).toBe('IDENTITY');
+      expect(decision.reason).toBe('Access denied: missing authenticated identity.');
+    });
+
+    it('should fail closed and return denied when principal account status is inactive or disabled', async () => {
+      const inactiveUserContext = new AuthenticatedUserContext({
+        userId: 'usr_inactive',
+        email: 'user@example.com',
+        status: 'SUSPENDED',
+        roles: ['MANAGER'],
+        permissions: ['sales.read'],
+      });
+
+      const decision = await evaluator.evaluate(
+        inactiveUserContext,
+        new AuthorizationRequirements({
+          requiredPermissions: ['sales.read'],
+        }),
+      );
+
+      expect(decision.isAuthorized).toBe(false);
+      expect(decision.failedRequirement).toBe('IDENTITY');
+      expect(decision.reason).toBe('Access denied: user account is inactive or disabled.');
+    });
   });
 });

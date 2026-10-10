@@ -57,11 +57,33 @@ export class AuthorizationGuard implements CanActivate {
       request as unknown as { user?: AuthenticatedUserContext | Record<string, unknown> }
     ).user;
 
-    const userContext: AuthenticatedUserContext | null =
-      reqUser instanceof AuthenticatedUserContext ? reqUser : RequestContext.currentContext();
+    let userContext: AuthenticatedUserContext | null = null;
+    if (reqUser instanceof AuthenticatedUserContext) {
+      userContext = reqUser;
+    } else if (reqUser && typeof reqUser === 'object' && ('userId' in reqUser || 'id' in reqUser)) {
+      const rawUser = reqUser as Record<string, unknown>;
+      const rawId = rawUser.userId ?? rawUser.id;
+      const userId = typeof rawId === 'string' ? rawId.trim() : '';
+      if (userId) {
+        userContext = new AuthenticatedUserContext({
+          userId,
+          email: typeof rawUser.email === 'string' ? rawUser.email : '',
+          status: typeof rawUser.status === 'string' ? rawUser.status : 'ACTIVE',
+          roles: Array.isArray(rawUser.roles) ? (rawUser.roles as string[]) : [],
+          permissions: Array.isArray(rawUser.permissions) ? (rawUser.permissions as string[]) : [],
+          tenantId: typeof rawUser.tenantId === 'string' ? rawUser.tenantId : null,
+        });
+      }
+    } else {
+      userContext = RequestContext.currentContext();
+    }
 
-    if (!userContext) {
+    if (!userContext || !userContext.userId || userContext.userId.trim() === '') {
       throw new UnauthorizedException('Authentication required before authorization check.');
+    }
+
+    if (userContext.status && userContext.status !== 'ACTIVE') {
+      throw new UnauthorizedException('User account is inactive or disabled.');
     }
 
     const decision = await this.evaluator.evaluate(userContext, requirements);
