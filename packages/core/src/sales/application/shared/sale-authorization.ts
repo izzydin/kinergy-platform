@@ -4,7 +4,8 @@ import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 
 export interface SaleCurrentUser {
   readonly id?: string;
-  readonly tenantId?: string;
+  readonly userId?: string;
+  readonly tenantId?: string | null;
   readonly roles?: string[];
   readonly permissions?: string[];
 }
@@ -134,8 +135,8 @@ export function checkSaleAuthorization(
  * to prevent leaking the existence of resources across tenant boundaries.
  */
 export function enforceSaleTenantIsolation(
-  targetTenantId?: string,
-  callerTenantId?: string,
+  targetTenantId?: string | null,
+  callerTenantId?: string | null,
   saleId: string = 'unknown',
 ): void {
   if (!targetTenantId || !callerTenantId) {
@@ -191,7 +192,8 @@ export function enforceSaleOwnershipBoundary(sale: Sale, currentUser?: SaleCurre
   const isClient = roles.includes('Client') || roles.includes('Member');
   if (isClient) {
     const saleClientId = sale.clientId;
-    if (!saleClientId || saleClientId !== currentUser.id) {
+    const callerId = currentUser.id ?? currentUser.userId;
+    if (!saleClientId || saleClientId !== callerId) {
       throw new SaleNotFoundException(sale.id.value);
     }
     return;

@@ -14,7 +14,7 @@ import {
 import { InvalidPaymentQueryException } from '../exceptions/invalid-payment-query.exception';
 import { isValidPaymentStatus, PaymentStatus } from '../../domain/enums/payment-status.enum';
 import { isValidPaymentMethod, PaymentMethod } from '../../domain/enums/payment-method.enum';
-import { checkPaymentAuthorization } from '../shared/payment-authorization';
+import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 import { PaymentMapper } from '../mappers/payment.mapper';
 import { Payment } from '../../domain/payment.aggregate';
 
@@ -115,7 +115,10 @@ export class ListPaymentsHandler implements SalesQueryHandler<
       const sortDirection: PaymentSortDirection = normalizedSortDir;
 
       // 4. Filter Validation & Normalization
-      const tenantId = input.tenantId?.trim() || undefined;
+      if (input.currentUser?.tenantId && input.tenantId) {
+        enforceTenantIsolation(input.tenantId, input.currentUser.tenantId);
+      }
+      const tenantId = input.currentUser?.tenantId?.trim() || input.tenantId?.trim() || undefined;
       const saleId = (input.filter?.saleId ?? input.saleId)?.trim() || undefined;
 
       // Status filter

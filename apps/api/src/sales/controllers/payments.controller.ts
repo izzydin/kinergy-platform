@@ -109,7 +109,7 @@ export class PaymentsController {
     this._recordPaymentHandler =
       recordPaymentHandler ?? new RecordPaymentHandler(paymentRepository, saleRepository);
     this._getPaymentByIdHandler =
-      getPaymentByIdHandler ?? new GetPaymentByIdHandler(paymentRepository);
+      getPaymentByIdHandler ?? new GetPaymentByIdHandler(paymentRepository, saleRepository);
     this._getPaymentsBySaleIdHandler =
       getPaymentsBySaleIdHandler ??
       new GetPaymentsBySaleIdHandler(paymentRepository, saleRepository);
@@ -225,6 +225,7 @@ export class PaymentsController {
       currentUser: user
         ? {
             id: user.id,
+            tenantId: user.tenantId ?? undefined,
             roles: user.roles,
             permissions: user.permissions,
           }
@@ -264,6 +265,7 @@ export class PaymentsController {
       currentUser: user
         ? {
             id: user.id,
+            tenantId: user.tenantId ?? undefined,
             roles: user.roles,
             permissions: user.permissions,
           }
@@ -299,6 +301,7 @@ export class PaymentsController {
             id: user.id,
             userId: user.id,
             email: user.email,
+            tenantId: user.tenantId ?? undefined,
             roles: user.roles,
             permissions: user.permissions,
           }
@@ -359,6 +362,7 @@ export class PaymentsController {
       currentUser: user
         ? {
             id: user.id,
+            tenantId: user.tenantId ?? undefined,
             roles: user.roles,
             permissions: user.permissions,
           }

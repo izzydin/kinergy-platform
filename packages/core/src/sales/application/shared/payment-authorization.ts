@@ -1,26 +1,54 @@
 import { PaymentUnauthorizedException } from '../exceptions/payment-unauthorized.exception';
 import { RecordPaymentCurrentUser } from '../commands/record-payment.command';
 
+export interface PaymentCurrentUser {
+  readonly id?: string;
+  readonly userId?: string;
+  readonly email?: string;
+  readonly tenantId?: string | null;
+  readonly roles?: string[];
+  readonly permissions?: string[];
+}
+
+export const PAYMENT_MUTATION_ROLES: string[] = [
+  'Owner',
+  'Gym Owner',
+  'Manager',
+  'Gym Manager',
+  'Platform Admin',
+  'Receptionist',
+  'Kitchen Staff',
+];
+
+export const PAYMENT_READ_ROLES: string[] = [
+  'Owner',
+  'Gym Owner',
+  'Manager',
+  'Gym Manager',
+  'Platform Admin',
+  'Receptionist',
+  'Kitchen Staff',
+  'Trainer',
+  'Client',
+  'Member',
+];
+
 /**
  * Checks caller permissions and roles against required payment privileges.
- * Respects Phase 1 RBAC and tenant boundaries.
+ * Respects Phase 1 RBAC, ADR-0111, and ADR-0135:
+ * - Normalizes colon-notation (e.g. payments:read) and canonical dot-notation (payments.read).
+ * - Implements capability hierarchy: payments.manage implies payments.create and payments.read.
+ * - Supports backward-compatible billing aliases: billing.manage, billing.read, billing.write.
+ * - Defaults role matrix appropriately based on read vs mutation privileges.
  */
 export function checkPaymentAuthorization(
-  currentUser?: RecordPaymentCurrentUser,
+  currentUser?: PaymentCurrentUser | RecordPaymentCurrentUser,
   requiredPermissions: string[] = ['payments.create'],
-  allowedRoles: string[] = [
-    'Owner',
-    'Gym Owner',
-    'Manager',
-    'Gym Manager',
-    'Platform Admin',
-    'Receptionist',
-    'Kitchen Staff',
-  ],
+  allowedRoles?: string[],
 ): void {
   if (!currentUser) {
     // If no security context passed directly to domain application service, allow execution
-    // (typically authenticated at the HTTP/Controller boundary).
+    // (typically authenticated and authorized at the HTTP/Controller boundary).
     return;
   }
 
@@ -34,11 +62,19 @@ export function checkPaymentAuthorization(
     );
   }
 
+  const normalize = (p: string) => p.replace(/:/g, '.');
+  const normRequired = requiredPermissions.map(normalize);
+  const isReadOnly = normRequired.every((p) => p === 'payments.read');
+
+  // Determine effective allowed roles if not explicitly supplied
+  const effectiveAllowedRoles =
+    allowedRoles ?? (isReadOnly ? PAYMENT_READ_ROLES : PAYMENT_MUTATION_ROLES);
+
   // 1. Role validation: if allowedRoles specified, user must possess at least one allowed role
-  if (allowedRoles.length > 0 && roles.length > 0) {
+  if (effectiveAllowedRoles.length > 0 && roles.length > 0) {
     const hasRole = roles.some(
       (r) =>
-        allowedRoles.includes(r) ||
+        effectiveAllowedRoles.includes(r) ||
         r.includes('Owner') ||
         r.includes('Manager') ||
         r === 'Platform Admin',
@@ -51,25 +87,36 @@ export function checkPaymentAuthorization(
   }
 
   // 2. Permission validation: must satisfy required permissions
-  const hasPermission = permissions.some((p) => {
-    if (p === '*' || p === '*:*:*' || p === 'payments.*') {
+  const normUserPerms = permissions.map(normalize);
+
+  const hasPermission = normUserPerms.some((p) => {
+    if (p === '*' || p === '*:*:*' || p === '*.*.*' || p === 'payments.*') {
       return true;
     }
-    if (requiredPermissions.includes(p)) {
+    if (normRequired.includes(p)) {
       return true;
     }
     // payments.manage covers payments.create and payments.read
-    if (p === 'payments.manage' && requiredPermissions.some((rp) => rp.startsWith('payments.'))) {
+    if (p === 'payments.manage' && normRequired.some((rp) => rp.startsWith('payments.'))) {
       return true;
     }
     // Backward compatibility:
+    // billing.manage covers all billing, sales, and payment operations
+    if (p === 'billing.manage') {
+      return true;
+    }
     // billing.write covers payments.create
-    if (p === 'billing.write' && requiredPermissions.includes('payments.create')) {
+    if (p === 'billing.write' && normRequired.includes('payments.create')) {
       return true;
     }
     // billing.read covers payments.read
-    if (p === 'billing.read' && requiredPermissions.includes('payments.read')) {
+    if (p === 'billing.read' && normRequired.includes('payments.read')) {
       return true;
+    }
+    // Prefix wildcard pattern matching (e.g. billing.* or payments.*)
+    if (p.endsWith('.*')) {
+      const prefix = p.slice(0, -2);
+      return normRequired.some((rp) => rp.startsWith(prefix));
     }
     return false;
   });
@@ -84,7 +131,10 @@ export function checkPaymentAuthorization(
 /**
  * Enforces multi-tenant boundary checks between caller context and target aggregate.
  */
-export function enforceTenantIsolation(targetTenantId?: string, callerTenantId?: string): void {
+export function enforceTenantIsolation(
+  targetTenantId?: string | null,
+  callerTenantId?: string | null,
+): void {
   if (!targetTenantId || !callerTenantId) {
     return;
   }

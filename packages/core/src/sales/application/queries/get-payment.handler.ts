@@ -4,8 +4,10 @@ import { GetPaymentQuery } from './get-payment.query';
 import { PaymentDTO } from '../dtos/payment.dto';
 import { PaymentMapper } from '../mappers/payment.mapper';
 import { PaymentRepositoryPort } from '../ports/payment-repository.port';
+import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { PaymentNotFoundException } from '../exceptions/payment-not-found.exception';
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
+import { enforceSaleOwnershipBoundary } from '../shared/sale-authorization';
 
 /**
  * GetPaymentHandler executes the GetPayment query, retrieving the authoritative
@@ -22,7 +24,8 @@ import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/pay
  *    - Adheres to scalar aggregate decoupling (does not eagerly load Sale aggregate).
  * 5. Map not-found conditions to the established PaymentNotFoundException.
  * 6. Enforce multi-tenant isolation boundaries.
- * 7. Return the approved application representation (PaymentDTO) via PaymentMapper.toDTO(payment).
+ * 7. Enforce related Sale access and resource ownership restrictions when saleRepository is provided.
+ * 8. Return the approved application representation (PaymentDTO) via PaymentMapper.toDTO(payment).
  *    - Contains zero business rule logic.
  *    - Pure read-only operation: zero side-effects, zero mutations, zero events.
  */
@@ -30,7 +33,10 @@ export class GetPaymentHandler implements SalesQueryHandler<
   GetPaymentQuery,
   SalesApplicationResult<PaymentDTO>
 > {
-  constructor(private readonly paymentRepository: PaymentRepositoryPort) {}
+  constructor(
+    private readonly paymentRepository: PaymentRepositoryPort,
+    private readonly saleRepository?: SaleRepositoryPort,
+  ) {}
 
   public async execute(query: GetPaymentQuery): Promise<SalesApplicationResult<PaymentDTO>> {
     try {
@@ -59,7 +65,20 @@ export class GetPaymentHandler implements SalesQueryHandler<
       // 3. Multi-Tenant Boundary Enforcement
       enforceTenantIsolation(payment.tenantId, input.tenantId);
 
-      // 4. Return approved application representation DTO
+      // 4. Related Sale access and resource ownership boundary enforcement
+      if (this.saleRepository && payment.saleId) {
+        const sale = await this.saleRepository.findById(payment.saleId.value);
+        if (sale) {
+          enforceTenantIsolation(sale.tenantId, input.tenantId);
+          try {
+            enforceSaleOwnershipBoundary(sale, input.currentUser);
+          } catch {
+            return SalesApplicationResult.fail(new PaymentNotFoundException(paymentId));
+          }
+        }
+      }
+
+      // 5. Return approved application representation DTO
       return SalesApplicationResult.ok(PaymentMapper.toDTO(payment));
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));

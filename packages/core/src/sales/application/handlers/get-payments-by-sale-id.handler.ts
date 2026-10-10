@@ -7,6 +7,7 @@ import { PaymentRepositoryPort } from '../ports/payment-repository.port';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
+import { enforceSaleOwnershipBoundary } from '../shared/sale-authorization';
 
 export class GetPaymentsBySaleIdHandler implements SalesQueryHandler<
   GetPaymentsBySaleIdQuery,
@@ -31,13 +32,14 @@ export class GetPaymentsBySaleIdHandler implements SalesQueryHandler<
         return SalesApplicationResult.fail(new Error('Sale ID cannot be empty.'));
       }
 
-      // 2. Resolve Sale & Multi-Tenant Verification
+      // 2. Resolve Sale & Multi-Tenant Verification & Sale Access Restrictions
       if (this.saleRepository) {
         const sale = await this.saleRepository.findById(saleId);
         if (!sale) {
           return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
         }
         enforceTenantIsolation(sale.tenantId, input.tenantId);
+        enforceSaleOwnershipBoundary(sale, input.currentUser);
       }
 
       // 3. Resolve Payments by SaleId

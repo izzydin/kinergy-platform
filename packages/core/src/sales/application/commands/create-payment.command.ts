@@ -5,6 +5,7 @@ export interface CreatePaymentCurrentUser {
   id?: string;
   userId?: string;
   email?: string;
+  tenantId?: string | null;
   permissions?: string[];
   roles?: string[];
 }
