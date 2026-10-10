@@ -232,6 +232,7 @@ export class SalesController {
   public async createSale(
     @Body() dto: CreateSaleRequestDto,
     @Headers('x-idempotency-key') idempotencyKeyHeader?: string,
+    @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
     const incomingSource = dto.sourceReference ?? dto.source;
     const normalized = normalizeSource(incomingSource);
@@ -241,6 +242,8 @@ export class SalesController {
       idempotencyKey: dto.idempotencyKey || idempotencyKeyHeader,
       currency: dto.currency,
       clientId: dto.clientId,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
       source: normalized ?? {
         sourceType: 'DRINK',
         sourceId: 'pos_checkout_terminal',
@@ -393,6 +396,7 @@ export class SalesController {
   public async assignSource(
     @Param('id') id: string,
     @Body() dto: AssignSaleSourceRequestDto,
+    @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
     const incomingSource = dto.sourceReference ?? dto.source;
     const normalized = normalizeSource(incomingSource);
@@ -403,6 +407,8 @@ export class SalesController {
     const command = new AssignSaleSourceCommand({
       saleId: id,
       source: normalized,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
     });
 
     const result = await this._assignSaleSourceHandler.execute(command);
@@ -435,6 +441,7 @@ export class SalesController {
   public async addItem(
     @Param('id') id: string,
     @Body() dto: AddSaleItemRequestDto,
+    @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
     const incomingSource = dto.sourceReference ?? dto.source;
     const normalized = normalizeSource(incomingSource);
@@ -444,6 +451,8 @@ export class SalesController {
 
     const command = new AddSaleItemCommand({
       saleId: id,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
       source: {
         sourceType: mapToItemSourceType(normalized.sourceType),
         sourceId: normalized.sourceId,
@@ -493,10 +502,13 @@ export class SalesController {
   public async removeItem(
     @Param('id') id: string,
     @Param('itemId') itemId: string,
+    @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
     const command = new RemoveSaleItemCommand({
       saleId: id,
       itemId,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
     });
 
     const result = await this._removeSaleItemHandler.execute(command);
@@ -529,6 +541,7 @@ export class SalesController {
   public async applyDiscount(
     @Param('id') id: string,
     @Body() dto: ApplySaleDiscountRequestDto,
+    @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
     const command = new ApplyOrderDiscountCommand({
       saleId: id,
@@ -537,6 +550,8 @@ export class SalesController {
         value: dto.value,
         reason: dto.reason,
       },
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
     });
 
     const result = await this._applyOrderDiscountHandler.execute(command);
@@ -562,9 +577,14 @@ export class SalesController {
     status: HttpStatus.CONFLICT,
     description: 'Sale already finalized or cancelled',
   })
-  public async removeDiscount(@Param('id') id: string): Promise<SaleResponseDto> {
+  public async removeDiscount(
+    @Param('id') id: string,
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ): Promise<SaleResponseDto> {
     const command = new RemoveOrderDiscountCommand({
       saleId: id,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
     });
 
     const result = await this._removeOrderDiscountHandler.execute(command);
@@ -593,8 +613,13 @@ export class SalesController {
   public async finalizeSale(
     @Param('id') id: string,
     @Body() _dto: FinalizeSaleRequestDto = {},
+    @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
-    const command = new FinalizeSaleCommand({ saleId: id });
+    const command = new FinalizeSaleCommand({
+      saleId: id,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
+    });
     const result = await this._finalizeSaleHandler.execute(command);
     return this.handleResult(result);
   }
@@ -625,10 +650,13 @@ export class SalesController {
   public async cancelSale(
     @Param('id') id: string,
     @Body() dto: CancelSaleRequestDto,
+    @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
     const command = new CancelSaleCommand({
       saleId: id,
       reason: dto.reason,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
     });
 
     const result = await this._cancelSaleHandler.execute(command);
@@ -661,6 +689,7 @@ export class SalesController {
   public async coordinatePayment(
     @Param('id') id: string,
     @Body() dto: CoordinateSalePaymentRequestDto,
+    @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
     if (!this._coordinateSalePaymentHandler) {
       throw new BadRequestException('Payment coordination service is unavailable.');
@@ -669,6 +698,8 @@ export class SalesController {
     const command = new CoordinateSalePaymentCommand({
       saleId: id,
       paymentId: dto.paymentId,
+      tenantId: user?.tenantId ?? undefined,
+      currentUser: this.mapCurrentUser(user),
     });
 
     const result = await this._coordinateSalePaymentHandler.execute(command);

@@ -9,6 +9,25 @@ export interface SaleCurrentUser {
   readonly permissions?: string[];
 }
 
+export const SALE_MUTATION_ROLES: string[] = [
+  'Owner',
+  'Gym Owner',
+  'Manager',
+  'Gym Manager',
+  'Platform Admin',
+  'Receptionist',
+  'Kitchen Staff',
+];
+
+export const SALE_CANCELLATION_ROLES: string[] = [
+  'Owner',
+  'Gym Owner',
+  'Manager',
+  'Gym Manager',
+  'Platform Admin',
+  'Receptionist',
+];
+
 /**
  * Checks caller permissions and roles against required sales privileges.
  * Respects Phase 1 RBAC, ADR-0111, and ADR-0135.
@@ -73,10 +92,16 @@ export function checkSaleAuthorization(
     if (normRequired.includes(p)) {
       return true;
     }
-    // sales.manage covers sales.read and sales.create
+    // sales.manage covers sales.read, sales.create, and sales.cancel
     if (
       p === 'sales.manage' &&
-      normRequired.some((rp) => rp === 'sales.read' || rp === 'sales.create')
+      normRequired.some(
+        (rp) =>
+          rp === 'sales.read' ||
+          rp === 'sales.create' ||
+          rp === 'sales.cancel' ||
+          rp === 'sales.manage',
+      )
     ) {
       return true;
     }
@@ -87,7 +112,10 @@ export function checkSaleAuthorization(
     if (p === 'billing.read' && normRequired.includes('sales.read')) {
       return true;
     }
-    if (p === 'billing.write' && normRequired.includes('sales.create')) {
+    if (
+      p === 'billing.write' &&
+      (normRequired.includes('sales.create') || normRequired.includes('sales.manage'))
+    ) {
       return true;
     }
     return false;

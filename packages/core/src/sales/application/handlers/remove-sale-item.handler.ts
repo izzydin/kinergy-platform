@@ -9,6 +9,11 @@ import { DomainEvent } from '../../domain/shared/domain-event';
 import { Clock, SystemClock } from '../../domain/shared/clock';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
+import {
+  checkSaleAuthorization,
+  enforceSaleTenantIsolation,
+  SALE_MUTATION_ROLES,
+} from '../shared/sale-authorization';
 
 export class RemoveSaleItemHandler implements SalesCommandHandler<
   RemoveSaleItemCommand,
@@ -57,6 +62,16 @@ export class RemoveSaleItemHandler implements SalesCommandHandler<
         if (!sale) {
           return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
         }
+
+        // Multi-tenant boundary check (ADR-0135 Section 9)
+        enforceSaleTenantIsolation(
+          sale.tenantId,
+          input.tenantId ?? input.currentUser?.tenantId,
+          saleId,
+        );
+
+        // Caller authorization check: sales.manage (ADR-0135)
+        checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_MUTATION_ROLES);
 
         // 3. Identify the requested SaleItem & 4. Invoke approved domain operation for removal
         // 5. Recalculates totals through domain recalculateTotals() inside sale.removeItem

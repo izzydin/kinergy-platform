@@ -9,6 +9,11 @@ import { Clock, SystemClock } from '../../domain/shared/clock';
 
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
+import {
+  checkSaleAuthorization,
+  enforceSaleTenantIsolation,
+  SALE_MUTATION_ROLES,
+} from '../shared/sale-authorization';
 
 export class RemoveOrderDiscountHandler implements SalesCommandHandler<
   RemoveOrderDiscountCommand,
@@ -36,6 +41,14 @@ export class RemoveOrderDiscountHandler implements SalesCommandHandler<
       if (!sale) {
         return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
       }
+
+      enforceSaleTenantIsolation(
+        sale.tenantId,
+        input.tenantId ?? input.currentUser?.tenantId,
+        saleId,
+      );
+
+      checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_MUTATION_ROLES);
 
       sale.removeOrderDiscount(this.clock);
 

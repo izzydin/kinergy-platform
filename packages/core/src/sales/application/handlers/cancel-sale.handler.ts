@@ -10,6 +10,11 @@ import { Clock, SystemClock } from '../../domain/shared/clock';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
 import { enforceTenantIsolation } from '../shared/payment-authorization';
+import {
+  checkSaleAuthorization,
+  enforceSaleTenantIsolation,
+  SALE_CANCELLATION_ROLES,
+} from '../shared/sale-authorization';
 
 /**
  * Application command handler orchestrating explicit Sale cancellation.
@@ -75,7 +80,12 @@ export class CancelSaleHandler implements SalesCommandHandler<
         // Enforce multi-tenant isolation if tenantId is provided in command
         if (input.tenantId) {
           enforceTenantIsolation(sale.tenantId, input.tenantId);
+        } else if (input.currentUser?.tenantId) {
+          enforceSaleTenantIsolation(sale.tenantId, input.currentUser.tenantId, saleId);
         }
+
+        // Caller authorization check: sales.manage (ADR-0135)
+        checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_CANCELLATION_ROLES);
 
         // 3. Invoke domain operation - domain owns lifecycle rules and cancellation invariants
         sale.cancel(input.reason, this.clock);

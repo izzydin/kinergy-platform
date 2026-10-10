@@ -1,5 +1,9 @@
+import { SaleCurrentUser } from '../shared/sale-authorization';
+
 export interface ApplyDiscountInput {
   saleId: string;
+  tenantId?: string;
+  currentUser?: SaleCurrentUser;
   discount: {
     type: string;
     value: number;

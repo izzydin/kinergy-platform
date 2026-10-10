@@ -12,6 +12,11 @@ import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { SourceNotFoundException } from '../exceptions/source-not-found.exception';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
 import { SaleSourceValidatorPort } from '../ports/sale-source-validator.port';
+import {
+  checkSaleAuthorization,
+  enforceSaleTenantIsolation,
+  SALE_MUTATION_ROLES,
+} from '../shared/sale-authorization';
 
 /**
  * Application command handler to assign or update the commercial origin of an existing Sale.
@@ -91,6 +96,16 @@ export class AssignSaleSourceHandler implements SalesCommandHandler<
       if (!sale) {
         return SalesApplicationResult.fail(new SaleNotFoundException(input.saleId.trim()));
       }
+
+      // Multi-tenant boundary check (ADR-0135 Section 9)
+      enforceSaleTenantIsolation(
+        sale.tenantId,
+        input.tenantId ?? input.currentUser?.tenantId,
+        input.saleId.trim(),
+      );
+
+      // Caller authorization check: sales.manage (ADR-0135)
+      checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_MUTATION_ROLES);
 
       // 4. Source Existence & Context Validation (if configured)
       if (this.sourceValidator) {

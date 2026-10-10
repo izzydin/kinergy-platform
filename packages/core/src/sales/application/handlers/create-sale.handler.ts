@@ -23,6 +23,11 @@ import { ClientNotFoundException } from '../exceptions/client-not-found.exceptio
 import { DiscountType } from '../../domain/enums/discount-type.enum';
 import { DomainEvent } from '../../domain/shared/domain-event';
 import { Clock, SystemClock } from '../../domain/shared/clock';
+import {
+  checkSaleAuthorization,
+  enforceSaleTenantIsolation,
+  SALE_MUTATION_ROLES,
+} from '../shared/sale-authorization';
 
 export class CreateSaleHandler implements SalesCommandHandler<
   CreateSaleCommand,
@@ -45,6 +50,14 @@ export class CreateSaleHandler implements SalesCommandHandler<
       }
 
       const { input } = command;
+
+      // 0. Authorization check: sales.manage
+      checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_MUTATION_ROLES);
+
+      // Multi-tenant boundary check (ADR-0135 Section 9)
+      if (input.currentUser?.tenantId && input.tenantId) {
+        enforceSaleTenantIsolation(input.tenantId, input.currentUser.tenantId);
+      }
 
       // 1. Precondition Validation: Tenant boundary
       if (input.tenantId !== undefined && input.tenantId !== null) {

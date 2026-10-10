@@ -108,6 +108,14 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
       return true;
     }
 
+    // sales.manage implies sales.create, sales.read, sales.cancel
+    if (
+      normResolved.includes('sales.manage') &&
+      ['sales.create', 'sales.read', 'sales.cancel'].includes(normRequired)
+    ) {
+      return true;
+    }
+
     // payments.manage implies payments.create and payments.read
     if (
       normResolved.includes('payments.manage') &&

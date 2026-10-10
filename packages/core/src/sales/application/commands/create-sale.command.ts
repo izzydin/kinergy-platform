@@ -1,5 +1,6 @@
 import { SourceType } from '../../domain/enums/source-type.enum';
 import { SaleSourceType } from '../../domain/enums/sale-source-type.enum';
+import { SaleCurrentUser } from '../shared/sale-authorization';
 
 export interface CreateSaleItemInput {
   description: string;
@@ -19,6 +20,7 @@ export interface CreateSaleInput {
   tenantId?: string;
   clientId?: string;
   currency?: string;
+  currentUser?: SaleCurrentUser;
   source?: {
     sourceType: SourceType | SaleSourceType | string;
     sourceId: string;
