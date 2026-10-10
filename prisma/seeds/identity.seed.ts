@@ -132,6 +132,8 @@ export const SYSTEM_ROLE_DEFINITIONS = [
       'appointments.create',
       'appointments.update',
       'reports.read',
+      'sales.read',
+      'receipts.read',
     ],
   },
   {
@@ -146,6 +148,7 @@ export const SYSTEM_ROLE_DEFINITIONS = [
       'sales.read',
       'sales.create',
       'payments.create',
+      'receipts.read',
     ],
   },
   {

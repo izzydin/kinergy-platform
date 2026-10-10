@@ -143,3 +143,56 @@ export function isValidPermission(permission: string): boolean {
   const normalized = normalizePermissionCode(permission);
   return isPermissionCode(normalized);
 }
+
+/**
+ * Authoritative Static Role-to-Permission Baseline Mappings
+ * Conforming to Least Privilege, Phase 1 IAM architecture, ADR-0025, ADR-0111, and ADR-0135.
+ */
+export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = Object.freeze({
+  Owner: ALL_PERMISSION_CODES,
+  Receptionist: Object.freeze([
+    PERMISSIONS.CLIENTS.READ,
+    PERMISSIONS.CLIENTS.WRITE,
+    PERMISSIONS.APPOINTMENTS.READ,
+    PERMISSIONS.APPOINTMENTS.CREATE,
+    PERMISSIONS.APPOINTMENTS.UPDATE,
+    PERMISSIONS.APPOINTMENTS.DELETE,
+    PERMISSIONS.BILLING.READ,
+    PERMISSIONS.BILLING.WRITE,
+    PERMISSIONS.SALES.READ,
+    PERMISSIONS.SALES.CREATE,
+    PERMISSIONS.SALES.CANCEL,
+    PERMISSIONS.PAYMENTS.READ,
+    PERMISSIONS.PAYMENTS.CREATE,
+    PERMISSIONS.PAYMENTS.MANAGE,
+    PERMISSIONS.RECEIPTS.READ,
+    PERMISSIONS.RECEIPTS.MANAGE,
+  ]),
+  'Kitchen Staff': Object.freeze([
+    PERMISSIONS.KITCHEN.READ,
+    PERMISSIONS.KITCHEN.ORDERS_MANAGE,
+    PERMISSIONS.INVENTORY.READ,
+    PERMISSIONS.INVENTORY.WRITE,
+    PERMISSIONS.SALES.READ,
+    PERMISSIONS.SALES.CREATE,
+    PERMISSIONS.PAYMENTS.CREATE,
+    PERMISSIONS.RECEIPTS.READ,
+  ]),
+  Trainer: Object.freeze([
+    PERMISSIONS.CLIENTS.READ,
+    PERMISSIONS.CLIENTS.WRITE,
+    PERMISSIONS.APPOINTMENTS.READ,
+    PERMISSIONS.APPOINTMENTS.CREATE,
+    PERMISSIONS.APPOINTMENTS.UPDATE,
+    PERMISSIONS.REPORTS.READ,
+    PERMISSIONS.SALES.READ,
+    PERMISSIONS.RECEIPTS.READ,
+  ]),
+});
+
+/**
+ * Retrieves the approved permissions for a given role name.
+ */
+export function getRolePermissions(roleName: string): readonly PermissionCode[] {
+  return SYSTEM_ROLE_PERMISSIONS[roleName] ?? [];
+}

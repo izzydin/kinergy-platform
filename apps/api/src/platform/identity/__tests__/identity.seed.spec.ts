@@ -3,6 +3,7 @@ import {
   PERMISSION_CATALOG,
   SYSTEM_ROLE_DEFINITIONS,
 } from '../../../../../../prisma/seeds/identity.seed';
+import { SYSTEM_ROLE_PERMISSIONS } from '../authorization/permissions';
 
 describe('Identity Database Seed Specification', () => {
   describe('hashSeedPassword', () => {
@@ -107,7 +108,56 @@ describe('Identity Database Seed Specification', () => {
       expect(owner?.permissionCodes.length).toEqual(allCodes.length);
     });
 
-    it('should restrict permissions for non-owner roles according to least privilege', () => {
+    it('should assign approved permissions matching authoritative SYSTEM_ROLE_PERMISSIONS exactly', () => {
+      const trainer = SYSTEM_ROLE_DEFINITIONS.find((r) => r.name === 'Trainer');
+      const kitchen = SYSTEM_ROLE_DEFINITIONS.find((r) => r.name === 'Kitchen Staff');
+      const receptionist = SYSTEM_ROLE_DEFINITIONS.find((r) => r.name === 'Receptionist');
+
+      expect(trainer?.permissionCodes).toEqual(SYSTEM_ROLE_PERMISSIONS['Trainer']);
+      expect(kitchen?.permissionCodes).toEqual(SYSTEM_ROLE_PERMISSIONS['Kitchen Staff']);
+      expect(receptionist?.permissionCodes).toEqual(SYSTEM_ROLE_PERMISSIONS['Receptionist']);
+    });
+
+    it('should enforce least privilege and segregation of duties for Phase 7 financial capabilities', () => {
+      const trainer = SYSTEM_ROLE_DEFINITIONS.find((r) => r.name === 'Trainer');
+      const kitchen = SYSTEM_ROLE_DEFINITIONS.find((r) => r.name === 'Kitchen Staff');
+      const receptionist = SYSTEM_ROLE_DEFINITIONS.find((r) => r.name === 'Receptionist');
+
+      // Receptionist: Front desk commercial checkout and settlement
+      expect(receptionist?.permissionCodes).toContain('sales.read');
+      expect(receptionist?.permissionCodes).toContain('sales.create');
+      expect(receptionist?.permissionCodes).toContain('sales.cancel');
+      expect(receptionist?.permissionCodes).toContain('payments.read');
+      expect(receptionist?.permissionCodes).toContain('payments.create');
+      expect(receptionist?.permissionCodes).toContain('payments.manage');
+      expect(receptionist?.permissionCodes).toContain('receipts.read');
+      expect(receptionist?.permissionCodes).toContain('receipts.manage');
+      expect(receptionist?.permissionCodes).not.toContain('sales.manage'); // Manager/Owner only
+
+      // Kitchen Staff: POS food checkout and tender capture only
+      expect(kitchen?.permissionCodes).toContain('sales.read');
+      expect(kitchen?.permissionCodes).toContain('sales.create');
+      expect(kitchen?.permissionCodes).toContain('payments.create');
+      expect(kitchen?.permissionCodes).toContain('receipts.read');
+      expect(kitchen?.permissionCodes).not.toContain('sales.cancel');
+      expect(kitchen?.permissionCodes).not.toContain('sales.manage');
+      expect(kitchen?.permissionCodes).not.toContain('payments.read');
+      expect(kitchen?.permissionCodes).not.toContain('payments.manage');
+      expect(kitchen?.permissionCodes).not.toContain('receipts.manage');
+
+      // Trainer: Read-only session validation only
+      expect(trainer?.permissionCodes).toContain('sales.read');
+      expect(trainer?.permissionCodes).toContain('receipts.read');
+      expect(trainer?.permissionCodes).not.toContain('sales.create');
+      expect(trainer?.permissionCodes).not.toContain('sales.manage');
+      expect(trainer?.permissionCodes).not.toContain('sales.cancel');
+      expect(trainer?.permissionCodes).not.toContain('payments.read');
+      expect(trainer?.permissionCodes).not.toContain('payments.create');
+      expect(trainer?.permissionCodes).not.toContain('payments.manage');
+      expect(trainer?.permissionCodes).not.toContain('receipts.manage');
+    });
+
+    it('should restrict permissions for non-owner roles according to least privilege across unrelated modules', () => {
       const trainer = SYSTEM_ROLE_DEFINITIONS.find((r) => r.name === 'Trainer');
       const kitchen = SYSTEM_ROLE_DEFINITIONS.find((r) => r.name === 'Kitchen Staff');
       const receptionist = SYSTEM_ROLE_DEFINITIONS.find((r) => r.name === 'Receptionist');
