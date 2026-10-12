@@ -521,3 +521,102 @@ The Receipts Module implements Milestone 7.7 ([ADR-0117](../adr/0117-receipt-dom
 | `422 Unprocessable Entity` | Domain Rule Error | Operation rejected by business rules (Sale not payable, invalid state transition, overpayment). |
 | `429 Too Many Requests`    | Rate Limited      | Request count exceeded rate limit sliding window.                                               |
 | `500 Internal Error`       | Server Failure    | Uncaught exception logged to platform telemetry.                                                |
+
+---
+
+## 5. Phase 7 Authorization Test Suite & Matrix (ADR-0135, ADR-0111, ADR-0114)
+
+### 5.1 Architecture & Test Levels
+
+The authorization test suite for Phase 7 (Commercial Sales, Payments, and Receipts) is co-located at:
+[`apps/api/src/sales/__tests__/phase7-authorization-matrix.spec.ts`](file:///c:/Projects/kinergy-platform/apps/api/src/sales/__tests__/phase7-authorization-matrix.spec.ts)
+
+It implements six distinct testing levels:
+
+1. **Level 1 — Permission Catalog and Role-Mapping Unit Tests:**
+   - Validates `@Roles` and `@Permissions` metadata reflection on controllers via `Reflector`.
+   - Verifies normalization across dot-notation (`sales.create`) and colon-notation (`sales:create`).
+   - Asserts capability inheritance hierarchies: `billing.manage` covers all sales, payments, and receipts; `sales.manage` subsumes `sales.create`, `sales.read`, `sales.cancel`, and `receipts.read`; `payments.manage` subsumes `payments.create` and `payments.read`; wildcard `*` covers all operations.
+
+2. **Level 2 — Authorization Evaluator and Guard Architecture Tests:**
+   - Validates `AuthorizationGuard` wiring with `DefaultAuthorizationEvaluator`.
+   - Proves fail-closed security when requests lack an authenticated identity (`UnauthorizedException`).
+   - Proves fail-closed security when an identity is marked `BLOCKED` or `SUSPENDED` (`UnauthorizedException`).
+   - Asserts clean `ForbiddenException` errors containing zero internal evaluator AST details, SQL statements, or sensitive claims.
+
+3. **Level 3 — Controller / API Route Integration Tests:**
+   - Evaluates all **24 protected operations** across `SalesController`, `PaymentsController`, and `ReceiptsController`.
+   - Confirms HTTP 401 on unauthenticated calls, HTTP 403 on missing roles/permissions, and successful access for authorized principals.
+
+4. **Level 4 — Application Use Case Tests for Protected Entry Points:**
+   - Executes domain-level checks (`checkSaleAuthorization`, `checkPaymentAuthorization`, `checkReceiptAuthorization`).
+   - Verifies strict multi-tenant isolation (ADR-0135 §9: cross-tenant access returns 404 to eliminate resource enumeration vectors).
+   - Validates client self-ownership boundaries (clients may view their own receipts, but receive 403 on foreign receipts).
+
+5. **Level 5 — Persistence Integration Tests for Denied Mutations:**
+   - Utilizes spy repositories (`SpySaleRepository`, `SpyPaymentRepository`, `SpyReceiptRepository`) tracking persistence calls (`saveCount`).
+   - Proves that unauthorized mutation attempts leave the database completely untouched (`saveCount === 0`).
+   - Proves that authorized principals attempting invalid domain operations (e.g. finalizing empty sales, overpayments) fail at the domain boundary without mutating persisted state.
+
+6. **Level 6 — Cross-Module Regression and Financial Coordination Tests:**
+   - Preserves coverage of `CompletePayment` coordinating Payment settlement (`COMPLETED`), Sale balance reconciliation (`PAID`), and Receipt issuance.
+   - Enforces Receipt Immutability: duplicate issuance returns the existing receipt voucher without creating duplicates.
+   - Verifies Segregation of Duties: roles cannot cross operational boundaries (e.g., Receptionists cannot cancel payments; Trainers cannot record payments).
+   - Proves zero data leakage: denied responses never expose monetary amounts, line-item details, or customer PII.
+
+---
+
+### 5.2 Unit vs. Integration Coverage
+
+| Dimension             | Unit Tests (Levels 1 & 2)                                                                                                                | Integration Tests (Levels 3, 4, 5 & 6)                                                                                                                  |
+| :-------------------- | :--------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Scope**             | Decorator metadata reflection, role/permission normalization, capability hierarchy resolution, and guard fail-closed logic in isolation. | End-to-end execution through `AuthorizationGuard`, NestJS ExecutionContext, Controller methods, RequestContext, Application Handlers, and Repositories. |
+| **Wiring Verified**   | Evaluator algorithms, role strings, wildcard matching.                                                                                   | Real guard execution, decorator discovery, parameter injection (`@CurrentUser`), tenant isolation, and repository transaction boundaries.               |
+| **Mocking Strategy**  | Evaluator runs with deterministic user context objects; zero external services.                                                          | Controller handlers run with Spy Repositories that track save invocations and guarantee non-mutation. Zero mock bypass of authorization.                |
+| **Speed & Isolation** | Sub-millisecond execution per test case.                                                                                                 | Fast in-memory integration testing (<6 seconds for 65 tests), completely order-independent and without shared mutable state.                            |
+
+---
+
+### 5.3 Complete Operation Inventory & Verification Matrix (24 Operations)
+
+|  #  | Domain Module | Operation / Route                                          | Required Roles                                       | Required Permissions                 | Unauthenticated | Missing Permission | Authorized Valid |  Invalid Domain Op  | Non-Mutation Verified |
+| :-: | :------------ | :--------------------------------------------------------- | :--------------------------------------------------- | :----------------------------------- | :-------------: | :----------------: | :--------------: | :-----------------: | :-------------------: |
+|  1  | Sales         | `createSale` (POST `/sales`)                               | Owner, Manager, Receptionist, Kitchen Staff          | `sales.create`                       |       401       |        403         |       201        |    400 (Bad DTO)    | Yes (`saveCount: 0`)  |
+|  2  | Sales         | `getSale` (GET `/sales/:id`)                               | Owner, Manager, Receptionist, Kitchen Staff, Trainer | `sales.read`                         |       401       |        403         |       200        |   404 (Not Found)   |      N/A (Read)       |
+|  3  | Sales         | `addItem` (POST `/sales/:id/items`)                        | Owner, Manager, Receptionist, Kitchen Staff          | `sales.create`                       |       401       |        403         |       200        |  422 (Sale Closed)  | Yes (`saveCount: 0`)  |
+|  4  | Sales         | `removeItem` (DELETE `/sales/:id/items/:itemId`)           | Owner, Manager, Receptionist, Kitchen Staff          | `sales.create`                       |       401       |        403         |       200        |  422 (Sale Closed)  | Yes (`saveCount: 0`)  |
+|  5  | Sales         | `applyDiscount` (POST `/sales/:id/discounts`)              | Owner, Manager, Receptionist, Kitchen Staff          | `sales.create`                       |       401       |        403         |       200        |  422 (Sale Closed)  | Yes (`saveCount: 0`)  |
+|  6  | Sales         | `removeDiscount` (DELETE `/sales/:id/discounts/:discId`)   | Owner, Manager, Receptionist, Kitchen Staff          | `sales.create`                       |       401       |        403         |       200        |  422 (Sale Closed)  | Yes (`saveCount: 0`)  |
+|  7  | Sales         | `finalizeSale` (POST `/sales/:id/finalize`)                | Owner, Manager, Receptionist, Kitchen Staff          | `sales.create`                       |       401       |        403         |       200        |  422 (Empty items)  | Yes (`saveCount: 0`)  |
+|  8  | Sales         | `cancelSale` (POST `/sales/:id/cancel`)                    | Owner, Manager                                       | `sales.cancel`                       |       401       |        403         |       200        | 422 (Already Paid)  | Yes (`saveCount: 0`)  |
+|  9  | Sales         | `assignSource` (POST `/sales/:id/source`)                  | Owner, Manager, Receptionist, Kitchen Staff          | `sales.create`                       |       401       |        403         |       200        |  422 (Sale Closed)  | Yes (`saveCount: 0`)  |
+| 10  | Sales         | `calculateSale` (POST `/sales/:id/calculate`)              | Owner, Manager, Receptionist, Kitchen Staff          | `sales.read`                         |       401       |        403         |       200        |   404 (Not Found)   |      N/A (Query)      |
+| 11  | Sales         | `listSales` (GET `/sales`)                                 | Owner, Manager, Receptionist, Kitchen Staff, Trainer | `sales.read`                         |       401       |        403         |       200        |   400 (Bad query)   |      N/A (Query)      |
+| 12  | Payments      | `recordPayment` (POST `/sales/:id/payments`)               | Owner, Manager, Receptionist, Kitchen Staff          | `payments.create`                    |       401       |        403         |       201        | 422 (Sale not open) | Yes (`saveCount: 0`)  |
+| 13  | Payments      | `getPaymentById` (GET `/payments/:id`)                     | Owner, Manager, Receptionist, Kitchen Staff          | `payments.read`                      |       401       |        403         |       200        |   404 (Not Found)   |      N/A (Read)       |
+| 14  | Payments      | `getPaymentsBySaleId` (GET `/sales/:id/payments`)          | Owner, Manager, Receptionist, Kitchen Staff          | `payments.read`                      |       401       |        403         |       200        |   404 (Not Found)   |      N/A (Read)       |
+| 15  | Payments      | `getSalePaymentHistory` (GET `/sales/:id/payment-history`) | Owner, Manager, Receptionist, Kitchen Staff          | `payments.read`                      |       401       |        403         |       200        |   404 (Not Found)   |      N/A (Read)       |
+| 16  | Payments      | `completePayment` (POST `/payments/:id/complete`)          | Owner, Manager, Receptionist                         | `payments.create`, `payments.manage` |       401       |        403         |       200        |  422 (Not pending)  | Yes (`saveCount: 0`)  |
+| 17  | Payments      | `settlePayment` (POST `/payments/:id/settle`)              | Owner, Manager, Receptionist                         | `payments.create`, `payments.manage` |       401       |        403         |       200        |  422 (Not pending)  | Yes (`saveCount: 0`)  |
+| 18  | Payments      | `failPayment` (POST `/payments/:id/fail`)                  | Owner, Manager, Receptionist                         | `payments.create`, `payments.manage` |       401       |        403         |       200        |  422 (Not pending)  | Yes (`saveCount: 0`)  |
+| 19  | Payments      | `cancelPayment` (POST `/payments/:id/cancel`)              | Owner, Manager                                       | `payments.manage`                    |       401       |        403         |       200        |  422 (Not pending)  | Yes (`saveCount: 0`)  |
+| 20  | Payments      | `listPayments` (GET `/payments`)                           | Owner, Manager, Receptionist, Kitchen Staff          | `payments.read`                      |       401       |        403         |       200        |   400 (Bad query)   |      N/A (Query)      |
+| 21  | Receipts      | `issueReceipt` (POST `/sales/:id/receipt`)                 | Owner, Manager, Receptionist, Kitchen Staff          | `receipts.manage`                    |       401       |        403         |       201        |  422 (Sale unpaid)  | Yes (`saveCount: 0`)  |
+| 22  | Receipts      | `issueReceiptDirect` (POST `/receipts`)                    | Owner, Manager, Receptionist, Kitchen Staff          | `receipts.manage`                    |       401       |        403         |       201        |  422 (Sale unpaid)  | Yes (`saveCount: 0`)  |
+| 23  | Receipts      | `getReceiptById` (GET `/receipts/:id`)                     | Owner, Manager, Receptionist, Client (Owner)         | `receipts.read`                      |       401       |        403         |       200        |   404 (Not Found)   |      N/A (Read)       |
+| 24  | Receipts      | `getReceiptBySale` (GET `/sales/:id/receipt`)              | Owner, Manager, Receptionist, Client (Owner)         | `receipts.read`                      |       401       |        403         |       200        |   404 (Not Found)   |      N/A (Read)       |
+
+---
+
+### 5.4 Proof of Non-Mutation and Zero Data Leakage
+
+1. **Persisted State Immutability on Authorization Failure:**
+   - When an unauthenticated principal or unprivileged role (e.g., Kitchen Staff attempting `cancelSale` or Trainer attempting `recordPayment`) submits a mutation, the request is terminated at the NestJS Guard before reaching handlers or database transactions.
+   - In persistence integration tests (Level 5), spy repositories record `saveCount === 0`. The database state is completely unchanged.
+2. **Persistence Guarantee on Invalid Domain Operations:**
+   - When an authorized principal executes an illegal business operation (e.g., attempting to complete a payment that exceeds the remaining sale balance, or attempting to issue a receipt for an unpaid sale), domain invariants raise domain exceptions (`SaleEmptyItemsException`, `SaleNotPayableException`, `ReceiptPaymentMismatchException`).
+   - Repositories are never invoked to persist corrupt or inconsistent state (`saveCount === 0`).
+3. **Zero Information Leakage in Rejection Responses:**
+   - Denied responses return standard `401 Unauthorized` or `403 Forbidden` envelopes without exposing item lines, customer names, payment IDs, card tokens, or account balances.
+   - Multi-tenant boundary violations return `404 Not Found` (ADR-0135 §9) to prevent attackers from determining whether an ID exists in another tenant.
+   - Internal permission engine ASTs, SQL strings, and Prisma schema details are stripped from exception messages.
