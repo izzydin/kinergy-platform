@@ -28,6 +28,13 @@ import {
 } from '@kinergy-platform/core';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
 import { GlobalExceptionFilter } from '../../common/filters/global-exception.filter';
+import {
+  AccountDisabledException,
+  AuthException,
+  InvalidCredentialsException,
+  InvalidTokenException,
+} from '../../platform/identity/use-cases/exceptions/auth.exception';
+import { SecurityConfigurationException } from '../../config/security-configuration.exception';
 
 describe('API Security — Error Handling Standardization Specification (Phase 7)', () => {
   let salesFilter: SalesExceptionFilter;
@@ -128,6 +135,54 @@ describe('API Security — Error Handling Standardization Specification (Phase 7
           }),
         }),
       );
+    });
+
+    it('returns standardized 401 Unauthorized for InvalidCredentialsException via SalesExceptionFilter', () => {
+      const ex = new InvalidCredentialsException();
+      salesFilter.catch(ex, mockHost);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        error: 'Unauthorized',
+        message: 'Invalid email or password.',
+      });
+    });
+
+    it('returns standardized 401 Unauthorized for AccountDisabledException via SalesExceptionFilter', () => {
+      const ex = new AccountDisabledException();
+      salesFilter.catch(ex, mockHost);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        error: 'Unauthorized',
+        message: 'Invalid email or password.',
+      });
+    });
+
+    it('returns standardized 401 Unauthorized for InvalidTokenException via SalesExceptionFilter', () => {
+      const ex = new InvalidTokenException();
+      salesFilter.catch(ex, mockHost);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        error: 'Unauthorized',
+        message: 'Invalid or expired token.',
+      });
+    });
+
+    it('returns standardized 401 Unauthorized for base AuthException via SalesExceptionFilter', () => {
+      const ex = new AuthException('Custom auth failure');
+      salesFilter.catch(ex, mockHost);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.UNAUTHORIZED);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        error: 'Unauthorized',
+        message: 'Authentication failed.',
+      });
     });
   });
 
@@ -457,6 +512,20 @@ describe('API Security — Error Handling Standardization Specification (Phase 7
       expect(resPayload.error.message).toBe('Internal server error');
       expect(JSON.stringify(resPayload)).not.toContain('Database deadlocked');
     });
+
+    it('standardizes SecurityConfigurationException to clean 500 without leaking config internals', () => {
+      const secConfigError = new SecurityConfigurationException(
+        'JWT_SECRET must be at least 32 characters in production',
+      );
+      salesFilter.catch(secConfigError, mockHost);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.INTERNAL_SERVER_ERROR);
+      expect(mockResponse.json).toHaveBeenCalledWith({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        error: 'Internal Server Error',
+        message: 'Security configuration error.',
+      });
+    });
   });
 
   // 5. Sensitive information is absent from error responses
@@ -483,6 +552,18 @@ describe('API Security — Error Handling Standardization Specification (Phase 7
       const resPayload = mockResponse.json.mock.calls[0][0];
       expect(JSON.stringify(resPayload)).not.toContain('eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9');
       expect(JSON.stringify(resPayload)).toContain('[REDACTED');
+    });
+
+    it('redacts database connection strings containing credentials in error messages', () => {
+      const ex = new BadRequestException(
+        'Failed connecting to postgresql://kinergy_admin:SuperSecretPw@10.0.0.5:5432/kinergy_prod',
+      );
+      salesFilter.catch(ex, mockHost);
+
+      expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.BAD_REQUEST);
+      const resPayload = mockResponse.json.mock.calls[0][0];
+      expect(JSON.stringify(resPayload)).not.toContain('SuperSecretPw');
+      expect(JSON.stringify(resPayload)).toContain('[REDACTED_DATABASE_URL]');
     });
 
     it('guarantees stack traces are never exposed in any client response payload', () => {
@@ -516,6 +597,7 @@ describe('API Security — Error Handling Standardization Specification (Phase 7
       salesFilter.catch(ex, mockHost);
 
       expect(mockResponse.setHeader).toHaveBeenCalledWith('x-correlation-id', 'req_flow_112233');
+      expect(mockResponse.setHeader).toHaveBeenCalledWith('x-request-id', 'req_flow_112233');
       expect(mockResponse.status).toHaveBeenCalledWith(HttpStatus.UNPROCESSABLE_ENTITY);
     });
 

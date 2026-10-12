@@ -65,6 +65,9 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (correlationId && typeof response.setHeader === 'function') {
       response.setHeader('x-correlation-id', correlationId);
+      if (request?.headers?.['x-request-id']) {
+        response.setHeader('x-request-id', request.headers['x-request-id'] as string);
+      }
     }
 
     const logPrefix = correlationId ? `[${correlationId}] ` : '';
@@ -90,6 +93,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     str = str.replace(/\b(?:\d[ -]*?){13,19}\b/g, '****-****-****-[MASKED]');
     str = str.replace(/Bearer\s+[A-Za-z0-9\-_.]+/gi, 'Bearer [REDACTED]');
     str = str.replace(/eyJ[A-Za-z0-9\-_.]+/g, '[REDACTED_TOKEN]');
+    str = str.replace(
+      /(postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"']+/gi,
+      '$1://[REDACTED_DATABASE_URL]',
+    );
     str = str.replace(
       /(password|secret|access_token|refresh_token)\s*[:=]\s*['"]?[^\s,'"]+['"]?/gi,
       '$1: [REDACTED]',

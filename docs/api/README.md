@@ -141,7 +141,7 @@ Triggered when an operation is structurally valid but violates domain lifecycle 
 
 ### 2.9 Sanitized Infrastructure & Internal Server Failures (`500 Internal Server Error`)
 
-Unexpected infrastructure failures (e.g. database connection drops, Prisma client errors, or unexpected runtime faults) are strictly sanitized. Responses **never** expose stack traces, SQL queries, table/schema names, JWTs, credentials, or Prisma exception codes:
+Unexpected infrastructure failures (e.g. database connection drops, Prisma client errors, or unexpected runtime faults) are strictly sanitized. Responses **never** expose stack traces, SQL queries, database connection URLs, credentials, table/schema names, JWTs, or Prisma exception codes:
 
 ```json
 {
@@ -151,14 +151,33 @@ Unexpected infrastructure failures (e.g. database connection drops, Prisma clien
 }
 ```
 
-### 2.10 Diagnostic Tracing & Correlation Identifiers (`x-correlation-id`)
+Internal security configuration failures (`SecurityConfigurationException`) are likewise caught and safely converted to a clean 500 response without leaking internal configuration constraints.
 
-Every incoming request supports correlation tracking via standard HTTP headers:
+### 2.10 Diagnostic Tracing & Correlation Identifiers (`x-correlation-id` / `x-request-id`)
 
-- `x-correlation-id` (primary)
-- `x-request-id` (fallback)
+Every incoming request supports distributed correlation tracking via standard HTTP headers:
 
-When provided, the platform echoes `x-correlation-id` in the response headers and links diagnostic server logs without logging credentials, access tokens, passwords, or payment cardholder PANs.
+- `x-correlation-id` (primary distributed tracing header)
+- `x-request-id` (supported gateway / proxy tracing header)
+- `correlation-id` (fallback header)
+
+When provided:
+
+1. The platform automatically echoes `x-correlation-id` (and `x-request-id` when supplied) in the HTTP response headers.
+2. Structured server logs attach `[<correlationId>]` prefix to all log messages.
+3. Diagnostic log sanitization strips credit card PANs (`****-****-****-[MASKED]`), Bearer tokens (`Bearer [REDACTED]`), JWT payloads (`[REDACTED_TOKEN]`), database connection strings (`postgresql://[REDACTED_DATABASE_URL]`), and passwords/secrets.
+
+### 2.11 Error Contract Alignment Matrix (Phase 1 & Phase 7)
+
+| Failure Category              | Trigger Exception / Condition                                                         | HTTP Status                 | Response Contract Shape                                                                                         | Leaks Suppressed                                            |
+| :---------------------------- | :------------------------------------------------------------------------------------ | :-------------------------- | :-------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------- |
+| **Missing / Expired Auth**    | `UnauthorizedException`, `InvalidTokenException`, `AuthException`                     | `401 Unauthorized`          | `{ statusCode: 401, error: "Unauthorized", message: "..." }`                                                    | Secrets, raw JWT claims, stack traces                       |
+| **Insufficient Permissions**  | `ForbiddenException`, `PaymentUnauthorizedException`, `SaleUnauthorizedException`     | `403 Forbidden`             | `{ statusCode: 403, error: "Forbidden", message: "..." }`                                                       | Evaluator AST, resolved permissions, internal user contexts |
+| **Domain Validation**         | `InvalidMoneyException`, `InvalidDiscountException`, `BadRequestException`            | `400 Bad Request`           | `{ statusCode: 400, error: "Bad Request", code?: "...", message: "..." }`                                       | Internal class names, memory traces                         |
+| **Resource Not Found**        | `SaleNotFoundException`, `PaymentNotFoundException`, `ReceiptNotFoundException`       | `404 Not Found`             | `{ statusCode: 404, error: "Not Found", message: "..." }`                                                       | Cross-tenant database IDs, existence probes                 |
+| **Lifecycle Invariant**       | `EmptySaleException`, `InvalidSaleTransitionException`, `PaymentOverpaymentException` | `422 Unprocessable Entity`  | `{ statusCode: 422, error: "Unprocessable Entity", code?: "...", message: "..." }`                              | Schema details, stack traces                                |
+| **Concurrency / Conflict**    | `SaleOptimisticLockException`, `DuplicateReceiptException`, `DuplicateSaleException`  | `409 Conflict`              | `{ statusCode: 409, error: "Conflict", code: "...", message: "..." }`                                           | Internal database lock tables                               |
+| **Unexpected Infrastructure** | `PrismaClientKnownRequestError`, `Error`, `SecurityConfigurationException`            | `500 Internal Server Error` | `{ statusCode: 500, error: "Internal Server Error", message: "An unexpected internal server error occurred." }` | SQL statements, connection URLs, passwords, stack traces    |
 
 ---
 

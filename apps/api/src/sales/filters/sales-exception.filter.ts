@@ -39,6 +39,13 @@ import {
   ReceiptDomainException,
   ReceiptIssuanceRejectedException,
 } from '@kinergy-platform/core';
+import {
+  AccountDisabledException,
+  AuthException,
+  InvalidCredentialsException,
+  InvalidTokenException,
+} from '../../platform/identity/use-cases/exceptions/auth.exception';
+import { SecurityConfigurationException } from '../../config/security-configuration.exception';
 
 /**
  * Enterprise Exception Filter translating Domain Sales, Payment & Monetary Invariant Exceptions
@@ -60,11 +67,72 @@ export class SalesExceptionFilter implements ExceptionFilter {
 
     if (correlationId && typeof response.setHeader === 'function') {
       response.setHeader('x-correlation-id', correlationId);
+      if (request?.headers?.['x-request-id']) {
+        response.setHeader('x-request-id', request.headers['x-request-id'] as string);
+      }
     }
 
     const logPrefix = correlationId ? `[${correlationId}] ` : '';
     const method = request?.method ?? 'UNKNOWN';
     const sanitizedUrl = this.sanitizeUrl(request?.url);
+
+    // 0. Security Configuration Errors (500 Internal Server Error)
+    if (exception instanceof SecurityConfigurationException) {
+      this.logger.error(
+        `${logPrefix}${method} ${sanitizedUrl} - Status: ${HttpStatus.INTERNAL_SERVER_ERROR} - Security Configuration Error: ${this.sanitizeMessage(exception.message)}`,
+        exception.stack,
+      );
+
+      response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
+        statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
+        error: 'Internal Server Error',
+        message: 'Security configuration error.',
+      });
+      return;
+    }
+
+    // 0b. Identity & Authentication Failures (401 Unauthorized)
+    if (
+      exception instanceof InvalidCredentialsException ||
+      exception instanceof AccountDisabledException
+    ) {
+      this.logger.warn(
+        `${logPrefix}${method} ${sanitizedUrl} - Status: ${HttpStatus.UNAUTHORIZED} - Invalid Credentials`,
+      );
+
+      response.status(HttpStatus.UNAUTHORIZED).json({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        error: 'Unauthorized',
+        message: 'Invalid email or password.',
+      });
+      return;
+    }
+
+    if (exception instanceof InvalidTokenException) {
+      this.logger.warn(
+        `${logPrefix}${method} ${sanitizedUrl} - Status: ${HttpStatus.UNAUTHORIZED} - Invalid Token`,
+      );
+
+      response.status(HttpStatus.UNAUTHORIZED).json({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        error: 'Unauthorized',
+        message: 'Invalid or expired token.',
+      });
+      return;
+    }
+
+    if (exception instanceof AuthException) {
+      this.logger.warn(
+        `${logPrefix}${method} ${sanitizedUrl} - Status: ${HttpStatus.UNAUTHORIZED} - Authentication Failed: ${this.sanitizeMessage(exception.message)}`,
+      );
+
+      response.status(HttpStatus.UNAUTHORIZED).json({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        error: 'Unauthorized',
+        message: 'Authentication failed.',
+      });
+      return;
+    }
 
     // 1. Optimistic Concurrency & Lock Collisions (409 Conflict)
     if (
@@ -276,6 +344,10 @@ export class SalesExceptionFilter implements ExceptionFilter {
     str = str.replace(/\b(?:\d[ -]*?){13,19}\b/g, '****-****-****-[MASKED]');
     str = str.replace(/Bearer\s+[A-Za-z0-9\-_.]+/gi, 'Bearer [REDACTED]');
     str = str.replace(/eyJ[A-Za-z0-9\-_.]+/g, '[REDACTED_TOKEN]');
+    str = str.replace(
+      /(postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"']+/gi,
+      '$1://[REDACTED_DATABASE_URL]',
+    );
     str = str.replace(
       /(password|secret|access_token|refresh_token)\s*[:=]\s*['"]?[^\s,'"]+['"]?/gi,
       '$1: [REDACTED]',
