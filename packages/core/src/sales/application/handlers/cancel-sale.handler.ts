@@ -84,8 +84,8 @@ export class CancelSaleHandler implements SalesCommandHandler<
           enforceSaleTenantIsolation(sale.tenantId, input.currentUser.tenantId, saleId);
         }
 
-        // Caller authorization check: sales.manage (ADR-0135)
-        checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_CANCELLATION_ROLES);
+        // Caller authorization check: sales.cancel (ADR-0135)
+        checkSaleAuthorization(input.currentUser, ['sales.cancel'], SALE_CANCELLATION_ROLES);
 
         // 3. Invoke domain operation - domain owns lifecycle rules and cancellation invariants
         sale.cancel(input.reason, this.clock);

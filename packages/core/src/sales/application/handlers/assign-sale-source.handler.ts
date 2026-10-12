@@ -104,8 +104,8 @@ export class AssignSaleSourceHandler implements SalesCommandHandler<
         input.saleId.trim(),
       );
 
-      // Caller authorization check: sales.manage (ADR-0135)
-      checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_MUTATION_ROLES);
+      // Caller authorization check: sales.create (ADR-0135)
+      checkSaleAuthorization(input.currentUser, ['sales.create'], SALE_MUTATION_ROLES);
 
       // 4. Source Existence & Context Validation (if configured)
       if (this.sourceValidator) {

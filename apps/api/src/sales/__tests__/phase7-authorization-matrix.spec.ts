@@ -14,6 +14,10 @@ import {
   Receipt,
   ReceiptId,
   ReceiptNumber,
+  CreateSaleHandler,
+  CreateSaleCommand,
+  CancelSaleHandler,
+  CancelSaleCommand,
   FinalizeSaleHandler,
   RecordPaymentHandler,
   CompletePaymentHandler,
@@ -833,6 +837,95 @@ describe('Phase 7 Authorization Test Suite & Matrix (ADR-0135, ADR-0111, ADR-011
       expect(() => {
         enforceSaleTenantIsolation(DEFAULT_TEST_TENANT_ID, crossTenantManager.tenantId);
       }).toThrow(SaleNotFoundException);
+    });
+
+    it('authorizes Kitchen Staff (holding sales.create) to execute CreateSaleHandler', async () => {
+      const handler = new CreateSaleHandler(saleRepo);
+      const result = await handler.execute(
+        new CreateSaleCommand({
+          id: 'sale-kitchen-create-01',
+          currency: 'USD',
+          tenantId: DEFAULT_TEST_TENANT_ID,
+          source: {
+            sourceType: 'DRINK',
+            sourceId: 'drink-smoothie-01',
+          },
+          currentUser: {
+            userId: kitchenStaffPrincipal.userId,
+            roles: [...kitchenStaffPrincipal.roles],
+            permissions: [...kitchenStaffPrincipal.permissions],
+          },
+        }),
+      );
+      expect(result.isSuccess).toBe(true);
+      expect(result.getValue().id).toBe('sale-kitchen-create-01');
+    });
+
+    it('authorizes Receptionist (holding sales.cancel) to execute CancelSaleHandler', async () => {
+      const sale = createValidSaleFixture({ id: 'sale-cancel-rec-01' });
+      await saleRepo.save(sale);
+
+      const handler = new CancelSaleHandler(saleRepo);
+      const result = await handler.execute(
+        new CancelSaleCommand({
+          saleId: sale.id.value,
+          reason: 'Customer requested cancellation at reception desk',
+          tenantId: DEFAULT_TEST_TENANT_ID,
+          currentUser: {
+            userId: 'usr_rec_with_cancel',
+            roles: ['Receptionist'],
+            permissions: ['sales.cancel', 'sales.read'],
+          },
+        }),
+      );
+      expect(result.isSuccess).toBe(true);
+      const reloaded = await saleRepo.findById(sale.id);
+      expect(reloaded?.status).toBe(SaleStatus.CANCELLED);
+    });
+
+    it('strictly denies Kitchen Staff from executing CancelSaleHandler (missing sales.cancel)', async () => {
+      const sale = createValidSaleFixture({ id: 'sale-cancel-kitchen-denied' });
+      await saleRepo.save(sale);
+
+      const handler = new CancelSaleHandler(saleRepo);
+      const result = await handler.execute(
+        new CancelSaleCommand({
+          saleId: sale.id.value,
+          reason: 'Attempted cancellation by kitchen',
+          tenantId: DEFAULT_TEST_TENANT_ID,
+          currentUser: {
+            userId: kitchenStaffPrincipal.userId,
+            roles: [...kitchenStaffPrincipal.roles],
+            permissions: [...kitchenStaffPrincipal.permissions],
+          },
+        }),
+      );
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(SaleUnauthorizedException);
+      const reloaded = await saleRepo.findById(sale.id);
+      expect(reloaded?.status).toBe(SaleStatus.PENDING_PAYMENT);
+    });
+
+    it('strictly denies Trainer from executing CreateSaleHandler (missing sales.create)', async () => {
+      const handler = new CreateSaleHandler(saleRepo);
+      const result = await handler.execute(
+        new CreateSaleCommand({
+          id: 'sale-trainer-denied-01',
+          currency: 'USD',
+          tenantId: DEFAULT_TEST_TENANT_ID,
+          source: {
+            sourceType: 'DRINK',
+            sourceId: 'drink-01',
+          },
+          currentUser: {
+            userId: trainerPrincipal.userId,
+            roles: [...trainerPrincipal.roles],
+            permissions: [...trainerPrincipal.permissions],
+          },
+        }),
+      );
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toBeInstanceOf(SaleUnauthorizedException);
     });
   });
 

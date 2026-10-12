@@ -113,10 +113,7 @@ export function checkSaleAuthorization(
     if (p === 'billing.read' && normRequired.includes('sales.read')) {
       return true;
     }
-    if (
-      p === 'billing.write' &&
-      (normRequired.includes('sales.create') || normRequired.includes('sales.manage'))
-    ) {
+    if (p === 'billing.write' && normRequired.includes('sales.create')) {
       return true;
     }
     return false;

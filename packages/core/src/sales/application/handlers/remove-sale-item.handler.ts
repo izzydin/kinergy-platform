@@ -70,8 +70,8 @@ export class RemoveSaleItemHandler implements SalesCommandHandler<
           saleId,
         );
 
-        // Caller authorization check: sales.manage (ADR-0135)
-        checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_MUTATION_ROLES);
+        // Caller authorization check: sales.create (ADR-0135)
+        checkSaleAuthorization(input.currentUser, ['sales.create'], SALE_MUTATION_ROLES);
 
         // 3. Identify the requested SaleItem & 4. Invoke approved domain operation for removal
         // 5. Recalculates totals through domain recalculateTotals() inside sale.removeItem

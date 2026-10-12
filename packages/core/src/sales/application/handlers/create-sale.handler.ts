@@ -51,8 +51,8 @@ export class CreateSaleHandler implements SalesCommandHandler<
 
       const { input } = command;
 
-      // 0. Authorization check: sales.manage
-      checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_MUTATION_ROLES);
+      // 0. Authorization check: sales.create (ADR-0135)
+      checkSaleAuthorization(input.currentUser, ['sales.create'], SALE_MUTATION_ROLES);
 
       // Multi-tenant boundary check (ADR-0135 Section 9)
       if (input.currentUser?.tenantId && input.tenantId) {

@@ -46,7 +46,8 @@ export class FinalizeSaleHandler implements SalesCommandHandler<
         saleId,
       );
 
-      checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_MUTATION_ROLES);
+      // Caller authorization check: sales.create (ADR-0135)
+      checkSaleAuthorization(input.currentUser, ['sales.create'], SALE_MUTATION_ROLES);
 
       sale.finalize(this.clock);
 

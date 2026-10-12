@@ -87,8 +87,8 @@ export class ApplyDiscountHandler implements SalesCommandHandler<
           saleId,
         );
 
-        // Caller authorization check: sales.manage (ADR-0135)
-        checkSaleAuthorization(input.currentUser, ['sales.manage'], SALE_MUTATION_ROLES);
+        // Caller authorization check: sales.create (ADR-0135)
+        checkSaleAuthorization(input.currentUser, ['sales.create'], SALE_MUTATION_ROLES);
 
         // 3. Construct the Discount domain representation without duplicating domain business rules
         const rawType = input.discount.type;
