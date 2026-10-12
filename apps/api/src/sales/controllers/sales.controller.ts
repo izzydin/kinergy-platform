@@ -49,8 +49,6 @@ import {
   AssignSaleSourceCommand,
   SalesApplicationResult,
   DuplicateSaleException,
-  PaginatedResultDTO,
-  SaleSummaryDTO,
   SaleTotalsDTO,
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
@@ -67,6 +65,8 @@ import {
   CancelSaleRequestDto,
   CoordinateSalePaymentRequestDto,
   AssignSaleSourceRequestDto,
+  ListSalesQueryDto,
+  PaginatedSalesResponseDto,
 } from '../dto';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
 import { SALE_REPOSITORY_TOKEN, PAYMENT_REPOSITORY_TOKEN } from '../sales.tokens';
@@ -249,6 +249,26 @@ export class SalesController {
         sourceId: 'pos_checkout_terminal',
         sourceCode: 'POS_REGISTER',
       },
+      items: dto.items?.map((item) => ({
+        description: item.description,
+        skuOrCode: item.skuOrCode,
+        quantity: item.quantity,
+        unitPriceAmount: item.unitPriceAmount,
+        discount: item.discount
+          ? {
+              type: item.discount.type,
+              value: item.discount.value,
+              reason: item.discount.reason,
+            }
+          : undefined,
+      })),
+      orderDiscount: dto.orderDiscount
+        ? {
+            type: dto.orderDiscount.type,
+            value: dto.orderDiscount.value,
+            reason: dto.orderDiscount.reason,
+          }
+        : undefined,
     });
 
     const result = await this._createSaleHandler.execute(command);
@@ -265,29 +285,103 @@ export class SalesController {
   })
   @ApiResponse({
     status: HttpStatus.OK,
+    type: PaginatedSalesResponseDto,
     description: 'Paginated sales retrieved successfully',
   })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid pagination bounds, sort parameters, or date filters',
+  })
   public async listSales(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('clientId') clientId?: string,
-    @Query('status') status?: string,
-    @Query('sourceType') sourceType?: string,
-    @Query('sourceReferenceId') sourceReferenceId?: string,
-    @Query('fromDate') fromDate?: string,
-    @Query('toDate') toDate?: string,
-    @Query('sortField') sortField?: string,
-    @Query('sortDirection') sortDirection?: string,
+    @Query() queryOrPage?: ListSalesQueryDto | string,
+    @Query('limit') limitArg?: string,
+    @Query('clientId') clientIdArg?: string,
+    @Query('status') statusArg?: string,
+    @Query('sourceType') sourceTypeArg?: string,
+    @Query('sourceReferenceId') sourceReferenceIdArg?: string,
+    @Query('fromDate') fromDateArg?: string,
+    @Query('toDate') toDateArg?: string,
+    @Query('sortField') sortFieldArg?: string,
+    @Query('sortDirection') sortDirectionArg?: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
-  ): Promise<PaginatedResultDTO<SaleSummaryDTO>> {
+  ): Promise<PaginatedSalesResponseDto> {
     if (!this._listSalesHandler) {
       throw new BadRequestException('List sales handler is unavailable.');
     }
 
+    let page: number | undefined;
+    let limit: number | undefined;
+    let clientId: string | undefined;
+    let status: string | undefined;
+    let sourceType: string | undefined;
+    let sourceReferenceId: string | undefined;
+    let fromDate: string | undefined;
+    let toDate: string | undefined;
+    let sortField: string | undefined;
+    let sortDirection: string | undefined;
+    let effectiveUser = user;
+
+    if (queryOrPage && typeof queryOrPage === 'object') {
+      const dto = queryOrPage as ListSalesQueryDto;
+      page = dto.page !== undefined ? Number(dto.page) : undefined;
+      limit = dto.limit !== undefined ? Number(dto.limit) : undefined;
+      clientId = dto.clientId;
+      status = dto.status;
+      sourceType = dto.sourceType;
+      sourceReferenceId = dto.sourceReferenceId;
+      fromDate = dto.fromDate;
+      toDate = dto.toDate;
+      sortField = dto.sortField;
+      sortDirection = dto.sortDirection;
+
+      if (dto.sort && typeof dto.sort === 'string' && dto.sort.includes('.')) {
+        const [field, dir] = dto.sort.split('.');
+        sortField = field;
+        sortDirection = dir;
+      }
+    } else {
+      page = queryOrPage ? parseInt(String(queryOrPage), 10) : undefined;
+      limit = limitArg ? parseInt(limitArg, 10) : undefined;
+      clientId = clientIdArg;
+      status = statusArg;
+      sourceType = sourceTypeArg;
+      sourceReferenceId = sourceReferenceIdArg;
+      fromDate = fromDateArg;
+      toDate = toDateArg;
+      sortField = sortFieldArg;
+      sortDirection = sortDirectionArg;
+    }
+
+    if (!effectiveUser) {
+      const positionalArgs = [
+        limitArg,
+        clientIdArg,
+        statusArg,
+        sourceTypeArg,
+        sourceReferenceIdArg,
+        fromDateArg,
+        toDateArg,
+        sortFieldArg,
+        sortDirectionArg,
+      ];
+      for (const arg of positionalArgs) {
+        if (
+          arg &&
+          typeof arg === 'object' &&
+          ('id' in (arg as unknown as Record<string, unknown>) ||
+            'userId' in (arg as unknown as Record<string, unknown>) ||
+            'roles' in (arg as unknown as Record<string, unknown>))
+        ) {
+          effectiveUser = arg as unknown as AuthenticatedUserPayload;
+          break;
+        }
+      }
+    }
+
     const query = new ListSalesQuery({
-      page: page ? parseInt(page, 10) : undefined,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      tenantId: user?.tenantId ?? undefined,
+      page,
+      limit,
+      tenantId: effectiveUser?.tenantId ?? undefined,
       clientId,
       status,
       sourceType,
@@ -296,7 +390,7 @@ export class SalesController {
       toDate,
       sortField,
       sortDirection,
-      currentUser: this.mapCurrentUser(user),
+      currentUser: this.mapCurrentUser(effectiveUser),
     });
 
     const result = await this._listSalesHandler.execute(query);
@@ -729,16 +823,19 @@ export class SalesController {
     }
     const val = result.getValue() as Record<string, unknown>;
     if (val && typeof val === 'object') {
-      if ('sourceReference' in val && val.sourceReference) {
-        val.sourceReference = SaleSourceResponseDto.fromDomain(
-          val.sourceReference as Record<string, unknown>,
-        );
-      } else if ('source' in val && val.source) {
-        val.sourceReference = SaleSourceResponseDto.fromDomain(
-          val.source as Record<string, unknown>,
-        );
-      } else {
-        val.sourceReference = null;
+      const isPaginated = 'totalPages' in val && 'page' in val && Array.isArray(val.items);
+      if (!isPaginated) {
+        if ('sourceReference' in val && val.sourceReference) {
+          val.sourceReference = SaleSourceResponseDto.fromDomain(
+            val.sourceReference as Record<string, unknown>,
+          );
+        } else if ('source' in val && val.source) {
+          val.sourceReference = SaleSourceResponseDto.fromDomain(
+            val.source as Record<string, unknown>,
+          );
+        } else {
+          val.sourceReference = null;
+        }
       }
       if ('items' in val && Array.isArray(val.items)) {
         for (const item of val.items) {
@@ -754,7 +851,11 @@ export class SalesController {
                 referenceId: String(itemRecord.sourceId),
                 referenceCode: itemRecord.sourceCode ? String(itemRecord.sourceCode) : null,
               });
-            } else {
+            } else if (itemRecord.source && typeof itemRecord.source === 'object') {
+              itemRecord.sourceReference = SaleSourceResponseDto.fromDomain(
+                itemRecord.source as Record<string, unknown>,
+              );
+            } else if (!isPaginated) {
               itemRecord.sourceReference = null;
             }
           }

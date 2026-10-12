@@ -8,3 +8,5 @@ export * from './payment-response.dto';
 export * from './issue-receipt-request.dto';
 export * from './receipt-response.dto';
 export * from './source-reference.dto';
+export * from './list-sales-query.dto';
+export * from './paginated-sales-response.dto';
