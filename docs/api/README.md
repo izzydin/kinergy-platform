@@ -101,6 +101,65 @@ Triggered by `@nestjs/throttler` custom guards when rate limits are exceeded:
 }
 ```
 
+### 2.6 Resource Not Found & Multi-Tenant Boundary Isolation (`404 Not Found`)
+
+Triggered when target entity does not exist or when a caller attempts cross-tenant or unauthorized cross-client access to a protected resource (ADR-0135 §9). Returning uniform `404 Not Found` prevents cross-tenant resource enumeration:
+
+```json
+{
+  "statusCode": 404,
+  "error": "Not Found",
+  "message": "Sale with ID 'sale_01j9876543210abcdef' was not found."
+}
+```
+
+### 2.7 Concurrency Collisions & Duplicate Entity Conflict (`409 Conflict`)
+
+Triggered by optimistic concurrency control (OCC) version mismatches or duplicate idempotent entity creation races (`@@unique([tenantId, saleId])`):
+
+```json
+{
+  "statusCode": 409,
+  "error": "Conflict",
+  "code": "OPTIMISTIC_LOCK_ERROR",
+  "message": "Optimistic lock failure: Sale with ID 'sale_01j987654321' was modified concurrently (expected version: 2)."
+}
+```
+
+### 2.8 Invariant & Commercial Lifecycle Violations (`422 Unprocessable Entity`)
+
+Triggered when an operation is structurally valid but violates domain lifecycle invariants (e.g., submitting an empty sale, attempting settlement against a cancelled order, overpayment beyond remaining balance, or premature receipt issuance):
+
+```json
+{
+  "statusCode": 422,
+  "error": "Unprocessable Entity",
+  "code": "INVALID_SALE_TRANSITION",
+  "message": "Cannot transition Sale from status 'DRAFT' to status 'PAID' (Cannot pay draft sale directly.)."
+}
+```
+
+### 2.9 Sanitized Infrastructure & Internal Server Failures (`500 Internal Server Error`)
+
+Unexpected infrastructure failures (e.g. database connection drops, Prisma client errors, or unexpected runtime faults) are strictly sanitized. Responses **never** expose stack traces, SQL queries, table/schema names, JWTs, credentials, or Prisma exception codes:
+
+```json
+{
+  "statusCode": 500,
+  "error": "Internal Server Error",
+  "message": "An unexpected internal server error occurred."
+}
+```
+
+### 2.10 Diagnostic Tracing & Correlation Identifiers (`x-correlation-id`)
+
+Every incoming request supports correlation tracking via standard HTTP headers:
+
+- `x-correlation-id` (primary)
+- `x-request-id` (fallback)
+
+When provided, the platform echoes `x-correlation-id` in the response headers and links diagnostic server logs without logging credentials, access tokens, passwords, or payment cardholder PANs.
+
 ---
 
 ## 3. Comprehensive Endpoint Catalog

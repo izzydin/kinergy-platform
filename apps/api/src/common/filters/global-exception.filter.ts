@@ -22,7 +22,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    const request = ctx.getRequest<Request>();
+    const request = typeof ctx.getRequest === 'function' ? ctx.getRequest<Request>() : undefined;
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | object = 'Internal server error';
@@ -48,19 +48,60 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       };
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
-      message = exception.getResponse();
+      if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+        message = {
+          statusCode: status,
+          error: 'Internal Server Error',
+          message: 'Internal server error',
+        };
+      } else {
+        message = exception.getResponse();
+      }
     }
 
+    const correlationId = (request?.headers?.['x-correlation-id'] ||
+      request?.headers?.['x-request-id'] ||
+      request?.headers?.['correlation-id']) as string | undefined;
+
+    if (correlationId && typeof response.setHeader === 'function') {
+      response.setHeader('x-correlation-id', correlationId);
+    }
+
+    const logPrefix = correlationId ? `[${correlationId}] ` : '';
+    const sanitizedUrl = this.sanitizeUrl(request?.url);
+    const sanitizedLogMessage = this.sanitizeMessage(message);
+
     this.logger.error(
-      `Http Status: ${status} Error Message: ${JSON.stringify(message)} Path: ${request.url}`,
+      `${logPrefix}Http Status: ${status} Error Message: ${sanitizedLogMessage} Path: ${sanitizedUrl}`,
       exception instanceof Error ? exception.stack : undefined,
     );
 
     response.status(status).json({
       statusCode: status,
       timestamp: new Date().toISOString(),
-      path: request.url,
+      path: request?.url ?? '',
       error: typeof message === 'object' ? message : { message },
     });
+  }
+
+  private sanitizeMessage(message: unknown): string {
+    if (!message) return '';
+    let str = typeof message === 'object' ? JSON.stringify(message) : String(message);
+    str = str.replace(/\b(?:\d[ -]*?){13,19}\b/g, '****-****-****-[MASKED]');
+    str = str.replace(/Bearer\s+[A-Za-z0-9\-_.]+/gi, 'Bearer [REDACTED]');
+    str = str.replace(/eyJ[A-Za-z0-9\-_.]+/g, '[REDACTED_TOKEN]');
+    str = str.replace(
+      /(password|secret|access_token|refresh_token)\s*[:=]\s*['"]?[^\s,'"]+['"]?/gi,
+      '$1: [REDACTED]',
+    );
+    return str;
+  }
+
+  private sanitizeUrl(url?: string): string {
+    if (!url) return '';
+    return url.replace(
+      /([?&](token|access_token|refresh_token|secret|password)=)[^&]+/gi,
+      '$1[REDACTED]',
+    );
   }
 }
