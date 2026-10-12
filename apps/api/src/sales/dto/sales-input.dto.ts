@@ -1,12 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
-  IsArray,
   IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
-  Matches,
   Max,
   Min,
   ValidateNested,
@@ -163,81 +161,6 @@ export class ApplySaleDiscountRequestDto {
   @IsString()
   @IsOptional()
   reason?: string;
-}
-
-export class CreateSaleRequestDto {
-  @ApiPropertyOptional({
-    description: 'Client-supplied unique Sale ID or transaction identity',
-    example: 'sale_01j9876543210abcdef',
-  })
-  @IsString()
-  @IsOptional()
-  id?: string;
-
-  @ApiPropertyOptional({
-    description: 'Idempotency key to prevent duplicate creation on network retries',
-    example: 'idem_987654321',
-  })
-  @IsString()
-  @IsOptional()
-  idempotencyKey?: string;
-
-  @ApiPropertyOptional({
-    description: 'Normalized 3-letter uppercase ISO-4217 currency code',
-    example: 'USD',
-    default: 'USD',
-  })
-  @IsString()
-  @IsOptional()
-  @Matches(/^[A-Z]{3}$/, {
-    message: 'Currency must be a 3-letter uppercase ISO-4217 code (e.g. USD, CAD, EUR).',
-  })
-  currency?: string;
-
-  @ApiPropertyOptional({
-    description: 'Customer or member ID participating in transaction',
-    example: 'client_456',
-  })
-  @IsString()
-  @IsOptional()
-  clientId?: string;
-
-  @ApiPropertyOptional({
-    description: 'Commercial origin source reference initiating checkout session (ADR-0121)',
-    type: () => SourceReferenceInputDto,
-  })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => SourceReferenceInputDto)
-  sourceReference?: SourceReferenceInputDto;
-
-  @ApiPropertyOptional({
-    description: 'Legacy origin source reference initiating checkout session',
-    type: () => ItemSourceInputDto,
-  })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => ItemSourceInputDto)
-  source?: ItemSourceInputDto;
-
-  @ApiPropertyOptional({
-    description: 'Initial line items to attach upon creation (ADR-0136)',
-    type: () => [AddSaleItemRequestDto],
-  })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => AddSaleItemRequestDto)
-  items?: AddSaleItemRequestDto[];
-
-  @ApiPropertyOptional({
-    description: 'Initial order discount to apply upon creation (ADR-0136)',
-    type: () => ApplySaleDiscountRequestDto,
-  })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => ApplySaleDiscountRequestDto)
-  orderDiscount?: ApplySaleDiscountRequestDto;
 }
 
 export class FinalizeSaleRequestDto {

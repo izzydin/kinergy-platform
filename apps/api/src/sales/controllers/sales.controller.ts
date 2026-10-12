@@ -235,7 +235,20 @@ export class SalesController {
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
     const incomingSource = dto.sourceReference ?? dto.source;
-    const normalized = normalizeSource(incomingSource);
+    let sourcePayload: { sourceType: string; sourceId: string; sourceCode?: string | null } | null =
+      null;
+    let allowWalkInWithoutSource = false;
+
+    if (incomingSource) {
+      const s = incomingSource as unknown as Record<string, unknown>;
+      sourcePayload = {
+        sourceType: (s.type ?? s.sourceType) as string,
+        sourceId: (s.referenceId ?? s.sourceId) as string,
+        sourceCode: ((s.referenceCode ?? s.sourceCode) as string | null) ?? null,
+      };
+    } else {
+      allowWalkInWithoutSource = true;
+    }
 
     const command = new CreateSaleCommand({
       id: dto.id,
@@ -244,11 +257,8 @@ export class SalesController {
       clientId: dto.clientId,
       tenantId: user?.tenantId ?? undefined,
       currentUser: this.mapCurrentUser(user),
-      source: normalized ?? {
-        sourceType: 'DRINK',
-        sourceId: 'pos_checkout_terminal',
-        sourceCode: 'POS_REGISTER',
-      },
+      source: sourcePayload,
+      allowWalkInWithoutSource,
       items: dto.items?.map((item) => ({
         description: item.description,
         skuOrCode: item.skuOrCode,

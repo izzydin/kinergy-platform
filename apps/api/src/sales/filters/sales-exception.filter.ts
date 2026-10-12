@@ -193,7 +193,9 @@ export class SalesExceptionFilter implements ExceptionFilter {
       exception instanceof SaleNotFoundException ||
       exception instanceof PaymentNotFoundException ||
       exception instanceof ReceiptNotFoundException ||
-      (exception instanceof Error && exception.name === 'SourceNotFoundException')
+      (exception instanceof Error &&
+        (exception.name === 'SourceNotFoundException' ||
+          exception.name === 'ClientNotFoundException'))
     ) {
       const sanitizedMsg = this.sanitizeMessage(exception.message);
       this.logger.warn(
