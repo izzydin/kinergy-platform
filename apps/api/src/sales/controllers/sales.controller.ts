@@ -547,21 +547,32 @@ export class SalesController {
     @Body() dto: AddSaleItemRequestDto,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
+
     const incomingSource = dto.sourceReference ?? dto.source;
-    const normalized = normalizeSource(incomingSource);
-    if (!normalized) {
-      throw new BadRequestException('sourceReference is required for line items.');
+    let sourcePayload:
+      | { sourceType: SourceType | string; sourceId: string; sourceCode?: string | null }
+      | undefined = undefined;
+
+    if (incomingSource) {
+      const s = incomingSource as unknown as Record<string, unknown>;
+      const rawType = (s.type ?? s.sourceType) as string;
+      const rawRefId = (s.referenceId ?? s.sourceId) as string;
+      const rawCode = (s.referenceCode ?? s.sourceCode) as string | null | undefined;
+      sourcePayload = {
+        sourceType: mapToItemSourceType(rawType),
+        sourceId: rawRefId,
+        sourceCode: rawCode ?? null,
+      };
     }
 
     const command = new AddSaleItemCommand({
-      saleId: id,
+      saleId: id.trim(),
       tenantId: user?.tenantId ?? undefined,
       currentUser: this.mapCurrentUser(user),
-      source: {
-        sourceType: mapToItemSourceType(normalized.sourceType),
-        sourceId: normalized.sourceId,
-        sourceCode: normalized.sourceCode,
-      },
+      source: sourcePayload,
       description: dto.description,
       skuOrCode: dto.skuOrCode,
       quantity: dto.quantity,
@@ -608,9 +619,16 @@ export class SalesController {
     @Param('itemId') itemId: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
+    if (!itemId || !itemId.trim()) {
+      throw new BadRequestException('SaleItem ID cannot be empty or whitespace.');
+    }
+
     const command = new RemoveSaleItemCommand({
-      saleId: id,
-      itemId,
+      saleId: id.trim(),
+      itemId: itemId.trim(),
       tenantId: user?.tenantId ?? undefined,
       currentUser: this.mapCurrentUser(user),
     });

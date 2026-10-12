@@ -1,18 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsEnum,
-  IsNotEmpty,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Max,
-  Min,
-  ValidateNested,
-} from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SourceType } from '@kinergy-platform/core';
 
-import { SourceReferenceInputDto } from './source-reference.dto';
 export { SourceReferenceInputDto } from './source-reference.dto';
 
 export class ItemSourceInputDto {
@@ -68,71 +58,6 @@ export class ItemDiscountInputDto {
   @IsString()
   @IsOptional()
   reason?: string;
-}
-
-export class AddSaleItemRequestDto {
-  @ApiPropertyOptional({
-    description: 'Commercial origin source reference (ADR-0121)',
-    type: () => SourceReferenceInputDto,
-  })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => SourceReferenceInputDto)
-  sourceReference?: SourceReferenceInputDto;
-
-  @ApiPropertyOptional({
-    description: 'Legacy commercial origin source reference',
-    type: () => ItemSourceInputDto,
-  })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => ItemSourceInputDto)
-  source?: ItemSourceInputDto;
-
-  @ApiProperty({
-    description: 'Line item description snapshot at checkout',
-    example: 'Bulk Protein Powder (1.25 kg)',
-  })
-  @IsString()
-  @IsNotEmpty()
-  description!: string;
-
-  @ApiPropertyOptional({
-    description: 'SKU or plan code snapshot',
-    example: 'PROT-1KG',
-  })
-  @IsString()
-  @IsOptional()
-  skuOrCode?: string;
-
-  @ApiProperty({
-    description: 'Quantity purchased (up to 3 decimal places, min: 0.001, max: 999999)',
-    example: 1.25,
-  })
-  @IsNumber()
-  @Min(0.001)
-  @Max(999999)
-  @Type(() => Number)
-  quantity!: number;
-
-  @ApiProperty({
-    description:
-      'Agreed gross unit price in major currency units. Scale: 2 decimal places, non-negative.',
-    example: 24.5,
-  })
-  @IsNumber()
-  @Min(0)
-  @Type(() => Number)
-  unitPriceAmount!: number;
-
-  @ApiPropertyOptional({
-    description: 'Optional discount configuration applied to line item',
-    type: () => ItemDiscountInputDto,
-  })
-  @IsOptional()
-  @ValidateNested()
-  @Type(() => ItemDiscountInputDto)
-  discount?: ItemDiscountInputDto;
 }
 
 export class ApplySaleDiscountRequestDto {

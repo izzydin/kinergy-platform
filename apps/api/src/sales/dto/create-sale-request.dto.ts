@@ -2,7 +2,8 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsOptional, IsString, Matches, MaxLength, ValidateNested } from 'class-validator';
 import { Type } from 'class-transformer';
 import { SourceReferenceInputDto } from './source-reference.dto';
-import { AddSaleItemRequestDto, ApplySaleDiscountRequestDto } from './sales-input.dto';
+import { ApplySaleDiscountRequestDto } from './sales-input.dto';
+import { AddSaleItemRequestDto } from './add-sale-item-request.dto';
 
 /**
  * Request DTO for initializing a new commercial checkout session (POST /sales).
