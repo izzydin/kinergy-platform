@@ -60,33 +60,7 @@ export class ItemDiscountInputDto {
   reason?: string;
 }
 
-export class ApplySaleDiscountRequestDto {
-  @ApiProperty({
-    description: 'Discount type (FIXED or PERCENTAGE)',
-    example: 'PERCENTAGE',
-  })
-  @IsString()
-  @IsNotEmpty()
-  type!: string;
-
-  @ApiProperty({
-    description:
-      'Discount value (0-100 for percentage, or non-negative fixed amount with up to 2 decimal places)',
-    example: 10,
-  })
-  @IsNumber()
-  @Min(0)
-  @Type(() => Number)
-  value!: number;
-
-  @ApiPropertyOptional({
-    description: 'Commercial justification reason',
-    example: 'VIP Membership Promo',
-  })
-  @IsString()
-  @IsOptional()
-  reason?: string;
-}
+export { ApplySaleDiscountRequestDto } from './apply-sale-discount-request.dto';
 
 export class FinalizeSaleRequestDto {
   @ApiPropertyOptional({

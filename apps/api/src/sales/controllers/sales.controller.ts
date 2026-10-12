@@ -41,7 +41,8 @@ import {
   ListSalesQuery,
   AddSaleItemCommand,
   RemoveSaleItemCommand,
-  ApplyOrderDiscountCommand,
+  ApplyDiscountCommand,
+  ApplyDiscountHandler,
   RemoveOrderDiscountCommand,
   FinalizeSaleCommand,
   CancelSaleCommand,
@@ -155,7 +156,7 @@ export class SalesController {
     removeSaleItemHandler?: RemoveSaleItemHandler,
     @Optional()
     @Inject(ApplyOrderDiscountHandler)
-    applyOrderDiscountHandler?: ApplyOrderDiscountHandler,
+    applyOrderDiscountHandler?: ApplyOrderDiscountHandler | ApplyDiscountHandler,
     @Optional()
     @Inject(RemoveOrderDiscountHandler)
     removeOrderDiscountHandler?: RemoveOrderDiscountHandler,
@@ -654,7 +655,11 @@ export class SalesController {
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Invalid discount type or value',
+    description: 'Invalid discount type, value, precision, or negative amount',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Sale not found',
   })
   @ApiResponse({
     status: HttpStatus.CONFLICT,
@@ -665,8 +670,12 @@ export class SalesController {
     @Body() dto: ApplySaleDiscountRequestDto,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
-    const command = new ApplyOrderDiscountCommand({
-      saleId: id,
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
+
+    const command = new ApplyDiscountCommand({
+      saleId: id.trim(),
       discount: {
         type: dto.type,
         value: dto.value,
