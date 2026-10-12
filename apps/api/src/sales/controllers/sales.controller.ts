@@ -905,7 +905,7 @@ export class SalesController {
               itemRecord.sourceReference = SaleSourceResponseDto.fromDomain(
                 itemRecord.source as Record<string, unknown>,
               );
-            } else if (!isPaginated) {
+            } else {
               itemRecord.sourceReference = null;
             }
           }

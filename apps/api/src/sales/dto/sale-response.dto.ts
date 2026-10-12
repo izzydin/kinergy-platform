@@ -1,7 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MoneyResponseDto } from './money-response.dto';
-import { SaleItemResponseDto } from './sale-item-response.dto';
+import { SaleItemResponseDto, ItemDiscountResponseDto } from './sale-item-response.dto';
 import { SaleSourceResponseDto } from './source-reference.dto';
+
+export { ItemDiscountResponseDto as OrderDiscountResponseDto } from './sale-item-response.dto';
 
 export class SaleResponseDto {
   @ApiProperty({
@@ -100,6 +102,14 @@ export class SaleResponseDto {
   })
   totalAmount!: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Order-level discount applied to the entire commercial agreement (ADR-0113, ADR-0136), or null if none applied',
+    type: () => ItemDiscountResponseDto,
+    nullable: true,
+  })
+  orderDiscount?: ItemDiscountResponseDto | null;
+
   @ApiProperty({
     description: 'Total count of line items in this order',
     example: 2,
@@ -185,6 +195,23 @@ export class SaleSummaryResponseDto {
     example: 'DRAFT',
   })
   status!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Commercial origin source reference (ADR-0121), or null if the sale has no upstream source',
+    type: () => SaleSourceResponseDto,
+    nullable: true,
+  })
+  sourceReference?: SaleSourceResponseDto | null;
+
+  @ApiPropertyOptional({
+    description: 'Legacy commercial origin source reference',
+  })
+  source?: {
+    sourceType: string;
+    sourceId: string;
+    sourceCode?: string | null;
+  };
 
   @ApiProperty({
     description: 'Gross order subtotal as structured Money',
