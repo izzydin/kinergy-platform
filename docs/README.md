@@ -88,6 +88,8 @@ Architecture  ──►  Domain  ──►  Business Rules  ──►  API  ─�
 - **[Password Policy](file:///c:/Projects/kinergy-platform/docs/security/password-policy.md)**: Hardened Argon2id parameters, complexity validation, reuse prevention, and CSPRNG temporary password resets.
 - **[Web Security, CORS & Helmet](file:///c:/Projects/kinergy-platform/docs/security/web-security-cors-and-headers.md)**: Production Helmet options, OWASP security headers, and environment-driven CORS.
 - **[Audit Logging Architecture](file:///c:/Projects/kinergy-platform/docs/security/audit-logging-architecture.md)**: `IAuditEventPublisher` port, `LoggerAuditEventPublisher` adapter, and `SecurityAuditHookService`.
+- **[Milestone 7.13 Authorization Governance & Security Specification](file:///c:/Projects/kinergy-platform/docs/architecture/milestone-7.13-authorization-governance.md)**: Canonical specification for permissions, multi-tier boundaries, resource protection, test pyramid, and deferred decisions.
+- **[Sales, Payments & Receipts Authorization Matrix](file:///c:/Projects/kinergy-platform/docs/security/sales-payments-receipts-authorization-matrix.md)**: Operational matrix mapping RBAC roles and permissions across all 24 protected endpoints.
 
 ### 6. Testing & Quality Gates
 
@@ -129,6 +131,8 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
 - **[Receipt Canonical Response Contract](file:///c:/Projects/kinergy-platform/docs/api/receipt-canonical-response-contract.md)**: Authoritative API presentation contract, reference vs historical snapshot taxonomy, and zero-float serialization rules.
 - **[Receipt End-to-End Traceability Matrix](file:///c:/Projects/kinergy-platform/docs/architecture/receipt-traceability-matrix.md)**: Complete traceability matrix mapping business requirements, ADRs, invariants, use cases, persistence constraints, API contracts, and test coverage.
 - **[Sales & Payments API Reference](file:///c:/Projects/kinergy-platform/docs/api/README.md#35-payments-module-apiv1salesaleidpayments--apiv1payments)**: REST endpoints (`/api/v1/sales` & `/api/v1/sales/:saleId/payments`, `/api/v1/payments`, `/api/v1/receipts`), DTO contracts, and JSON payloads.
+- **[Milestone 7.13 Authorization Governance & Security Specification](file:///c:/Projects/kinergy-platform/docs/architecture/milestone-7.13-authorization-governance.md)**: Canonical specification for permissions, multi-tier boundaries, resource protection, test pyramid, and deferred decisions.
+- **[Sales, Payments & Receipts Authorization Matrix](file:///c:/Projects/kinergy-platform/docs/security/sales-payments-receipts-authorization-matrix.md)**: Operational matrix mapping RBAC roles and permissions across all 24 protected endpoints.
 
 ### 10. Architectural Decision Records (ADRs)
 
@@ -149,3 +153,17 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
   - [ADR-0119: Sale Aggregate Boundary, Invariants, and Commercial Transaction Integrity](file:///c:/Projects/kinergy-platform/docs/adr/0119-sale-aggregate-boundary-and-invariants.md)
   - [ADR-0120: Commercial Transaction Uniqueness, Idempotency, and Exactly-One-Sale Invariant](file:///c:/Projects/kinergy-platform/docs/adr/0120-commercial-transaction-uniqueness-and-sale-idempotency.md)
   - [ADR-0121: Sale Source References and Commercial Origin Model](file:///c:/Projects/kinergy-platform/docs/adr/0121-sale-source-references-and-commercial-origin-model.md)
+  - [ADR-0122: Phase 7 Financial Persistence Architecture and Relational Integrity Model](file:///c:/Projects/kinergy-platform/docs/adr/0122-phase-7-financial-persistence-architecture.md)
+  - [ADR-0123: Phase 7 Financial Model Database Index Strategy and Query Optimization](file:///c:/Projects/kinergy-platform/docs/adr/0123-phase-7-financial-database-index-strategy.md)
+  - [ADR-0124: Phase 7 Financial Models Uniqueness Audit and Constraint Architecture](file:///c:/Projects/kinergy-platform/docs/adr/0124-phase-7-financial-models-uniqueness-audit.md)
+  - [ADR-0125: Phase 7 Transaction Architecture and Atomic Persistence Boundaries](file:///c:/Projects/kinergy-platform/docs/adr/0125-phase-7-transaction-architecture-and-atomic-boundaries.md)
+  - [ADR-0126: Phase 7 Hexagonal Architecture Repository Reconciliation and Clean Persistence Boundaries](file:///c:/Projects/kinergy-platform/docs/adr/0126-phase-7-hexagonal-architecture-repository-reconciliation.md)
+  - [ADR-0127: Phase 7 Database Migration Review, Data Compatibility, and Verification](file:///c:/Projects/kinergy-platform/docs/adr/0127-phase-7-database-migration-review-and-validation.md)
+  - [ADR-0128: Phase 7 Test Infrastructure, Fixtures, Builders, and Seeds Reconciliation](file:///c:/Projects/kinergy-platform/docs/adr/0128-phase-7-test-infrastructure-and-seed-reconciliation.md)
+  - [ADR-0129: Phase 7 Prisma Schema Architectural Review and Final Integrity Verification](file:///c:/Projects/kinergy-platform/docs/adr/0129-phase-7-prisma-schema-architectural-review.md)
+  - [ADR-0130: Phase 7 Persistence-Boundary Audit and Domain Purity Hardening](file:///c:/Projects/kinergy-platform/docs/adr/0130-phase-7-persistence-boundary-audit-and-domain-purity.md)
+  - [ADR-0131: Phase 7 Query Patterns, Index Optimization, and Relation-Loading Strategy](file:///c:/Projects/kinergy-platform/docs/adr/0131-phase-7-query-patterns-index-optimization-and-relation-loading.md)
+  - [ADR-0132: Sale Application Layer Architecture, Use Case Inventory, and Orchestration Contracts](file:///c:/Projects/kinergy-platform/docs/adr/0132-sale-application-layer-architecture.md)
+  - [ADR-0133: Payment Application Layer Architecture, Cross-Aggregate Settlement Orchestration, and Use Case Inventory](file:///c:/Projects/kinergy-platform/docs/adr/0133-payment-application-layer-architecture.md)
+  - [ADR-0134: Financial Settlement Validation, Multi-Tender Boundaries & Overpayment Invariants](file:///c:/Projects/kinergy-platform/docs/adr/0134-financial-settlement-validation-and-overpayment-invariants.md)
+  - [ADR-0135: Sales, Payments & Receipts Authorization Architecture, IAM Integration & Security Boundaries](file:///c:/Projects/kinergy-platform/docs/adr/0135-sales-payments-receipts-authorization-and-security.md)
