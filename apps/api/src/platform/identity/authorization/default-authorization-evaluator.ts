@@ -119,10 +119,10 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
       return true;
     }
 
-    // sales.manage implies sales.create, sales.read, sales.cancel
+    // sales.manage implies sales.create, sales.read, sales.cancel, receipts.read
     if (
       normResolved.includes('sales.manage') &&
-      ['sales.create', 'sales.read', 'sales.cancel'].includes(normRequired)
+      ['sales.create', 'sales.read', 'sales.cancel', 'receipts.read'].includes(normRequired)
     ) {
       return true;
     }

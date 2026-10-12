@@ -3,35 +3,53 @@ import { ReceiptUnauthorizedException } from '../exceptions/receipt-unauthorized
 
 export interface ReceiptCurrentUser {
   readonly id?: string;
-  readonly tenantId?: string;
+  readonly userId?: string;
+  readonly clientId?: string;
+  readonly email?: string;
+  readonly tenantId?: string | null;
   readonly roles?: string[];
   readonly permissions?: string[];
 }
 
+export const RECEIPT_MUTATION_ROLES: string[] = [
+  'Owner',
+  'Gym Owner',
+  'Manager',
+  'Gym Manager',
+  'Platform Admin',
+  'Receptionist',
+  'Kitchen Staff',
+];
+
+export const RECEIPT_READ_ROLES: string[] = [
+  'Owner',
+  'Gym Owner',
+  'Manager',
+  'Gym Manager',
+  'Platform Admin',
+  'Receptionist',
+  'Kitchen Staff',
+  'Trainer',
+  'Client',
+  'Member',
+];
+
 /**
  * Checks caller permissions and roles against required receipt privileges.
- * Respects Phase 1 RBAC and tenant boundaries.
- * Codified by ADR-0111 and ADR-0117.
+ * Respects Phase 1 RBAC, ADR-0111, ADR-0117, and ADR-0135:
+ * - Normalizes colon-notation (e.g. receipts:read) and canonical dot-notation (receipts.read).
+ * - Implements capability hierarchy: receipts.manage covers receipts.read; billing.manage / sales.manage covers receipts.read.
+ * - Supports backward-compatible billing aliases: billing.manage, billing.read.
+ * - Defaults role matrix appropriately based on read vs mutation privileges.
  */
 export function checkReceiptAuthorization(
   currentUser?: ReceiptCurrentUser,
   requiredPermissions: string[] = ['receipts.manage'],
-  allowedRoles: string[] = [
-    'Owner',
-    'Gym Owner',
-    'Manager',
-    'Gym Manager',
-    'Platform Admin',
-    'Receptionist',
-    'Kitchen Staff',
-    'Client',
-    'Member',
-    'Trainer',
-  ],
+  allowedRoles?: string[],
 ): void {
   if (!currentUser) {
     // If no security context passed directly to domain application service, allow execution
-    // (authenticated at the HTTP/Controller boundary).
+    // (authenticated and authorized at the HTTP/Controller boundary).
     return;
   }
 
@@ -45,11 +63,19 @@ export function checkReceiptAuthorization(
     );
   }
 
+  const normalize = (p: string) => p.replace(/:/g, '.');
+  const normRequired = requiredPermissions.map(normalize);
+  const isReadOnly = normRequired.every((p) => p === 'receipts.read');
+
+  // Determine effective allowed roles if not explicitly supplied
+  const effectiveAllowedRoles =
+    allowedRoles ?? (isReadOnly ? RECEIPT_READ_ROLES : RECEIPT_MUTATION_ROLES);
+
   // 1. Role validation: if allowedRoles specified, user must possess at least one allowed role
-  if (allowedRoles.length > 0 && roles.length > 0) {
+  if (effectiveAllowedRoles.length > 0 && roles.length > 0) {
     const hasRole = roles.some(
       (r) =>
-        allowedRoles.includes(r) ||
+        effectiveAllowedRoles.includes(r) ||
         r.includes('Owner') ||
         r.includes('Manager') ||
         r === 'Platform Admin',
@@ -62,23 +88,32 @@ export function checkReceiptAuthorization(
   }
 
   // 2. Permission validation: must satisfy required permissions
-  const hasPermission = permissions.some((p) => {
-    if (p === '*' || p === '*:*:*' || p === 'receipts.*') {
+  const normUserPerms = permissions.map(normalize);
+
+  const hasPermission = normUserPerms.some((p) => {
+    if (p === '*' || p === '*:*:*' || p === '*.*.*' || p === 'receipts.*') {
       return true;
     }
-    if (requiredPermissions.includes(p)) {
+    if (normRequired.includes(p)) {
       return true;
     }
     // receipts.manage covers receipts.read
-    if (p === 'receipts.manage' && requiredPermissions.includes('receipts.read')) {
+    if (p === 'receipts.manage' && normRequired.includes('receipts.read')) {
       return true;
     }
     // Backward compatibility with billing/sales permissions
-    if (p === 'billing.manage' || p === 'sales.manage') {
+    if (p === 'billing.manage') {
       return true;
     }
-    if (p === 'billing.read' && requiredPermissions.includes('receipts.read')) {
+    if (p === 'sales.manage' && normRequired.includes('receipts.read')) {
       return true;
+    }
+    if (p === 'billing.read' && normRequired.includes('receipts.read')) {
+      return true;
+    }
+    if (p.endsWith('.*')) {
+      const prefix = p.slice(0, -2);
+      return normRequired.some((rp) => rp.startsWith(prefix));
     }
     return false;
   });
@@ -94,8 +129,8 @@ export function checkReceiptAuthorization(
  * Enforces multi-tenant boundary checks between caller context and target aggregate.
  */
 export function enforceReceiptTenantIsolation(
-  targetTenantId?: string,
-  callerTenantId?: string,
+  targetTenantId?: string | null,
+  callerTenantId?: string | null,
 ): void {
   if (!targetTenantId || !callerTenantId) {
     return;
@@ -110,12 +145,12 @@ export function enforceReceiptTenantIsolation(
 
 /**
  * Enforces the object-level ownership boundary for Receipt retrieval.
- * Respects ADR-0111, ADR-0074, and the Kinergy security framework:
+ * Respects ADR-0111, ADR-0074, ADR-0117, and ADR-0135:
  * - Administrative and cashiering roles (Owner, Manager, Receptionist, Kitchen Staff)
  *   or users holding management permissions (receipts.manage, billing.manage, sales.manage, *)
  *   possess operational visibility across the tenant.
- * - End-client / customer users (Client role) are strictly confined to their own receipts
- *   (receipt.clientSnapshot.clientId === currentUser.id).
+ * - End-client / customer users (Client, Member roles) are strictly confined to their own receipts
+ *   (receipt.clientSnapshot.clientId === callerId).
  * - Non-administrative roles (e.g. Trainer without client assignment, unprivileged users)
  *   are denied access to other clients' or facility-wide financial receipts.
  */
@@ -129,15 +164,22 @@ export function enforceReceiptOwnershipBoundary(
 
   const roles = currentUser.roles ?? [];
   const permissions = currentUser.permissions ?? [];
+  const normalize = (p: string) => p.replace(/:/g, '.');
+  const normUserPerms = permissions.map(normalize);
+
+  const hasRestrictedRole = roles.some(
+    (r) => r === 'Client' || r === 'Member' || r === 'Trainer' || r === 'Visitor' || r === 'Guest',
+  );
 
   // 1. Staff Administrative / Operational Privilege Check
   const isPrivilegedStaff =
-    permissions.includes('*') ||
-    permissions.includes('*:*:*') ||
-    permissions.includes('receipts.*') ||
-    permissions.includes('receipts.manage') ||
-    permissions.includes('billing.manage') ||
-    permissions.includes('sales.manage') ||
+    normUserPerms.includes('*') ||
+    normUserPerms.includes('*:*:*') ||
+    normUserPerms.includes('*.*.*') ||
+    normUserPerms.includes('receipts.*') ||
+    normUserPerms.includes('receipts.manage') ||
+    normUserPerms.includes('billing.manage') ||
+    normUserPerms.includes('sales.manage') ||
     roles.some(
       (r) =>
         r === 'Owner' ||
@@ -146,20 +188,24 @@ export function enforceReceiptOwnershipBoundary(
         r === 'Gym Manager' ||
         r === 'Platform Admin' ||
         r === 'Receptionist' ||
-        r === 'Kitchen Staff',
+        r === 'Kitchen Staff' ||
+        r.includes('Owner') ||
+        r.includes('Manager'),
     ) ||
-    (!roles.includes('Client') && !roles.includes('Member') && !roles.includes('Trainer'));
+    (!hasRestrictedRole && (roles.length === 0 || normUserPerms.includes('receipts.read')));
 
   if (isPrivilegedStaff) {
     // Authorized to view any receipt within their tenant boundary
     return;
   }
 
+  const callerId = currentUser.clientId ?? currentUser.id ?? currentUser.userId;
+
   // 2. Client / End-Customer Object Ownership Check
   const isClient = roles.includes('Client') || roles.includes('Member');
   if (isClient) {
     const receiptClientId = receipt.clientSnapshot?.clientId;
-    if (!receiptClientId || receiptClientId !== currentUser.id) {
+    if (!receiptClientId || !callerId || receiptClientId !== callerId) {
       throw new ReceiptUnauthorizedException(
         'Access denied: clients are only authorized to access their own receipts.',
       );
@@ -171,7 +217,7 @@ export function enforceReceiptOwnershipBoundary(
   // Trainers lack general billing/receipt visibility across the facility (ADR-0074).
   if (roles.includes('Trainer')) {
     const receiptClientId = receipt.clientSnapshot?.clientId;
-    if (!receiptClientId || receiptClientId !== currentUser.id) {
+    if (!receiptClientId || !callerId || receiptClientId !== callerId) {
       throw new ReceiptUnauthorizedException(
         'Access denied: trainers are not authorized to view general facility receipts.',
       );
@@ -179,7 +225,7 @@ export function enforceReceiptOwnershipBoundary(
     return;
   }
 
-  // 4. Default: Unprivileged or unauthorized role attempting to read
+  // 4. Default: Unprivileged or unauthorized role attempting to read (Fail-Closed)
   throw new ReceiptUnauthorizedException(
     'Access denied: user is not authorized to access this receipt document.',
   );

@@ -167,9 +167,20 @@ export class ReceiptsController {
     return this.issueReceipt(saleId, dto, user);
   }
 
-  @Get('sales/:saleId/receipt')
+  @Get(['sales/:saleId/receipt', 'receipts/sale/:saleId'])
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff', 'Trainer', 'Client')
+  @Roles(
+    'Owner',
+    'Gym Owner',
+    'Manager',
+    'Gym Manager',
+    'Platform Admin',
+    'Receptionist',
+    'Kitchen Staff',
+    'Trainer',
+    'Client',
+    'Member',
+  )
   @Permissions('receipts.read')
   @ApiOperation({
     summary: 'Retrieve receipt voucher associated with a commercial sale',
@@ -189,20 +200,46 @@ export class ReceiptsController {
     @Param('saleId') saleId: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<ReceiptResponseDto> {
-    const query = new GetReceiptBySaleQuery({
-      saleId,
-      tenantId: user?.tenantId ?? undefined,
-      currentUser: this.mapCurrentUser(user),
-    });
+    const userContext = user
+      ? new AuthenticatedUserContext({
+          userId: user.id,
+          email: user.email,
+          status: user.status ?? 'ACTIVE',
+          roles: user.roles ?? [],
+          permissions: user.permissions ?? [],
+          tenantId: user.tenantId ?? null,
+        })
+      : null;
 
-    const result = await this._getReceiptBySaleHandler.execute(query);
-    const receiptDto = this.handleResult(result);
-    return ReceiptResponseDto.fromDTO(receiptDto);
+    const executeAction = async (): Promise<ReceiptResponseDto> => {
+      const query = new GetReceiptBySaleQuery({
+        saleId,
+        tenantId: user?.tenantId ?? undefined,
+        currentUser: this.mapCurrentUser(user),
+      });
+
+      const result = await this._getReceiptBySaleHandler.execute(query);
+      const receiptDto = this.handleResult(result);
+      return ReceiptResponseDto.fromDTO(receiptDto);
+    };
+
+    return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
   @Get('receipts/:receiptId')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff', 'Trainer', 'Client')
+  @Roles(
+    'Owner',
+    'Gym Owner',
+    'Manager',
+    'Gym Manager',
+    'Platform Admin',
+    'Receptionist',
+    'Kitchen Staff',
+    'Trainer',
+    'Client',
+    'Member',
+  )
   @Permissions('receipts.read')
   @ApiOperation({
     summary: 'Retrieve receipt voucher by internal UUID or sequential receipt number',
@@ -231,28 +268,46 @@ export class ReceiptsController {
       throw new BadRequestException('Receipt identifier cannot be empty.');
     }
 
-    const isReceiptNumber = trimmed.startsWith('REC-');
-    const query = isReceiptNumber
-      ? new GetReceiptQuery({
-          receiptNumber: trimmed,
-          tenantId: user?.tenantId ?? undefined,
-          currentUser: this.mapCurrentUser(user),
+    const userContext = user
+      ? new AuthenticatedUserContext({
+          userId: user.id,
+          email: user.email,
+          status: user.status ?? 'ACTIVE',
+          roles: user.roles ?? [],
+          permissions: user.permissions ?? [],
+          tenantId: user.tenantId ?? null,
         })
-      : new GetReceiptByIdQuery({
-          receiptId: trimmed,
-          tenantId: user?.tenantId ?? undefined,
-          currentUser: this.mapCurrentUser(user),
-        });
+      : null;
 
-    const result = await this._getReceiptHandler.execute(query);
-    const receiptDto = this.handleResult(result);
-    return ReceiptResponseDto.fromDTO(receiptDto);
+    const executeAction = async (): Promise<ReceiptResponseDto> => {
+      const isReceiptNumber = trimmed.startsWith('REC-');
+      const query = isReceiptNumber
+        ? new GetReceiptQuery({
+            receiptNumber: trimmed,
+            tenantId: user?.tenantId ?? undefined,
+            currentUser: this.mapCurrentUser(user),
+          })
+        : new GetReceiptByIdQuery({
+            receiptId: trimmed,
+            tenantId: user?.tenantId ?? undefined,
+            currentUser: this.mapCurrentUser(user),
+          });
+
+      const result = await this._getReceiptHandler.execute(query);
+      const receiptDto = this.handleResult(result);
+      return ReceiptResponseDto.fromDTO(receiptDto);
+    };
+
+    return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
   private mapCurrentUser(user?: AuthenticatedUserPayload) {
     if (!user) return undefined;
     return {
       id: user.id,
+      userId: user.id,
+      clientId:
+        ((user as unknown as Record<string, unknown>).clientId as string | undefined) ?? user.id,
       tenantId: user.tenantId ?? undefined,
       roles: user.roles,
       permissions: user.permissions,
