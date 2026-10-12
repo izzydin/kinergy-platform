@@ -372,8 +372,8 @@ describe('A5.6 — DashboardUiStatesPage (Page Integration)', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('metrics-error')).toBeInTheDocument();
+      expect(screen.getByTestId('activity-error')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('activity-error')).toBeInTheDocument();
   });
 
   it('switching to empty state — renders all section empty alerts', async () => {
@@ -384,9 +384,9 @@ describe('A5.6 — DashboardUiStatesPage (Page Integration)', () => {
 
     await waitFor(() => {
       expect(screen.getByTestId('metrics-empty')).toBeInTheDocument();
+      expect(screen.getByTestId('activity-empty')).toBeInTheDocument();
+      expect(screen.getByText('No Profile Found')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('activity-empty')).toBeInTheDocument();
-    expect(screen.getByText('No Profile Found')).toBeInTheDocument();
   });
 
   it('switching to loading state — renders section skeleton elements', () => {

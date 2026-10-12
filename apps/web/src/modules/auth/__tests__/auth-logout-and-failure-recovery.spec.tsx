@@ -269,8 +269,10 @@ describe('Track B — Milestone B1.4: Logout & Authentication Failure Recovery',
         </QueryClientProvider>,
       );
 
-      // Trigger authenticated API request through httpClient
-      await expect(httpClient.get('/data')).rejects.toThrow();
+      // Trigger authenticated API request through httpClient within act() since it triggers auth state update
+      await act(async () => {
+        await expect(httpClient.get('/data')).rejects.toThrow();
+      });
 
       // Verify that unauthorized event was emitted and token was cleared
       expect(listener).toHaveBeenCalledWith('unauthorized');
@@ -314,7 +316,9 @@ describe('Track B — Milestone B1.4: Logout & Authentication Failure Recovery',
         </QueryClientProvider>,
       );
 
-      await expect(httpClient.get('/protected-resource')).rejects.toThrow();
+      await act(async () => {
+        await expect(httpClient.get('/protected-resource')).rejects.toThrow();
+      });
 
       await waitFor(() => {
         expect(screen.getByTestId('status')).toHaveTextContent('UNAUTHENTICATED');
