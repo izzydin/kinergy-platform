@@ -72,15 +72,7 @@ export class FinalizeSaleRequestDto {
   notes?: string;
 }
 
-export class CancelSaleRequestDto {
-  @ApiProperty({
-    description: 'Audit justification reason for cancelling the Sale',
-    example: 'Customer abandoned cart at register',
-  })
-  @IsString()
-  @IsNotEmpty({ message: 'Cancellation reason is required to cancel a Sale.' })
-  reason!: string;
-}
+export { CancelSaleRequestDto } from './cancel-sale-request.dto';
 
 export class CoordinateSalePaymentRequestDto {
   @ApiProperty({

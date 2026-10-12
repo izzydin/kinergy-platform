@@ -5,6 +5,7 @@ export * from './sales-input.dto';
 export * from './create-sale-request.dto';
 export * from './add-sale-item-request.dto';
 export * from './apply-sale-discount-request.dto';
+export * from './cancel-sale-request.dto';
 export * from './record-payment-request.dto';
 export * from './payment-lifecycle-request.dto';
 export * from './payment-response.dto';

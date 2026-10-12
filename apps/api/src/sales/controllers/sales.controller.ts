@@ -772,19 +772,32 @@ export class SalesController {
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Cancellation reason is missing or empty',
+    description: 'Cancellation reason is missing or empty, or sale ID is invalid',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Sale not found',
   })
   @ApiResponse({
     status: HttpStatus.CONFLICT,
-    description: 'Sale cannot be cancelled (e.g. already PAID, COMPLETED, or CANCELLED)',
+    description: 'Optimistic concurrency collision',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNPROCESSABLE_ENTITY,
+    description:
+      'Invalid lifecycle transition (e.g. sale is already PAID, COMPLETED, or CANCELLED)',
   })
   public async cancelSale(
     @Param('id') id: string,
     @Body() dto: CancelSaleRequestDto,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
+
     const command = new CancelSaleCommand({
-      saleId: id,
+      saleId: id.trim(),
       reason: dto.reason,
       tenantId: user?.tenantId ?? undefined,
       currentUser: this.mapCurrentUser(user),
