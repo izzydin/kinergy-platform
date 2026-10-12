@@ -6,6 +6,7 @@ import { logger } from '../../../shared/logger/platform-logger';
 import { fetchCurrentUser, performLogout, performSilentRefresh } from '../api/auth-api';
 import type { AuthContextState, AuthState, AuthUser } from '../domain/auth-state.types';
 import { DEFAULT_DEV_USER } from '../domain/auth-state.types';
+import { matchPermission, matchRole } from '../domain/permission-matcher';
 
 const log = logger.withContext('AuthStateMachine');
 
@@ -242,7 +243,7 @@ export function useAuthState(
   const hasPermission = useCallback(
     (permission: string): boolean => {
       if (state.status !== 'AUTHENTICATED' || !state.session) return false;
-      return state.session.permissions.includes(permission);
+      return matchPermission(state.session.permissions, permission);
     },
     [state.session, state.status],
   );
@@ -250,7 +251,7 @@ export function useAuthState(
   const hasRole = useCallback(
     (role: string): boolean => {
       if (state.status !== 'AUTHENTICATED' || !state.session) return false;
-      return state.session.roles.includes(role);
+      return matchRole(state.session.roles, role);
     },
     [state.session, state.status],
   );

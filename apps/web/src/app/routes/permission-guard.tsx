@@ -2,6 +2,7 @@ import React from 'react';
 import { Outlet } from 'react-router-dom';
 import { useAuth } from '../providers/auth-provider';
 import type { AuthUser } from '../../modules/auth/domain/auth-state.types';
+import { matchPermission } from '../../modules/auth/domain/permission-matcher';
 import { ForbiddenView } from './fallback-views';
 
 export interface HasPermissionProps {
@@ -24,16 +25,26 @@ export const HasPermission: React.FC<HasPermissionProps> = ({
   fallback = null,
 }) => {
   let session = sessionProp;
+  let authContext: ReturnType<typeof useAuth> | null = null;
   try {
-    const auth = useAuth();
+    authContext = useAuth();
     if (!session) {
-      session = auth.currentUser;
+      session = authContext.currentUser;
     }
   } catch {
     // If used outside AuthProvider boundary, fall back to explicit session prop
   }
 
-  if (!session || !session.permissions.includes(name)) {
+  if (!session) {
+    return <>{fallback}</>;
+  }
+
+  const isPermitted =
+    typeof authContext?.hasPermission === 'function'
+      ? authContext.hasPermission(name)
+      : matchPermission(session.permissions, name);
+
+  if (!isPermitted) {
     return <>{fallback}</>;
   }
 
@@ -65,21 +76,32 @@ export const RequirePermission: React.FC<RequirePermissionProps> = ({
   children,
   fallback,
 }) => {
-  const { hasPermission, hasRole, isAuthenticated } = useAuth();
+  const auth = useAuth();
+  const { currentUser, isAuthenticated } = auth;
 
   if (!isAuthenticated) {
     return null; // Authentication is handled by ProtectedRoute
   }
 
+  const checkPermission =
+    typeof auth.hasPermission === 'function'
+      ? (p: string) => auth.hasPermission(p)
+      : (p: string) => matchPermission(currentUser?.permissions, p);
+
+  const checkRole =
+    typeof auth.hasRole === 'function'
+      ? (r: string) => auth.hasRole(r)
+      : (r: string) => currentUser?.roles?.includes(r) ?? false;
+
   const allPermissions = permission ? [permission, ...permissions] : permissions;
   const allRoles = role ? [role, ...roles] : roles;
 
-  const hasAllPermissions = allPermissions.every((p) => hasPermission(p));
-  const hasAllRoles = allRoles.every((r) => hasRole(r));
+  const hasAllPermissions = allPermissions.every((p) => checkPermission(p));
+  const hasAllRoles = allRoles.every((r) => checkRole(r));
 
   if (!hasAllPermissions || !hasAllRoles) {
-    const missingPermissions = allPermissions.filter((p) => !hasPermission(p));
-    const missingRoles = allRoles.filter((r) => !hasRole(r));
+    const missingPermissions = allPermissions.filter((p) => !checkPermission(p));
+    const missingRoles = allRoles.filter((r) => !checkRole(r));
     const missingDetails = [...missingPermissions, ...missingRoles].join(', ');
 
     return (

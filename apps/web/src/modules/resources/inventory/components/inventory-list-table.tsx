@@ -82,19 +82,27 @@ export const InventoryListTable: React.FC<InventoryListTableProps> = ({
   onActivate,
   onCreateClick,
 }) => {
-  const { currentUser } = useAuth();
+  const auth = useAuth();
+  const currentUser = auth.currentUser;
   const canWrite = Boolean(
-    currentUser?.permissions?.includes('inventory.write') ||
-    currentUser?.roles?.includes('ADMIN') ||
-    currentUser?.roles?.includes('OWNER') ||
-    currentUser?.roles?.includes('SUPER_ADMIN'),
+    (typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('inventory.write')
+      : currentUser?.permissions?.includes('inventory.write')) ||
+    (typeof auth.hasRole === 'function'
+      ? auth.hasRole('ADMIN') || auth.hasRole('OWNER') || auth.hasRole('SUPER_ADMIN')
+      : currentUser?.roles?.includes('ADMIN') ||
+        currentUser?.roles?.includes('OWNER') ||
+        currentUser?.roles?.includes('SUPER_ADMIN')),
   );
 
   const hasValuationPermission = Boolean(
-    currentUser?.permissions?.includes('valuation.read') ||
-    currentUser?.permissions?.includes('billing.read') ||
-    currentUser?.roles?.includes('SUPER_ADMIN') ||
-    currentUser?.roles?.includes('OWNER'),
+    (typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('valuation.read') || auth.hasPermission('billing.read')
+      : currentUser?.permissions?.includes('valuation.read') ||
+        currentUser?.permissions?.includes('billing.read')) ||
+    (typeof auth.hasRole === 'function'
+      ? auth.hasRole('SUPER_ADMIN') || auth.hasRole('OWNER')
+      : currentUser?.roles?.includes('SUPER_ADMIN') || currentUser?.roles?.includes('OWNER')),
   );
 
   const columns = useMemo<ColumnDef<InventoryProductVM, unknown>[]>(() => {
