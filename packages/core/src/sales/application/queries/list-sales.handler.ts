@@ -13,6 +13,8 @@ import {
 } from '../ports/sale-repository.port';
 import { InvalidSaleQueryException } from '../exceptions/invalid-sale-query.exception';
 import { isValidSaleStatus, SaleStatus } from '../../domain/enums/sale-status.enum';
+import { isValidSaleSourceType } from '../../domain/enums/sale-source-type.enum';
+import { isValidSourceType } from '../../domain/enums/source-type.enum';
 import { checkSaleAuthorization } from '../shared/sale-authorization';
 
 /**
@@ -125,9 +127,33 @@ export class ListSalesHandler implements SalesQueryHandler<
         }
       }
 
-      const sourceType = (input.filter?.sourceType ?? input.sourceType)?.trim() || undefined;
+      // Source type validation
+      const rawSourceType = input.filter?.sourceType ?? input.sourceType;
+      let sourceType: string | undefined;
+      if (
+        rawSourceType !== undefined &&
+        rawSourceType !== null &&
+        String(rawSourceType).trim() !== ''
+      ) {
+        const trimmedSourceType = String(rawSourceType).trim().toUpperCase();
+        if (!isValidSaleSourceType(trimmedSourceType) && !isValidSourceType(trimmedSourceType)) {
+          return SalesApplicationResult.fail(
+            new InvalidSaleQueryException(
+              `Invalid source type '${String(rawSourceType)}'.`,
+              'INVALID_FILTER',
+            ),
+          );
+        }
+        sourceType = trimmedSourceType;
+      }
+
       const sourceReferenceId =
         (input.filter?.sourceReferenceId ?? input.sourceReferenceId)?.trim() || undefined;
+
+      // Search text validation & normalization
+      const rawSearch = input.filter?.search ?? input.filter?.q ?? input.search ?? input.q;
+      const search =
+        typeof rawSearch === 'string' && rawSearch.trim().length > 0 ? rawSearch.trim() : undefined;
 
       // Status validation
       const rawStatus = input.filter?.status ?? input.status;
@@ -205,6 +231,7 @@ export class ListSalesHandler implements SalesQueryHandler<
         sourceReferenceId,
         fromDate,
         toDate,
+        search,
       };
 
       const pagination: FindSalesPagination = {

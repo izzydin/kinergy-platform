@@ -135,6 +135,16 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
         ...(criteria.toDate ? { lte: criteria.toDate } : {}),
       };
     }
+    if (criteria.search) {
+      const term = criteria.search.trim();
+      if (term.length > 0) {
+        where.OR = [
+          { id: term },
+          { sourceCode: { contains: term, mode: 'insensitive' } },
+          { sourceId: { contains: term, mode: 'insensitive' } },
+        ];
+      }
+    }
 
     const direction: 'asc' | 'desc' = sort.direction === 'asc' ? 'asc' : 'desc';
     let orderBy: Prisma.SaleOrderByWithRelationInput[];

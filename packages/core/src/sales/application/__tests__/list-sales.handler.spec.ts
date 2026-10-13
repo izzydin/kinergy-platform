@@ -10,8 +10,10 @@ import {
 import { Sale } from '../../domain/sale.aggregate';
 import { SaleId } from '../../domain/value-objects/sale-id.vo';
 import { SaleSource } from '../../domain/value-objects/sale-source.vo';
+import { SourceReference } from '../../domain/value-objects/source-reference.vo';
 import { Money } from '../../domain/value-objects/money.vo';
 import { SaleSourceType } from '../../domain/enums/sale-source-type.enum';
+import { SourceType } from '../../domain/enums/source-type.enum';
 import { SaleStatus } from '../../domain/enums/sale-status.enum';
 import { DeterministicClock } from '../../domain/shared/clock';
 import { SaleMapper } from '../mappers/sale.mapper';
@@ -75,6 +77,17 @@ class InMemorySaleRepository implements SaleRepositoryPort {
     if (criteria.toDate) {
       summaries = summaries.filter((s) => new Date(s.createdAt) <= criteria.toDate!);
     }
+    if (criteria.search) {
+      const term = criteria.search.trim().toLowerCase();
+      if (term.length > 0) {
+        summaries = summaries.filter((s) => {
+          const matchId = s.id.toLowerCase().includes(term);
+          const matchCode = s.source?.sourceCode?.toLowerCase().includes(term);
+          const matchSourceId = s.source?.sourceId?.toLowerCase().includes(term);
+          return Boolean(matchId || matchCode || matchSourceId);
+        });
+      }
+    }
 
     // Apply sorting with deterministic tie-breaker (id asc)
     summaries.sort((a, b) => {
@@ -136,16 +149,23 @@ describe('ListSalesHandler Specification (Milestone 7.11 & ADR-0132 Section 4.7)
     clientId?: string;
     sourceType?: SaleSourceType | string;
     sourceId?: string;
+    sourceCode?: string;
     unitPrice?: number;
     quantity?: number;
     status?: SaleStatus;
     timestamp?: Date;
   }): Sale => {
     const clock = new DeterministicClock(props.timestamp ?? new Date('2026-10-01T10:00:00.000Z'));
-    const source = SaleSource.create(
-      (props.sourceType as SaleSourceType) ?? SaleSourceType.FOOD,
-      props.sourceId ?? `item_${props.id}`,
-    );
+    const source = props.sourceCode
+      ? SourceReference.create({
+          sourceType: (props.sourceType as SourceType) ?? SourceType.INVENTORY_ITEM,
+          sourceId: props.sourceId ?? `item_${props.id}`,
+          sourceCode: props.sourceCode,
+        })
+      : SaleSource.create(
+          (props.sourceType as SaleSourceType) ?? SaleSourceType.FOOD,
+          props.sourceId ?? `item_${props.id}`,
+        );
 
     const sale = Sale.create(
       {
@@ -474,6 +494,61 @@ describe('ListSalesHandler Specification (Milestone 7.11 & ADR-0132 Section 4.7)
       expect(result.isSuccess).toBe(true);
       expect(result.getValue().total).toBe(1);
       expect(result.getValue().items[0]!.tenantId).toBe('tenant_A');
+    });
+
+    it('rejects invalid sourceType filter value', async () => {
+      const result = await handler.execute(
+        new ListSalesQuery({
+          sourceType: 'INVALID_SOURCE_CATEGORY',
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(getErrorMessage(result)).toContain('Invalid source type');
+      expect(result.getError()).toBeInstanceOf(InvalidSaleQueryException);
+    });
+
+    it('filters sales by search text matching id, sourceCode, or sourceId', async () => {
+      await saleRepo.save(
+        createSaleWithProps({ id: 'sale_match_id', sourceId: 'order_1', sourceCode: 'CODE_A' }),
+      );
+      await saleRepo.save(
+        createSaleWithProps({
+          id: 'sale_other',
+          sourceId: 'order_match_source',
+          sourceCode: 'CODE_B',
+        }),
+      );
+      await saleRepo.save(
+        createSaleWithProps({ id: 'sale_diff', sourceId: 'order_3', sourceCode: 'REGISTER_MATCH' }),
+      );
+
+      // Match by ID
+      const resId = await handler.execute(new ListSalesQuery({ search: 'match_id' }));
+      expect(resId.isSuccess).toBe(true);
+      expect(resId.getValue().total).toBe(1);
+      expect(resId.getValue().items[0]!.id).toBe('sale_match_id');
+
+      // Match by sourceCode
+      const resCode = await handler.execute(new ListSalesQuery({ search: 'REGISTER' }));
+      expect(resCode.isSuccess).toBe(true);
+      expect(resCode.getValue().total).toBe(1);
+      expect(resCode.getValue().items[0]!.id).toBe('sale_diff');
+
+      // Match by sourceId
+      const resSource = await handler.execute(new ListSalesQuery({ search: 'match_source' }));
+      expect(resSource.isSuccess).toBe(true);
+      expect(resSource.getValue().total).toBe(1);
+      expect(resSource.getValue().items[0]!.id).toBe('sale_other');
+    });
+
+    it('ignores empty and whitespace-only search string without filtering out records', async () => {
+      await saleRepo.save(createSaleWithProps({ id: 'sale_all_1' }));
+      await saleRepo.save(createSaleWithProps({ id: 'sale_all_2' }));
+
+      const resEmpty = await handler.execute(new ListSalesQuery({ search: '   ' }));
+      expect(resEmpty.isSuccess).toBe(true);
+      expect(resEmpty.getValue().total).toBe(2);
     });
   });
 

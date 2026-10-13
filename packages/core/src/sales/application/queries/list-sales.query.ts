@@ -8,6 +8,8 @@ export interface ListSalesFilter {
   readonly sourceReferenceId?: string;
   readonly fromDate?: Date | string;
   readonly toDate?: Date | string;
+  readonly search?: string;
+  readonly q?: string;
 }
 
 export interface ListSalesPagination {
@@ -39,6 +41,8 @@ export interface ListSalesInput {
   readonly sourceReferenceId?: string;
   readonly fromDate?: Date | string;
   readonly toDate?: Date | string;
+  readonly search?: string;
+  readonly q?: string;
   readonly page?: number;
   readonly limit?: number;
   readonly pageSize?: number;

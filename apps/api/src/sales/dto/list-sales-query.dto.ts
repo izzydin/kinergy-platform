@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsOptional, IsString, Max, Min, MaxLength } from 'class-validator';
 
 export class ListSalesQueryDto {
   @ApiPropertyOptional({
@@ -32,6 +32,7 @@ export class ListSalesQueryDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   q?: string;
 
   @ApiPropertyOptional({
@@ -40,6 +41,7 @@ export class ListSalesQueryDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   search?: string;
 
   @ApiPropertyOptional({
@@ -48,6 +50,7 @@ export class ListSalesQueryDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   clientId?: string;
 
   @ApiPropertyOptional({
@@ -57,6 +60,7 @@ export class ListSalesQueryDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   status?: string;
 
   @ApiPropertyOptional({
@@ -66,6 +70,7 @@ export class ListSalesQueryDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   sourceType?: string;
 
   @ApiPropertyOptional({
@@ -74,6 +79,7 @@ export class ListSalesQueryDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(255)
   sourceReferenceId?: string;
 
   @ApiPropertyOptional({
@@ -82,6 +88,7 @@ export class ListSalesQueryDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   fromDate?: string;
 
   @ApiPropertyOptional({
@@ -90,6 +97,7 @@ export class ListSalesQueryDto {
   })
   @IsOptional()
   @IsString()
+  @MaxLength(50)
   toDate?: string;
 
   @ApiPropertyOptional({

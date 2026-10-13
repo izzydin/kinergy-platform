@@ -16,6 +16,7 @@ export interface FindSalesCriteria {
   readonly sourceReferenceId?: string;
   readonly fromDate?: Date;
   readonly toDate?: Date;
+  readonly search?: string;
 }
 
 export type SaleSortField = 'createdAt' | 'total' | 'status';

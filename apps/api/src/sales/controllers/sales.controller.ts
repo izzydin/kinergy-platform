@@ -50,6 +50,7 @@ import {
   AssignSaleSourceCommand,
   SalesApplicationResult,
   DuplicateSaleException,
+  InvalidSaleQueryException,
   SaleTotalsDTO,
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
@@ -330,6 +331,7 @@ export class SalesController {
     let toDate: string | undefined;
     let sortField: string | undefined;
     let sortDirection: string | undefined;
+    let search: string | undefined;
     let effectiveUser = user;
 
     if (queryOrPage && typeof queryOrPage === 'object') {
@@ -342,6 +344,7 @@ export class SalesController {
       sourceReferenceId = dto.sourceReferenceId;
       fromDate = dto.fromDate;
       toDate = dto.toDate;
+      search = dto.q ?? dto.search;
       sortField = dto.sortField;
       sortDirection = dto.sortDirection;
 
@@ -399,6 +402,7 @@ export class SalesController {
       sourceReferenceId,
       fromDate,
       toDate,
+      search,
       sortField,
       sortDirection,
       currentUser: this.mapCurrentUser(effectiveUser),
@@ -856,6 +860,12 @@ export class SalesController {
       if (error instanceof Error) {
         if (error instanceof DuplicateSaleException || error.name === 'DuplicateSaleException') {
           throw new ConflictException(error.message);
+        }
+        if (
+          error instanceof InvalidSaleQueryException ||
+          error.name === 'InvalidSaleQueryException'
+        ) {
+          throw new BadRequestException(error.message);
         }
         if (error.message.includes('not found') || error.message.includes('was not found')) {
           throw new NotFoundException(error.message);
