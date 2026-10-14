@@ -14,7 +14,14 @@ import {
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   PaymentRepositoryPort,
   SaleRepositoryPort,
@@ -32,7 +39,6 @@ import {
   ListPaymentsHandler,
   CreatePaymentCommand,
   GetPaymentByIdQuery,
-  GetPaymentsBySaleIdQuery,
   GetSalePaymentHistoryQuery,
   CompletePaymentCommand,
   SettlePaymentCommand,
@@ -70,7 +76,6 @@ export { PAYMENT_REPOSITORY_TOKEN };
 export class PaymentsController {
   private readonly _createPaymentHandler: CreatePaymentHandler;
   private readonly _getPaymentByIdHandler: GetPaymentByIdHandler;
-  private readonly _getPaymentsBySaleIdHandler: GetPaymentsBySaleIdHandler;
   private readonly _getSalePaymentHistoryHandler: GetSalePaymentHistoryHandler;
   private readonly _completePaymentHandler: CompletePaymentHandler;
   private readonly _settlePaymentHandler: SettlePaymentHandler;
@@ -125,11 +130,12 @@ export class PaymentsController {
       getPaymentByIdHandler ??
       getPaymentHandler ??
       new GetPaymentByIdHandler(paymentRepository, saleRepository);
-    this._getPaymentsBySaleIdHandler =
-      getPaymentsBySaleIdHandler ??
-      new GetPaymentsBySaleIdHandler(paymentRepository, saleRepository);
     this._getSalePaymentHistoryHandler =
       getSalePaymentHistoryHandler ??
+      (getPaymentsBySaleIdHandler &&
+      !(getPaymentsBySaleIdHandler instanceof GetPaymentsBySaleIdHandler)
+        ? (getPaymentsBySaleIdHandler as unknown as GetSalePaymentHistoryHandler)
+        : undefined) ??
       new GetSalePaymentHistoryHandler(paymentRepository, saleRepository);
     this._completePaymentHandler =
       completePaymentHandler ??
@@ -225,7 +231,7 @@ export class PaymentsController {
     return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
-  @Get('sales/:saleId/payments')
+  @Get(['sales/:saleId/payments', 'sales/:saleId/payments/history'])
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
   @Permissions('payments.read')
@@ -235,33 +241,103 @@ export class PaymentsController {
       'Retrieves the chronological payment history for a given sale, allowing inspection of split tenders, partial payments, and settlements.',
   })
   @ApiParam({ name: 'saleId', description: 'Sale UUID identifier' })
+  @ApiQuery({
+    name: 'sortDirection',
+    required: false,
+    enum: ['asc', 'desc'],
+    description: 'Chronological ordering direction (default: asc)',
+  })
   @ApiResponse({
     status: HttpStatus.OK,
     type: [PaymentResponseDto],
     description: 'List of payment records for the requested sale',
   })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Sale ID cannot be empty or whitespace',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Target sale does not exist within the caller tenant scope',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Caller lacks required payments.read permission or cross-tenant access attempted',
+  })
   public async getPaymentsBySaleId(
     @Param('saleId') saleId: string,
-    @CurrentUser() user?: AuthenticatedUserPayload,
+    @CurrentUser() userOrSort?: AuthenticatedUserPayload | 'asc' | 'desc',
+    @Query('sortDirection') querySort?: 'asc' | 'desc' | AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto[]> {
-    if (!saleId || !saleId.trim()) {
+    let user: AuthenticatedUserPayload | undefined;
+    let sortDirection: 'asc' | 'desc' | undefined;
+
+    if (userOrSort && typeof userOrSort === 'object') {
+      user = userOrSort as AuthenticatedUserPayload;
+      if (typeof querySort === 'string') {
+        sortDirection = querySort.toLowerCase() as 'asc' | 'desc';
+      }
+    } else if (typeof userOrSort === 'string') {
+      sortDirection = userOrSort.toLowerCase() as 'asc' | 'desc';
+      if (querySort && typeof querySort === 'object') {
+        user = querySort as AuthenticatedUserPayload;
+      }
+    } else if (querySort && typeof querySort === 'object') {
+      user = querySort as AuthenticatedUserPayload;
+    } else if (typeof querySort === 'string') {
+      sortDirection = querySort.toLowerCase() as 'asc' | 'desc';
+    }
+
+    const cleanSaleId = saleId?.trim();
+    if (!cleanSaleId) {
       throw new BadRequestException('Sale ID cannot be empty or whitespace.');
     }
-    const query = new GetPaymentsBySaleIdQuery({
-      saleId: saleId.trim(),
-      tenantId: user?.tenantId ?? undefined,
-      currentUser: user
-        ? {
-            id: user.id,
-            tenantId: user.tenantId ?? undefined,
-            roles: user.roles,
-            permissions: user.permissions,
-          }
-        : undefined,
-    });
 
-    const result = await this._getPaymentsBySaleIdHandler.execute(query);
-    return this.handleResult(result) as unknown as PaymentResponseDto[];
+    const userContext = user
+      ? new AuthenticatedUserContext({
+          userId: user.id,
+          email: user.email,
+          status: user.status ?? 'ACTIVE',
+          roles: user.roles ?? [],
+          permissions: user.permissions ?? [],
+          tenantId: user.tenantId ?? null,
+        })
+      : null;
+
+    const executeAction = async (): Promise<PaymentResponseDto[]> => {
+      const query = new GetSalePaymentHistoryQuery({
+        saleId: cleanSaleId,
+        sortDirection,
+        order: sortDirection,
+        tenantId: user?.tenantId ?? undefined,
+        currentUser: user
+          ? {
+              id: user.id,
+              userId: user.id,
+              tenantId: user.tenantId ?? undefined,
+              roles: user.roles,
+              permissions: user.permissions,
+            }
+          : undefined,
+      });
+
+      const result = await this._getSalePaymentHistoryHandler.execute(query);
+      const payments = this.handleResult(result);
+      return payments.map((p) => ({
+        id: p.id,
+        saleId: p.saleId,
+        method: p.method,
+        amount: p.amount,
+        amountValue: p.amountValue,
+        status: p.status,
+        reference: p.reference ?? null,
+        paidAt: p.paidAt ?? null,
+        createdAt: p.createdAt,
+        version: p.version,
+      }));
+    };
+
+    return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
   @Get(['payments/:id', 'payments/:paymentId'])
