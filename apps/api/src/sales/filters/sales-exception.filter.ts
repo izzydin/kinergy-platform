@@ -38,6 +38,8 @@ import {
   PaymentDomainException,
   ReceiptDomainException,
   ReceiptIssuanceRejectedException,
+  PaymentSaleConsistencyException,
+  PaymentSaleMismatchException,
 } from '@kinergy-platform/core';
 import {
   AccountDisabledException,
@@ -269,7 +271,9 @@ export class SalesExceptionFilter implements ExceptionFilter {
       exception instanceof InvalidPaymentStatusException ||
       exception instanceof PaymentDomainException ||
       exception instanceof ReceiptDomainException ||
-      exception instanceof SaleDomainException
+      exception instanceof SaleDomainException ||
+      exception instanceof PaymentSaleConsistencyException ||
+      exception instanceof PaymentSaleMismatchException
     ) {
       const code =
         'code' in exception && typeof (exception as { code: unknown }).code === 'string'

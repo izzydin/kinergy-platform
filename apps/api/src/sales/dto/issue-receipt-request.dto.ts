@@ -1,5 +1,5 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength } from 'class-validator';
 
 /**
  * Request payload for issuing a customer receipt voucher.
@@ -36,12 +36,13 @@ export class IssueReceiptRequestDto {
  * Request payload when issuing a receipt directly via POST /receipts with saleId in body.
  */
 export class IssueReceiptDirectRequestDto extends IssueReceiptRequestDto {
-  @ApiPropertyOptional({
-    description: 'Target Sale identifier (UUID v4). Required when calling POST /receipts directly.',
+  @ApiProperty({
+    description: 'Target Sale identifier. Required when calling POST /receipts directly.',
     example: 'f5e4d3c2-b1a0-9f8e-7d6c-5b4a3f2e1d0c',
     type: String,
   })
-  @IsOptional()
-  @IsUUID('4', { message: 'saleId must be a valid UUID v4' })
-  saleId?: string;
+  @IsNotEmpty({ message: 'saleId is required.' })
+  @IsString({ message: 'saleId must be a string.' })
+  @Matches(/\S/, { message: 'saleId cannot be empty or whitespace.' })
+  saleId!: string;
 }

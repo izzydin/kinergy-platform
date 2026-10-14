@@ -163,6 +163,9 @@ export class PaymentsController {
     @Body() dto: RecordPaymentRequestDto,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto> {
+    if (!saleId || !saleId.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
     const userContext = user
       ? new AuthenticatedUserContext({
           userId: user.id,
@@ -176,7 +179,7 @@ export class PaymentsController {
 
     const executeAction = async (): Promise<PaymentResponseDto> => {
       const command = new RecordPaymentCommand({
-        saleId,
+        saleId: saleId.trim(),
         amount: dto.amount,
         currency: dto.currency,
         method: dto.method,
@@ -219,8 +222,11 @@ export class PaymentsController {
     @Param('saleId') saleId: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto[]> {
+    if (!saleId || !saleId.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
     const query = new GetPaymentsBySaleIdQuery({
-      saleId,
+      saleId: saleId.trim(),
       tenantId: user?.tenantId ?? undefined,
       currentUser: user
         ? {
@@ -259,8 +265,11 @@ export class PaymentsController {
     @Param('paymentId') paymentId: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto> {
+    if (!paymentId || !paymentId.trim()) {
+      throw new BadRequestException('Payment ID cannot be empty or whitespace.');
+    }
     const query = new GetPaymentByIdQuery({
-      paymentId,
+      paymentId: paymentId.trim(),
       tenantId: user?.tenantId ?? undefined,
       currentUser: user
         ? {
@@ -356,8 +365,11 @@ export class PaymentsController {
     @Param('saleId') saleId: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto[]> {
+    if (!saleId || !saleId.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
     const query = new GetSalePaymentHistoryQuery({
-      saleId,
+      saleId: saleId.trim(),
       tenantId: user?.tenantId ?? undefined,
       currentUser: user
         ? {
@@ -426,6 +438,9 @@ export class PaymentsController {
     @Param('saleId') paramSaleId?: string,
     @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Payment ID cannot be empty or whitespace.');
+    }
     const effectiveSaleId = paramSaleId ?? querySaleId;
     const userContext = user
       ? new AuthenticatedUserContext({
@@ -440,7 +455,7 @@ export class PaymentsController {
 
     const executeAction = async (): Promise<PaymentResponseDto> => {
       const command = new CompletePaymentCommand({
-        paymentId: id,
+        paymentId: id.trim(),
         saleId: effectiveSaleId,
         reference: dto?.reference,
         tenantId: user?.tenantId ?? undefined,
@@ -511,6 +526,9 @@ export class PaymentsController {
     @Param('saleId') paramSaleId?: string,
     @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Payment ID cannot be empty or whitespace.');
+    }
     const effectiveSaleId = paramSaleId ?? querySaleId;
     const userContext = user
       ? new AuthenticatedUserContext({
@@ -525,7 +543,7 @@ export class PaymentsController {
 
     const executeAction = async (): Promise<PaymentResponseDto> => {
       const command = new SettlePaymentCommand({
-        paymentId: id,
+        paymentId: id.trim(),
         saleId: effectiveSaleId,
         reference: dto?.reference,
         tenantId: user?.tenantId ?? undefined,
@@ -596,6 +614,9 @@ export class PaymentsController {
     @Param('saleId') paramSaleId?: string,
     @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Payment ID cannot be empty or whitespace.');
+    }
     const effectiveSaleId = paramSaleId ?? querySaleId;
     const userContext = user
       ? new AuthenticatedUserContext({
@@ -610,7 +631,7 @@ export class PaymentsController {
 
     const executeAction = async (): Promise<PaymentResponseDto> => {
       const command = new FailPaymentCommand({
-        paymentId: id,
+        paymentId: id.trim(),
         saleId: effectiveSaleId,
         reason: dto?.reason,
         tenantId: user?.tenantId ?? undefined,
@@ -681,6 +702,9 @@ export class PaymentsController {
     @Param('saleId') paramSaleId?: string,
     @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Payment ID cannot be empty or whitespace.');
+    }
     const effectiveSaleId = paramSaleId ?? querySaleId;
     const userContext = user
       ? new AuthenticatedUserContext({
@@ -695,7 +719,7 @@ export class PaymentsController {
 
     const executeAction = async (): Promise<PaymentResponseDto> => {
       const command = new CancelPaymentCommand({
-        paymentId: id,
+        paymentId: id.trim(),
         saleId: effectiveSaleId,
         reason: dto?.reason,
         tenantId: user?.tenantId ?? undefined,

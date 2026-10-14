@@ -417,6 +417,14 @@ export class SalesController {
       sortDirection = sortDirectionArg;
     }
 
+    if (fromDate && toDate) {
+      const from = new Date(fromDate);
+      const to = new Date(toDate);
+      if (!isNaN(from.getTime()) && !isNaN(to.getTime()) && from > to) {
+        throw new BadRequestException(`fromDate (${fromDate}) cannot be after toDate (${toDate}).`);
+      }
+    }
+
     if (!effectiveUser) {
       const positionalArgs = [
         limitArg,
@@ -487,8 +495,11 @@ export class SalesController {
     @Param('id') id: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
     const query = new GetSaleByIdQuery({
-      saleId: id,
+      saleId: id.trim(),
       tenantId: user?.tenantId ?? undefined,
       currentUser: this.mapCurrentUser(user),
     });
@@ -518,12 +529,15 @@ export class SalesController {
     @Param('id') id: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleTotalsDTO> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
     if (!this._calculateSaleHandler) {
       throw new BadRequestException('Calculate sale handler is unavailable.');
     }
 
     const query = new CalculateSaleQuery({
-      saleId: id,
+      saleId: id.trim(),
       tenantId: user?.tenantId ?? undefined,
       currentUser: this.mapCurrentUser(user),
     });
@@ -559,6 +573,9 @@ export class SalesController {
     @Body() dto: AssignSaleSourceRequestDto,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
     const incomingSource = dto.sourceReference ?? dto.source;
     const normalized = normalizeSource(incomingSource);
     if (!normalized) {
@@ -566,7 +583,7 @@ export class SalesController {
     }
 
     const command = new AssignSaleSourceCommand({
-      saleId: id,
+      saleId: id.trim(),
       source: normalized,
       tenantId: user?.tenantId ?? undefined,
       currentUser: this.mapCurrentUser(user),
@@ -768,8 +785,11 @@ export class SalesController {
     @Param('id') id: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
     const command = new RemoveOrderDiscountCommand({
-      saleId: id,
+      saleId: id.trim(),
       tenantId: user?.tenantId ?? undefined,
       currentUser: this.mapCurrentUser(user),
     });
@@ -802,8 +822,11 @@ export class SalesController {
     @Body() _dto: FinalizeSaleRequestDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
     const command = new FinalizeSaleCommand({
-      saleId: id,
+      saleId: id.trim(),
       tenantId: user?.tenantId ?? undefined,
       currentUser: this.mapCurrentUser(user),
     });
@@ -891,13 +914,19 @@ export class SalesController {
     @Body() dto: CoordinateSalePaymentRequestDto,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<SaleResponseDto> {
+    if (!id || !id.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
+    if (!dto?.paymentId || !dto.paymentId.trim()) {
+      throw new BadRequestException('Payment ID cannot be empty or whitespace.');
+    }
     if (!this._coordinateSalePaymentHandler) {
       throw new BadRequestException('Payment coordination service is unavailable.');
     }
 
     const command = new CoordinateSalePaymentCommand({
-      saleId: id,
-      paymentId: dto.paymentId,
+      saleId: id.trim(),
+      paymentId: dto.paymentId.trim(),
       tenantId: user?.tenantId ?? undefined,
       currentUser: this.mapCurrentUser(user),
     });

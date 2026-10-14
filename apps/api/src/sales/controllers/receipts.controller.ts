@@ -110,6 +110,9 @@ export class ReceiptsController {
     @Body() dto?: IssueReceiptRequestDto,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<ReceiptResponseDto> {
+    if (!saleId || !saleId.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
     const userContext = user
       ? new AuthenticatedUserContext({
           userId: user.id,
@@ -123,7 +126,7 @@ export class ReceiptsController {
 
     const executeAction = async (): Promise<ReceiptResponseDto> => {
       const command = new IssueReceiptCommand({
-        saleId,
+        saleId: saleId.trim(),
         receiptId: dto?.receiptId,
         saleReference: dto?.saleReference,
         tenantId: user?.tenantId ?? undefined,
@@ -200,6 +203,9 @@ export class ReceiptsController {
     @Param('saleId') saleId: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<ReceiptResponseDto> {
+    if (!saleId || !saleId.trim()) {
+      throw new BadRequestException('Sale ID cannot be empty or whitespace.');
+    }
     const userContext = user
       ? new AuthenticatedUserContext({
           userId: user.id,
@@ -213,7 +219,7 @@ export class ReceiptsController {
 
     const executeAction = async (): Promise<ReceiptResponseDto> => {
       const query = new GetReceiptBySaleQuery({
-        saleId,
+        saleId: saleId.trim(),
         tenantId: user?.tenantId ?? undefined,
         currentUser: this.mapCurrentUser(user),
       });

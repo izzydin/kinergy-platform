@@ -41,7 +41,10 @@ export class AddSaleItemRequestDto {
     description: 'Quantity purchased (up to 3 decimal places, min: 0.001, max: 999999)',
     example: 1.25,
   })
-  @IsNumber({}, { message: 'quantity must be a valid number.' })
+  @IsNumber(
+    { maxDecimalPlaces: 3 },
+    { message: 'quantity must be a valid number with at most 3 decimal places.' },
+  )
   @Min(0.001, { message: 'quantity must be at least 0.001.' })
   @Max(999999, { message: 'quantity cannot exceed 999999.' })
   @Type(() => Number)
@@ -52,7 +55,10 @@ export class AddSaleItemRequestDto {
       'Agreed gross unit price in major currency units. Scale: 2 decimal places, non-negative.',
     example: 24.5,
   })
-  @IsNumber({}, { message: 'unitPriceAmount must be a valid number.' })
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'unitPriceAmount must be a valid number with at most 2 decimal places.' },
+  )
   @Min(0, { message: 'unitPriceAmount cannot be negative.' })
   @Type(() => Number)
   unitPriceAmount!: number;

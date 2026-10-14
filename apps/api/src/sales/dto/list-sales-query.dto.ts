@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsIn, IsInt, IsOptional, IsString, Max, Min, MaxLength } from 'class-validator';
+import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Max, Min, MaxLength } from 'class-validator';
 
 export class ListSalesQueryDto {
   @ApiPropertyOptional({
@@ -97,7 +97,7 @@ export class ListSalesQueryDto {
     example: '2026-10-01T00:00:00.000Z',
   })
   @IsOptional()
-  @IsString()
+  @IsISO8601({}, { message: 'fromDate must be a valid ISO-8601 date string.' })
   @MaxLength(50)
   fromDate?: string;
 
@@ -106,7 +106,7 @@ export class ListSalesQueryDto {
     example: '2026-10-31T23:59:59.999Z',
   })
   @IsOptional()
-  @IsString()
+  @IsISO8601({}, { message: 'toDate must be a valid ISO-8601 date string.' })
   @MaxLength(50)
   toDate?: string;
 
