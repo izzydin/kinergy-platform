@@ -30,7 +30,7 @@ import {
   FailPaymentHandler,
   CancelPaymentHandler,
   ListPaymentsHandler,
-  RecordPaymentCommand,
+  CreatePaymentCommand,
   GetPaymentByIdQuery,
   GetPaymentsBySaleIdQuery,
   GetSalePaymentHistoryQuery,
@@ -68,7 +68,7 @@ export { PAYMENT_REPOSITORY_TOKEN };
 @UseFilters(SalesExceptionFilter)
 @Controller('api/v1')
 export class PaymentsController {
-  private readonly _recordPaymentHandler: RecordPaymentHandler;
+  private readonly _createPaymentHandler: CreatePaymentHandler;
   private readonly _getPaymentByIdHandler: GetPaymentByIdHandler;
   private readonly _getPaymentsBySaleIdHandler: GetPaymentsBySaleIdHandler;
   private readonly _getSalePaymentHistoryHandler: GetSalePaymentHistoryHandler;
@@ -117,10 +117,10 @@ export class PaymentsController {
     @Inject(GetPaymentHandler)
     getPaymentHandler?: GetPaymentHandler,
   ) {
-    this._recordPaymentHandler =
-      recordPaymentHandler ??
+    this._createPaymentHandler =
       createPaymentHandler ??
-      new RecordPaymentHandler(paymentRepository, saleRepository);
+      recordPaymentHandler ??
+      new CreatePaymentHandler(paymentRepository, saleRepository);
     this._getPaymentByIdHandler =
       getPaymentByIdHandler ??
       getPaymentHandler ??
@@ -194,12 +194,17 @@ export class PaymentsController {
       : null;
 
     const executeAction = async (): Promise<PaymentResponseDto> => {
-      const command = new RecordPaymentCommand({
+      const command = new CreatePaymentCommand({
         saleId,
         amount: dto.amount,
         currency: dto.currency,
         method: dto.method,
-        status: dto.status === PaymentStatus.PENDING ? PaymentStatus.PENDING : undefined,
+        status:
+          dto.status === PaymentStatus.PENDING
+            ? PaymentStatus.PENDING
+            : dto.status === PaymentStatus.COMPLETED
+              ? PaymentStatus.COMPLETED
+              : undefined,
         reference: dto.reference,
         tenantId: user?.tenantId ?? undefined,
         currentUser: user
@@ -213,7 +218,7 @@ export class PaymentsController {
           : undefined,
       });
 
-      const result = await this._recordPaymentHandler.execute(command);
+      const result = await this._createPaymentHandler.execute(command);
       return this.handleResult(result) as unknown as PaymentResponseDto;
     };
 
