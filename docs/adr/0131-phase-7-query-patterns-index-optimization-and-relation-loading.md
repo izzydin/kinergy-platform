@@ -123,29 +123,31 @@ List queries (cashier dashboard, manager order list, accounting feeds) must **NE
     },
   });
   ```
-- **Prescribed**: Explicit field projection with `select`:
+- **Prescribed**: Explicit field projection with scalar columns and subquery count aggregation (`_count: { select: { items: true } }`):
   ```typescript
-  // APPROVED: Lean list query
-  const sales = await prisma.sale.findMany({
-    where: {
-      tenantId,
-      ...(status ? { status } : {}),
-    },
-    select: {
-      id: true,
-      tenantId: true,
-      clientId: true,
-      status: true,
-      totalAmount: true,
-      currency: true,
-      sourceType: true,
-      sourceCode: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: 'desc' },
-    take: limit,
-    skip: offset,
-  });
+  // APPROVED: Lean list query with deterministic tie-breaking and subquery count
+  const [records, total] = await Promise.all([
+    this.client.sale.findMany({
+      where,
+      orderBy: [
+        sort.field === 'total'
+          ? { totalAmount: sort.direction }
+          : sort.field === 'status'
+            ? { status: sort.direction }
+            : { createdAt: sort.direction },
+        { id: 'asc' }, // Deterministic secondary tie-breaker
+      ],
+      skip,
+      take: limit,
+      ...(cursor ? { cursor } : {}),
+      include: {
+        _count: {
+          select: { items: true },
+        },
+      },
+    }),
+    this.client.sale.count({ where }),
+  ]);
   ```
 
 ### 4.4 Self-Contained Document Model (`Receipts by Sale`)
@@ -179,7 +181,15 @@ This guarantees that rendering receipt vouchers produces **zero load** on active
    - Proves `Receipt @@index([status])` is removed from schema.
    - Validates relation-loading isolation (`items` included in `Sale.findById`; `payments` and `receipts` isolated).
    - Validates scalar projection on sale list queries.
-2. **Repository Test Execution**: 15 tests passed with zero regressions.
+2. **Sales Query & Persistence Hardening Integration Test Suite**:
+   [`prisma-sale-repository-query-persistence.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/prisma-sale-repository-query-persistence.spec.ts)
+   - Verifies every individual filter predicate (`tenantId`, `clientId`, `status`, `sourceType`, `sourceReferenceId`, `fromDate`, `toDate`, `search`).
+   - Verifies combined multi-predicate filtering and date-boundary handling.
+   - Verifies sorting directions and deterministic secondary tie-breaker (`id asc`).
+   - Verifies offset-based and cursor-based pagination mechanics.
+   - Verifies `Sale` aggregate reconstruction and full preservation of ISO-4217 currencies and integer-minor-unit monetary precision.
+   - Verifies cross-Sale item association isolation and transactional boundary rollback.
+3. **Repository Test Execution**: 31 tests passed in query persistence suite with zero regressions.
 
 ---
 

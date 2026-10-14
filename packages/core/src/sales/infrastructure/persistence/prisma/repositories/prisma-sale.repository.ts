@@ -1,13 +1,13 @@
 import { PrismaClient, Prisma, SaleStatus as PrismaSaleStatus } from '@prisma/client';
 import { Sale } from '../../../../domain/sale.aggregate';
 import { SaleId } from '../../../../domain/value-objects/sale-id.vo';
-import { Money } from '../../../../domain/value-objects/money.vo';
 import { SourceType } from '../../../../domain/enums/source-type.enum';
 import { SaleSourceType } from '../../../../domain/enums/sale-source-type.enum';
 import { SaleOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
 import { InvalidSaleStateException } from '../../../../domain/exceptions/invalid-sale-state.exception';
 import { DuplicateSaleException } from '../../../../domain/exceptions/duplicate-sale.exception';
 import { PrismaSaleMapper } from '../mappers/prisma-sale.mapper';
+import { PrismaMoneyMapper } from '../mappers/prisma-money.mapper';
 import { PrismaDatabaseErrorMapper } from '../mappers/prisma-database-error.mapper';
 
 import {
@@ -140,7 +140,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
       const term = criteria.search.trim();
       if (term.length > 0) {
         where.OR = [
-          { id: term },
+          { id: { contains: term, mode: 'insensitive' } },
           { sourceCode: { contains: term, mode: 'insensitive' } },
           { sourceId: { contains: term, mode: 'insensitive' } },
         ];
@@ -181,13 +181,13 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
 
     const items: SaleSummaryDTO[] = records.map((record) => {
       const currency = record.currency;
-      const subtotalDto = MoneyMapper.toDTO(
-        Money.create(record.subtotalAmount.toString(), currency),
-      );
-      const discountTotalDto = MoneyMapper.toDTO(
-        Money.create(record.discountTotalAmount.toString(), currency),
-      );
-      const totalDto = MoneyMapper.toDTO(Money.create(record.totalAmount.toString(), currency));
+      const subtotalMoney = PrismaMoneyMapper.toMoney(record.subtotalAmount, currency);
+      const discountTotalMoney = PrismaMoneyMapper.toMoney(record.discountTotalAmount, currency);
+      const totalMoney = PrismaMoneyMapper.toMoney(record.totalAmount, currency);
+
+      const subtotalDto = MoneyMapper.toDTO(subtotalMoney);
+      const discountTotalDto = MoneyMapper.toDTO(discountTotalMoney);
+      const totalDto = MoneyMapper.toDTO(totalMoney);
 
       return {
         id: record.id,
