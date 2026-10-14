@@ -210,34 +210,81 @@ When provided:
 | `POST`      | `/users/:id/deactivate` | `AuthenticationGuard`, `AuthorizationGuard` | `users.delete`      | **Deactivate User Account**: Executes state transition to `DEACTIVATED` status, invalidating all refresh tokens.                                  | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                       |
 | `DELETE`    | `/users/:id`            | `AuthenticationGuard`, `AuthorizationGuard` | `users.delete`      | **Soft Delete User**: Soft deletes user record (`status = DELETED`, sets `deletedAt`), invalidating token version.                                | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                       |
 
-### 3.4 Sales & Payments Module (`/api/v1/sales`)
+### 3.4 Sales & Commercial Operations Module (`/api/v1/sales`)
 
-The Sales API provides deterministic point-of-sale checkout sessions, item snapshots, item-level discounts, authoritative totals calculation, and finalized commercial totals. All monetary values are serialized according to the **Milestone 7.4 Monetary Policy** ([ADR-0114](file:///c:/Projects/kinergy-platform/docs/adr/0114-canonical-monetary-policy-and-sale-totals.md)) and the **Milestone 7.14 HTTP Contract** ([ADR-0136](file:///c:/Projects/kinergy-platform/docs/adr/0136-sales-api-architecture-and-contracts.md)), guaranteeing zero floating-point drift.
+The Sales API provides deterministic point-of-sale checkout sessions, item snapshots, item-level discounts, order-level discounts, authoritative totals calculation, and commercial lifecycle management. All monetary amounts are computed and serialized according to the **Milestone 7.4 Canonical Monetary Policy** ([ADR-0114](file:///c:/Projects/kinergy-platform/docs/adr/0114-canonical-monetary-policy-and-sale-totals.md)) and the **Milestone 7.14 HTTP Contract** ([ADR-0136](file:///c:/Projects/kinergy-platform/docs/adr/0136-sales-api-architecture-and-contracts.md)), eliminating floating-point drift by performing all arithmetic operations in integer cents (half-up rounding to 2 decimal places).
 
-| HTTP Method | Route                                  | Protection                                  | Permission Required               | Allowed Roles                                                  | Summary & Description                                                                                                                                                    | Expected Status Codes                                                                                                 |
-| :---------- | :------------------------------------- | :------------------------------------------ | :-------------------------------- | :------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- |
-| `POST`      | `/api/v1/sales`                        | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Create Sale**: Initializes a new commercial checkout session in `DRAFT` status with exact zero totals (`$0.00`).                                                       | `201 Created`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`                                        |
-| `GET`       | `/api/v1/sales`                        | `AuthenticationGuard`, `AuthorizationGuard` | `sales.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`, `Trainer` | **List Sales**: Returns paginated, filtered, and deterministically sorted sales summaries with client scoping and compound sort support.                                 | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`                                             |
-| `GET`       | `/api/v1/sales/:id`                    | `AuthenticationGuard`, `AuthorizationGuard` | `sales.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`, `Trainer` | **Get Sale by ID**: Returns complete sale aggregate representation with line items, structured `MoneyResponseDto` totals, and flat summary projections.                  | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                                               |
-| `GET`       | `/api/v1/sales/:id/calculate`          | `AuthenticationGuard`, `AuthorizationGuard` | `sales.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`, `Trainer` | **Calculate Authoritative Totals**: Computes 13 canonical formulas in integer cents without persistence writes or row lock contention.                                   | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                                               |
-| `POST`      | `/api/v1/sales/:id/source`             | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Assign Commercial Origin**: Explicitly binds commercial source reference (`SourceReference`). Permitted strictly in `DRAFT`.                                           | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`409 Conflict`                          |
-| `POST`      | `/api/v1/sales/:id/items`              | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Add Sale Item**: Adds a line item with optional discount. Recalculates order subtotal, discountTotal, and total deterministically in domain.                           | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`      |
-| `DELETE`    | `/api/v1/sales/:id/items/:itemId`      | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Remove Sale Item**: Removes line item from `DRAFT` checkout session and recalibrates financial totals. Permitted strictly in `DRAFT`.                                  | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`      |
-| `POST`      | `/api/v1/sales/:id/discount`           | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Apply Order Discount**: Applies percentage (0–100%) or fixed discount ($\le \text{subtotal}$) to order. Permitted strictly in `DRAFT`.                                 | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`      |
-| `DELETE`    | `/api/v1/sales/:id/discount`           | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Remove Order Discount**: Clears order-level discount and recalculates totals. Permitted strictly in `DRAFT`.                                                           | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`                            |
-| `POST`      | `/api/v1/sales/:id/finalize`           | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Finalize Sale**: Permanently freezes commercial terms and transitions status from `DRAFT` to `PENDING_PAYMENT`. Rejects empty sales (`EMPTY_SALE`).                    | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`422 Unprocessable` |
-| `POST`      | `/api/v1/sales/:id/cancel`             | `AuthenticationGuard`, `AuthorizationGuard` | `sales.cancel`                    | `Owner`, `Manager`, `Receptionist`                             | **Cancel Sale**: Transitions sale to terminal `CANCELLED` status with mandatory audit justification reason. Permitted from `DRAFT`, `PENDING_PAYMENT`, `PARTIALLY_PAID`. | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`422 Unprocessable` |
-| `POST`      | `/api/v1/sales/:id/coordinate-payment` | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`, `payments.manage` | `Owner`, `Manager`, `Receptionist`                             | **Coordinate Payment Settlement**: Synchronizes verified settlement against the Sale balance. Enforces coordinated consistency.                                          | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`422 Unprocessable` |
+#### 3.4.1 Endpoints Catalog & Security Matrix
 
-#### Monetary API Response Structure (`MoneyResponseDto`)
+All sales routes require authentication via `AuthenticationGuard` and role-based / permission-based authorization via `AuthorizationGuard`.
 
-All monetary totals (`subtotal`, `discountTotal`, `total`) and item pricing (`unitPrice`, `subtotal`, `discountTotal`, `total`) serialize as structured `MoneyResponseDto` objects alongside flat read properties:
+| HTTP Method | Route                                  | Protection                                  | Permission Required               | Allowed Roles                                                  | Summary & Description                                                                                                                                                                               | Expected Status Codes                                                                                                 |
+| :---------- | :------------------------------------- | :------------------------------------------ | :-------------------------------- | :------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- |
+| `POST`      | `/api/v1/sales`                        | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Create Sale**: Initializes a new commercial checkout session in `DRAFT` status with exact zero totals (`$0.00`) or optional initial items/discounts. Supports `x-idempotency-key` header.         | `201 Created`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`409 Conflict`                     |
+| `GET`       | `/api/v1/sales`                        | `AuthenticationGuard`, `AuthorizationGuard` | `sales.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`, `Trainer` | **List Sales**: Returns paginated, filtered, and deterministically sorted sales summaries with client scoping, date-range filtering, and compound sort support. Compatible with frontend DataTable. | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`                                             |
+| `GET`       | `/api/v1/sales/:id`                    | `AuthenticationGuard`, `AuthorizationGuard` | `sales.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`, `Trainer` | **Get Sale by ID**: Returns complete sale aggregate representation with line items, structured `MoneyResponseDto` totals, and flat summary projections. Enforces multi-tenant boundary isolation.   | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                                               |
+| `GET`       | `/api/v1/sales/:id/calculate`          | `AuthenticationGuard`, `AuthorizationGuard` | `sales.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`, `Trainer` | **Calculate Authoritative Totals**: Computes 13 canonical formulas in integer cents without persistence writes or row lock contention. Returns `SaleTotalsResponseDto`.                             | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                                               |
+| `POST`      | `/api/v1/sales/:id/source`             | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Assign Commercial Origin**: Explicitly binds commercial source reference (`SourceReferenceInputDto`). Permitted strictly in `DRAFT` status.                                                       | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`      |
+| `POST`      | `/api/v1/sales/:id/items`              | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Add Sale Item**: Adds a line item with optional item-level discount. Recalculates order subtotal, discountTotal, and total deterministically. Permitted strictly in `DRAFT`.                      | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`      |
+| `DELETE`    | `/api/v1/sales/:id/items/:itemId`      | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Remove Sale Item**: Removes line item from `DRAFT` checkout session and recalibrates financial totals. Permitted strictly in `DRAFT`.                                                             | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`      |
+| `POST`      | `/api/v1/sales/:id/discount`           | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Apply Order Discount**: Applies percentage (0–100%) or fixed discount ($\le \text{subtotal}$) to order. Permitted strictly in `DRAFT`.                                                            | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`      |
+| `DELETE`    | `/api/v1/sales/:id/discount`           | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Remove Order Discount**: Clears order-level discount and recalculates totals. Permitted strictly in `DRAFT`.                                                                                      | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`                            |
+| `POST`      | `/api/v1/sales/:id/finalize`           | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff`            | **Finalize Sale**: Permanently freezes commercial terms and transitions status from `DRAFT` to `PENDING_PAYMENT`. Rejects empty sales (`EMPTY_SALE`). Supported alias: `/submit-for-payment`.       | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`422 Unprocessable` |
+| `POST`      | `/api/v1/sales/:id/cancel`             | `AuthenticationGuard`, `AuthorizationGuard` | `sales.cancel`                    | `Owner`, `Manager`, `Receptionist`                             | **Cancel Sale**: Transitions sale to terminal `CANCELLED` status with mandatory audit justification reason. Permitted from `DRAFT`, `PENDING_PAYMENT`, `PARTIALLY_PAID`.                            | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`422 Unprocessable` |
+| `POST`      | `/api/v1/sales/:id/coordinate-payment` | `AuthenticationGuard`, `AuthorizationGuard` | `sales.create`, `payments.manage` | `Owner`, `Manager`, `Receptionist`                             | **Coordinate Payment Settlement**: Synchronizes verified settlement against the Sale balance. Enforces coordinated balance updates across aggregates.                                               | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`422 Unprocessable` |
+
+---
+
+#### 3.4.2 Query Parameters & DataTable URL-Driven Contract (`GET /api/v1/sales`)
+
+The `GET /api/v1/sales` endpoint fully supports the platform's URL-driven DataTable standard ([Contract Documentation](file:///c:/Projects/kinergy-platform/docs/frontend/sales_url_query_contract.md)). Query parameters can be passed individually or as serialized URL search strings.
+
+| Parameter           | In      | Type     | Required | Default       | Constraints & Allowed Values                                                                                | Description                                                                                                       |
+| :------------------ | :------ | :------- | :------- | :------------ | :---------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------- |
+| `page`              | `query` | `number` | No       | `1`           | Integer $\ge 1$                                                                                             | 1-indexed page number for pagination.                                                                             |
+| `limit`             | `query` | `number` | No       | `20`          | Integer $1 \le \text{limit} \le 100$                                                                        | Page size limit. Maximum allowed page size is 100.                                                                |
+| `cursor`            | `query` | `string` | No       | `undefined`   | Non-empty string, max 255 chars                                                                             | Optional cursor for cursor-based pagination.                                                                      |
+| `q`                 | `query` | `string` | No       | `undefined`   | String, max 255 chars                                                                                       | Free-text search filter matching source reference code substring or exact Sale ID.                                |
+| `search`            | `query` | `string` | No       | `undefined`   | String, max 255 chars                                                                                       | Canonical alias for free-text search filter `q`.                                                                  |
+| `clientId`          | `query` | `string` | No       | `undefined`   | String, max 255 chars                                                                                       | Filter sales by customer/client identifier.                                                                       |
+| `status`            | `query` | `string` | No       | `undefined`   | `DRAFT`, `PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, `CANCELLED`, `REFUNDED`                  | Filter sales by lifecycle status. Case-insensitive normalization.                                                 |
+| `sourceType`        | `query` | `string` | No       | `undefined`   | `KINESIOLOGY_SESSION`, `GYM_MEMBERSHIP`, `FOOD`, `DRINK`, `ROOM_RENTAL`, `INVENTORY_ITEM`, `CUSTOM_SERVICE` | Filter sales by catalog origin category.                                                                          |
+| `sourceReferenceId` | `query` | `string` | No       | `undefined`   | String, max 255 chars                                                                                       | Filter sales by external origin entity reference identifier.                                                      |
+| `fromDate`          | `query` | `string` | No       | `undefined`   | Valid ISO-8601 string (e.g. `2026-10-01T00:00:00.000Z`)                                                     | Filter sales created on or after this timestamp (inclusive). Must be $\le \text{toDate}$.                         |
+| `dateFrom`          | `query` | `string` | No       | `undefined`   | Valid ISO-8601 string                                                                                       | Canonical frontend alias for `fromDate`.                                                                          |
+| `toDate`            | `query` | `string` | No       | `undefined`   | Valid ISO-8601 string (e.g. `2026-10-31T23:59:59.999Z`)                                                     | Filter sales created on or before this timestamp (inclusive). Must be $\ge \text{fromDate}$.                      |
+| `dateTo`            | `query` | `string` | No       | `undefined`   | Valid ISO-8601 string                                                                                       | Canonical frontend alias for `toDate`.                                                                            |
+| `sort`              | `query` | `string` | No       | `undefined`   | Compound format: `<field>.<direction>` (e.g. `createdAt.desc`, `total.asc`)                                 | Compound sort parameter matching frontend DataTable convention. Overrides individual `sortField`/`sortDirection`. |
+| `sortField`         | `query` | `string` | No       | `'createdAt'` | `createdAt`, `total`, `totalAmount`, `status`                                                               | Primary sort field. Mapped directly to database indexes.                                                          |
+| `sortDirection`     | `query` | `string` | No       | `'desc'`      | `asc`, `desc`                                                                                               | Sort direction.                                                                                                   |
+
+##### Date and Timezone Semantics
+
+1. **ISO-8601 Strict Parsing**: Date filters (`fromDate`, `toDate`, `dateFrom`, `dateTo`) must be valid ISO-8601 extended format strings with timezone indicators (e.g. `2026-10-01T00:00:00.000Z` or `2026-10-01T08:00:00-04:00`).
+2. **Normalized UTC Evaluation**: All dates are normalized to UTC in database queries (`createdAt >= fromDateUtc` and `createdAt <= toDateUtc`).
+3. **Range Inversion Protection**: Supplying `fromDate > toDate` (or `dateFrom > dateTo`) triggers an immediate `400 Bad Request` with an explanatory message: `"fromDate cannot be later than toDate"`.
+4. **Timezone Preservation in Responses**: Timestamp properties in response payloads (`createdAt`, `updatedAt`) are serialized strictly as UTC ISO-8601 strings ending in `Z`.
+
+---
+
+#### 3.4.3 Monetary Serialization & Precision Rules (`MoneyResponseDto`)
+
+All commercial calculations strictly adhere to **Phase 7.4 Monetary Architecture**:
+
+- **Integer Cents Base**: Monetary amounts are stored and calculated in integer cents to completely eliminate IEEE 754 floating-point inaccuracies.
+- **Structured Representation**: Every monetary total is returned as a structured `MoneyResponseDto`:
+  - `amount`: Number in major units with 2 decimal places (e.g., `49.99`).
+  - `currency`: ISO-4217 3-letter currency code (e.g., `"USD"`).
+  - `formatted`: String formatted with exact 2 decimals (e.g., `"49.99"`).
+  - `cents`: Exact integer cents (e.g., `4999`).
+- **Flat Read Projections**: For lightweight grid integration, flat summary properties (`subtotalAmount`, `discountTotalAmount`, `totalAmount`) are exposed alongside the structured objects.
+- **Invariants**:
+  - Gross Subtotal: $\text{subtotal} = \sum (\text{item.quantity} \times \text{item.unitPrice}) \ge 0.00$.
+  - Total Discount: $0.00 \le \text{discountTotal} \le \text{subtotal}$.
+  - Net Payable Total: $\text{total} = \text{subtotal} - \text{discountTotal} \ge 0.00$.
 
 ```json
 {
-  "id": "sale_01j9876543210abcdef",
-  "currency": "USD",
-  "status": "DRAFT",
   "subtotal": {
     "amount": 99.98,
     "currency": "USD",
@@ -258,48 +305,327 @@ All monetary totals (`subtotal`, `discountTotal`, `total`) and item pricing (`un
   },
   "subtotalAmount": 99.98,
   "discountTotalAmount": 15.0,
-  "totalAmount": 84.98,
+  "totalAmount": 84.98
+}
+```
+
+---
+
+#### 3.4.4 Commercial Lifecycle & Invariant Constraints
+
+Commercial sales transition through an explicit, deterministic state machine:
+
+```mermaid
+stateDiagram-v2
+    [*] --> DRAFT : POST /sales
+    DRAFT --> DRAFT : POST /sales/:id/items<br/>DELETE /sales/:id/items/:itemId<br/>POST /sales/:id/discount<br/>DELETE /sales/:id/discount<br/>POST /sales/:id/source
+    DRAFT --> PENDING_PAYMENT : POST /sales/:id/finalize
+    DRAFT --> CANCELLED : POST /sales/:id/cancel
+    PENDING_PAYMENT --> PARTIALLY_PAID : Coordinated Payment
+    PENDING_PAYMENT --> PAID : Coordinated Payment (Fully Settled)
+    PENDING_PAYMENT --> CANCELLED : POST /sales/:id/cancel
+    PARTIALLY_PAID --> PAID : Coordinated Payment (Fully Settled)
+    PARTIALLY_PAID --> CANCELLED : POST /sales/:id/cancel
+    PAID --> COMPLETED : Commercial Fulfillment
+    COMPLETED --> [*]
+    CANCELLED --> [*]
+```
+
+##### Lifecycle Invariants & Business Rules
+
+1. **DRAFT Mutability**: Line items, discounts, and source bindings can **only** be modified while the sale is in `DRAFT` status. Any mutation attempted on `PENDING_PAYMENT`, `PARTIALLY_PAID`, `PAID`, `COMPLETED`, or `CANCELLED` results in `409 Conflict` or `422 Unprocessable Entity`.
+2. **Finalization Requirements**: Finalizing a sale (`POST /sales/:id/finalize`) transitions status from `DRAFT` to `PENDING_PAYMENT`. It enforces that the sale contains at least one line item (`itemCount > 0`). Finalizing an empty sale fails with `422 Unprocessable Entity` (`EMPTY_SALE`).
+3. **Cancellation Rules**: Cancelling a sale (`POST /sales/:id/cancel`) requires a non-empty audit `reason` (max 255 chars). It is permitted from `DRAFT`, `PENDING_PAYMENT`, and `PARTIALLY_PAID`. Sales in `PAID` or `COMPLETED` cannot be cancelled via this endpoint (requires formal refund workflow). Already cancelled sales cannot be cancelled again.
+4. **Server-Controlled Status & Totals**: Clients **cannot** directly set or modify `status`, `subtotal`, `discountTotal`, `total`, `itemCount`, `createdAt`, or `updatedAt`. Any attempt to supply these fields in request payloads is rejected or stripped by `GlobalSanitizationValidationPipe`.
+
+---
+
+#### 3.4.5 Source-Reference Contract (ADR-0121)
+
+The generic commercial source origin model decouples the Sales domain from specific upstream modules (gym memberships, food & beverage POS, kinesiology treatment sessions):
+
+- **`type`**: `SaleSourceType` (`KINESIOLOGY_SESSION`, `GYM_MEMBERSHIP`, `FOOD`, `DRINK`, `ROOM_RENTAL`, `INVENTORY_ITEM`, `CUSTOM_SERVICE`).
+- **`referenceId`**: Opaque external domain identifier (string, max 255 chars, no control characters).
+- **`referenceCode`**: Optional human-readable order number or receipt code (string, max 255 chars).
+- **Walk-In Checkout**: In-person sales or direct point-of-sale checkouts do not require an upstream source and can omit `sourceReference` entirely.
+
+---
+
+#### 3.4.6 Writable Fields vs. Server-Controlled Fields Matrix
+
+| Field Name                              | Type               | Client Writable?           | Controller / Endpoint                     | Notes                                                         |
+| :-------------------------------------- | :----------------- | :------------------------- | :---------------------------------------- | :------------------------------------------------------------ |
+| `id`                                    | `string`           | Optional at Creation       | `POST /sales`                             | Client can supply custom ID or leave for server generation.   |
+| `idempotencyKey`                        | `string`           | Yes                        | `POST /sales` (body or header)            | Prevents duplicate checkout creation.                         |
+| `currency`                              | `string`           | Optional at Creation       | `POST /sales`                             | 3-letter ISO-4217 (default: `USD`). Immutable after creation. |
+| `clientId`                              | `string`           | Optional at Creation       | `POST /sales`                             | Associated customer identity.                                 |
+| `sourceReference`                       | `object`           | Yes                        | `POST /sales`, `POST /sales/:id/source`   | Generic upstream commercial origin reference.                 |
+| `items`                                 | `array`            | Yes (in `DRAFT`)           | `POST /sales`, `POST /sales/:id/items`    | Writable only while in `DRAFT`.                               |
+| `orderDiscount`                         | `object`           | Yes (in `DRAFT`)           | `POST /sales`, `POST /sales/:id/discount` | Writable only while in `DRAFT`.                               |
+| `reason`                                | `string`           | Yes (mandatory)            | `POST /sales/:id/cancel`                  | Audit justification for cancellation.                         |
+| `status`                                | `string`           | **No (Server-Controlled)** | State Machine Only                        | Transitions via dedicated lifecycle endpoints.                |
+| `subtotal` / `subtotalAmount`           | `Money` / `number` | **No (Calculated)**        | Authoritative Domain Engine               | Sum of item gross totals.                                     |
+| `discountTotal` / `discountTotalAmount` | `Money` / `number` | **No (Calculated)**        | Authoritative Domain Engine               | Sum of item and order discounts.                              |
+| `total` / `totalAmount`                 | `Money` / `number` | **No (Calculated)**        | Authoritative Domain Engine               | Deterministic net payable: `subtotal - discountTotal`.        |
+| `itemCount`                             | `number`           | **No (Calculated)**        | Authoritative Domain Engine               | Count of active line items.                                   |
+| `tenantId`                              | `string`           | **No (Server-Controlled)** | Identity Context                          | Injected strictly from verified JWT token payload.            |
+| `createdAt` / `updatedAt`               | `string`           | **No (Server-Controlled)** | Persistence Layer                         | Managed strictly by database timestamps.                      |
+
+---
+
+#### 3.4.7 Request & Response DTO Schemas & Practical Examples
+
+##### 1. Create Sale (`POST /api/v1/sales`)
+
+###### Request (`CreateSaleRequestDto`)
+
+```json
+{
+  "currency": "USD",
+  "clientId": "client_456",
+  "sourceReference": {
+    "type": "FOOD",
+    "referenceId": "food_order_123",
+    "referenceCode": "ORD-2026-0042"
+  },
+  "items": [
+    {
+      "description": "Electrolyte Energy Drink 500ml",
+      "skuOrCode": "BEV-ELEC-01",
+      "quantity": 2,
+      "unitPriceAmount": 4.5,
+      "discount": {
+        "type": "PERCENTAGE",
+        "value": 10,
+        "reason": "Happy Hour 10% Promo"
+      }
+    }
+  ]
+}
+```
+
+###### Response (`201 Created` - `SaleResponseDto`)
+
+```json
+{
+  "id": "sale_01j9876543210abcdef",
+  "tenantId": "tenant_123",
+  "clientId": "client_456",
+  "currency": "USD",
+  "status": "DRAFT",
+  "sourceReference": {
+    "type": "FOOD",
+    "referenceId": "food_order_123",
+    "referenceCode": "ORD-2026-0042"
+  },
+  "subtotal": {
+    "amount": 9.0,
+    "currency": "USD",
+    "formatted": "9.00",
+    "cents": 900
+  },
+  "discountTotal": {
+    "amount": 0.9,
+    "currency": "USD",
+    "formatted": "0.90",
+    "cents": 90
+  },
+  "total": {
+    "amount": 8.1,
+    "currency": "USD",
+    "formatted": "8.10",
+    "cents": 810
+  },
+  "subtotalAmount": 9.0,
+  "discountTotalAmount": 0.9,
+  "totalAmount": 8.1,
   "itemCount": 1,
   "items": [
     {
       "id": "item_01j9877890123abcdef",
-      "description": "Premium Whey Protein Isolate (1.5 kg)",
-      "skuOrCode": "RET-PROT-001",
+      "description": "Electrolyte Energy Drink 500ml",
+      "skuOrCode": "BEV-ELEC-01",
       "quantity": 2,
       "unitPrice": {
-        "amount": 49.99,
+        "amount": 4.5,
         "currency": "USD",
-        "formatted": "49.99",
-        "cents": 4999
+        "formatted": "4.50",
+        "cents": 450
       },
       "subtotal": {
-        "amount": 99.98,
+        "amount": 9.0,
         "currency": "USD",
-        "formatted": "99.98",
-        "cents": 9998
+        "formatted": "9.00",
+        "cents": 900
       },
       "discountTotal": {
-        "amount": 15.0,
+        "amount": 0.9,
         "currency": "USD",
-        "formatted": "15.00",
-        "cents": 1500
+        "formatted": "0.90",
+        "cents": 90
       },
       "total": {
-        "amount": 84.98,
+        "amount": 8.1,
         "currency": "USD",
-        "formatted": "84.98",
-        "cents": 8498
+        "formatted": "8.10",
+        "cents": 810
       },
       "discount": {
         "type": "PERCENTAGE",
-        "value": 15,
-        "reason": "VIP Member 15% Promotion"
+        "value": 10,
+        "reason": "Happy Hour 10% Promo"
       }
     }
   ],
-  "version": 2,
-  "createdAt": "2026-09-18T16:00:00.000Z",
-  "updatedAt": "2026-09-18T16:05:00.000Z"
+  "version": 1,
+  "createdAt": "2026-10-14T12:00:00.000Z",
+  "updatedAt": "2026-10-14T12:00:00.000Z"
+}
+```
+
+##### 2. Add Sale Item (`POST /api/v1/sales/:id/items`)
+
+###### Request (`AddSaleItemRequestDto`)
+
+```json
+{
+  "description": "Premium Whey Protein Isolate (1.5 kg)",
+  "skuOrCode": "RET-PROT-001",
+  "quantity": 1,
+  "unitPriceAmount": 49.99,
+  "discount": {
+    "type": "FIXED_AMOUNT",
+    "value": 5.0,
+    "reason": "Manager Special"
+  }
+}
+```
+
+##### 3. Apply Order Discount (`POST /api/v1/sales/:id/discount`)
+
+###### Request (`ApplySaleDiscountRequestDto`)
+
+```json
+{
+  "type": "PERCENTAGE",
+  "value": 15,
+  "reason": "VIP Member Appreciation Discount"
+}
+```
+
+##### 4. Calculate Authoritative Totals (`GET /api/v1/sales/:id/calculate`)
+
+###### Response (`200 OK` - `SaleTotalsResponseDto`)
+
+```json
+{
+  "saleId": "sale_01j9876543210abcdef",
+  "currency": "USD",
+  "subtotal": {
+    "amount": 58.99,
+    "currency": "USD",
+    "formatted": "58.99",
+    "cents": 5899
+  },
+  "discountTotal": {
+    "amount": 14.75,
+    "currency": "USD",
+    "formatted": "14.75",
+    "cents": 1475
+  },
+  "total": {
+    "amount": 44.24,
+    "currency": "USD",
+    "formatted": "44.24",
+    "cents": 4424
+  },
+  "subtotalAmount": 58.99,
+  "discountTotalAmount": 14.75,
+  "totalAmount": 44.24,
+  "itemCount": 2,
+  "orderDiscount": {
+    "type": "PERCENTAGE",
+    "value": 15,
+    "reason": "VIP Member Appreciation Discount"
+  }
+}
+```
+
+##### 5. Finalize Sale (`POST /api/v1/sales/:id/finalize`)
+
+###### Request (`FinalizeSaleRequestDto` - Optional)
+
+```json
+{
+  "notes": "Checkout confirmed at Front Desk Terminal 1"
+}
+```
+
+###### Response (`200 OK` - `SaleResponseDto`)
+
+Transitions status to `"status": "PENDING_PAYMENT"`, permanently locking items and discounts.
+
+##### 6. Cancel Sale (`POST /api/v1/sales/:id/cancel`)
+
+###### Request (`CancelSaleRequestDto`)
+
+```json
+{
+  "reason": "Customer payment declined and customer left the premises"
+}
+```
+
+###### Response (`200 OK` - `SaleResponseDto`)
+
+Transitions status to `"status": "CANCELLED"`.
+
+##### 7. List Sales Orders (`GET /api/v1/sales?clientId=client_456&status=DRAFT&page=1&limit=20&sort=createdAt.desc`)
+
+###### Response (`200 OK` - `PaginatedSalesResponseDto`)
+
+```json
+{
+  "items": [
+    {
+      "id": "sale_01j9876543210abcdef",
+      "currency": "USD",
+      "status": "DRAFT",
+      "clientId": "client_456",
+      "subtotal": {
+        "amount": 58.99,
+        "currency": "USD",
+        "formatted": "58.99",
+        "cents": 5899
+      },
+      "discountTotal": {
+        "amount": 14.75,
+        "currency": "USD",
+        "formatted": "14.75",
+        "cents": 1475
+      },
+      "total": {
+        "amount": 44.24,
+        "currency": "USD",
+        "formatted": "44.24",
+        "cents": 4424
+      },
+      "subtotalAmount": 58.99,
+      "discountTotalAmount": 14.75,
+      "totalAmount": 44.24,
+      "itemCount": 2,
+      "sourceReference": {
+        "type": "FOOD",
+        "referenceId": "food_order_123",
+        "referenceCode": "ORD-2026-0042"
+      },
+      "createdAt": "2026-10-14T12:00:00.000Z",
+      "updatedAt": "2026-10-14T12:05:00.000Z"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "limit": 20,
+  "totalPages": 1
 }
 ```
 

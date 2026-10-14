@@ -14,3 +14,4 @@ export * from './receipt-response.dto';
 export * from './source-reference.dto';
 export * from './list-sales-query.dto';
 export * from './paginated-sales-response.dto';
+export * from './sale-totals-response.dto';

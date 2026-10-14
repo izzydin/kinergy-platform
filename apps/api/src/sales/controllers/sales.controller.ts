@@ -17,7 +17,14 @@ import {
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import {
   SourceType,
   isValidSourceType,
@@ -69,6 +76,7 @@ import {
   AssignSaleSourceRequestDto,
   ListSalesQueryDto,
   PaginatedSalesResponseDto,
+  SaleTotalsResponseDto,
 } from '../dto';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
 import { SALE_REPOSITORY_TOKEN, PAYMENT_REPOSITORY_TOKEN } from '../sales.tokens';
@@ -304,6 +312,114 @@ export class SalesController {
     status: HttpStatus.BAD_REQUEST,
     description: 'Invalid pagination bounds, sort parameters, or date filters',
   })
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: '1-indexed page number for pagination. Default: 1.',
+    example: 1,
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Page size limit (number of items per page). Min: 1, Max: 100, Default: 20.',
+    example: 20,
+  })
+  @ApiQuery({
+    name: 'q',
+    required: false,
+    type: String,
+    description: 'Free-text search filter matching sourceCode substring or exact Sale ID.',
+    example: 'REGISTER_1',
+  })
+  @ApiQuery({
+    name: 'search',
+    required: false,
+    type: String,
+    description: 'Alias for free-text search filter.',
+    example: 'REGISTER_1',
+  })
+  @ApiQuery({
+    name: 'clientId',
+    required: false,
+    type: String,
+    description: 'Filter sales by customer/client ID.',
+    example: 'client_456',
+  })
+  @ApiQuery({
+    name: 'status',
+    required: false,
+    type: String,
+    description:
+      'Filter sales by lifecycle status (DRAFT, PENDING_PAYMENT, PARTIALLY_PAID, PAID, COMPLETED, CANCELLED, REFUNDED).',
+    example: 'DRAFT',
+  })
+  @ApiQuery({
+    name: 'sourceType',
+    required: false,
+    type: String,
+    description:
+      'Filter sales by catalog source origin type (e.g. INVENTORY_ITEM, MEMBERSHIP_PLAN).',
+    example: 'INVENTORY_ITEM',
+  })
+  @ApiQuery({
+    name: 'sourceReferenceId',
+    required: false,
+    type: String,
+    description: 'Filter sales by external origin entity reference identifier.',
+    example: 'inv_123',
+  })
+  @ApiQuery({
+    name: 'fromDate',
+    required: false,
+    type: String,
+    description: 'Filter sales created on or after this ISO-8601 UTC timestamp.',
+    example: '2026-10-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'toDate',
+    required: false,
+    type: String,
+    description: 'Filter sales created on or before this ISO-8601 UTC timestamp.',
+    example: '2026-10-31T23:59:59.999Z',
+  })
+  @ApiQuery({
+    name: 'dateFrom',
+    required: false,
+    type: String,
+    description: 'Alias for fromDate filter.',
+    example: '2026-10-01T00:00:00.000Z',
+  })
+  @ApiQuery({
+    name: 'dateTo',
+    required: false,
+    type: String,
+    description: 'Alias for toDate filter.',
+    example: '2026-10-31T23:59:59.999Z',
+  })
+  @ApiQuery({
+    name: 'sort',
+    required: false,
+    type: String,
+    description: 'Compound sort query string: <field>.<dir> (e.g. createdAt.desc, total.asc).',
+    example: 'createdAt.desc',
+  })
+  @ApiQuery({
+    name: 'sortField',
+    required: false,
+    type: String,
+    description:
+      'Primary sort field. Allowed: createdAt, total, totalAmount, status. Default: createdAt.',
+    example: 'createdAt',
+  })
+  @ApiQuery({
+    name: 'sortDirection',
+    required: false,
+    type: String,
+    description: 'Sort direction. Allowed: asc, desc. Default: desc.',
+    example: 'desc',
+  })
   public async listSales(
     @Query() queryOrPage?: ListSalesQueryDto | string,
     @Query('limit') limitArg?: string,
@@ -516,9 +632,10 @@ export class SalesController {
     description:
       'Invokes domain calculation behavior on the Sale aggregate and returns exact monetary breakdown.',
   })
-  @ApiParam({ name: 'id', description: 'Sale ID' })
+  @ApiParam({ name: 'id', description: 'Unique Sale ID (e.g. sale_01j9876543210abcdef)' })
   @ApiResponse({
     status: HttpStatus.OK,
+    type: SaleTotalsResponseDto,
     description: 'Authoritative totals calculated successfully',
   })
   @ApiResponse({
