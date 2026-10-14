@@ -15,6 +15,7 @@ export interface ListSalesFilter {
 export interface ListSalesPagination {
   readonly page?: number;
   readonly limit?: number;
+  readonly cursor?: string;
 }
 
 export type ListSalesSortField = 'createdAt' | 'total' | 'status';
@@ -46,6 +47,7 @@ export interface ListSalesInput {
   readonly page?: number;
   readonly limit?: number;
   readonly pageSize?: number;
+  readonly cursor?: string;
   readonly sortBy?: ListSalesSortField | string;
   readonly sortField?: ListSalesSortField | string;
   readonly sortOrder?: ListSalesSortDirection | string;

@@ -323,6 +323,7 @@ export class SalesController {
 
     let page: number | undefined;
     let limit: number | undefined;
+    let cursor: string | undefined;
     let clientId: string | undefined;
     let status: string | undefined;
     let sourceType: string | undefined;
@@ -336,8 +337,35 @@ export class SalesController {
 
     if (queryOrPage && typeof queryOrPage === 'object') {
       const dto = queryOrPage as ListSalesQueryDto;
-      page = dto.page !== undefined ? Number(dto.page) : undefined;
-      limit = dto.limit !== undefined ? Number(dto.limit) : undefined;
+      if (dto.page !== undefined && dto.page !== null) {
+        const parsedPage = Number(dto.page);
+        if (isNaN(parsedPage) || !Number.isInteger(parsedPage) || parsedPage < 1) {
+          throw new BadRequestException(
+            `Invalid page '${String(dto.page)}'. Page must be an integer greater than or equal to 1.`,
+          );
+        }
+        page = parsedPage;
+      }
+      if (dto.limit !== undefined && dto.limit !== null) {
+        const parsedLimit = Number(dto.limit);
+        if (isNaN(parsedLimit) || !Number.isInteger(parsedLimit) || parsedLimit < 1) {
+          throw new BadRequestException(
+            `Invalid limit '${String(dto.limit)}'. Limit must be an integer greater than or equal to 1.`,
+          );
+        }
+        if (parsedLimit > 100) {
+          throw new BadRequestException('Limit cannot exceed maximum page size of 100.');
+        }
+        limit = parsedLimit;
+      }
+      if (dto.cursor !== undefined && dto.cursor !== null) {
+        if (typeof dto.cursor !== 'string' || dto.cursor.trim().length === 0) {
+          throw new BadRequestException(
+            `Invalid cursor '${String(dto.cursor)}'. Cursor must be a non-empty string.`,
+          );
+        }
+        cursor = dto.cursor.trim();
+      }
       clientId = dto.clientId;
       status = dto.status;
       sourceType = dto.sourceType;
@@ -348,14 +376,37 @@ export class SalesController {
       sortField = dto.sortField;
       sortDirection = dto.sortDirection;
 
-      if (dto.sort && typeof dto.sort === 'string' && dto.sort.includes('.')) {
-        const [field, dir] = dto.sort.split('.');
-        sortField = field;
-        sortDirection = dir;
+      if (dto.sort && typeof dto.sort === 'string' && dto.sort.trim().length > 0) {
+        const parts = dto.sort.trim().split('.');
+        if (parts.length >= 2) {
+          sortField = parts[0];
+          sortDirection = parts[1];
+        } else {
+          sortField = parts[0];
+        }
       }
     } else {
-      page = queryOrPage ? parseInt(String(queryOrPage), 10) : undefined;
-      limit = limitArg ? parseInt(limitArg, 10) : undefined;
+      if (queryOrPage !== undefined && queryOrPage !== null && String(queryOrPage).trim() !== '') {
+        const parsedPage = Number(queryOrPage);
+        if (isNaN(parsedPage) || !Number.isInteger(parsedPage) || parsedPage < 1) {
+          throw new BadRequestException(
+            `Invalid page '${String(queryOrPage)}'. Page must be an integer greater than or equal to 1.`,
+          );
+        }
+        page = parsedPage;
+      }
+      if (limitArg !== undefined && limitArg !== null && String(limitArg).trim() !== '') {
+        const parsedLimit = Number(limitArg);
+        if (isNaN(parsedLimit) || !Number.isInteger(parsedLimit) || parsedLimit < 1) {
+          throw new BadRequestException(
+            `Invalid limit '${String(limitArg)}'. Limit must be an integer greater than or equal to 1.`,
+          );
+        }
+        if (parsedLimit > 100) {
+          throw new BadRequestException('Limit cannot exceed maximum page size of 100.');
+        }
+        limit = parsedLimit;
+      }
       clientId = clientIdArg;
       status = statusArg;
       sourceType = sourceTypeArg;
@@ -395,6 +446,7 @@ export class SalesController {
     const query = new ListSalesQuery({
       page,
       limit,
+      cursor,
       tenantId: effectiveUser?.tenantId ?? undefined,
       clientId,
       status,

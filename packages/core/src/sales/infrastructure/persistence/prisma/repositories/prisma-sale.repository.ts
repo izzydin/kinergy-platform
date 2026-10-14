@@ -110,7 +110,8 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
   ): Promise<FindSalesResult> {
     const page = Math.max(1, pagination.page);
     const limit = Math.max(1, pagination.limit);
-    const skip = (page - 1) * limit;
+    const cursor = pagination.cursor ? { id: pagination.cursor } : undefined;
+    const skip = cursor ? 1 : (page - 1) * limit;
 
     const where: Prisma.SaleWhereInput = {};
 
@@ -168,6 +169,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
         orderBy,
         skip,
         take: limit,
+        ...(cursor ? { cursor } : {}),
         include: {
           _count: {
             select: { items: true },

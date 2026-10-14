@@ -86,6 +86,20 @@ export class ListSalesHandler implements SalesQueryHandler<
         limit = Math.min(100, rawLimit);
       }
 
+      const rawCursor = input.pagination?.cursor ?? input.cursor;
+      let cursor: string | undefined;
+      if (rawCursor !== undefined && rawCursor !== null) {
+        if (typeof rawCursor !== 'string' || rawCursor.trim().length === 0) {
+          return SalesApplicationResult.fail(
+            new InvalidSaleQueryException(
+              `Invalid cursor '${String(rawCursor)}'. Cursor must be a non-empty string.`,
+              'INVALID_PAGINATION',
+            ),
+          );
+        }
+        cursor = rawCursor.trim();
+      }
+
       // 2. Sorting Validation & Normalization
       const rawSortField = input.sort?.field ?? input.sortField ?? input.sortBy ?? 'createdAt';
       const normalizedSortField = String(rawSortField).trim();
@@ -237,6 +251,7 @@ export class ListSalesHandler implements SalesQueryHandler<
       const pagination: FindSalesPagination = {
         page,
         limit,
+        cursor,
       };
 
       const sort: FindSalesSort = {
@@ -256,7 +271,7 @@ export class ListSalesHandler implements SalesQueryHandler<
         limit,
         totalPages,
         hasNextPage: page < totalPages,
-        hasPreviousPage: page > 1,
+        hasPreviousPage: total === 0 ? false : page > 1,
       };
 
       return SalesApplicationResult.ok(result);

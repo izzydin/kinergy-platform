@@ -30,6 +30,7 @@ export interface FindSalesSort {
 export interface FindSalesPagination {
   readonly page: number; // 1-indexed
   readonly limit: number;
+  readonly cursor?: string;
 }
 
 export interface FindSalesResult {

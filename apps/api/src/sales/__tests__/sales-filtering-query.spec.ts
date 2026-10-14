@@ -91,7 +91,10 @@ class InMemorySaleRepository implements SaleRepositoryInterface {
       } else {
         comparison = a.createdAt.getTime() - b.createdAt.getTime();
       }
-      return sort.direction === 'desc' ? -comparison : comparison;
+      if (comparison !== 0) {
+        return sort.direction === 'desc' ? -comparison : comparison;
+      }
+      return a.id.value.localeCompare(b.id.value);
     });
 
     const total = sales.length;

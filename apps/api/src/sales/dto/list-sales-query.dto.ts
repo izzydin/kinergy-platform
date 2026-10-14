@@ -27,6 +27,16 @@ export class ListSalesQueryDto {
   limit?: number;
 
   @ApiPropertyOptional({
+    description:
+      'Optional cursor for cursor-based pagination. If provided, must be a non-empty string.',
+    example: 'sale_01j9876543210abcdef',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  cursor?: string;
+
+  @ApiPropertyOptional({
     description: 'Free-text search filter matching sourceCode substring or exact Sale ID.',
     example: 'REGISTER_1',
   })
