@@ -69,7 +69,28 @@ class InMemorySaleRepository implements SaleRepositoryPort {
 
   async findById(id: SaleId | string): Promise<Sale | null> {
     const key = typeof id === 'string' ? id.trim() : id.value;
-    return this.store.get(key) ?? null;
+    const sale = this.store.get(key);
+    if (!sale) return null;
+    return Sale.reconstitute({
+      id: sale.id,
+      tenantId: sale.tenantId,
+      clientId: sale.clientId,
+      currency: sale.currency,
+      source: sale.source,
+      status: sale.status,
+      orderDiscount: sale.orderDiscount,
+      items: [...sale.items],
+      subtotal: sale.subtotal,
+      discountTotal: sale.discountTotal,
+      total: sale.total,
+      completedAt: sale.completedAt,
+      cancelledAt: sale.cancelledAt,
+      cancellationReason: sale.cancellationReason,
+      refundedAt: sale.refundedAt,
+      createdAt: sale.createdAt,
+      updatedAt: sale.updatedAt,
+      version: sale.version,
+    });
   }
 
   async save(sale: Sale): Promise<void> {
@@ -112,14 +133,17 @@ describe('CreatePaymentHandler Specification Suite (Milestone 7.12)', () => {
     currency: string = 'USD',
     tenant: string = tenantId,
   ): Sale => {
-    const sale = Sale.create({
-      tenantId: tenant,
-      currency,
-      source: SourceReference.create({
-        sourceType: SourceType.MEMBERSHIP_PLAN,
-        sourceId: 'plan_gold_01',
-      }),
-    });
+    const sale = Sale.create(
+      {
+        tenantId: tenant,
+        currency,
+        source: SourceReference.create({
+          sourceType: SourceType.MEMBERSHIP_PLAN,
+          sourceId: 'plan_gold_01',
+        }),
+      },
+      clock,
+    );
     sale.addItem({
       source: SourceReference.create({
         sourceType: SourceType.MEMBERSHIP_PLAN,
@@ -722,6 +746,37 @@ describe('CreatePaymentHandler Specification Suite (Milestone 7.12)', () => {
       expect(transactionExecuted).toBe(true);
       const updatedSale = await saleRepo.findById(sale.id);
       expect(updatedSale?.status).toBe(SaleStatus.PAID);
+    });
+
+    it('fails gracefully and preserves transaction boundaries when UnitOfWork fails during persistence', async () => {
+      const sale = createPayableSale(100.0, 'USD');
+      const unitOfWork = {
+        async executeInTransaction<T>(_work: () => Promise<T>): Promise<T> {
+          throw new Error('Database transaction connection aborted');
+        },
+      };
+
+      const transactionalHandler = new CreatePaymentHandler(
+        paymentRepo,
+        saleRepo,
+        clock,
+        eventPublisher,
+        unitOfWork,
+      );
+
+      const result = await transactionalHandler.execute(
+        new CreatePaymentCommand({
+          saleId: sale.id.value,
+          amount: 100.0,
+          method: PaymentMethod.CASH,
+          tenantId,
+        }),
+      );
+
+      expect(result.isFailure).toBe(true);
+      expect(extractErrorMessage(result)).toContain('Database transaction connection aborted');
+      const unmutatedSale = await saleRepo.findById(sale.id);
+      expect(unmutatedSale?.status).toBe(SaleStatus.PENDING_PAYMENT);
     });
   });
 });
