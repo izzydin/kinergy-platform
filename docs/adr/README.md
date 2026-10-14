@@ -116,6 +116,8 @@ This directory contains records of key architectural and technical decisions mad
 | [0134](file:///c:/Projects/kinergy-platform/docs/adr/0134-financial-settlement-validation-and-overpayment-invariants.md)                                             | Financial Settlement Validation, Multi-Tender Boundaries & Overpayment Invariants                            | Accepted   | 2026-10-07              |
 | [0135](file:///c:/Projects/kinergy-platform/docs/adr/0135-sales-payments-receipts-authorization-and-security.md)                                                     | Sales, Payments & Receipts Authorization Architecture, IAM Integration & Security Boundaries                 | Accepted   | 2026-10-09              |
 | [0136](file:///c:/Projects/kinergy-platform/docs/adr/0136-sales-api-architecture-and-contracts.md)                                                                   | Sales API Architecture, HTTP Contracts & Unified Commercial Ledger Specification                             | Accepted   | 2026-10-12              |
+| [0137](file:///c:/Projects/kinergy-platform/docs/adr/0137-sales-performance-and-consistency-review.md)                                                               | Sales Performance, Pagination Stability, Tiebreaker Semantics, and Optimistic Concurrency Control            | Accepted   | 2026-10-14              |
+| [0138](file:///c:/Projects/kinergy-platform/docs/adr/0138-payment-api-architecture-and-contracts.md)                                                                 | Payment API Architecture, HTTP Contracts & Monetary Settlement Specification                                 | Accepted   | 2026-10-14              |
 
 ## Format
 
