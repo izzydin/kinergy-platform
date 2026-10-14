@@ -9,16 +9,26 @@ import {
   Matches,
   MaxLength,
 } from 'class-validator';
-import { PaymentMethod } from '@kinergy-platform/core';
+import { PaymentMethod, PaymentStatus } from '@kinergy-platform/core';
 
 /**
  * Client request DTO to record a payment tender against a finalized sale.
  *
- * In accordance with ADR-0115:
+ * In accordance with ADR-0115 and ADR-0138:
  * - Authoritatively specifies method, amount, and optional reference.
- * - Does NOT accept subtotal, discountTotal, total, status, or paidAt from the client.
+ * - Supports optional saleId (when posted to root /payments endpoint)
+ * - Supports initial status PENDING or COMPLETED (defaults to COMPLETED)
+ * - Does NOT accept subtotal, discountTotal, total, or paidAt from the client.
  */
 export class RecordPaymentRequestDto {
+  @ApiPropertyOptional({
+    description: 'Target Sale UUID (optional if provided in route path)',
+    example: 'f5e4d3c2-b1a0-9f8e-7d6c-5b4a3f2e1d0c',
+  })
+  @IsString()
+  @IsOptional()
+  saleId?: string;
+
   @ApiProperty({
     enum: PaymentMethod,
     description: 'Supported payment tender method (e.g., CASH, QR)',
@@ -56,6 +66,18 @@ export class RecordPaymentRequestDto {
   currency?: string;
 
   @ApiPropertyOptional({
+    enum: [PaymentStatus.PENDING, PaymentStatus.COMPLETED],
+    description: 'Initial payment lifecycle state. Must be PENDING or COMPLETED.',
+    example: PaymentStatus.COMPLETED,
+    default: PaymentStatus.COMPLETED,
+  })
+  @IsOptional()
+  @IsEnum([PaymentStatus.PENDING, PaymentStatus.COMPLETED], {
+    message: 'Initial status must be PENDING or COMPLETED.',
+  })
+  status?: PaymentStatus | string;
+
+  @ApiPropertyOptional({
     description:
       'Optional cashier register drawer tag, receipt sequence, or gateway transaction trace reference.',
     example: 'DRAWER-01-RECEIPT-99',
@@ -70,3 +92,8 @@ export class RecordPaymentRequestDto {
   })
   reference?: string;
 }
+
+/**
+ * Alias for RecordPaymentRequestDto conforming to canonical CQRS create-verb nomenclature.
+ */
+export class CreatePaymentRequestDto extends RecordPaymentRequestDto {}

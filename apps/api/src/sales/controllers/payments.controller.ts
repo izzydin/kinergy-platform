@@ -18,8 +18,11 @@ import { ApiBearerAuth, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@ne
 import {
   PaymentRepositoryPort,
   SaleRepositoryPort,
+  PaymentStatus,
   RecordPaymentHandler,
+  CreatePaymentHandler,
   GetPaymentByIdHandler,
+  GetPaymentHandler,
   GetPaymentsBySaleIdHandler,
   GetSalePaymentHistoryHandler,
   CompletePaymentHandler,
@@ -51,6 +54,8 @@ import {
   SettlePaymentRequestDto,
   FailPaymentRequestDto,
   CancelPaymentRequestDto,
+  ListPaymentsQueryDto,
+  PaginatedPaymentsResponseDto,
 } from '../dto';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
 import { PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN } from '../sales.tokens';
@@ -105,11 +110,21 @@ export class PaymentsController {
     @Optional()
     @Inject(ListPaymentsHandler)
     listPaymentsHandler?: ListPaymentsHandler,
+    @Optional()
+    @Inject(CreatePaymentHandler)
+    createPaymentHandler?: CreatePaymentHandler,
+    @Optional()
+    @Inject(GetPaymentHandler)
+    getPaymentHandler?: GetPaymentHandler,
   ) {
     this._recordPaymentHandler =
-      recordPaymentHandler ?? new RecordPaymentHandler(paymentRepository, saleRepository);
+      recordPaymentHandler ??
+      createPaymentHandler ??
+      new RecordPaymentHandler(paymentRepository, saleRepository);
     this._getPaymentByIdHandler =
-      getPaymentByIdHandler ?? new GetPaymentByIdHandler(paymentRepository, saleRepository);
+      getPaymentByIdHandler ??
+      getPaymentHandler ??
+      new GetPaymentByIdHandler(paymentRepository, saleRepository);
     this._getPaymentsBySaleIdHandler =
       getPaymentsBySaleIdHandler ??
       new GetPaymentsBySaleIdHandler(paymentRepository, saleRepository);
@@ -131,7 +146,7 @@ export class PaymentsController {
     this._listPaymentsHandler = listPaymentsHandler ?? new ListPaymentsHandler(paymentRepository);
   }
 
-  @Post('sales/:saleId/payments')
+  @Post(['sales/:saleId/payments', 'payments'])
   @HttpCode(HttpStatus.CREATED)
   @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
   @Permissions('payments.create')
@@ -140,7 +155,7 @@ export class PaymentsController {
     description:
       'Records cash or electronic payment against a sale in PENDING_PAYMENT or PARTIALLY_PAID status. Automatically coordinates Sale status transitions to PARTIALLY_PAID or PAID upon settlement.',
   })
-  @ApiParam({ name: 'saleId', description: 'Sale UUID identifier' })
+  @ApiParam({ name: 'saleId', required: false, description: 'Sale UUID identifier' })
   @ApiResponse({
     status: HttpStatus.CREATED,
     type: PaymentResponseDto,
@@ -159,11 +174,12 @@ export class PaymentsController {
     description: 'Sale is not in a payable status, or payment amount exceeds remaining balance',
   })
   public async recordPayment(
-    @Param('saleId') saleId: string,
-    @Body() dto: RecordPaymentRequestDto,
+    @Param('saleId') saleIdParam?: string,
+    @Body() dto: RecordPaymentRequestDto = {} as RecordPaymentRequestDto,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto> {
-    if (!saleId || !saleId.trim()) {
+    const saleId = (saleIdParam ?? dto?.saleId)?.trim();
+    if (!saleId) {
       throw new BadRequestException('Sale ID cannot be empty or whitespace.');
     }
     const userContext = user
@@ -179,10 +195,11 @@ export class PaymentsController {
 
     const executeAction = async (): Promise<PaymentResponseDto> => {
       const command = new RecordPaymentCommand({
-        saleId: saleId.trim(),
+        saleId,
         amount: dto.amount,
         currency: dto.currency,
         method: dto.method,
+        status: dto.status === PaymentStatus.PENDING ? PaymentStatus.PENDING : undefined,
         reference: dto.reference,
         tenantId: user?.tenantId ?? undefined,
         currentUser: user
@@ -242,7 +259,7 @@ export class PaymentsController {
     return this.handleResult(result) as unknown as PaymentResponseDto[];
   }
 
-  @Get('payments/:paymentId')
+  @Get(['payments/:id', 'payments/:paymentId'])
   @HttpCode(HttpStatus.OK)
   @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
   @Permissions('payments.read')
@@ -251,7 +268,7 @@ export class PaymentsController {
     description:
       'Fetches a single payment record with full audit metadata, method, status, and structured monetary representation.',
   })
-  @ApiParam({ name: 'paymentId', description: 'Payment UUID identifier' })
+  @ApiParam({ name: 'id', description: 'Payment UUID identifier' })
   @ApiResponse({
     status: HttpStatus.OK,
     type: PaymentResponseDto,
@@ -262,21 +279,24 @@ export class PaymentsController {
     description: 'Payment with specified ID does not exist',
   })
   public async getPaymentById(
-    @Param('paymentId') paymentId: string,
-    @CurrentUser() user?: AuthenticatedUserPayload,
+    @Param('id') idParam?: string,
+    @CurrentUser() userParam?: AuthenticatedUserPayload,
+    @Param('paymentId') paymentIdParam?: string,
   ): Promise<PaymentResponseDto> {
-    if (!paymentId || !paymentId.trim()) {
+    const rawId = idParam ?? paymentIdParam;
+    if (!rawId || !rawId.trim()) {
       throw new BadRequestException('Payment ID cannot be empty or whitespace.');
     }
+    const paymentId = rawId.trim();
     const query = new GetPaymentByIdQuery({
-      paymentId: paymentId.trim(),
-      tenantId: user?.tenantId ?? undefined,
-      currentUser: user
+      paymentId,
+      tenantId: userParam?.tenantId ?? undefined,
+      currentUser: userParam
         ? {
-            id: user.id,
-            tenantId: user.tenantId ?? undefined,
-            roles: user.roles,
-            permissions: user.permissions,
+            id: userParam.id,
+            tenantId: userParam.tenantId ?? undefined,
+            roles: userParam.roles,
+            permissions: userParam.permissions,
           }
         : undefined,
     });
@@ -296,10 +316,11 @@ export class PaymentsController {
   })
   @ApiResponse({
     status: HttpStatus.OK,
+    type: PaginatedPaymentsResponseDto,
     description: 'Paginated list of payment records',
   })
   public async listPayments(
-    @Query() queryDto: Record<string, unknown> = {},
+    @Query() queryDto: ListPaymentsQueryDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<unknown> {
     const query = new ListPaymentsQuery({
