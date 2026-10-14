@@ -186,8 +186,9 @@ export class ListSalesHandler implements SalesQueryHandler<
       }
 
       // Date range validation
-      const rawFrom = input.filter?.fromDate ?? input.fromDate;
-      const rawTo = input.filter?.toDate ?? input.toDate;
+      const rawFrom =
+        input.filter?.fromDate ?? input.filter?.dateFrom ?? input.fromDate ?? input.dateFrom;
+      const rawTo = input.filter?.toDate ?? input.filter?.dateTo ?? input.toDate ?? input.dateTo;
       let fromDate: Date | undefined;
       let toDate: Date | undefined;
 

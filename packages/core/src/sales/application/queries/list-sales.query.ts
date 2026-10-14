@@ -8,6 +8,8 @@ export interface ListSalesFilter {
   readonly sourceReferenceId?: string;
   readonly fromDate?: Date | string;
   readonly toDate?: Date | string;
+  readonly dateFrom?: Date | string;
+  readonly dateTo?: Date | string;
   readonly search?: string;
   readonly q?: string;
 }
@@ -18,7 +20,7 @@ export interface ListSalesPagination {
   readonly cursor?: string;
 }
 
-export type ListSalesSortField = 'createdAt' | 'total' | 'status';
+export type ListSalesSortField = 'createdAt' | 'total' | 'totalAmount' | 'status';
 export type ListSalesSortDirection = 'asc' | 'desc';
 
 export interface ListSalesSort {
@@ -42,6 +44,8 @@ export interface ListSalesInput {
   readonly sourceReferenceId?: string;
   readonly fromDate?: Date | string;
   readonly toDate?: Date | string;
+  readonly dateFrom?: Date | string;
+  readonly dateTo?: Date | string;
   readonly search?: string;
   readonly q?: string;
   readonly page?: number;

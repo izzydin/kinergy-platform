@@ -370,8 +370,8 @@ export class SalesController {
       status = dto.status;
       sourceType = dto.sourceType;
       sourceReferenceId = dto.sourceReferenceId;
-      fromDate = dto.fromDate;
-      toDate = dto.toDate;
+      fromDate = dto.fromDate ?? dto.dateFrom;
+      toDate = dto.toDate ?? dto.dateTo;
       search = dto.q ?? dto.search;
       sortField = dto.sortField;
       sortDirection = dto.sortDirection;

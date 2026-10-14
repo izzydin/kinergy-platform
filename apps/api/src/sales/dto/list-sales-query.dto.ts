@@ -102,6 +102,15 @@ export class ListSalesQueryDto {
   fromDate?: string;
 
   @ApiPropertyOptional({
+    description: 'Alias for fromDate filter.',
+    example: '2026-10-01T00:00:00.000Z',
+  })
+  @IsOptional()
+  @IsISO8601({}, { message: 'dateFrom must be a valid ISO-8601 date string.' })
+  @MaxLength(50)
+  dateFrom?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter sales created on or before this ISO-8601 UTC timestamp.',
     example: '2026-10-31T23:59:59.999Z',
   })
@@ -109,6 +118,15 @@ export class ListSalesQueryDto {
   @IsISO8601({}, { message: 'toDate must be a valid ISO-8601 date string.' })
   @MaxLength(50)
   toDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alias for toDate filter.',
+    example: '2026-10-31T23:59:59.999Z',
+  })
+  @IsOptional()
+  @IsISO8601({}, { message: 'dateTo must be a valid ISO-8601 date string.' })
+  @MaxLength(50)
+  dateTo?: string;
 
   @ApiPropertyOptional({
     description:
@@ -120,13 +138,14 @@ export class ListSalesQueryDto {
   sort?: string;
 
   @ApiPropertyOptional({
-    description: 'Primary sort field. Allowed: createdAt, total, status. Default: createdAt.',
+    description:
+      'Primary sort field. Allowed: createdAt, total, totalAmount, status. Default: createdAt.',
     example: 'createdAt',
     default: 'createdAt',
   })
   @IsOptional()
   @IsString()
-  @IsIn(['createdAt', 'total', 'status'])
+  @IsIn(['createdAt', 'total', 'totalAmount', 'status'])
   sortField?: string;
 
   @ApiPropertyOptional({
