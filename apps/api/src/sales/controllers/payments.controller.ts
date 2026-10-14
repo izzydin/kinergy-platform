@@ -38,7 +38,7 @@ import {
   CancelPaymentHandler,
   ListPaymentsHandler,
   CreatePaymentCommand,
-  GetPaymentByIdQuery,
+  GetPaymentQuery,
   GetSalePaymentHistoryQuery,
   CompletePaymentCommand,
   SettlePaymentCommand,
@@ -356,34 +356,83 @@ export class PaymentsController {
     description: 'Payment record resolved successfully',
   })
   @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Payment ID cannot be empty or whitespace',
+  })
+  @ApiResponse({
     status: HttpStatus.NOT_FOUND,
-    description: 'Payment with specified ID does not exist',
+    description: 'Payment with specified ID does not exist within the caller tenant scope',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Caller lacks required payments.read permission or cross-tenant access attempted',
   })
   public async getPaymentById(
     @Param('id') idParam?: string,
     @CurrentUser() userParam?: AuthenticatedUserPayload,
     @Param('paymentId') paymentIdParam?: string,
   ): Promise<PaymentResponseDto> {
-    const rawId = idParam ?? paymentIdParam;
+    const rawId =
+      (idParam && typeof idParam === 'string' && idParam.trim() ? idParam : undefined) ??
+      (paymentIdParam && typeof paymentIdParam === 'string' && paymentIdParam.trim()
+        ? paymentIdParam
+        : undefined) ??
+      (typeof userParam === 'string' ? userParam : undefined);
+
+    let user: AuthenticatedUserPayload | undefined;
+    if (userParam && typeof userParam === 'object') {
+      user = userParam;
+    }
+
     if (!rawId || !rawId.trim()) {
       throw new BadRequestException('Payment ID cannot be empty or whitespace.');
     }
     const paymentId = rawId.trim();
-    const query = new GetPaymentByIdQuery({
-      paymentId,
-      tenantId: userParam?.tenantId ?? undefined,
-      currentUser: userParam
-        ? {
-            id: userParam.id,
-            tenantId: userParam.tenantId ?? undefined,
-            roles: userParam.roles,
-            permissions: userParam.permissions,
-          }
-        : undefined,
-    });
 
-    const result = await this._getPaymentByIdHandler.execute(query);
-    return this.handleResult(result) as unknown as PaymentResponseDto;
+    const userContext = user
+      ? new AuthenticatedUserContext({
+          userId: user.id,
+          email: user.email,
+          status: user.status ?? 'ACTIVE',
+          roles: user.roles ?? [],
+          permissions: user.permissions ?? [],
+          tenantId: user.tenantId ?? null,
+        })
+      : null;
+
+    const executeAction = async (): Promise<PaymentResponseDto> => {
+      const query = new GetPaymentQuery({
+        paymentId,
+        tenantId: user?.tenantId ?? undefined,
+        currentUser: user
+          ? {
+              id: user.id,
+              userId: user.id,
+              email: user.email,
+              tenantId: user.tenantId ?? undefined,
+              roles: user.roles,
+              permissions: user.permissions,
+            }
+          : undefined,
+      });
+
+      const result = await this._getPaymentByIdHandler.execute(query);
+      const payment = this.handleResult(result);
+      return {
+        id: payment.id,
+        saleId: payment.saleId,
+        method: payment.method,
+        amount: payment.amount,
+        amountValue: payment.amountValue,
+        status: payment.status,
+        reference: payment.reference ?? null,
+        paidAt: payment.paidAt ?? null,
+        createdAt: payment.createdAt,
+        version: payment.version,
+      };
+    };
+
+    return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
   }
 
   @Get('payments')

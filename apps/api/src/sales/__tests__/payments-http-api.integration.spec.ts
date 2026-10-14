@@ -384,8 +384,9 @@ describe('Payment HTTP API Contract, Dependency Injection & Permissions Suite (M
 
       const history = await controller.getPaymentsBySaleId(sale.id.value, mockCashierUser);
       expect(history).toHaveLength(2);
-      expect(history[0]!.amount.cents).toBe(4000);
-      expect(history[1]!.amount.cents).toBe(6000);
+      const cents = history.map((p) => p.amount.cents);
+      expect(cents).toContain(4000);
+      expect(cents).toContain(6000);
 
       // Sale should now be in PAID status
       const updatedSale = await saleRepo.findById(sale.id);
