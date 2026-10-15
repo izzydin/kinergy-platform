@@ -13,6 +13,7 @@ import { PaymentStatus } from '../../../../domain/enums/payment-status.enum';
 import { ReceiptOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
 import { DuplicateReceiptException } from '../../../../domain/exceptions/duplicate-receipt.exception';
 import { ReceiptDomainException } from '../../../../domain/exceptions/receipt-domain.exception';
+import { ReceiptPersistenceException } from '../exceptions/receipt-persistence.exception';
 import { PrismaReceiptMapper } from '../mappers/prisma-receipt.mapper';
 import { PrismaReceiptRepository } from '../repositories/prisma-receipt.repository';
 import { DeterministicClock } from '../../../../domain/shared/clock';
@@ -572,6 +573,259 @@ describe('Receipt Persistence & Round-Trip Architecture (ADR-0117 / ADR-0118 / P
       expect(mockPrisma.receipt.findFirst).toHaveBeenCalledWith({
         where: { saleId: saleId.value },
       });
+    });
+
+    it('finds primary Receipt by saleId with tenant isolation parameter', async () => {
+      const receipt = createSampleReceipt();
+      const persistenceData = PrismaReceiptMapper.toPersistence(receipt);
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        $queryRawUnsafe: jest.fn(),
+        receipt: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findFirst: jest.fn().mockResolvedValue({
+            ...persistenceData,
+            clientSnapshot: persistenceData.clientSnapshot,
+            itemsSnapshot: persistenceData.itemsSnapshot,
+            paymentsSnapshot: persistenceData.paymentsSnapshot,
+            createdAt: t0,
+            updatedAt: t0,
+          }),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaReceiptRepository(mockPrisma as unknown as PrismaClient);
+      const found = await repo.findBySaleId(saleId, tenantId);
+
+      expect(found).not.toBeNull();
+      expect(mockPrisma.receipt.findFirst).toHaveBeenCalledWith({
+        where: { saleId: saleId.value, tenantId },
+      });
+    });
+
+    it('returns null when no Receipt exists for a given Sale ID', async () => {
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        $queryRawUnsafe: jest.fn(),
+        receipt: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findFirst: jest.fn().mockResolvedValue(null),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaReceiptRepository(mockPrisma as unknown as PrismaClient);
+      const found = await repo.findBySaleId('non_existent_sale_id');
+
+      expect(found).toBeNull();
+      expect(mockPrisma.receipt.findFirst).toHaveBeenCalledWith({
+        where: { saleId: 'non_existent_sale_id' },
+      });
+    });
+
+    it('returns null immediately when saleId is empty or whitespace without executing database queries', async () => {
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        $queryRawUnsafe: jest.fn(),
+        receipt: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findFirst: jest.fn(),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaReceiptRepository(mockPrisma as unknown as PrismaClient);
+      const found = await repo.findBySaleId('   ');
+
+      expect(found).toBeNull();
+      expect(mockPrisma.receipt.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('preserves exact historical snapshot values and decimal precision upon retrieval', async () => {
+      const receipt = createSampleReceipt();
+      const persistenceData = PrismaReceiptMapper.toPersistence(receipt);
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        $queryRawUnsafe: jest.fn(),
+        receipt: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findFirst: jest.fn().mockResolvedValue({
+            ...persistenceData,
+            clientSnapshot: persistenceData.clientSnapshot,
+            itemsSnapshot: persistenceData.itemsSnapshot,
+            paymentsSnapshot: persistenceData.paymentsSnapshot,
+            createdAt: t0,
+            updatedAt: t0,
+          }),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaReceiptRepository(mockPrisma as unknown as PrismaClient);
+      const retrieved = await repo.findBySaleId(saleId);
+
+      expect(retrieved).not.toBeNull();
+      expect(retrieved?.total.cents).toBe(receipt.total.cents);
+      expect(retrieved?.total.amount).toBe(receipt.total.amount);
+      expect(retrieved?.subtotal.cents).toBe(receipt.subtotal.cents);
+      expect(retrieved?.discountTotal.cents).toBe(receipt.discountTotal.cents);
+      expect(retrieved?.clientSnapshot?.clientId).toBe(receipt.clientSnapshot?.clientId);
+      expect(retrieved?.clientSnapshot?.fullName).toBe(receipt.clientSnapshot?.fullName);
+      expect(retrieved?.items).toHaveLength(receipt.items.length);
+      expect(retrieved?.payments).toHaveLength(receipt.payments.length);
+      expect(retrieved?.payments[0]?.amount.cents).toBe(receipt.payments[0]?.amount.cents);
+    });
+
+    it('guarantees deterministic positional ordering of nested line items upon retrieval', async () => {
+      const receipt = createSampleReceipt();
+      const multiItemSnapshot = [
+        {
+          itemId: 'item_idx_0_plan',
+          sourceType: 'MEMBERSHIP_PLAN',
+          sourceId: 'src_plan_01',
+          description: 'Line 0: Plan',
+          skuOrCode: 'SKU-0',
+          quantity: 1,
+          unitPrice: { amount: 50.0, cents: 5000, currency: 'USD' },
+          discountTotal: null,
+          subtotal: { amount: 50.0, cents: 5000, currency: 'USD' },
+          total: { amount: 50.0, cents: 5000, currency: 'USD' },
+        },
+        {
+          itemId: 'item_idx_1_service',
+          sourceType: 'CUSTOM_SERVICE',
+          sourceId: 'src_srv_02',
+          description: 'Line 1: Service',
+          skuOrCode: null,
+          quantity: 2,
+          unitPrice: { amount: 25.0, cents: 2500, currency: 'USD' },
+          discountTotal: null,
+          subtotal: { amount: 50.0, cents: 5000, currency: 'USD' },
+          total: { amount: 50.0, cents: 5000, currency: 'USD' },
+        },
+        {
+          itemId: 'item_idx_2_product',
+          sourceType: 'INVENTORY_ITEM',
+          sourceId: 'src_inv_03',
+          description: 'Line 2: Product',
+          skuOrCode: 'SKU-2',
+          quantity: 1,
+          unitPrice: { amount: 20.0, cents: 2000, currency: 'USD' },
+          discountTotal: null,
+          subtotal: { amount: 20.0, cents: 2000, currency: 'USD' },
+          total: { amount: 20.0, cents: 2000, currency: 'USD' },
+        },
+      ];
+
+      const multiItemPayments = [
+        {
+          paymentId: 'pay_01',
+          method: 'CASH',
+          status: 'COMPLETED',
+          amount: { amount: 120.0, cents: 12000, currency: 'USD' },
+          reference: 'DRAWER-01',
+          paidAt: t0.toISOString(),
+        },
+      ];
+
+      const persistenceData = {
+        ...PrismaReceiptMapper.toPersistence(receipt),
+        itemsSnapshot: multiItemSnapshot,
+        paymentsSnapshot: multiItemPayments,
+        subtotalAmount: new Prisma.Decimal('120.00'),
+        discountTotalAmount: new Prisma.Decimal('0.00'),
+        totalAmount: new Prisma.Decimal('120.00'),
+      };
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        $queryRawUnsafe: jest.fn(),
+        receipt: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findFirst: jest.fn().mockResolvedValue({
+            ...persistenceData,
+            clientSnapshot: persistenceData.clientSnapshot,
+            itemsSnapshot: persistenceData.itemsSnapshot,
+            paymentsSnapshot: persistenceData.paymentsSnapshot,
+            createdAt: t0,
+            updatedAt: t0,
+          }),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaReceiptRepository(mockPrisma as unknown as PrismaClient);
+      const retrieved = await repo.findBySaleId(saleId);
+
+      expect(retrieved).not.toBeNull();
+      expect(retrieved?.items).toHaveLength(3);
+      expect(retrieved?.items[0]?.itemId).toBe('item_idx_0_plan');
+      expect(retrieved?.items[1]?.itemId).toBe('item_idx_1_service');
+      expect(retrieved?.items[2]?.itemId).toBe('item_idx_2_product');
+    });
+
+    it('proves query operations are strictly read-only and execute zero database write mutations', async () => {
+      const receipt = createSampleReceipt();
+      const persistenceData = PrismaReceiptMapper.toPersistence(receipt);
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        $queryRawUnsafe: jest.fn(),
+        receipt: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findFirst: jest.fn().mockResolvedValue({
+            ...persistenceData,
+            clientSnapshot: persistenceData.clientSnapshot,
+            itemsSnapshot: persistenceData.itemsSnapshot,
+            paymentsSnapshot: persistenceData.paymentsSnapshot,
+            createdAt: t0,
+            updatedAt: t0,
+          }),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaReceiptRepository(mockPrisma as unknown as PrismaClient);
+      await repo.findBySaleId(saleId);
+
+      // Assert read method invoked
+      expect(mockPrisma.receipt.findFirst).toHaveBeenCalledTimes(1);
+
+      // Strictly assert zero write/mutation operations
+      expect(mockPrisma.receipt.create).not.toHaveBeenCalled();
+      expect(mockPrisma.receipt.updateMany).not.toHaveBeenCalled();
+      expect(mockPrisma.$transaction).not.toHaveBeenCalled();
+    });
+
+    it('wraps raw Prisma infrastructure failures in ReceiptPersistenceException without leaking Prisma internals', async () => {
+      const prismaDbError = new Error('Database connection reset by peer');
+
+      const mockPrisma: MockPrismaClient = {
+        $transaction: jest.fn(),
+        $queryRawUnsafe: jest.fn(),
+        receipt: {
+          create: jest.fn(),
+          findUnique: jest.fn(),
+          findFirst: jest.fn().mockRejectedValue(prismaDbError),
+          updateMany: jest.fn(),
+        },
+      };
+
+      const repo = new PrismaReceiptRepository(mockPrisma as unknown as PrismaClient);
+
+      await expect(repo.findBySaleId(saleId)).rejects.toThrow(ReceiptPersistenceException);
+      await expect(repo.findBySaleId(saleId)).rejects.toThrow(
+        `Failed to retrieve receipt by sale ID '${saleId.value}'`,
+      );
     });
 
     it('finds Receipt by human-readable receiptNumber', async () => {

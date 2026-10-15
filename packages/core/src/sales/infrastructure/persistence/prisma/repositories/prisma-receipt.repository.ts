@@ -8,7 +8,9 @@ import { PrismaReceiptMapper } from '../mappers/prisma-receipt.mapper';
 import { PrismaReceiptSequenceGenerator } from '../services/prisma-receipt-sequence.generator';
 import { ReceiptOptimisticLockException } from '../../../../domain/exceptions/optimistic-lock.exception';
 import { DuplicateReceiptException } from '../../../../domain/exceptions/duplicate-receipt.exception';
+import { ReceiptDomainException } from '../../../../domain/exceptions/receipt-domain.exception';
 import { PrismaDatabaseErrorMapper } from '../mappers/prisma-database-error.mapper';
+import { ReceiptPersistenceException } from '../exceptions/receipt-persistence.exception';
 
 /**
  * PostgreSQL and Prisma implementation of the ReceiptRepositoryPort.
@@ -34,45 +36,123 @@ export class PrismaReceiptRepository implements ReceiptRepositoryPort {
 
   public async findById(id: ReceiptId | string): Promise<Receipt | null> {
     const receiptIdStr = typeof id === 'string' ? id.trim() : id.value;
-
-    const raw = await this.prisma.receipt.findUnique({
-      where: { id: receiptIdStr },
-    });
-
-    if (!raw) {
+    if (!receiptIdStr) {
       return null;
     }
 
-    return PrismaReceiptMapper.toDomain(raw);
+    try {
+      const raw = await this.prisma.receipt.findUnique({
+        where: { id: receiptIdStr },
+      });
+
+      if (!raw) {
+        return null;
+      }
+
+      return PrismaReceiptMapper.toDomain(raw);
+    } catch (error: unknown) {
+      if (
+        error instanceof ReceiptDomainException ||
+        error instanceof DuplicateReceiptException ||
+        error instanceof ReceiptOptimisticLockException
+      ) {
+        throw error;
+      }
+
+      const checkError = PrismaDatabaseErrorMapper.mapCheckConstraintError(error);
+      if (checkError) {
+        throw checkError;
+      }
+
+      throw new ReceiptPersistenceException(
+        `Failed to retrieve receipt by id '${receiptIdStr}': ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
   }
 
-  public async findBySaleId(saleId: SaleId | string): Promise<Receipt | null> {
+  public async findBySaleId(saleId: SaleId | string, tenantId?: string): Promise<Receipt | null> {
     const saleIdStr = typeof saleId === 'string' ? saleId.trim() : saleId.value;
-
-    const raw = await this.prisma.receipt.findFirst({
-      where: { saleId: saleIdStr },
-    });
-
-    if (!raw) {
+    if (!saleIdStr) {
       return null;
     }
 
-    return PrismaReceiptMapper.toDomain(raw);
+    try {
+      const raw = await this.prisma.receipt.findFirst({
+        where: {
+          saleId: saleIdStr,
+          ...(tenantId && tenantId.trim() ? { tenantId: tenantId.trim() } : {}),
+        },
+      });
+
+      if (!raw) {
+        return null;
+      }
+
+      return PrismaReceiptMapper.toDomain(raw);
+    } catch (error: unknown) {
+      if (
+        error instanceof ReceiptDomainException ||
+        error instanceof DuplicateReceiptException ||
+        error instanceof ReceiptOptimisticLockException
+      ) {
+        throw error;
+      }
+
+      const checkError = PrismaDatabaseErrorMapper.mapCheckConstraintError(error);
+      if (checkError) {
+        throw checkError;
+      }
+
+      throw new ReceiptPersistenceException(
+        `Failed to retrieve receipt by sale ID '${saleIdStr}': ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
   }
 
-  public async findByReceiptNumber(receiptNumber: ReceiptNumber | string): Promise<Receipt | null> {
+  public async findByReceiptNumber(
+    receiptNumber: ReceiptNumber | string,
+    tenantId?: string,
+  ): Promise<Receipt | null> {
     const numberStr =
       typeof receiptNumber === 'string' ? receiptNumber.trim() : receiptNumber.value;
-
-    const raw = await this.prisma.receipt.findFirst({
-      where: { receiptNumber: numberStr },
-    });
-
-    if (!raw) {
+    if (!numberStr) {
       return null;
     }
 
-    return PrismaReceiptMapper.toDomain(raw);
+    try {
+      const raw = await this.prisma.receipt.findFirst({
+        where: {
+          receiptNumber: numberStr,
+          ...(tenantId && tenantId.trim() ? { tenantId: tenantId.trim() } : {}),
+        },
+      });
+
+      if (!raw) {
+        return null;
+      }
+
+      return PrismaReceiptMapper.toDomain(raw);
+    } catch (error: unknown) {
+      if (
+        error instanceof ReceiptDomainException ||
+        error instanceof DuplicateReceiptException ||
+        error instanceof ReceiptOptimisticLockException
+      ) {
+        throw error;
+      }
+
+      const checkError = PrismaDatabaseErrorMapper.mapCheckConstraintError(error);
+      if (checkError) {
+        throw checkError;
+      }
+
+      throw new ReceiptPersistenceException(
+        `Failed to retrieve receipt by number '${numberStr}': ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
   }
 
   public async save(receipt: Receipt): Promise<void> {

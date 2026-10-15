@@ -19,12 +19,15 @@ export interface ReceiptRepositoryPort extends ReceiptSequenceGeneratorPort {
    * Resolves the primary Receipt associated with a given Sale.
    * Enforces 1-to-1 relationship between Sale and primary Receipt.
    */
-  findBySaleId(saleId: SaleId | string): Promise<Receipt | null>;
+  findBySaleId(saleId: SaleId | string, tenantId?: string): Promise<Receipt | null>;
 
   /**
    * Resolves a Receipt by its human-readable alphanumeric receipt number.
    */
-  findByReceiptNumber(receiptNumber: ReceiptNumber | string): Promise<Receipt | null>;
+  findByReceiptNumber(
+    receiptNumber: ReceiptNumber | string,
+    tenantId?: string,
+  ): Promise<Receipt | null>;
 
   /**
    * Persists a Receipt aggregate (both initial issuance and subsequent reprint mutations).
