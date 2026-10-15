@@ -12,6 +12,7 @@ import {
   SourceType,
   PaymentMethod,
   PaymentStatus,
+  ReceiptStatus,
   Payment,
   PaymentId,
   PaymentReference,
@@ -695,6 +696,54 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
       await expect(controller.getReceiptBySale(sale.id.value, clientUser)).rejects.toThrow(
         ReceiptNotFoundException,
       );
+    });
+
+    it('throws BadRequestException when calling GET /sales/:saleId/receipt with empty or whitespace identifier', async () => {
+      await expect(controller.getReceiptBySale('   ', clientUser)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('throws SaleNotFoundException when calling GET /sales/:saleId/receipt for a non-existent sale', async () => {
+      const nonExistentSaleId = 'a1b2c3d4-e5f6-7a8b-9c0d-1e2f3a4b5c6d';
+      await expect(controller.getReceiptBySale(nonExistentSaleId, clientUser)).rejects.toThrow(
+        SaleNotFoundException,
+      );
+    });
+
+    it('proves controller delegates to GetReceiptBySaleHandler and maps complete ReceiptResponseDto contract', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 150.0, 'USD', clientUser.id);
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+
+      const resolved = await controller.getReceiptBySale(sale.id.value, clientUser);
+
+      // Verify delegation and exact DTO property mappings
+      expect(resolved).toBeInstanceOf(ReceiptResponseDto);
+      expect(resolved.id).toBe(issued.id);
+      expect(resolved.saleId).toBe(sale.id.value);
+      expect(resolved.receiptNumber).toBe(issued.receiptNumber);
+      expect(resolved.saleReference).toBe(sale.id.value);
+      expect(resolved.status).toBe(ReceiptStatus.ISSUED);
+      expect(resolved.reprintCount).toBe(0);
+      expect(resolved.lastReprintedAt).toBeNull();
+      expect(resolved.currency).toBe('USD');
+      expect(resolved.total.cents).toBe(15000);
+      expect(resolved.total.formatted).toBe('150.00');
+      expect(resolved.total.amount).toBe(150.0);
+      expect(resolved.subtotal.cents).toBe(15000);
+      expect(resolved.discountTotal.cents).toBe(0);
+      expect(resolved.itemCount).toBe(1);
+      expect(resolved.items).toHaveLength(1);
+      expect(resolved.items[0]!.description).toBe('Gold Membership Monthly Access');
+      expect(resolved.items[0]!.quantity).toBe(1);
+      expect(resolved.items[0]!.unitPrice.cents).toBe(15000);
+      expect(resolved.payments).toHaveLength(1);
+      expect(resolved.payments[0]!.amount.cents).toBe(15000);
+      expect(resolved.payments[0]!.method).toBe(PaymentMethod.CASH);
+      expect(resolved.payments[0]!.status).toBe(PaymentStatus.COMPLETED);
+      expect(resolved.paymentMethod).toBe(PaymentMethod.CASH);
+      expect(resolved.paymentStatus).toBe(PaymentStatus.COMPLETED);
+      expect(resolved.clientSnapshot?.clientId).toBe(clientUser.id);
     });
   });
 

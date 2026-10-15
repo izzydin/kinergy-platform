@@ -196,6 +196,18 @@ export class ReceiptsController {
     description: 'Receipt resolved successfully',
   })
   @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Sale ID cannot be empty or whitespace',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid authentication token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Caller lacks required receipts.read permission or cross-tenant access attempted',
+  })
+  @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Sale does not exist or receipt has not been issued yet',
   })
@@ -203,9 +215,11 @@ export class ReceiptsController {
     @Param('saleId') saleId: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<ReceiptResponseDto> {
-    if (!saleId || !saleId.trim()) {
+    if (!saleId || typeof saleId !== 'string' || !saleId.trim()) {
       throw new BadRequestException('Sale ID cannot be empty or whitespace.');
     }
+    const cleanSaleId = saleId.trim();
+
     const userContext = user
       ? new AuthenticatedUserContext({
           userId: user.id,
@@ -219,7 +233,7 @@ export class ReceiptsController {
 
     const executeAction = async (): Promise<ReceiptResponseDto> => {
       const query = new GetReceiptBySaleQuery({
-        saleId: saleId.trim(),
+        saleId: cleanSaleId,
         tenantId: user?.tenantId ?? undefined,
         currentUser: this.mapCurrentUser(user),
       });
