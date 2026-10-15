@@ -635,7 +635,10 @@ Transitions status to `"status": "CANCELLED"`.
 
 The Payments API provides autonomous financial settlement operations for commercial sale orders, supporting cash counter payments, asynchronous QR dynamic codes, multi-tender split settlement, and pending tender cancellation.
 
-All monetary amounts strictly adhere to the **Phase 7.4 Monetary Policy** ([ADR-0108](../adr/0108-money-representation.md), [ADR-0114](../adr/0114-canonical-monetary-policy-and-sale-totals.md), [ADR-0115](../adr/0115-payment-domain-canonical-architecture.md)).
+All monetary amounts strictly adhere to the **Phase 7.4 Monetary Policy** ([ADR-0108](../adr/0108-money-representation.md), [ADR-0114](../adr/0114-canonical-monetary-policy-and-sale-totals.md), [ADR-0115](../adr/0115-payment-domain-canonical-architecture.md), [ADR-0138](../adr/0138-payment-api-architecture-and-contracts.md)).
+
+- **Authoritative Traceability Report**: [`docs/api/payment_api_traceability_report.md`](payment_api_traceability_report.md)
+- **OpenAPI / Swagger Contract Verification**: `apps/api/src/sales/__tests__/payments-openapi-contract.spec.ts`
 
 ```text
 Sale = commercial transaction / amount owed
@@ -647,27 +650,29 @@ Payment = money paid toward a Sale
 
 #### Endpoints Catalog
 
-| HTTP Method | Route                            | Protection                                  | Permission Required                  | Allowed Roles                                       | Summary & Description                                                                                                                 | Expected Status Codes                                                                                             |
-| :---------- | :------------------------------- | :------------------------------------------ | :----------------------------------- | :-------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------- |
-| `POST`      | `/api/v1/sales/:saleId/payments` | `AuthenticationGuard`, `AuthorizationGuard` | `payments.create`                    | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | **Record Payment Tender**: Records cash or QR payment against a finalized sale order in `PENDING_PAYMENT` or `PARTIALLY_PAID` status. | `201 Created`<br/>`400 Bad Request`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`422 Unprocessable Entity`        |
-| `GET`       | `/api/v1/sales/:saleId/payments` | `AuthenticationGuard`, `AuthorizationGuard` | `payments.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | **List Sale Payments**: Returns chronological payment transactions settling a given sale.                                             | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                                           |
-| `GET`       | `/api/v1/payments/:paymentId`    | `AuthenticationGuard`, `AuthorizationGuard` | `payments.read`                      | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | **Get Payment by ID**: Retrieves individual payment transaction details by unique payment ID.                                         | `200 OK`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                                           |
-| `POST`      | `/api/v1/payments/:id/complete`  | `AuthenticationGuard`, `AuthorizationGuard` | `payments.create`, `payments.manage` | `Owner`, `Manager`, `Receptionist`                  | **Complete Payment**: Transitions a `PENDING` payment to `COMPLETED`, records `paidAt` timestamp, and advances Sale balance.          | `200 OK`<br/>`400 Bad Request`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`<br/>`422 Unprocessable` |
-| `POST`      | `/api/v1/payments/:id/fail`      | `AuthenticationGuard`, `AuthorizationGuard` | `payments.create`, `payments.manage` | `Owner`, `Manager`, `Receptionist`                  | **Fail Payment**: Transitions a `PENDING` payment to terminal `FAILED` status with audit reason.                                      | `200 OK`<br/>`400 Bad Request`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`<br/>`422 Unprocessable` |
-| `POST`      | `/api/v1/payments/:id/cancel`    | `AuthenticationGuard`, `AuthorizationGuard` | `payments.manage`                    | `Owner`, `Manager`, `Receptionist`                  | **Cancel Pending Tender**: Voids a `PENDING` payment transaction. Completed payments are permanently immutable.                       | `200 OK`<br/>`400 Bad Request`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`<br/>`422 Unprocessable` |
-| `POST`      | `/api/v1/payments/:id/settle`    | `AuthenticationGuard`, `AuthorizationGuard` | `payments.create`, `payments.manage` | `Owner`, `Manager`, `Receptionist`                  | **Settle Payment (Alias)**: Canonical alias for `/complete`, transitioning `PENDING` to `COMPLETED`/`SETTLED`.                        | `200 OK`<br/>`400 Bad Request`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`<br/>`422 Unprocessable` |
+| HTTP Method | Route                            | Protection                                  | Permission Required | Allowed Roles                                       | Summary & Description                                                                                                                 | Expected Status Codes                                                                                                                         |
+| :---------- | :------------------------------- | :------------------------------------------ | :------------------ | :-------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------ | :-------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST`      | `/api/v1/sales/:saleId/payments` | `AuthenticationGuard`, `AuthorizationGuard` | `payments.create`   | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | **Record Payment Tender**: Records cash or QR payment against a finalized sale order in `PENDING_PAYMENT` or `PARTIALLY_PAID` status. | `201 Created`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`<br/>`422 Unprocessable` |
+| `GET`       | `/api/v1/sales/:saleId/payments` | `AuthenticationGuard`, `AuthorizationGuard` | `payments.read`     | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | **List Sale Payments**: Returns chronological payment transactions settling a given sale.                                             | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                                                 |
+| `GET`       | `/api/v1/payments/:id`           | `AuthenticationGuard`, `AuthorizationGuard` | `payments.read`     | `Owner`, `Manager`, `Receptionist`, `Kitchen Staff` | **Get Payment by ID**: Retrieves individual payment transaction details by unique payment ID.                                         | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`                                                 |
+| `GET`       | `/api/v1/payments`               | `AuthenticationGuard`, `AuthorizationGuard` | `payments.read`     | `Owner`, `Manager`, `Receptionist`                  | **List Payments (Paginated)**: Searches, filters, and paginates payments across the entire tenant ledger.                             | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`                                                                     |
+| `POST`      | `/api/v1/payments/:id/complete`  | `AuthenticationGuard`, `AuthorizationGuard` | `payments.manage`   | `Owner`, `Manager`, `Receptionist`                  | **Complete Payment**: Transitions a `PENDING` payment to `COMPLETED`, records `paidAt` timestamp, and advances Sale balance.          | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`<br/>`422 Unprocessable`      |
+| `POST`      | `/api/v1/payments/:id/fail`      | `AuthenticationGuard`, `AuthorizationGuard` | `payments.manage`   | `Owner`, `Manager`, `Receptionist`                  | **Fail Payment**: Transitions a `PENDING` payment to terminal `FAILED` status with audit reason.                                      | `200 OK`<br/>`400 Bad Request`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`<br/>`422 Unprocessable`                             |
+| `POST`      | `/api/v1/payments/:id/cancel`    | `AuthenticationGuard`, `AuthorizationGuard` | `payments.manage`   | `Owner`, `Manager`                                  | **Cancel Pending Tender**: Voids an unsettled `PENDING` payment transaction. Completed payments are permanently immutable.            | `200 OK`<br/>`400 Bad Request`<br/>`401 Unauthorized`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`<br/>`422 Unprocessable`      |
+| `POST`      | `/api/v1/payments/:id/settle`    | `AuthenticationGuard`, `AuthorizationGuard` | `payments.manage`   | `Owner`, `Manager`, `Receptionist`                  | **Settle Payment (Alias)**: Canonical alias for `/complete`, transitioning `PENDING` to `COMPLETED`/`SETTLED`.                        | `200 OK`<br/>`400 Bad Request`<br/>`403 Forbidden`<br/>`404 Not Found`<br/>`409 Conflict`<br/>`422 Unprocessable`                             |
 
 #### Request Schemas
 
-> **Critical Rule**: Client request DTOs strictly prohibit sending `status`, `paidAt`, or `createdAt`. Every state transition is executed exclusively through explicit lifecycle endpoints. Any client-supplied `status` is stripped and ignored.
+> **Critical Rule**: Client request DTOs strictly prohibit sending server-controlled fields (`paidAt`, `createdAt`, or `version`). Every state transition is executed exclusively through explicit lifecycle endpoints. Any client-supplied lifecycle timestamps or arbitrary status codes are rejected by `GlobalSanitizationValidationPipe`.
 
-##### 1. `RecordPaymentRequestDto` (`POST /api/v1/sales/:saleId/payments`)
+##### 1. `RecordPaymentRequestDto` (`POST /api/v1/sales/:saleId/payments`, `POST /api/v1/payments`)
 
 ```json
 {
   "method": "CASH",
   "amount": 49.99,
   "currency": "USD",
+  "status": "COMPLETED",
   "reference": "DRAWER-01-RECEIPT-99"
 }
 ```
@@ -675,19 +680,18 @@ Payment = money paid toward a Sale
 - **`method`** (string, required): Supported tender method: `CASH` or `QR`.
 - **`amount`** (number, required): Major currency units ($> 0$, max 2 decimal places).
 - **`currency`** (string, optional): 3-letter uppercase ISO-4217 code (default `"USD"`). Must match parent `Sale` currency.
+- **`status`** (string, optional): Initial status (`PENDING` or `COMPLETED`, default: `COMPLETED`).
 - **`reference`** (string, optional): External correlation or cash drawer audit trace (max 100 characters; alphanumeric and `#-_/.: `; no credit card PANs).
 
 ##### 2. `CompletePaymentRequestDto` / `SettlePaymentRequestDto` (`POST /api/v1/payments/:id/complete`, `POST /api/v1/payments/:id/settle`)
 
 ```json
 {
-  "reference": "QR-CONFIRMED-TRACE-12345",
-  "paidAt": "2026-09-24T12:00:00.000Z"
+  "reference": "QR-CONFIRMED-TRACE-12345"
 }
 ```
 
 - **`reference`** (string, optional): Provider settlement confirmation trace (max 100 characters).
-- **`paidAt`** (string, optional): ISO-8601 UTC timestamp of actual fund clearance (defaults to server clock time).
 
 ##### 3. `FailPaymentRequestDto` (`POST /api/v1/payments/:id/fail`)
 
@@ -709,6 +713,10 @@ Payment = money paid toward a Sale
 
 - **`reason`** (string, optional): Operator justification for voiding pending tender (max 255 characters).
 
+##### 5. `ListPaymentsQueryDto` (`GET /api/v1/payments`)
+
+Query parameters supporting pagination (`page`, `limit`), filtering (`saleId`, `status`, `method`, `fromDate`, `toDate`), and sorting (`sortBy`, `sortDirection`).
+
 #### Response Schema (`PaymentResponseDto`)
 
 ```json
@@ -725,18 +733,18 @@ Payment = money paid toward a Sale
   "amountValue": 49.99,
   "status": "COMPLETED",
   "reference": "DRAWER-01-RECEIPT-99",
-  "paidAt": "2026-09-24T10:00:00.000Z",
-  "createdAt": "2026-09-24T10:00:00.000Z",
+  "paidAt": "2026-10-15T12:00:00.000Z",
+  "createdAt": "2026-10-15T12:00:00.000Z",
   "version": 1
 }
 ```
 
-- **`method` values**: Supported: `CASH`, `QR`. (Room left for future `CARD`, `TRANSFER`, `ONLINE`).
-- **`status` values**: Exact 4 states: `PENDING`, `COMPLETED` (or `SETTLED`), `FAILED`, `CANCELLED`.
+- **`method` values**: Supported: `CASH`, `QR`.
+- **`status` values**: Exact 4 states: `PENDING`, `COMPLETED`, `FAILED`, `CANCELLED`.
 - **`amount` structure**: Canonical `MoneyResponseDto` providing `amount` (float), `currency` (ISO-4217), `formatted` (2-decimal string), and `cents` (safe integer).
 - **`amountValue`**: Direct decimal scalar for simplified frontend binding.
 - **`paidAt`**: ISO-8601 UTC timestamp populated strictly when `status == COMPLETED`, or `null` for non-completed states.
-- **`version`**: OCC integer version counter ($\ge 1$).
+- **`version`**: OCC integer version counter ($\ge 1$). Zero persistence fields (`tenantId`, ORM metadata) leaked.
 
 ---
 

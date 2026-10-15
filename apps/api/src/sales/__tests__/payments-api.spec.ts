@@ -256,6 +256,9 @@ describe('Payment HTTP API Architecture & Exception Spec', () => {
         defaultUser,
       );
 
+      // Ensure distinct chronological timestamp for test assertion
+      await new Promise((resolve) => setTimeout(resolve, 20));
+
       await controller.recordPayment(
         sale.id.value,
         {

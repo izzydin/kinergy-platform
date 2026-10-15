@@ -191,8 +191,22 @@ export class PaymentsController {
     description: 'Validation failed, invalid tender method, or currency mismatch',
   })
   @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid authentication token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description:
+      'Caller lacks required payments.create permission or cross-tenant access attempted',
+  })
+  @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Target sale does not exist',
+  })
+  @ApiResponse({
+    status: HttpStatus.CONFLICT,
+    description:
+      'Optimistic concurrency control conflict or duplicate payment reference for target sale',
   })
   @ApiResponse({
     status: HttpStatus.UNPROCESSABLE_ENTITY,
@@ -279,6 +293,10 @@ export class PaymentsController {
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
     description: 'Target sale does not exist within the caller tenant scope',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid authentication token.',
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
@@ -384,6 +402,10 @@ export class PaymentsController {
     description: 'Payment with specified ID does not exist within the caller tenant scope',
   })
   @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid authentication token.',
+  })
+  @ApiResponse({
     status: HttpStatus.FORBIDDEN,
     description: 'Caller lacks required payments.read permission or cross-tenant access attempted',
   })
@@ -468,6 +490,18 @@ export class PaymentsController {
     status: HttpStatus.OK,
     type: PaginatedPaymentsResponseDto,
     description: 'Paginated list of payment records',
+  })
+  @ApiResponse({
+    status: HttpStatus.BAD_REQUEST,
+    description: 'Invalid query parameters, invalid date ranges, or un-allowlisted sort fields',
+  })
+  @ApiResponse({
+    status: HttpStatus.UNAUTHORIZED,
+    description: 'Missing or invalid authentication token.',
+  })
+  @ApiResponse({
+    status: HttpStatus.FORBIDDEN,
+    description: 'Caller lacks required payments.read permission',
   })
   public async listPayments(
     @Query() queryDto: ListPaymentsQueryDto = {},
