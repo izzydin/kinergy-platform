@@ -8,7 +8,7 @@ export class SettlePaymentRequestDto {
     example: 'QR-CONFIRMED-TRACE-12345',
     maxLength: 100,
   })
-  @IsString()
+  @IsString({ message: 'reference must be a string.' })
   @IsOptional()
   @MaxLength(100, { message: 'Reference cannot exceed 100 characters.' })
   @Matches(/^[A-Za-z0-9#\-_/.: ]+$/, {
@@ -30,7 +30,7 @@ export class CancelPaymentRequestDto {
     example: 'Customer opted to tender cash instead',
     maxLength: 255,
   })
-  @IsString()
+  @IsString({ message: 'reason must be a string.' })
   @IsOptional()
   @MaxLength(255, { message: 'Cancellation reason cannot exceed 255 characters.' })
   reason?: string;
@@ -43,7 +43,7 @@ export class FailPaymentRequestDto {
     example: 'Bank card decline: insufficient funds',
     maxLength: 255,
   })
-  @IsString()
+  @IsString({ message: 'reason must be a string.' })
   @IsOptional()
   @MaxLength(255, { message: 'Failure reason cannot exceed 255 characters.' })
   reason?: string;

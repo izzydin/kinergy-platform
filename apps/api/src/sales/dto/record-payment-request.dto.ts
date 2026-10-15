@@ -25,7 +25,7 @@ export class RecordPaymentRequestDto {
     description: 'Target Sale UUID (optional if provided in route path)',
     example: 'f5e4d3c2-b1a0-9f8e-7d6c-5b4a3f2e1d0c',
   })
-  @IsString()
+  @IsString({ message: 'saleId must be a string.' })
   @IsOptional()
   saleId?: string;
 
@@ -58,7 +58,7 @@ export class RecordPaymentRequestDto {
     example: 'USD',
     default: 'USD',
   })
-  @IsString()
+  @IsString({ message: 'currency must be a string.' })
   @IsOptional()
   @Matches(/^[A-Z]{3}$/, {
     message: 'Currency must be a 3-letter uppercase ISO-4217 code (e.g. USD, CAD, EUR).',
@@ -67,7 +67,8 @@ export class RecordPaymentRequestDto {
 
   @ApiPropertyOptional({
     enum: [PaymentStatus.PENDING, PaymentStatus.COMPLETED],
-    description: 'Initial payment lifecycle state. Must be PENDING or COMPLETED.',
+    description:
+      'Initial payment lifecycle state. Must be PENDING or COMPLETED. Note: Terminal states (CANCELLED, FAILED) cannot be initialized by clients.',
     example: PaymentStatus.COMPLETED,
     default: PaymentStatus.COMPLETED,
   })
@@ -83,7 +84,7 @@ export class RecordPaymentRequestDto {
     example: 'DRAWER-01-RECEIPT-99',
     maxLength: 100,
   })
-  @IsString()
+  @IsString({ message: 'reference must be a string.' })
   @IsOptional()
   @MaxLength(100, { message: 'Reference cannot exceed 100 characters.' })
   @Matches(/^[A-Za-z0-9#\-_/.: ]+$/, {

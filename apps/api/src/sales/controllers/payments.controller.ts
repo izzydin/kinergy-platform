@@ -57,6 +57,8 @@ import { RequestContext } from '../../platform/identity/request-context';
 import {
   RecordPaymentRequestDto,
   PaymentResponseDto,
+  PaymentSummaryResponseDto,
+  PaymentDetailResponseDto,
   CompletePaymentRequestDto,
   SettlePaymentRequestDto,
   FailPaymentRequestDto,
@@ -263,7 +265,7 @@ export class PaymentsController {
   })
   @ApiResponse({
     status: HttpStatus.OK,
-    type: [PaymentResponseDto],
+    type: [PaymentSummaryResponseDto],
     description: 'List of payment records for the requested sale',
   })
   @ApiResponse({
@@ -366,7 +368,7 @@ export class PaymentsController {
   @ApiParam({ name: 'id', description: 'Payment UUID identifier' })
   @ApiResponse({
     status: HttpStatus.OK,
-    type: PaymentResponseDto,
+    type: PaymentDetailResponseDto,
     description: 'Payment record resolved successfully',
   })
   @ApiResponse({
@@ -385,7 +387,7 @@ export class PaymentsController {
     @Param('id') idParam?: string,
     @CurrentUser() userParam?: AuthenticatedUserPayload,
     @Param('paymentId') paymentIdParam?: string,
-  ): Promise<PaymentResponseDto> {
+  ): Promise<PaymentDetailResponseDto> {
     const rawId =
       (idParam && typeof idParam === 'string' && idParam.trim() ? idParam : undefined) ??
       (paymentIdParam && typeof paymentIdParam === 'string' && paymentIdParam.trim()
@@ -414,7 +416,7 @@ export class PaymentsController {
         })
       : null;
 
-    const executeAction = async (): Promise<PaymentResponseDto> => {
+    const executeAction = async (): Promise<PaymentDetailResponseDto> => {
       const query = new GetPaymentQuery({
         paymentId,
         tenantId: user?.tenantId ?? undefined,
@@ -511,10 +513,15 @@ export class PaymentsController {
   @ApiOperation({
     summary: 'Retrieve individual payment transaction by identifier (alias for getPaymentById)',
   })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: PaymentDetailResponseDto,
+    description: 'Detailed payment record resolved successfully',
+  })
   public async getPayment(
     @Param('paymentId') paymentId: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
-  ): Promise<PaymentResponseDto> {
+  ): Promise<PaymentDetailResponseDto> {
     return this.getPaymentById(paymentId, user);
   }
 
