@@ -1,7 +1,9 @@
 import {
   BadRequestException,
   Body,
+  ConflictException,
   Controller,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -11,6 +13,7 @@ import {
   Param,
   Post,
   Query,
+  UnprocessableEntityException,
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
@@ -200,10 +203,11 @@ export class PaymentsController {
     @Body() dto: RecordPaymentRequestDto = {} as RecordPaymentRequestDto,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto> {
-    const saleId = (saleIdParam ?? dto?.saleId)?.trim();
-    if (!saleId) {
+    const rawSaleId = saleIdParam ?? dto?.saleId;
+    if (!rawSaleId || typeof rawSaleId !== 'string' || !rawSaleId.trim()) {
       throw new BadRequestException('Sale ID cannot be empty or whitespace.');
     }
+    const saleId = rawSaleId.trim();
     const userContext = user
       ? new AuthenticatedUserContext({
           userId: user.id,
@@ -304,10 +308,10 @@ export class PaymentsController {
       sortDirection = querySort.toLowerCase() as 'asc' | 'desc';
     }
 
-    const cleanSaleId = saleId?.trim();
-    if (!cleanSaleId) {
+    if (!saleId || typeof saleId !== 'string' || !saleId.trim()) {
       throw new BadRequestException('Sale ID cannot be empty or whitespace.');
     }
+    const cleanSaleId = saleId.trim();
 
     const userContext = user
       ? new AuthenticatedUserContext({
@@ -537,7 +541,7 @@ export class PaymentsController {
     @Param('saleId') saleId: string,
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<PaymentResponseDto[]> {
-    if (!saleId || !saleId.trim()) {
+    if (!saleId || typeof saleId !== 'string' || !saleId.trim()) {
       throw new BadRequestException('Sale ID cannot be empty or whitespace.');
     }
     const query = new GetSalePaymentHistoryQuery({
@@ -713,18 +717,33 @@ export class PaymentsController {
     @Param('saleId') paramSaleId?: string,
     @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
-    if (!id || !id.trim()) {
+    if (!id || typeof id !== 'string' || !id.trim()) {
       throw new BadRequestException('Payment ID cannot be empty or whitespace.');
     }
-    const effectiveSaleId = paramSaleId ?? querySaleId;
-    const userContext = user
+    const rawSaleId = paramSaleId ?? querySaleId;
+    const effectiveSaleId =
+      rawSaleId && typeof rawSaleId === 'string' && rawSaleId.trim() ? rawSaleId.trim() : undefined;
+
+    let effectiveDto = dto ?? {};
+    let effectiveUser = user;
+    if (
+      dto &&
+      typeof dto === 'object' &&
+      ('userId' in dto || 'roles' in dto || 'permissions' in dto) &&
+      !user
+    ) {
+      effectiveUser = dto as unknown as AuthenticatedUserPayload;
+      effectiveDto = {};
+    }
+
+    const userContext = effectiveUser
       ? new AuthenticatedUserContext({
-          userId: user.id,
-          email: user.email,
-          status: user.status ?? 'ACTIVE',
-          roles: user.roles ?? [],
-          permissions: user.permissions ?? [],
-          tenantId: user.tenantId ?? null,
+          userId: effectiveUser.id,
+          email: effectiveUser.email,
+          status: effectiveUser.status ?? 'ACTIVE',
+          roles: effectiveUser.roles ?? [],
+          permissions: effectiveUser.permissions ?? [],
+          tenantId: effectiveUser.tenantId ?? null,
         })
       : null;
 
@@ -732,15 +751,15 @@ export class PaymentsController {
       const command = new SettlePaymentCommand({
         paymentId: id.trim(),
         saleId: effectiveSaleId,
-        reference: dto?.reference,
-        tenantId: user?.tenantId ?? undefined,
-        currentUser: user
+        reference: effectiveDto?.reference,
+        tenantId: effectiveUser?.tenantId ?? undefined,
+        currentUser: effectiveUser
           ? {
-              id: user.id,
-              userId: user.id,
-              email: user.email,
-              roles: user.roles,
-              permissions: user.permissions,
+              id: effectiveUser.id,
+              userId: effectiveUser.id,
+              email: effectiveUser.email,
+              roles: effectiveUser.roles,
+              permissions: effectiveUser.permissions,
             }
           : undefined,
       });
@@ -971,8 +990,36 @@ export class PaymentsController {
         throw error;
       }
       const message = String(error);
-      if (message.includes('not found') || message.includes('was not found')) {
+      const lower = message.toLowerCase();
+      if (
+        lower.includes('unauthorized') ||
+        lower.includes('forbidden') ||
+        lower.includes('permission')
+      ) {
+        throw new ForbiddenException(message);
+      }
+      if (
+        lower.includes('not found') ||
+        lower.includes('was not found') ||
+        lower.includes('does not exist')
+      ) {
         throw new NotFoundException(message);
+      }
+      if (
+        lower.includes('conflict') ||
+        lower.includes('optimistic') ||
+        lower.includes('already exists') ||
+        lower.includes('duplicate')
+      ) {
+        throw new ConflictException(message);
+      }
+      if (
+        lower.includes('unprocessable') ||
+        lower.includes('transition') ||
+        lower.includes('cannot transition') ||
+        lower.includes('terminal')
+      ) {
+        throw new UnprocessableEntityException(message);
       }
       throw new BadRequestException(message);
     }

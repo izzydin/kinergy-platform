@@ -137,20 +137,31 @@ export class SalesExceptionFilter implements ExceptionFilter {
     }
 
     // 1. Optimistic Concurrency & Lock Collisions (409 Conflict)
+    const rawCode =
+      exception && typeof exception === 'object' && 'code' in exception
+        ? String((exception as { code: unknown }).code)
+        : undefined;
+
     if (
       exception instanceof SaleOptimisticLockException ||
       exception instanceof PaymentOptimisticLockException ||
       exception instanceof ReceiptOptimisticLockException ||
       exception instanceof DuplicateReceiptException ||
       exception instanceof DuplicateSaleException ||
-      exception instanceof DuplicatePaymentReferenceException
+      exception instanceof DuplicatePaymentReferenceException ||
+      rawCode === 'P2002' ||
+      rawCode === '23505' ||
+      rawCode === 'P2034'
     ) {
-      const code =
-        'code' in exception && typeof (exception as { code: unknown }).code === 'string'
-          ? (exception as { code: string }).code
-          : 'CONFLICT';
+      const code = rawCode && !['P2002', '23505', 'P2034'].includes(rawCode) ? rawCode : 'CONFLICT';
 
-      const sanitizedMsg = this.sanitizeMessage(exception.message);
+      const sanitizedMsg =
+        rawCode === 'P2002' || rawCode === '23505' || rawCode === 'P2034'
+          ? 'A concurrent transaction or duplicate entity conflict occurred.'
+          : this.sanitizeMessage(
+              exception instanceof Error ? exception.message : String(exception),
+            );
+
       this.logger.warn(
         `${logPrefix}${method} ${sanitizedUrl} - Status: ${HttpStatus.CONFLICT} - Conflict: ${sanitizedMsg}`,
       );
@@ -195,11 +206,18 @@ export class SalesExceptionFilter implements ExceptionFilter {
       exception instanceof SaleNotFoundException ||
       exception instanceof PaymentNotFoundException ||
       exception instanceof ReceiptNotFoundException ||
+      rawCode === 'P2025' ||
       (exception instanceof Error &&
         (exception.name === 'SourceNotFoundException' ||
           exception.name === 'ClientNotFoundException'))
     ) {
-      const sanitizedMsg = this.sanitizeMessage(exception.message);
+      const sanitizedMsg =
+        rawCode === 'P2025'
+          ? 'The requested resource was not found.'
+          : this.sanitizeMessage(
+              exception instanceof Error ? exception.message : String(exception),
+            );
+
       this.logger.warn(
         `${logPrefix}${method} ${sanitizedUrl} - Status: ${HttpStatus.NOT_FOUND} - Resource Not Found: ${sanitizedMsg}`,
       );
