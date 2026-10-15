@@ -50,7 +50,7 @@ export class GetReceiptBySaleHandler implements SalesQueryHandler<
       }
 
       // 3. Resolve Receipt by associated Sale ID
-      const receipt = await this.receiptRepository.findBySaleId(saleId);
+      const receipt = await this.receiptRepository.findBySaleId(saleId, input.tenantId);
       if (!receipt) {
         return SalesApplicationResult.fail(new ReceiptNotFoundException(`sale:${saleId}`));
       }
