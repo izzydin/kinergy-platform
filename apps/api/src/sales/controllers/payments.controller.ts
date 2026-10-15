@@ -526,7 +526,7 @@ export class PaymentsController {
     return this.handleResult(result);
   }
 
-  @Post(['payments', 'sales/:saleId/payments/create'])
+  @Post('sales/:saleId/payments/create')
   @HttpCode(HttpStatus.CREATED)
   @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
   @Permissions('payments.create')
