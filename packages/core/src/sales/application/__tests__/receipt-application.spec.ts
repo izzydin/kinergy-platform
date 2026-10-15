@@ -85,11 +85,14 @@ class MockReceiptRepository implements ReceiptRepositoryPort {
     return null;
   }
 
+  public saveCallCount = 0;
+
   async save(receipt: Receipt): Promise<void> {
     if (this.errorToThrow) throw this.errorToThrow;
     if (this.throwDuplicateOnSave) {
       throw new DuplicateReceiptException(receipt.saleId.value, receipt.tenantId);
     }
+    this.saveCallCount++;
     this.store.set(receipt.id.value, receipt);
   }
 
@@ -871,6 +874,68 @@ describe('Receipt Application Layer — End-to-End Orchestration & Boundary Test
 
         expect(result.isFailure).toBe(true);
         expect(result.getError()).toBeInstanceOf(ReceiptUnauthorizedException);
+      });
+
+      it('should handle repository failure using existing application error conventions', async () => {
+        receiptRepo.errorToThrow = new Error('Database read failure during receipt lookup');
+
+        const query = new GetReceiptBySaleQuery({
+          saleId: issuedSaleId,
+          tenantId,
+          currentUser: { permissions: ['receipts.read'] },
+        });
+
+        const result = await getReceiptBySaleHandler.execute(query);
+
+        expect(result.isFailure).toBe(true);
+        expect(getErrorMessage(result)).toBe('Database read failure during receipt lookup');
+      });
+
+      it('should return historical snapshot fields completely unchanged without recalculation', async () => {
+        const query = new GetReceiptBySaleQuery({
+          saleId: issuedSaleId,
+          tenantId,
+          currentUser: { permissions: ['receipts.read'] },
+        });
+
+        const result = await getReceiptBySaleHandler.execute(query);
+
+        expect(result.isSuccess).toBe(true);
+        const dto = result.getValue();
+        expect(dto.id).toBe(issuedReceiptId);
+        expect(dto.saleId).toBe(issuedSaleId);
+        expect(dto.total.amount).toBe(125.0);
+        expect(dto.total.cents).toBe(12500);
+        expect(dto.total.formatted).toBe('125.00');
+        expect(dto.total.currency).toBe('USD');
+        expect(dto.items).toHaveLength(1);
+        expect(dto.payments).toHaveLength(1);
+        expect(dto.payments[0]!.amount.amount).toBe(125.0);
+        expect(dto.payments[0]!.status).toBe(PaymentStatus.COMPLETED);
+      });
+
+      it('should guarantee that retrieval is strictly read-only and does not issue, mutate, or duplicate a Receipt', async () => {
+        const initialStoreSize = receiptRepo.store.size;
+        const initialSaveCount = receiptRepo.saveCallCount;
+
+        const query = new GetReceiptBySaleQuery({
+          saleId: issuedSaleId,
+          tenantId,
+          currentUser: { permissions: ['receipts.read'] },
+        });
+
+        const result = await getReceiptBySaleHandler.execute(query);
+
+        expect(result.isSuccess).toBe(true);
+        // Zero persistence calls executed during query retrieval
+        expect(receiptRepo.saveCallCount).toBe(initialSaveCount);
+        expect(receiptRepo.store.size).toBe(initialStoreSize);
+
+        // Aggregate remains at original version and reprint count
+        const receiptInStore = receiptRepo.store.get(issuedReceiptId)!;
+        expect(receiptInStore.version).toBe(1);
+        expect(receiptInStore.reprintCount).toBe(0);
+        expect(receiptInStore.lastReprintedAt).toBeNull();
       });
     });
   });
