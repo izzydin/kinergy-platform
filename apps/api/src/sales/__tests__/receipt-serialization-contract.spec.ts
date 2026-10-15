@@ -1,4 +1,17 @@
-import { PaymentMethod, PaymentStatus, ReceiptStatus, ReceiptDTO } from '@kinergy-platform/core';
+import {
+  PaymentMethod,
+  PaymentStatus,
+  ReceiptStatus,
+  ReceiptDTO,
+  Receipt,
+  ReceiptId,
+  SaleId,
+  ReceiptNumber,
+  Money,
+  ReceiptItemSnapshot,
+  ReceiptPaymentSnapshot,
+  ReceiptClientSnapshot,
+} from '@kinergy-platform/core';
 import { ReceiptResponseDto } from '../dto/receipt-response.dto';
 
 describe('Receipt Canonical Response Serialization Contract', () => {
@@ -402,6 +415,435 @@ describe('Receipt Canonical Response Serialization Contract', () => {
       expect(Array.isArray(parsed['payments'])).toBe(true);
       expect(typeof parsed['paymentMethod']).toBe('string');
       expect(typeof parsed['paymentStatus']).toBe('string');
+    });
+  });
+
+  // ==========================================================================
+  // 6. Exact Field Whitelist and Public Contract Mapping
+  // ==========================================================================
+  describe('6. Exact Field Whitelist & Public Contract Mapping', () => {
+    it('ensures root ReceiptResponseDto exposes exclusively the 19 approved canonical properties', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+      const actualKeys = Object.keys(response).sort();
+      const expectedKeys = [
+        'clientSnapshot',
+        'currency',
+        'discountTotal',
+        'id',
+        'issuedAt',
+        'itemCount',
+        'items',
+        'lastReprintedAt',
+        'paymentMethod',
+        'paymentStatus',
+        'payments',
+        'receiptNumber',
+        'reprintCount',
+        'saleId',
+        'saleReference',
+        'status',
+        'subtotal',
+        'tenantId',
+        'total',
+      ].sort();
+
+      expect(actualKeys).toEqual(expectedKeys);
+    });
+
+    it('ensures line item snapshot exposes exclusively the 10 approved canonical properties', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+      const item = response.items[0]!;
+      const actualKeys = Object.keys(item).sort();
+      const expectedKeys = [
+        'description',
+        'discountTotal',
+        'itemId',
+        'quantity',
+        'skuOrCode',
+        'sourceId',
+        'sourceType',
+        'subtotal',
+        'total',
+        'unitPrice',
+      ].sort();
+
+      expect(actualKeys).toEqual(expectedKeys);
+    });
+
+    it('ensures payment tender snapshot exposes exclusively the 6 approved canonical properties', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+      const payment = response.payments[0]!;
+      const actualKeys = Object.keys(payment).sort();
+      const expectedKeys = [
+        'amount',
+        'method',
+        'paidAt',
+        'paymentId',
+        'reference',
+        'status',
+      ].sort();
+
+      expect(actualKeys).toEqual(expectedKeys);
+    });
+
+    it('ensures client snapshot exposes exclusively the 5 approved canonical properties', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+      const client = response.clientSnapshot!;
+      const actualKeys = Object.keys(client).sort();
+      const expectedKeys = ['clientId', 'email', 'fullName', 'phone', 'referenceNumber'].sort();
+
+      expect(actualKeys).toEqual(expectedKeys);
+    });
+
+    it('ensures structured MoneyResponseDto exposes exclusively the 4 canonical properties', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+      const money = response.total;
+      const actualKeys = Object.keys(money).sort();
+      const expectedKeys = ['amount', 'cents', 'currency', 'formatted'].sort();
+
+      expect(actualKeys).toEqual(expectedKeys);
+    });
+  });
+
+  // ==========================================================================
+  // 7. Date Serialization Standards (ISO 8601 UTC)
+  // ==========================================================================
+  describe('7. Date Serialization Standards (ISO 8601 UTC)', () => {
+    const iso8601UtcRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{3})?Z$/;
+
+    it('serializes issuedAt strictly as an ISO 8601 UTC string', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+
+      expect(typeof response.issuedAt).toBe('string');
+      expect(response.issuedAt).toMatch(iso8601UtcRegex);
+      expect(response.issuedAt.endsWith('Z')).toBe(true);
+      expect(Number.isNaN(Date.parse(response.issuedAt))).toBe(false);
+    });
+
+    it('serializes payment paidAt strictly as an ISO 8601 UTC string', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+      const paidAt = response.payments[0]!.paidAt;
+
+      expect(typeof paidAt).toBe('string');
+      expect(paidAt).toMatch(iso8601UtcRegex);
+      expect(paidAt?.endsWith('Z')).toBe(true);
+    });
+
+    it('serializes lastReprintedAt strictly as ISO 8601 UTC when reprinted', () => {
+      const reprintedDto: ReceiptDTO = {
+        ...sampleDto,
+        status: ReceiptStatus.REPRINTED,
+        reprintCount: 1,
+        lastReprintedAt: '2026-09-25T15:00:00.000Z',
+      };
+
+      const response = ReceiptResponseDto.fromDTO(reprintedDto);
+
+      expect(response.status).toBe(ReceiptStatus.REPRINTED);
+      expect(response.reprintCount).toBe(1);
+      expect(typeof response.lastReprintedAt).toBe('string');
+      expect(response.lastReprintedAt).toMatch(iso8601UtcRegex);
+    });
+
+    it('ensures timestamps are never exposed as epoch numbers or milliseconds', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+      const parsed = JSON.parse(JSON.stringify(response)) as Record<string, unknown>;
+
+      expect(typeof parsed['issuedAt']).toBe('string');
+      expect(typeof parsed['issuedAt']).not.toBe('number');
+      const payment = (parsed['payments'] as Array<Record<string, unknown>>)[0]!;
+      expect(typeof payment['paidAt']).toBe('string');
+      expect(typeof payment['paidAt']).not.toBe('number');
+    });
+  });
+
+  // ==========================================================================
+  // 8. Intentional Nullable Fields Preservation
+  // ==========================================================================
+  describe('8. Intentional Nullable Fields Preservation', () => {
+    it('preserves null for walk-in clientSnapshot without substituting empty objects or values', () => {
+      const walkInDto: ReceiptDTO = {
+        ...sampleDto,
+        clientSnapshot: null,
+      };
+
+      const response = ReceiptResponseDto.fromDTO(walkInDto);
+      const json = JSON.parse(JSON.stringify(response)) as Record<string, unknown>;
+
+      expect(response.clientSnapshot).toBeNull();
+      expect(json['clientSnapshot']).toBeNull();
+      expect(json).toHaveProperty('clientSnapshot');
+    });
+
+    it('preserves nullable sub-fields on clientSnapshot intentionally', () => {
+      const clientWithNulls: ReceiptDTO = {
+        ...sampleDto,
+        clientSnapshot: {
+          clientId: 'cli_partial',
+          referenceNumber: null,
+          fullName: 'John Walkin',
+          email: null,
+          phone: null,
+        },
+      };
+
+      const response = ReceiptResponseDto.fromDTO(clientWithNulls);
+      const client = response.clientSnapshot!;
+
+      expect(client.referenceNumber).toBeNull();
+      expect(client.email).toBeNull();
+      expect(client.phone).toBeNull();
+      expect(client.fullName).toBe('John Walkin');
+
+      const json = JSON.parse(JSON.stringify(response)) as {
+        clientSnapshot: Record<string, unknown>;
+      };
+      expect(json.clientSnapshot['referenceNumber']).toBeNull();
+      expect(json.clientSnapshot['email']).toBeNull();
+      expect(json.clientSnapshot['phone']).toBeNull();
+    });
+
+    it('preserves null for skuOrCode when catalog item has no SKU', () => {
+      const itemWithNoSku: ReceiptDTO = {
+        ...sampleDto,
+        items: [
+          {
+            ...sampleDto.items[0]!,
+            skuOrCode: null,
+          },
+        ],
+      };
+
+      const response = ReceiptResponseDto.fromDTO(itemWithNoSku);
+      expect(response.items[0]!.skuOrCode).toBeNull();
+
+      const json = JSON.parse(JSON.stringify(response)) as {
+        items: Array<Record<string, unknown>>;
+      };
+      expect(json.items[0]!['skuOrCode']).toBeNull();
+    });
+
+    it('preserves null for payment reference and paidAt when absent', () => {
+      const paymentWithNulls: ReceiptDTO = {
+        ...sampleDto,
+        payments: [
+          {
+            ...sampleDto.payments[0]!,
+            reference: null,
+            paidAt: null,
+          },
+        ],
+      };
+
+      const response = ReceiptResponseDto.fromDTO(paymentWithNulls);
+      expect(response.payments[0]!.reference).toBeNull();
+      expect(response.payments[0]!.paidAt).toBeNull();
+
+      const json = JSON.parse(JSON.stringify(response)) as {
+        payments: Array<Record<string, unknown>>;
+      };
+      expect(json.payments[0]!['reference']).toBeNull();
+      expect(json.payments[0]!['paidAt']).toBeNull();
+    });
+
+    it('preserves null lastReprintedAt for original vouchers (reprintCount === 0)', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+
+      expect(response.reprintCount).toBe(0);
+      expect(response.lastReprintedAt).toBeNull();
+
+      const json = JSON.parse(JSON.stringify(response)) as Record<string, unknown>;
+      expect(json['lastReprintedAt']).toBeNull();
+      expect(json).toHaveProperty('lastReprintedAt');
+    });
+  });
+
+  // ==========================================================================
+  // 9. Deterministic Item Ordering
+  // ==========================================================================
+  describe('9. Deterministic Item Ordering', () => {
+    it('strictly preserves the positional order of line items from the settled transaction snapshot', () => {
+      const orderedItemsDto: ReceiptDTO = {
+        ...sampleDto,
+        items: [
+          {
+            itemId: 'item_seq_1_gym_pass',
+            sourceType: 'MEMBERSHIP_PLAN',
+            sourceId: 'plan_gold',
+            description: '1. Day Pass',
+            skuOrCode: 'PASS-01',
+            quantity: 1,
+            unitPrice: { amount: 20.0, currency: 'USD', formatted: '20.00', cents: 2000 },
+            discountTotal: { amount: 0.0, currency: 'USD', formatted: '0.00', cents: 0 },
+            subtotal: { amount: 20.0, currency: 'USD', formatted: '20.00', cents: 2000 },
+            total: { amount: 20.0, currency: 'USD', formatted: '20.00', cents: 2000 },
+          },
+          {
+            itemId: 'item_seq_2_protein',
+            sourceType: 'INVENTORY_ITEM',
+            sourceId: 'inv_bar',
+            description: '2. Protein Bar Chocolate',
+            skuOrCode: 'BAR-01',
+            quantity: 3,
+            unitPrice: { amount: 5.0, currency: 'USD', formatted: '5.00', cents: 500 },
+            discountTotal: { amount: 0.0, currency: 'USD', formatted: '0.00', cents: 0 },
+            subtotal: { amount: 15.0, currency: 'USD', formatted: '15.00', cents: 1500 },
+            total: { amount: 15.0, currency: 'USD', formatted: '15.00', cents: 1500 },
+          },
+          {
+            itemId: 'item_seq_3_towel',
+            sourceType: 'INVENTORY_ITEM',
+            sourceId: 'inv_towel',
+            description: '3. Microfiber Towel',
+            skuOrCode: 'TOWL-01',
+            quantity: 1,
+            unitPrice: { amount: 12.0, currency: 'USD', formatted: '12.00', cents: 1200 },
+            discountTotal: { amount: 2.0, currency: 'USD', formatted: '2.00', cents: 200 },
+            subtotal: { amount: 12.0, currency: 'USD', formatted: '12.00', cents: 1200 },
+            total: { amount: 10.0, currency: 'USD', formatted: '10.00', cents: 1000 },
+          },
+          {
+            itemId: 'item_seq_4_water',
+            sourceType: 'INVENTORY_ITEM',
+            sourceId: 'inv_water',
+            description: '4. Mineral Water 500ml',
+            skuOrCode: 'WAT-01',
+            quantity: 2,
+            unitPrice: { amount: 2.5, currency: 'USD', formatted: '2.50', cents: 250 },
+            discountTotal: { amount: 0.0, currency: 'USD', formatted: '0.00', cents: 0 },
+            subtotal: { amount: 5.0, currency: 'USD', formatted: '5.00', cents: 500 },
+            total: { amount: 5.0, currency: 'USD', formatted: '5.00', cents: 500 },
+          },
+        ],
+        itemCount: 4,
+        subtotal: { amount: 52.0, currency: 'USD', formatted: '52.00', cents: 5200 },
+        discountTotal: { amount: 2.0, currency: 'USD', formatted: '2.00', cents: 200 },
+        total: { amount: 50.0, currency: 'USD', formatted: '50.00', cents: 5000 },
+      };
+
+      const response = ReceiptResponseDto.fromDTO(orderedItemsDto);
+
+      // Verify exact 1:1 positional index preservation
+      expect(response.items).toHaveLength(4);
+      expect(response.items[0]!.itemId).toBe('item_seq_1_gym_pass');
+      expect(response.items[1]!.itemId).toBe('item_seq_2_protein');
+      expect(response.items[2]!.itemId).toBe('item_seq_3_towel');
+      expect(response.items[3]!.itemId).toBe('item_seq_4_water');
+
+      // Verify sequence is preserved even after JSON serialization roundtrip
+      const serialized = JSON.parse(JSON.stringify(response)) as {
+        items: Array<{ itemId: string }>;
+      };
+      expect(serialized.items.map((i) => i.itemId)).toEqual([
+        'item_seq_1_gym_pass',
+        'item_seq_2_protein',
+        'item_seq_3_towel',
+        'item_seq_4_water',
+      ]);
+    });
+  });
+
+  // ==========================================================================
+  // 10. Financial Immutability & Client Tampering Defense
+  // ==========================================================================
+  describe('10. Financial Immutability & Client Tampering Defense', () => {
+    it('ensures response contains NO client-controllable state mutation fields', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+      const parsed = JSON.parse(JSON.stringify(response)) as Record<string, unknown>;
+
+      // Strictly assert absence of mutable billing, debt, retry, or action controls
+      expect(parsed).not.toHaveProperty('balanceRemaining');
+      expect(parsed).not.toHaveProperty('amountDue');
+      expect(parsed).not.toHaveProperty('paymentRetryToken');
+      expect(parsed).not.toHaveProperty('overrideDiscount');
+      expect(parsed).not.toHaveProperty('writeOffAmount');
+      expect(parsed).not.toHaveProperty('paymentUrl');
+      expect(parsed).not.toHaveProperty('action');
+      expect(parsed).not.toHaveProperty('nextState');
+      expect(parsed).not.toHaveProperty('callbackUrl');
+    });
+
+    it('ensures status is strictly a terminal proof-of-purchase status (ISSUED or REPRINTED)', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+      expect([ReceiptStatus.ISSUED, ReceiptStatus.REPRINTED]).toContain(response.status);
+      expect(response.status).not.toBe('DRAFT');
+      expect(response.status).not.toBe('PENDING');
+      expect(response.status).not.toBe('CANCELLED');
+    });
+
+    it('ensures payments array represents immutable point-in-time settled tenders, not live view', () => {
+      const response = ReceiptResponseDto.fromDTO(sampleDto);
+
+      // Payments snapshot must only contain completed payments evidencing the voucher
+      for (const payment of response.payments) {
+        expect(payment.status).toBe(PaymentStatus.COMPLETED);
+        expect(payment.amount.cents).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  // ==========================================================================
+  // 11. Direct Domain Aggregate Mapping (fromAggregate)
+  // ==========================================================================
+  describe('11. Direct Domain Aggregate Mapping (ReceiptResponseDto.fromAggregate)', () => {
+    it('constructs an identical ReceiptResponseDto directly from a domain Receipt aggregate', () => {
+      const domainReceipt = Receipt.create({
+        id: ReceiptId.create('rcpt_agg_01j9876543210abcdef'),
+        tenantId: 'tenant_wellness_center',
+        saleId: SaleId.create('sale_agg_01j9876543210abcdef'),
+        receiptNumber: ReceiptNumber.create('REC-2026-000421'),
+        saleReference: 'ORD-2026-0925-001',
+        issuedAt: new Date('2026-09-25T14:30:00.000Z'),
+        clientSnapshot: ReceiptClientSnapshot.create({
+          clientId: 'cli_01j9876543210abcdef',
+          referenceNumber: 'CLI-2026-00042',
+          fullName: 'Jane Doe',
+          email: 'jane.doe@example.com',
+          phone: '+1-555-0199',
+        }),
+        items: [
+          ReceiptItemSnapshot.create({
+            itemId: 'item_01j9876543210abcdef',
+            sourceType: 'MEMBERSHIP_PLAN',
+            sourceId: 'mem_plan_gold_annual',
+            description: 'Gold Annual Gym Membership',
+            skuOrCode: 'GYM-ANN-01',
+            quantity: 1,
+            unitPrice: Money.create(100.0, 'USD'),
+            discountTotal: Money.create(10.0, 'USD'),
+            subtotal: Money.create(100.0, 'USD'),
+            total: Money.create(90.0, 'USD'),
+          }),
+        ],
+        subtotal: Money.create(100.0, 'USD'),
+        discountTotal: Money.create(10.0, 'USD'),
+        total: Money.create(90.0, 'USD'),
+        payments: [
+          ReceiptPaymentSnapshot.create({
+            paymentId: 'pay_01j9876543210abcdef',
+            method: PaymentMethod.CASH,
+            amount: Money.create(90.0, 'USD'),
+            status: PaymentStatus.COMPLETED,
+            reference: 'DRAWER-01-REGISTER',
+            paidAt: new Date('2026-09-25T14:29:45.000Z'),
+          }),
+        ],
+      });
+
+      const response = ReceiptResponseDto.fromAggregate(domainReceipt);
+
+      expect(response).toBeInstanceOf(ReceiptResponseDto);
+      expect(response.id).toBe('rcpt_agg_01j9876543210abcdef');
+      expect(response.receiptNumber).toBe('REC-2026-000421');
+      expect(response.total.cents).toBe(9000);
+      expect(response.subtotal.cents).toBe(10000);
+      expect(response.discountTotal.cents).toBe(1000);
+      expect(response.items[0]!.description).toBe('Gold Annual Gym Membership');
+      expect(response.payments[0]!.method).toBe(PaymentMethod.CASH);
+      expect(response.clientSnapshot?.fullName).toBe('Jane Doe');
+      expect(response.status).toBe(ReceiptStatus.ISSUED);
+      expect(response.reprintCount).toBe(0);
+      expect(response.lastReprintedAt).toBeNull();
     });
   });
 });

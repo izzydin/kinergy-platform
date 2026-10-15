@@ -201,14 +201,15 @@ export class MoneyResponseDto {
 
 ---
 
-## 6. Strict Exclusion of Internal Persistence Details
+## 6. Strict Exclusion of Internal Persistence Details & Client Mutation Fields
 
-To preserve strict Clean Architecture boundaries and avoid leaking infrastructure implementation choices into the domain contract, the following internal details are **strictly omitted** from the canonical receipt response:
+To preserve strict Clean Architecture boundaries and avoid leaking infrastructure implementation choices into the domain contract, the following internal details and mutable controls are **strictly omitted** from the canonical receipt response:
 
 1. **`version`**: The internal Optimistic Concurrency Control (OCC) counter used by PostgreSQL/Prisma (`version INT DEFAULT 1`) is purely an internal persistence mechanism. It is excluded from the external voucher API.
 2. **`createdAt` and `updatedAt`**: Database row telemetry timestamps (`created_at`, `updated_at`) are database infrastructure fields. The authoritative legal domain timestamp is `issuedAt`.
 3. **Prisma `Decimal` Objects**: Raw Prisma `Decimal` instances (`Decimal.js`) must never be leaked across the HTTP network boundary. They are converted deterministically into `MoneyResponseDto`.
 4. **Relational Table Identifiers**: Internal foreign key cascades, database junction keys, and relational joining markers are never exposed.
+5. **No Client State Mutation Controls**: Response is strictly read-only and terminal. It exposes NO client-controllable state mutation fields (e.g., `balanceRemaining`, `amountDue`, `paymentRetryToken`, `overrideDiscount`, `writeOffAmount`, or `action` URLs).
 
 ---
 
@@ -235,7 +236,7 @@ When `clientSnapshot` is `null`, client applications MUST render standard retail
 
 ---
 
-## 8. Item Breakdown & Snapshot Preservations
+## 8. Item Breakdown, Deterministic Ordering & Snapshot Preservations
 
 Each line item in `items` captures the exact transaction state at sale finalization:
 
@@ -245,6 +246,9 @@ Each line item in `items` captures the exact transaction state at sale finalizat
 - `skuOrCode`: Catalog SKU, barcode, or code snapshotted at sale time.
 - `quantity`: Units purchased (positive integer).
 - `unitPrice`, `discountTotal`, `subtotal`, `total`: Structured money objects representing historical line finances.
+
+> [!NOTE]
+> **Deterministic Positional Ordering**: The items array preserves the exact 1:1 positional indexing from the originating commercial checkout session. Serializers and DTO mappers must never reorder items by price, SKU, or name.
 
 ---
 

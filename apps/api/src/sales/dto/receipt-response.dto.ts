@@ -7,6 +7,8 @@ import {
   ReceiptClientSnapshotDTO,
   ReceiptItemSnapshotDTO,
   ReceiptPaymentSnapshotDTO,
+  Receipt,
+  ReceiptMapper,
 } from '@kinergy-platform/core';
 import { MoneyResponseDto } from './money-response.dto';
 
@@ -340,6 +342,13 @@ export class ReceiptResponseDto {
     nullable: true,
   })
   lastReprintedAt!: string | null;
+
+  /**
+   * Factory method constructing a clean ReceiptResponseDto directly from a domain Receipt aggregate.
+   */
+  public static fromAggregate(receipt: Receipt): ReceiptResponseDto {
+    return ReceiptResponseDto.fromDTO(ReceiptMapper.toDTO(receipt));
+  }
 
   public static fromDTO(dto: ReceiptDTO): ReceiptResponseDto {
     const response = new ReceiptResponseDto();
