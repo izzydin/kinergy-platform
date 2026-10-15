@@ -794,18 +794,33 @@ export class PaymentsController {
     @Param('saleId') paramSaleId?: string,
     @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
-    if (!id || !id.trim()) {
+    if (!id || typeof id !== 'string' || !id.trim()) {
       throw new BadRequestException('Payment ID cannot be empty or whitespace.');
     }
-    const effectiveSaleId = paramSaleId ?? querySaleId;
-    const userContext = user
+    const rawSaleId = paramSaleId ?? querySaleId;
+    const effectiveSaleId =
+      rawSaleId && typeof rawSaleId === 'string' && rawSaleId.trim() ? rawSaleId.trim() : undefined;
+
+    let effectiveDto = dto ?? {};
+    let effectiveUser = user;
+    if (
+      dto &&
+      typeof dto === 'object' &&
+      ('userId' in dto || 'roles' in dto || 'permissions' in dto) &&
+      !user
+    ) {
+      effectiveUser = dto as unknown as AuthenticatedUserPayload;
+      effectiveDto = {};
+    }
+
+    const userContext = effectiveUser
       ? new AuthenticatedUserContext({
-          userId: user.id,
-          email: user.email,
-          status: user.status ?? 'ACTIVE',
-          roles: user.roles ?? [],
-          permissions: user.permissions ?? [],
-          tenantId: user.tenantId ?? null,
+          userId: effectiveUser.id,
+          email: effectiveUser.email,
+          status: effectiveUser.status ?? 'ACTIVE',
+          roles: effectiveUser.roles ?? [],
+          permissions: effectiveUser.permissions ?? [],
+          tenantId: effectiveUser.tenantId ?? null,
         })
       : null;
 
@@ -813,15 +828,18 @@ export class PaymentsController {
       const command = new FailPaymentCommand({
         paymentId: id.trim(),
         saleId: effectiveSaleId,
-        reason: dto?.reason,
-        tenantId: user?.tenantId ?? undefined,
-        currentUser: user
+        reason:
+          typeof effectiveDto?.reason === 'string' && effectiveDto.reason.trim()
+            ? effectiveDto.reason.trim()
+            : undefined,
+        tenantId: effectiveUser?.tenantId ?? undefined,
+        currentUser: effectiveUser
           ? {
-              id: user.id,
-              userId: user.id,
-              email: user.email,
-              roles: user.roles,
-              permissions: user.permissions,
+              id: effectiveUser.id,
+              userId: effectiveUser.id,
+              email: effectiveUser.email,
+              roles: effectiveUser.roles,
+              permissions: effectiveUser.permissions,
             }
           : undefined,
       });
