@@ -323,11 +323,12 @@ export class ReceiptsController {
 
   private mapCurrentUser(user?: AuthenticatedUserPayload) {
     if (!user) return undefined;
+    const rawUser = user as unknown as Record<string, unknown>;
+    const effectiveUserId = (user.id ?? rawUser.userId ?? rawUser.id) as string | undefined;
     return {
-      id: user.id,
-      userId: user.id,
-      clientId:
-        ((user as unknown as Record<string, unknown>).clientId as string | undefined) ?? user.id,
+      id: effectiveUserId,
+      userId: effectiveUserId,
+      clientId: (rawUser.clientId as string | undefined) ?? effectiveUserId,
       tenantId: user.tenantId ?? undefined,
       roles: user.roles,
       permissions: user.permissions,
