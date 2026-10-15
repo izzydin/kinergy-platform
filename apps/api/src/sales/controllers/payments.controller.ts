@@ -46,6 +46,7 @@ import {
   CancelPaymentCommand,
   ListPaymentsQuery,
   SalesApplicationResult,
+  IUnitOfWork,
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
@@ -64,9 +65,13 @@ import {
   PaginatedPaymentsResponseDto,
 } from '../dto';
 import { SalesExceptionFilter } from '../filters/sales-exception.filter';
-import { PAYMENT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN } from '../sales.tokens';
+import {
+  PAYMENT_REPOSITORY_TOKEN,
+  SALE_REPOSITORY_TOKEN,
+  UNIT_OF_WORK_TOKEN,
+} from '../sales.tokens';
 
-export { PAYMENT_REPOSITORY_TOKEN };
+export { PAYMENT_REPOSITORY_TOKEN, UNIT_OF_WORK_TOKEN };
 
 @ApiTags('Payments')
 @ApiBearerAuth()
@@ -121,11 +126,14 @@ export class PaymentsController {
     @Optional()
     @Inject(GetPaymentHandler)
     getPaymentHandler?: GetPaymentHandler,
+    @Optional()
+    @Inject(UNIT_OF_WORK_TOKEN)
+    unitOfWork?: IUnitOfWork,
   ) {
     this._createPaymentHandler =
       createPaymentHandler ??
       recordPaymentHandler ??
-      new CreatePaymentHandler(paymentRepository, saleRepository);
+      new CreatePaymentHandler(paymentRepository, saleRepository, undefined, undefined, unitOfWork);
     this._getPaymentByIdHandler =
       getPaymentByIdHandler ??
       getPaymentHandler ??
@@ -140,11 +148,17 @@ export class PaymentsController {
     this._completePaymentHandler =
       completePaymentHandler ??
       settlePaymentHandler ??
-      new CompletePaymentHandler(paymentRepository, saleRepository);
+      new CompletePaymentHandler(
+        paymentRepository,
+        saleRepository,
+        undefined,
+        undefined,
+        unitOfWork,
+      );
     this._settlePaymentHandler =
       settlePaymentHandler ??
       (this._completePaymentHandler as SettlePaymentHandler) ??
-      new SettlePaymentHandler(paymentRepository, saleRepository);
+      new SettlePaymentHandler(paymentRepository, saleRepository, undefined, undefined, unitOfWork);
     this._failPaymentHandler =
       failPaymentHandler ?? new FailPaymentHandler(paymentRepository, saleRepository);
     this._cancelPaymentHandler =
@@ -589,18 +603,33 @@ export class PaymentsController {
     @Param('saleId') paramSaleId?: string,
     @Query('saleId') querySaleId?: string,
   ): Promise<PaymentResponseDto> {
-    if (!id || !id.trim()) {
+    if (!id || typeof id !== 'string' || !id.trim()) {
       throw new BadRequestException('Payment ID cannot be empty or whitespace.');
     }
-    const effectiveSaleId = paramSaleId ?? querySaleId;
-    const userContext = user
+    const rawSaleId = paramSaleId ?? querySaleId;
+    const effectiveSaleId =
+      rawSaleId && typeof rawSaleId === 'string' && rawSaleId.trim() ? rawSaleId.trim() : undefined;
+
+    let effectiveDto = dto ?? {};
+    let effectiveUser = user;
+    if (
+      dto &&
+      typeof dto === 'object' &&
+      ('userId' in dto || 'roles' in dto || 'permissions' in dto) &&
+      !user
+    ) {
+      effectiveUser = dto as unknown as AuthenticatedUserPayload;
+      effectiveDto = {};
+    }
+
+    const userContext = effectiveUser
       ? new AuthenticatedUserContext({
-          userId: user.id,
-          email: user.email,
-          status: user.status ?? 'ACTIVE',
-          roles: user.roles ?? [],
-          permissions: user.permissions ?? [],
-          tenantId: user.tenantId ?? null,
+          userId: effectiveUser.id,
+          email: effectiveUser.email,
+          status: effectiveUser.status ?? 'ACTIVE',
+          roles: effectiveUser.roles ?? [],
+          permissions: effectiveUser.permissions ?? [],
+          tenantId: effectiveUser.tenantId ?? null,
         })
       : null;
 
@@ -608,15 +637,15 @@ export class PaymentsController {
       const command = new CompletePaymentCommand({
         paymentId: id.trim(),
         saleId: effectiveSaleId,
-        reference: dto?.reference,
-        tenantId: user?.tenantId ?? undefined,
-        currentUser: user
+        reference: effectiveDto?.reference,
+        tenantId: effectiveUser?.tenantId ?? undefined,
+        currentUser: effectiveUser
           ? {
-              id: user.id,
-              userId: user.id,
-              email: user.email,
-              roles: user.roles,
-              permissions: user.permissions,
+              id: effectiveUser.id,
+              userId: effectiveUser.id,
+              email: effectiveUser.email,
+              roles: effectiveUser.roles,
+              permissions: effectiveUser.permissions,
             }
           : undefined,
       });
