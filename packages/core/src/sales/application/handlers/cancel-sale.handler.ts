@@ -4,9 +4,13 @@ import { CancelSaleCommand } from '../commands/cancel-sale.command';
 import { SaleDTO } from '../dtos/sale.dto';
 import { SaleMapper } from '../mappers/sale.mapper';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
+import { PaymentRepositoryPort } from '../ports/payment-repository.port';
+import { IUnitOfWork } from '../ports/unit-of-work.port';
+import { SalesTransactionCoordinatorPort } from '../ports/sales-transaction-coordinator.port';
 import { SalesEventPublisherPort } from '../ports/sales-event-publisher.port';
 import { DomainEvent } from '../../domain/shared/domain-event';
 import { Clock, SystemClock } from '../../domain/shared/clock';
+import { PaymentStatus } from '../../domain/enums/payment-status.enum';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
 import { enforceTenantIsolation } from '../shared/payment-authorization';
@@ -25,14 +29,13 @@ import {
  * 3. Verify Sale exists (and enforce tenant isolation when tenantId is supplied).
  * 4. Invoke domain operation: sale.cancel(reason, clock).
  *    - Never directly sets status = CANCELLED.
- *    - Never duplicates cancellation validation in the application layer.
  *    - The Sale Aggregate owns whether cancellation is allowed, valid lifecycle transitions,
  *      and cancellation invariants.
- *    - Preserves aggregate boundaries without silently mutating Payment or Receipt states.
- * 5. Persist the updated aggregate via SaleRepositoryPort.save() atomically.
- *    - Guarantees the Sale cannot be left in a partially modified state on failure.
- * 6. Publish uncommitted domain events (SaleCancelledEvent) strictly after transaction commit.
- * 7. Return the updated application representation (SaleDTO).
+ * 5. ADR-0140 §3.F.3: Cascade cancellation to active PENDING payments on this sale
+ *    to prevent orphaned pending tenders, while preserving historical completed payments.
+ * 6. Persist the updated aggregates atomically within transaction / UnitOfWork boundary.
+ * 7. Publish uncommitted domain events strictly after transaction commit.
+ * 8. Return the updated application representation (SaleDTO).
  */
 export class CancelSaleHandler implements SalesCommandHandler<
   CancelSaleCommand,
@@ -42,6 +45,8 @@ export class CancelSaleHandler implements SalesCommandHandler<
     private readonly saleRepository: SaleRepositoryPort,
     private readonly clock: Clock = new SystemClock(),
     private readonly eventPublisher?: SalesEventPublisherPort,
+    private readonly paymentRepository?: PaymentRepositoryPort,
+    private readonly unitOfWork?: IUnitOfWork | SalesTransactionCoordinatorPort,
   ) {}
 
   public async execute(command: CancelSaleCommand): Promise<SalesApplicationResult<SaleDTO>> {
@@ -60,21 +65,16 @@ export class CancelSaleHandler implements SalesCommandHandler<
         );
       }
 
-      const runInTx = this.saleRepository.withTransaction
-        ? (fn: (repo: SaleRepositoryPort) => Promise<SalesApplicationResult<SaleDTO>>) =>
-            this.saleRepository.withTransaction!(fn)
-        : (fn: (repo: SaleRepositoryPort) => Promise<SalesApplicationResult<SaleDTO>>) =>
-            fn(this.saleRepository);
+      let eventsToPublish: DomainEvent[] = [];
+      let resultDto: SaleDTO | null = null;
 
-      let eventsToPublish: ReadonlyArray<DomainEvent> = [];
-
-      const result = await runInTx(async (repo) => {
-        // 1. Load Sale from transactional repository
+      const performCancellation = async (repo: SaleRepositoryPort): Promise<SaleDTO> => {
+        // 1. Load Sale from repository
         const sale = await repo.findById(saleId);
 
         // 2. Verify Sale exists
         if (!sale) {
-          return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
+          throw new SaleNotFoundException(saleId);
         }
 
         // Enforce multi-tenant isolation if tenantId is provided in command
@@ -90,24 +90,66 @@ export class CancelSaleHandler implements SalesCommandHandler<
         // 3. Invoke domain operation - domain owns lifecycle rules and cancellation invariants
         sale.cancel(input.reason, this.clock);
 
-        // 4. Persist aggregate through repository atomically
+        // 4. ADR-0140 §3.F.3: Cascade cancellation to active PENDING payments to avoid orphaned tenders
+        const pendingPaymentEvents: DomainEvent[] = [];
+        if (this.paymentRepository) {
+          const payments = await this.paymentRepository.findBySaleId(sale.id);
+          const pendingPayments = payments.filter((p) => p.status === PaymentStatus.PENDING);
+          for (const payment of pendingPayments) {
+            payment.cancel(`Sale cancelled: ${input.reason}`, this.clock);
+            await this.paymentRepository.save(payment);
+            pendingPaymentEvents.push(...payment.getUncommittedEvents());
+            payment.clearEvents();
+          }
+        }
+
+        // 5. Persist aggregate through repository atomically
         await repo.save(sale);
 
         // Capture uncommitted domain events to dispatch only after successful transaction commit
-        eventsToPublish = sale.getUncommittedEvents();
+        eventsToPublish = [...sale.getUncommittedEvents(), ...pendingPaymentEvents];
         sale.clearEvents();
 
-        // Return updated representation
-        return SalesApplicationResult.ok(SaleMapper.toDTO(sale));
-      });
+        return SaleMapper.toDTO(sale);
+      };
 
-      // 5. Publish domain events (SaleCancelledEvent) strictly after successful transaction commit
-      if (result.isSuccess && this.eventPublisher && eventsToPublish.length > 0) {
+      if (this.unitOfWork) {
+        const persistWork = async () => {
+          resultDto = await performCancellation(this.saleRepository);
+        };
+
+        if (
+          'executeInTransaction' in this.unitOfWork &&
+          typeof this.unitOfWork.executeInTransaction === 'function'
+        ) {
+          await this.unitOfWork.executeInTransaction(persistWork);
+        } else if (
+          'runInTransaction' in this.unitOfWork &&
+          typeof (this.unitOfWork as unknown as { runInTransaction: unknown }).runInTransaction ===
+            'function'
+        ) {
+          await (
+            this.unitOfWork as unknown as {
+              runInTransaction: (fn: () => Promise<void>) => Promise<void>;
+            }
+          ).runInTransaction(persistWork);
+        } else {
+          await persistWork();
+        }
+      } else if (this.saleRepository.withTransaction) {
+        resultDto = await this.saleRepository.withTransaction(async (txRepo) => {
+          return performCancellation(txRepo);
+        });
+      } else {
+        resultDto = await performCancellation(this.saleRepository);
+      }
+
+      // 6. Publish domain events strictly after successful transaction commit
+      if (this.eventPublisher && eventsToPublish.length > 0) {
         await this.eventPublisher.publish(eventsToPublish);
       }
 
-      // 6. Return updated representation
-      return result;
+      return SalesApplicationResult.ok(resultDto!);
     } catch (err: unknown) {
       const error = err instanceof Error ? err : new Error(String(err));
       return SalesApplicationResult.fail(error);

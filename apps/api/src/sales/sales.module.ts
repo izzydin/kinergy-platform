@@ -133,9 +133,18 @@ import {
     },
     {
       provide: CancelSaleHandler,
-      useFactory: (repo: SaleRepositoryPort, auditPublisher: SalesAuditEventPublisher) =>
-        new CancelSaleHandler(repo, undefined, auditPublisher),
-      inject: [SALE_REPOSITORY_TOKEN, SalesAuditEventPublisher],
+      useFactory: (
+        repo: SaleRepositoryPort,
+        auditPublisher: SalesAuditEventPublisher,
+        paymentRepo: PaymentRepositoryPort,
+        unitOfWork: PrismaSalesUnitOfWork,
+      ) => new CancelSaleHandler(repo, undefined, auditPublisher, paymentRepo, unitOfWork),
+      inject: [
+        SALE_REPOSITORY_TOKEN,
+        SalesAuditEventPublisher,
+        PAYMENT_REPOSITORY_TOKEN,
+        UNIT_OF_WORK_TOKEN,
+      ],
     },
     {
       provide: CalculateSaleHandler,
