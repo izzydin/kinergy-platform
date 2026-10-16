@@ -34,10 +34,11 @@ describe('Phase 7 Database Migration Review & Data Compatibility Specification',
           '20261001000000_add_phase_7_monetary_check_constraints',
           '20261001010000_add_discount_structural_check_constraints',
           '20261002000000_optimize_phase_7_financial_indexes',
+          '20261016000000_add_phase_7_concurrency_and_single_billing_indexes',
         ].includes(name),
       );
 
-      expect(phase7Migrations.length).toBe(7);
+      expect(phase7Migrations.length).toBe(8);
 
       // Verify each migration directory contains a non-empty migration.sql
       for (const m of phase7Migrations) {
@@ -148,6 +149,33 @@ describe('Phase 7 Database Migration Review & Data Compatibility Specification',
       expect(sql).toContain(
         'CREATE INDEX "payments_status_created_at_idx" ON "payments"("status", "created_at" DESC);',
       );
+    });
+
+    it('verifies partial unique indexes for single-billing, external orders, and payment references (ADR-0140)', () => {
+      const sqlFile = path.join(
+        migrationsDir,
+        '20261016000000_add_phase_7_concurrency_and_single_billing_indexes',
+        'migration.sql',
+      );
+      const sql = fs.readFileSync(sqlFile, 'utf8');
+
+      // 1. Clinical treatment session partial uniqueness
+      expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "uq_sales_clinical_session_active"');
+      expect(sql).toContain('ON "sales"("tenant_id", "source_id")');
+      expect(sql).toContain(
+        "WHERE \"source_type\" IN ('TREATMENT_SESSION', 'KINESIOLOGY_SESSION')",
+      );
+      expect(sql).toContain('AND "status" != \'CANCELLED\'');
+
+      // 2. External order source code partial uniqueness
+      expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "uq_sales_source_code_active"');
+      expect(sql).toContain('ON "sales"("tenant_id", "source_code")');
+      expect(sql).toContain("\"source_code\" NOT IN ('POS_REGISTER', 'pos_checkout_terminal')");
+
+      // 3. Payment reference partial uniqueness per sale
+      expect(sql).toContain('CREATE UNIQUE INDEX IF NOT EXISTS "uq_payments_sale_reference"');
+      expect(sql).toContain('ON "payments"("sale_id", "reference")');
+      expect(sql).toContain('WHERE "reference" IS NOT NULL');
     });
   });
 

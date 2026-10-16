@@ -401,7 +401,27 @@ export class CreateSaleHandler implements SalesCommandHandler<
         );
 
         // 12. Persist through Repository (ensures atomic persistence of Sale and all nested SaleItems)
-        await repo.save(sale);
+        try {
+          await repo.save(sale);
+        } catch (saveError: unknown) {
+          if (saveError instanceof DuplicateSaleException && effectiveId) {
+            // Concurrent race resolution: Check if the already committed sale matches our parameters
+            const committedSale = await repo.findById(effectiveId);
+            if (committedSale) {
+              const isMatch =
+                (committedSale.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
+                (committedSale.clientId ?? '') === (resolvedClientId ?? '') &&
+                committedSale.currency === currency &&
+                committedSale.source.sourceType === sourceInput.sourceType &&
+                committedSale.source.sourceId === sourceInput.sourceId.trim();
+
+              if (isMatch) {
+                return SalesApplicationResult.ok(SaleMapper.toDTO(committedSale));
+              }
+            }
+          }
+          throw saveError;
+        }
 
         // Capture uncommitted domain events to dispatch only after successful transaction commit
         eventsToPublish = sale.getUncommittedEvents();

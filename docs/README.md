@@ -173,3 +173,4 @@ The **Sales & Payments Bounded Context** is the authoritative commercial engine 
   - [ADR-0135: Sales, Payments & Receipts Authorization Architecture, IAM Integration & Security Boundaries](file:///c:/Projects/kinergy-platform/docs/adr/0135-sales-payments-receipts-authorization-and-security.md)
   - [ADR-0136: Sales API Architecture, HTTP Contracts & Unified Commercial Ledger Specification](file:///c:/Projects/kinergy-platform/docs/adr/0136-sales-api-architecture-and-contracts.md)
   - [ADR-0139: Cross-Domain Commercial Integration Contract, Source Resolution, and Fulfillment Orchestration](file:///c:/Projects/kinergy-platform/docs/adr/0139-cross-domain-commercial-integration-contract.md)
+  - [ADR-0140: Financial Concurrency, Idempotency, and Multi-Tender Settlement Integrity](file:///c:/Projects/kinergy-platform/docs/adr/0140-financial-concurrency-and-settlement-integrity.md)

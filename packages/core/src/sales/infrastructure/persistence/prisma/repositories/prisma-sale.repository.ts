@@ -343,24 +343,49 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
             }
           }
 
-          // Initial insert or draft update with full child line-item synchronization.
-          // On update of existing draft record, atomically advance version to 2 so concurrent v1 updates collide.
-          const targetVersion = existing ? 2 : 1;
-
-          await tx.sale.upsert({
-            where: { id: saleData.id },
-            create: {
-              ...saleData,
-              version: 1,
-              items: {
-                create: itemsData,
-              },
-            },
-            update: {
-              ...saleData,
-              version: targetVersion,
-            },
-          });
+          if (!existing) {
+            // Brand new record insertion - use create so duplicate IDs collide on primary key constraint, fallback to upsert if mock client
+            if (typeof (tx.sale as { create?: unknown }).create === 'function') {
+              await (tx.sale as unknown as { create: (args: unknown) => Promise<unknown> }).create({
+                data: {
+                  ...saleData,
+                  version: 1,
+                },
+              });
+            } else {
+              await tx.sale.upsert({
+                where: { id: saleData.id },
+                create: {
+                  ...saleData,
+                  version: 1,
+                },
+                update: saleData,
+              });
+            }
+          } else {
+            // Updating existing version 1 draft record - atomically bump version to 2
+            if (typeof (tx.sale as { update?: unknown }).update === 'function') {
+              await (tx.sale as unknown as { update: (args: unknown) => Promise<unknown> }).update({
+                where: { id: saleData.id },
+                data: {
+                  ...saleData,
+                  version: 2,
+                },
+              });
+            } else {
+              await tx.sale.upsert({
+                where: { id: saleData.id },
+                create: {
+                  ...saleData,
+                  version: 1,
+                },
+                update: {
+                  ...saleData,
+                  version: 2,
+                },
+              });
+            }
+          }
 
           // Synchronize child items to ensure draft additions at version 1 persist correctly
           const currentItemIds = itemsData.map((item) => item.id);
@@ -435,12 +460,9 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
         throw error;
       }
 
-      if (this.isUniqueConstraintError(error)) {
-        throw new DuplicateSaleException(
-          `Unique constraint violation: A Sale with ID '${sale.id.value}' already exists in persistence.`,
-          sale.id.value,
-          sale.tenantId,
-        );
+      const uniqueError = this.mapUniqueConstraintError(error, sale);
+      if (uniqueError) {
+        throw uniqueError;
       }
 
       const checkError = PrismaDatabaseErrorMapper.mapCheckConstraintError(error);
@@ -450,6 +472,58 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
 
       throw error;
     }
+  }
+
+  private mapUniqueConstraintError(error: unknown, sale: Sale): DuplicateSaleException | null {
+    if (!this.isUniqueConstraintError(error)) {
+      return null;
+    }
+
+    const err = error as {
+      code?: string;
+      message?: string;
+      constraint?: string;
+      meta?: { target?: unknown; constraint?: unknown; field_name?: string };
+    };
+
+    const target = Array.isArray(err.meta?.target)
+      ? err.meta.target.join(',')
+      : typeof err.meta?.target === 'string'
+        ? err.meta.target
+        : typeof err.meta?.constraint === 'string'
+          ? err.meta.constraint
+          : typeof err.constraint === 'string'
+            ? err.constraint
+            : '';
+    const msg = typeof err.message === 'string' ? err.message : '';
+
+    if (
+      target.includes('uq_sales_clinical_session_active') ||
+      msg.includes('uq_sales_clinical_session_active')
+    ) {
+      return new DuplicateSaleException(
+        `An active Sale already exists for ${sale.source.sourceType} '${sale.source.sourceId}'. Duplicate sale creation is prohibited.`,
+        sale.id.value,
+        sale.tenantId,
+      );
+    }
+
+    if (
+      target.includes('uq_sales_source_code_active') ||
+      msg.includes('uq_sales_source_code_active')
+    ) {
+      return new DuplicateSaleException(
+        `An active Sale already exists with order reference '${sale.source.sourceCode}'. Duplicate sale creation is prohibited.`,
+        sale.id.value,
+        sale.tenantId,
+      );
+    }
+
+    return new DuplicateSaleException(
+      `Unique constraint violation: A Sale with ID '${sale.id.value}' already exists in persistence.`,
+      sale.id.value,
+      sale.tenantId,
+    );
   }
 
   private isUniqueConstraintError(error: unknown): boolean {
@@ -469,7 +543,8 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
     if (
       typeof err.message === 'string' &&
       (err.message.includes('Unique constraint failed') ||
-        err.message.includes('duplicate key value'))
+        err.message.includes('duplicate key value') ||
+        err.message.includes('uq_sales_'))
     ) {
       return true;
     }
