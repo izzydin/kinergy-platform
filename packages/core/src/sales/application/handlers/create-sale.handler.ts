@@ -68,34 +68,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
         }
       }
 
-      // 2. Precondition Validation & Resolution: Client
-      let resolvedClientId: string | undefined = undefined;
-      if (input.clientId !== undefined && input.clientId !== null) {
-        const trimmedClientId = input.clientId.trim();
-        if (trimmedClientId === '') {
-          return SalesApplicationResult.fail(
-            new InvalidSaleStateException('clientId cannot be empty or whitespace.'),
-          );
-        }
-        if (this.clientFacade) {
-          const clientSummary = await this.clientFacade.getClientSummary(trimmedClientId);
-          if (!clientSummary) {
-            return SalesApplicationResult.fail(new ClientNotFoundException(trimmedClientId));
-          }
-        }
-        resolvedClientId = trimmedClientId;
-      }
-
-      // 3. Precondition Validation: Currency formatting
-      const rawCurrency = input.currency ?? Money.DEFAULT_CURRENCY;
-      if (typeof rawCurrency !== 'string' || !/^[A-Z]{3}$/.test(rawCurrency.trim().toUpperCase())) {
-        return SalesApplicationResult.fail(
-          new InvalidSaleStateException(`Invalid ISO-4217 currency code '${input.currency}'.`),
-        );
-      }
-      const currency = rawCurrency.trim().toUpperCase();
-
-      // 4. Request Structure & Source Reference Validation
+      // 2. Request Structure & Source Reference Validation
       let sourceInput = input.source;
       if (!sourceInput) {
         if (input.allowWalkInWithoutSource === true) {
@@ -128,7 +101,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
         );
       }
 
-      // 5. Reject unsupported source types before persistence
+      // 3. Reject unsupported source types before persistence
       const rawSourceType = sourceInput.sourceType;
       const isSaleSourceType = isValidSaleSourceType(rawSourceType);
       const isLegacySourceType = isValidSourceType(rawSourceType);
@@ -142,7 +115,10 @@ export class CreateSaleHandler implements SalesCommandHandler<
         );
       }
 
-      // 6. Source Existence & Context Ownership Validation (if configured)
+      let sourceCommercialDetails:
+        import('../ports/sale-source-validator.port').SourceCommercialDetails | undefined;
+
+      // 4. Source Existence & Context Ownership Validation (if configured)
       if (this.sourceValidator) {
         const validation = await this.sourceValidator.validateSource({
           sourceType: rawSourceType,
@@ -181,7 +157,51 @@ export class CreateSaleHandler implements SalesCommandHandler<
             ),
           );
         }
+
+        sourceCommercialDetails = validation.commercialDetails;
       }
+
+      // 5. Precondition Validation & Resolution: Client (with ADR-0139 Authoritative Resolution & Mismatch Check)
+      let resolvedClientId: string | undefined = undefined;
+      const inputClientTrimmed =
+        input.clientId !== undefined && input.clientId !== null ? input.clientId.trim() : undefined;
+
+      if (sourceCommercialDetails?.clientId) {
+        const authoritativeClientId = sourceCommercialDetails.clientId.trim();
+        if (inputClientTrimmed && inputClientTrimmed !== authoritativeClientId) {
+          return SalesApplicationResult.fail(
+            new InvalidSaleSourceException(
+              `Client mismatch: Requested client '${inputClientTrimmed}' does not match source client '${authoritativeClientId}'.`,
+              'CLIENT_MISMATCH',
+            ),
+          );
+        }
+        resolvedClientId = authoritativeClientId;
+      } else if (inputClientTrimmed !== undefined) {
+        if (inputClientTrimmed === '') {
+          return SalesApplicationResult.fail(
+            new InvalidSaleStateException('clientId cannot be empty or whitespace.'),
+          );
+        }
+        resolvedClientId = inputClientTrimmed;
+      }
+
+      if (resolvedClientId && this.clientFacade) {
+        const clientSummary = await this.clientFacade.getClientSummary(resolvedClientId);
+        if (!clientSummary) {
+          return SalesApplicationResult.fail(new ClientNotFoundException(resolvedClientId));
+        }
+      }
+
+      // 6. Precondition Validation: Currency formatting
+      const rawCurrency =
+        input.currency ?? sourceCommercialDetails?.currency ?? Money.DEFAULT_CURRENCY;
+      if (typeof rawCurrency !== 'string' || !/^[A-Z]{3}$/.test(rawCurrency.trim().toUpperCase())) {
+        return SalesApplicationResult.fail(
+          new InvalidSaleStateException(`Invalid ISO-4217 currency code '${input.currency}'.`),
+        );
+      }
+      const currency = rawCurrency.trim().toUpperCase();
 
       const effectiveId = input.id?.trim() || input.idempotencyKey?.trim();
 
@@ -222,6 +242,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
         // 8. Operational Single-Billing Entity Invariant: Clinical session must be billed at most once
         const isClinicalSession =
           sourceInput.sourceType === SourceType.TREATMENT_SESSION ||
+          sourceInput.sourceType === SaleSourceType.KINESIOLOGY_SESSION ||
           (sourceInput.sourceType as unknown) === 'KINESIOLOGY_SESSION' ||
           (sourceInput.sourceType as unknown) === 'TREATMENT_SESSION';
 
@@ -315,7 +336,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
           }
         }
 
-        const items = input.items?.map((itemInput) => {
+        let items = input.items?.map((itemInput) => {
           let itemDiscount: Discount | null = null;
           if (itemInput.discount) {
             const typeStr = itemInput.discount.type?.toUpperCase();
@@ -344,6 +365,26 @@ export class CreateSaleHandler implements SalesCommandHandler<
             discount: itemDiscount,
           };
         });
+
+        // Auto-populate authoritative line item from commercial details if items were omitted
+        if (
+          (!items || items.length === 0) &&
+          sourceCommercialDetails?.unitPriceCents !== undefined
+        ) {
+          const unitPriceAmount = sourceCommercialDetails.unitPriceCents / 100;
+          const description =
+            sourceCommercialDetails.description ?? `${String(rawSourceType)} item`;
+          items = [
+            {
+              source,
+              description,
+              skuOrCode: sourceCommercialDetails.skuOrCode ?? null,
+              quantity: 1,
+              unitPrice: Money.create(unitPriceAmount, currency),
+              discount: null,
+            },
+          ];
+        }
 
         // 11. Instantiate Sale Aggregate using Domain Factory
         const sale = Sale.create(
