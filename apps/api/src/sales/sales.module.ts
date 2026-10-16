@@ -35,6 +35,7 @@ import {
   SaleRepositoryPort,
   PaymentRepositoryPort,
   ReceiptRepositoryPort,
+  SaleSourceValidatorPort,
 } from '@kinergy-platform/core';
 import { SalesController } from './controllers/sales.controller';
 import { PaymentsController } from './controllers/payments.controller';
@@ -44,14 +45,29 @@ import {
   PAYMENT_REPOSITORY_TOKEN,
   RECEIPT_REPOSITORY_TOKEN,
   UNIT_OF_WORK_TOKEN,
+  SALE_SOURCE_VALIDATOR_TOKEN,
 } from './sales.tokens';
 import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-publisher';
+import {
+  KinesiologySourceValidatorAdapter,
+  GymSourceValidatorAdapter,
+  ResourcesSourceValidatorAdapter,
+  CompositeSaleSourceValidatorAdapter,
+} from './infrastructure/adapters';
 
 @Module({
   imports: [AuditModule],
   controllers: [SalesController, PaymentsController, ReceiptsController],
   providers: [
     SalesAuditEventPublisher,
+    KinesiologySourceValidatorAdapter,
+    GymSourceValidatorAdapter,
+    ResourcesSourceValidatorAdapter,
+    CompositeSaleSourceValidatorAdapter,
+    {
+      provide: SALE_SOURCE_VALIDATOR_TOKEN,
+      useExisting: CompositeSaleSourceValidatorAdapter,
+    },
     {
       provide: UNIT_OF_WORK_TOKEN,
       useFactory: (prisma: PrismaService) => new PrismaSalesUnitOfWork(prisma),
@@ -74,13 +90,15 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     },
     {
       provide: CreateSaleHandler,
-      useFactory: (repo: SaleRepositoryPort) => new CreateSaleHandler(repo),
-      inject: [SALE_REPOSITORY_TOKEN],
+      useFactory: (repo: SaleRepositoryPort, validator: SaleSourceValidatorPort) =>
+        new CreateSaleHandler(repo, undefined, undefined, validator),
+      inject: [SALE_REPOSITORY_TOKEN, SALE_SOURCE_VALIDATOR_TOKEN],
     },
     {
       provide: AssignSaleSourceHandler,
-      useFactory: (repo: SaleRepositoryPort) => new AssignSaleSourceHandler(repo),
-      inject: [SALE_REPOSITORY_TOKEN],
+      useFactory: (repo: SaleRepositoryPort, validator: SaleSourceValidatorPort) =>
+        new AssignSaleSourceHandler(repo, validator),
+      inject: [SALE_REPOSITORY_TOKEN, SALE_SOURCE_VALIDATOR_TOKEN],
     },
     {
       provide: GetSaleByIdHandler,
@@ -265,6 +283,11 @@ import { SalesAuditEventPublisher } from './infrastructure/sales-audit-event-pub
     SALE_REPOSITORY_TOKEN,
     PAYMENT_REPOSITORY_TOKEN,
     RECEIPT_REPOSITORY_TOKEN,
+    SALE_SOURCE_VALIDATOR_TOKEN,
+    CompositeSaleSourceValidatorAdapter,
+    KinesiologySourceValidatorAdapter,
+    GymSourceValidatorAdapter,
+    ResourcesSourceValidatorAdapter,
     SalesAuditEventPublisher,
     CreateSaleHandler,
     AssignSaleSourceHandler,
