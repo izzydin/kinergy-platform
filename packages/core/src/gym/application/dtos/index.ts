@@ -14,3 +14,4 @@ export * from './trainer-dashboard-summary.dto';
 export * from './paginated-assigned-clients.dto';
 export * from './paginated-memberships.dto';
 export * from './paginated-membership-plans.dto';
+export * from './membership-commercial-details.dto';

@@ -5,7 +5,11 @@ import { SKU } from './value-objects/sku.vo';
 import { Quantity } from './value-objects/quantity.vo';
 import { Money } from './value-objects/money.vo';
 import { LocationRef, LocationRefProps } from './value-objects/location-ref.vo';
-import { InventoryCategory, isValidInventoryCategory } from './enums/inventory-category.enum';
+import {
+  InventoryCategory,
+  isValidInventoryCategory,
+  INVENTORY_CATEGORY_REGISTRY,
+} from './enums/inventory-category.enum';
 import { UnitOfMeasure, isValidUnitOfMeasure } from './enums/unit-of-measure.enum';
 import { InventoryItemStatus } from './enums/inventory-item-status.enum';
 import { StockMovementType } from './enums/stock-movement-type.enum';
@@ -417,6 +421,24 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
   public sellStock(params: StockMutationParams): StockMovement {
     this.assertActiveCatalogStatus('sell stock');
     const delta = this.parsePositiveQuantity(params.quantity, 'sell');
+
+    // Idempotency check: if an append-only SALE movement with the exact referenceId already exists, verify consistency
+    const refId = params.referenceId?.trim();
+    if (refId) {
+      const existing = this._movements.find(
+        (m) => m.referenceId === refId && m.movementType === StockMovementType.SALE,
+      );
+      if (existing) {
+        const expectedDelta = -delta.value;
+        if (Math.abs(existing.quantityDelta.value - expectedDelta) > 0.0001) {
+          throw new InvalidInventoryItemStateException(
+            `Idempotency conflict: Sale movement with referenceId '${refId}' already exists with quantity ${Math.abs(existing.quantityDelta.value)}, but requested ${delta.value}.`,
+          );
+        }
+        return existing;
+      }
+    }
+
     this.assertSufficientStock(delta);
 
     const newBalance = this._quantityOnHand.subtract(delta);
@@ -891,6 +913,34 @@ export class InventoryItem implements AggregateRoot<InventoryItemId> {
 
   public isOutOfStock(): boolean {
     return this._quantityOnHand.isZero();
+  }
+
+  /**
+   * Helper identifying if the consumable product is classified as a healthy meal / food item.
+   */
+  public isFood(): boolean {
+    return this._category === InventoryCategory.HEALTHY_MEALS;
+  }
+
+  /**
+   * Helper identifying if the consumable product is classified as a beverage / drink item.
+   */
+  public isDrink(): boolean {
+    return this._category === InventoryCategory.HEALTHY_DRINKS;
+  }
+
+  /**
+   * Helper verifying whether the product is eligible for retail sales checkout.
+   */
+  public isRetailEligible(): boolean {
+    return INVENTORY_CATEGORY_REGISTRY[this._category]?.isRetailEligible ?? false;
+  }
+
+  /**
+   * Helper verifying whether the product is perishable.
+   */
+  public isPerishable(): boolean {
+    return INVENTORY_CATEGORY_REGISTRY[this._category]?.isPerishable ?? false;
   }
 
   public getUncommittedEvents(): ReadonlyArray<DomainEvent> {

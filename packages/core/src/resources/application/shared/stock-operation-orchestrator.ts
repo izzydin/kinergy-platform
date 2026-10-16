@@ -20,6 +20,7 @@ export interface ExecuteStockMutationParams {
   itemId: string;
   actorId: string;
   tenantId?: string;
+  referenceId?: string;
   mutate: (item: InventoryItem) => StockMovement;
 }
 
@@ -30,10 +31,11 @@ export interface ExecuteStockMutationParams {
  * 1. Validate inputs (item ID, actor ID)
  * 2. Load aggregate from repository
  * 3. Verify tenant boundary
- * 4. Execute typed domain mutation closure (enforcing non-negative stock and state invariants)
- * 5. Persist aggregate atomically with Optimistic Concurrency Control (OCC) version check
- * 6. Publish domain events only after successful persistence commit
- * 7. Map resulting aggregate and movement to StockMutationResultDTO
+ * 4. Verify idempotency against existing append-only movements if referenceId is provided
+ * 5. Execute typed domain mutation closure (enforcing non-negative stock and state invariants)
+ * 6. Persist aggregate atomically with Optimistic Concurrency Control (OCC) version check (if mutated)
+ * 7. Publish domain events only after successful persistence commit
+ * 8. Map resulting aggregate and movement to StockMutationResultDTO
  */
 export class StockOperationOrchestrator {
   constructor(
@@ -63,8 +65,28 @@ export class StockOperationOrchestrator {
         return ApplicationResult.fail(`Inventory item with id '${itemId}' not found.`);
       }
 
+      // Idempotency check: if referenceId is provided, check if a movement was already recorded
+      const refId = params.referenceId?.trim();
+      if (refId) {
+        const existing = item.movements.find((m) => m.referenceId === refId);
+        if (existing) {
+          return ApplicationResult.ok({
+            item: InventoryItemMapper.toDTO(item),
+            movement: InventoryItemMapper.toMovementDTO(existing),
+          });
+        }
+      }
+
       // Execute domain mutation (asserts state, balances, creates movement, increments version)
       const movement = params.mutate(item);
+
+      // If domain mutation was an idempotent no-op (no uncommitted events), return existing projection
+      if (item.getUncommittedEvents().length === 0) {
+        return ApplicationResult.ok({
+          item: InventoryItemMapper.toDTO(item),
+          movement: InventoryItemMapper.toMovementDTO(movement),
+        });
+      }
 
       // Atomic persistence inside transaction with OCC check
       await this.repository.save(item);

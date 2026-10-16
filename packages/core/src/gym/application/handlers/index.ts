@@ -9,3 +9,4 @@ export * from './update-membership-plan-pricing.handler';
 export * from './publish-membership-plan.handler';
 export * from './archive-membership-plan.handler';
 export * from './record-check-in.handler';
+export * from './activate-or-renew-membership.handler';

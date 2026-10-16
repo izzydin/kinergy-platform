@@ -31,6 +31,9 @@ import {
   ListExpiredMembershipsHandler,
   CheckMembershipEligibilityHandler,
   RecordCheckInHandler,
+  ActivateOrRenewMembershipHandler,
+  ResolveMembershipCommercialDetailsHandler,
+  InMemoryGymFulfillmentStore,
   Membership,
   MembershipPlan,
   PlanStatus,
@@ -51,6 +54,7 @@ export const ATTENDANCE_RECORD_REPOSITORY_TOKEN = 'AttendanceRecordRepository';
 export const GYM_CLOCK_TOKEN = 'GymClock';
 export const CLIENT_LOOKUP_PORT_TOKEN = 'ClientLookupPort';
 export const GYM_EVENT_PUBLISHER_PORT_TOKEN = 'GymEventPublisherPort';
+export const GYM_FULFILLMENT_STORE_PORT_TOKEN = 'GymFulfillmentStorePort';
 
 /**
  * In-memory repository fallback implementations for standalone execution.
@@ -407,12 +411,69 @@ class DefaultGymEventPublisherPort implements GymEventPublisherPort {
       ) => new GetAssignedClientMembershipsHandler(membershipRepo, planRepo, clock),
       inject: [MEMBERSHIP_REPOSITORY_TOKEN, MEMBERSHIP_PLAN_REPOSITORY_TOKEN, GYM_CLOCK_TOKEN],
     },
+    {
+      provide: GYM_FULFILLMENT_STORE_PORT_TOKEN,
+      useClass: InMemoryGymFulfillmentStore,
+    },
+    {
+      provide: ActivateOrRenewMembershipHandler,
+      useFactory: (
+        membershipRepo: MembershipRepository,
+        planRepo: MembershipPlanRepository,
+        clientLookup: ClientLookupPort,
+        clock: Clock,
+        publisher: GymEventPublisherPort,
+        store: InMemoryGymFulfillmentStore,
+      ) =>
+        new ActivateOrRenewMembershipHandler(
+          membershipRepo,
+          planRepo,
+          clientLookup,
+          clock,
+          publisher,
+          store,
+        ),
+      inject: [
+        MEMBERSHIP_REPOSITORY_TOKEN,
+        MEMBERSHIP_PLAN_REPOSITORY_TOKEN,
+        CLIENT_LOOKUP_PORT_TOKEN,
+        GYM_CLOCK_TOKEN,
+        GYM_EVENT_PUBLISHER_PORT_TOKEN,
+        GYM_FULFILLMENT_STORE_PORT_TOKEN,
+      ],
+    },
+    {
+      provide: ResolveMembershipCommercialDetailsHandler,
+      useFactory: (
+        planRepo: MembershipPlanRepository,
+        membershipRepo: MembershipRepository,
+        clientLookup: ClientLookupPort,
+        clock: Clock,
+      ) =>
+        new ResolveMembershipCommercialDetailsHandler(
+          planRepo,
+          membershipRepo,
+          clientLookup,
+          clock,
+        ),
+      inject: [
+        MEMBERSHIP_PLAN_REPOSITORY_TOKEN,
+        MEMBERSHIP_REPOSITORY_TOKEN,
+        CLIENT_LOOKUP_PORT_TOKEN,
+        GYM_CLOCK_TOKEN,
+      ],
+    },
   ],
   exports: [
     GetTrainerDashboardSummaryHandler,
     GetAssignedClientMembershipsHandler,
     GetExpiringMembershipsHandler,
     GetDailyAttendanceHandler,
+    GetMembershipPlanByIdHandler,
+    GetMembershipByIdHandler,
+    CheckMembershipEligibilityHandler,
+    ActivateOrRenewMembershipHandler,
+    ResolveMembershipCommercialDetailsHandler,
     MembershipPlansController,
     MembershipsController,
     AttendanceController,

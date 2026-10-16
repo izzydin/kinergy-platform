@@ -28,3 +28,5 @@ export * from './get-assigned-client-memberships.query';
 export * from './get-assigned-client-memberships.handler';
 export * from './get-trainer-dashboard-summary.query';
 export * from './get-trainer-dashboard-summary.handler';
+export * from './resolve-membership-commercial-details.query';
+export * from './resolve-membership-commercial-details.handler';

@@ -62,6 +62,7 @@ export class SellStockHandler
       itemId: input.itemId,
       actorId: input.actorId,
       tenantId: input.tenantId,
+      referenceId: input.referenceId,
       mutate: (item) =>
         item.sellStock({
           quantity: input.quantity,

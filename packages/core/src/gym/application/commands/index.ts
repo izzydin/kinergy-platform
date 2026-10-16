@@ -9,3 +9,4 @@ export * from './update-membership-plan-pricing.command';
 export * from './publish-membership-plan.command';
 export * from './archive-membership-plan.command';
 export * from './record-check-in.command';
+export * from './activate-or-renew-membership.command';
