@@ -84,7 +84,7 @@ export class CompletePaymentHandler implements SalesCommandHandler<
         );
       }
 
-      // 7. Verify Remaining Balance & Prevent Overpayments
+      // 7. Verify Initial Remaining Balance & Prevent Overpayments (pre-transaction fast path)
       const allPayments = await this.paymentRepository.findBySaleId(sale.id);
       const settledTotalBefore = allPayments
         .filter((p) => p.status === PaymentStatus.COMPLETED && p.id.value !== payment.id.value)
@@ -129,8 +129,23 @@ export class CompletePaymentHandler implements SalesCommandHandler<
       }
 
       // 10. Persist State Atomically
-      // Enclose strictly the persistence step in the unit of work to keep the transaction boundary minimal.
+      // Enclose balance re-verification and multi-aggregate persistence strictly within unit of work
       const persistWork = async () => {
+        // Atomic balance re-check inside transaction boundary to guard competing split payments
+        const currentPayments = await this.paymentRepository.findBySaleId(sale.id);
+        const currentSettledTotal = currentPayments
+          .filter((p) => p.status === PaymentStatus.COMPLETED && p.id.value !== payment.id.value)
+          .reduce((acc, p) => acc.add(p.amount), Money.zero(sale.currency));
+
+        const currentRemaining = sale.total.subtract(currentSettledTotal, { allowNegative: true });
+        if (payment.amount.greaterThan(currentRemaining)) {
+          throw new PaymentOverpaymentException(
+            MoneyMapper.toDTO(payment.amount).formatted,
+            MoneyMapper.toDTO(currentRemaining).formatted,
+            sale.currency,
+          );
+        }
+
         await this.paymentRepository.save(payment);
         await this.saleRepository.save(sale);
       };

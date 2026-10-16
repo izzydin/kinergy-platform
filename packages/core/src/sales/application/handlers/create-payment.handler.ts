@@ -9,6 +9,7 @@ import { PaymentMethod, assertValidPaymentMethod } from '../../domain/enums/paym
 import { PaymentStatus, isValidPaymentStatus } from '../../domain/enums/payment-status.enum';
 import { SaleStatus } from '../../domain/enums/sale-status.enum';
 import { Money } from '../../domain/value-objects/money.vo';
+import { PaymentId } from '../../domain/value-objects/payment-id.vo';
 import { PaymentReference } from '../../domain/value-objects/payment-reference.vo';
 import { PaymentRepositoryPort } from '../ports/payment-repository.port';
 import { SaleRepositoryPort } from '../ports/sale-repository.port';
@@ -56,22 +57,22 @@ export class CreatePaymentHandler implements SalesCommandHandler<
   ) {}
 
   public async execute(command: CreatePaymentCommand): Promise<SalesApplicationResult<PaymentDTO>> {
-    try {
-      const { input } = command;
+    const { input } = command;
+    const clientPaymentId = (input.id || input.idempotencyKey)?.trim();
+    const saleId = input.saleId?.trim();
+    const hasAmount =
+      typeof input.amount === 'number' && !isNaN(input.amount) && isFinite(input.amount);
+    const hasCents =
+      typeof input.cents === 'number' && Number.isInteger(input.cents) && isFinite(input.cents);
 
+    try {
       // 1. Authorization & Identity Verification
       checkPaymentAuthorization(input.currentUser, ['payments.create']);
 
       // 2. Validate Application Input (syntactic checks, non-empty IDs)
-      const saleId = input.saleId?.trim();
       if (!saleId) {
         return SalesApplicationResult.fail(new Error('Sale ID cannot be empty.'));
       }
-
-      const hasAmount =
-        typeof input.amount === 'number' && !isNaN(input.amount) && isFinite(input.amount);
-      const hasCents =
-        typeof input.cents === 'number' && Number.isInteger(input.cents) && isFinite(input.cents);
 
       if (!hasAmount && !hasCents) {
         return SalesApplicationResult.fail(
@@ -100,7 +101,38 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         );
       }
 
-      // 3. Load Referenced Sale & Reject If Not Found
+      // 3. Client Idempotency Key / ID Pre-Verification (Safe Read Replay)
+      if (clientPaymentId) {
+        const existingPayment = await this.paymentRepository.findById(clientPaymentId);
+        if (existingPayment) {
+          enforceTenantIsolation(existingPayment.tenantId, input.tenantId);
+
+          const targetCurrency = (input.currency ?? existingPayment.amount.currency)
+            .trim()
+            .toUpperCase();
+          const targetCents = hasCents
+            ? input.cents!
+            : hasAmount
+              ? Math.round(input.amount! * 100)
+              : existingPayment.amount.cents;
+
+          const amountsMatch = existingPayment.amount.cents === targetCents;
+          const currenciesMatch = existingPayment.amount.currency.toUpperCase() === targetCurrency;
+          const methodsMatch =
+            String(existingPayment.method).toUpperCase() === String(input.method).toUpperCase();
+          const salesMatch = existingPayment.saleId.value === saleId;
+
+          if (amountsMatch && currenciesMatch && methodsMatch && salesMatch) {
+            return SalesApplicationResult.ok(PaymentMapper.toDTO(existingPayment));
+          } else {
+            return SalesApplicationResult.fail(
+              new DuplicatePaymentReferenceException(clientPaymentId, saleId),
+            );
+          }
+        }
+      }
+
+      // 4. Load Referenced Sale & Reject If Not Found
       const sale = await this.saleRepository.findById(saleId);
       if (!sale) {
         return SalesApplicationResult.fail(new SaleNotFoundException(saleId));
@@ -114,7 +146,7 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         return SalesApplicationResult.fail(new SaleNotPayableException(sale.id.value, sale.status));
       }
 
-      // 4. Validate Currency Through Domain (homogeneity check)
+      // 5. Validate Currency Through Domain (homogeneity check)
       const paymentCurrency = (input.currency ?? sale.currency).trim().toUpperCase();
       if (paymentCurrency !== sale.currency) {
         return SalesApplicationResult.fail(
@@ -122,11 +154,11 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         );
       }
 
-      // 5. Validate Method Through Domain Invariants
+      // 6. Validate Method Through Domain Invariants
       assertValidPaymentMethod(input.method);
       const method = input.method as PaymentMethod;
 
-      // 6. Validate Amount Through Payment Domain (canonical Money VO invariants)
+      // 7. Validate Amount Through Payment Domain (canonical Money VO invariants)
       const paymentAmount = hasCents
         ? Money.fromCents(input.cents!, paymentCurrency)
         : Money.create(input.amount!, paymentCurrency);
@@ -139,7 +171,7 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         );
       }
 
-      // 7. Validate Reference & Check Duplicate Reference For Referenced Sale
+      // 8. Validate Reference & Check Duplicate Reference For Referenced Sale
       const reference = PaymentReference.from(input.reference);
       const existingPayments = await this.paymentRepository.findBySaleId(sale.id);
 
@@ -156,7 +188,7 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         }
       }
 
-      // 8. Balance & Overpayment Verification (calculated with exact Money arithmetic)
+      // 9. Initial Balance & Overpayment Verification (calculated with exact Money arithmetic)
       const settledTotal = existingPayments
         .filter((p) => p.status === PaymentStatus.COMPLETED)
         .reduce((acc, p) => acc.add(p.amount), Money.zero(paymentCurrency));
@@ -173,7 +205,7 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         );
       }
 
-      // 9. Initial Payment State According to Milestone 7.6
+      // 10. Initial Payment State According to Milestone 7.6
       // In accordance with Milestone 7.6 and ADR-0116:
       // Initial state is either PENDING (initiated tender) or COMPLETED (immediate counter tender).
       // Callers are strictly forbidden from creating arbitrary states (e.g. CANCELLED, FAILED).
@@ -191,12 +223,13 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         );
       }
 
-      // 10. Construct Payment Domain Representation via Domain Factories
-      // Do not allow request DTO to bypass domain construction or control paidAt
+      // 11. Construct Payment Domain Representation via Domain Factories
+      const paymentId = clientPaymentId ? PaymentId.create(clientPaymentId) : undefined;
       const payment =
         targetStatus === PaymentStatus.COMPLETED
           ? Payment.createCompleted(
               {
+                id: paymentId,
                 saleId: sale.id,
                 tenantId: sale.tenantId,
                 method,
@@ -207,6 +240,7 @@ export class CreatePaymentHandler implements SalesCommandHandler<
             )
           : Payment.createPending(
               {
+                id: paymentId,
                 saleId: sale.id,
                 tenantId: sale.tenantId,
                 method,
@@ -216,19 +250,47 @@ export class CreatePaymentHandler implements SalesCommandHandler<
               this.clock,
             );
 
-      // 11. Coordinate Sale Relationship and State Transition If Completed
-      // Application layer invokes domain methods (markPaid / markPartiallyPaid) - does NOT mutate Sale directly
-      if (payment.status === PaymentStatus.COMPLETED) {
-        const newSettledTotal = settledTotal.add(payment.amount);
-        if (newSettledTotal.greaterThanOrEqual(sale.total)) {
-          sale.markPaid(this.clock);
-        } else if (sale.status === SaleStatus.PENDING_PAYMENT) {
-          sale.markPartiallyPaid(this.clock);
-        }
-      }
-
       // 12. Persist State Atomically Through Repository Ports (and UnitOfWork if provided)
       const persistWork = async () => {
+        // Inside transaction: Re-verify balance and duplicate reference to protect against concurrent tenders
+        const currentPayments = await this.paymentRepository.findBySaleId(sale.id);
+
+        if (reference !== null) {
+          const isDuplicateRef = currentPayments.some(
+            (p) =>
+              p.reference !== null &&
+              p.reference.value.toLowerCase() === reference.value.toLowerCase(),
+          );
+          if (isDuplicateRef) {
+            throw new DuplicatePaymentReferenceException(reference.value, sale.id.value);
+          }
+        }
+
+        const currentSettledTotal = currentPayments
+          .filter((p) => p.status === PaymentStatus.COMPLETED)
+          .reduce((acc, p) => acc.add(p.amount), Money.zero(paymentCurrency));
+
+        const currentRemainingBalance = sale.total.subtract(currentSettledTotal, {
+          allowNegative: true,
+        });
+
+        if (paymentAmount.greaterThan(currentRemainingBalance)) {
+          throw new PaymentOverpaymentException(
+            MoneyMapper.toDTO(paymentAmount).formatted,
+            MoneyMapper.toDTO(currentRemainingBalance).formatted,
+            paymentCurrency,
+          );
+        }
+
+        if (payment.status === PaymentStatus.COMPLETED) {
+          const newSettledTotal = currentSettledTotal.add(payment.amount);
+          if (newSettledTotal.greaterThanOrEqual(sale.total)) {
+            sale.markPaid(this.clock);
+          } else if (sale.status === SaleStatus.PENDING_PAYMENT) {
+            sale.markPartiallyPaid(this.clock);
+          }
+        }
+
         await this.paymentRepository.save(payment);
         if (payment.status === PaymentStatus.COMPLETED) {
           await this.saleRepository.save(sale);
@@ -269,6 +331,35 @@ export class CreatePaymentHandler implements SalesCommandHandler<
       // 14. Return Approved Application Representation
       return SalesApplicationResult.ok(PaymentMapper.toDTO(payment));
     } catch (err: unknown) {
+      // Idempotent recovery for concurrent replays
+      if (clientPaymentId) {
+        try {
+          const existingPayment = await this.paymentRepository.findById(clientPaymentId);
+          if (existingPayment) {
+            const targetCurrency = (input.currency ?? existingPayment.amount.currency)
+              .trim()
+              .toUpperCase();
+            const targetCents = hasCents
+              ? input.cents!
+              : hasAmount
+                ? Math.round(input.amount! * 100)
+                : existingPayment.amount.cents;
+
+            const amountsMatch = existingPayment.amount.cents === targetCents;
+            const currenciesMatch =
+              existingPayment.amount.currency.toUpperCase() === targetCurrency;
+            const methodsMatch =
+              String(existingPayment.method).toUpperCase() === String(input.method).toUpperCase();
+            const salesMatch = existingPayment.saleId.value === saleId;
+
+            if (amountsMatch && currenciesMatch && methodsMatch && salesMatch) {
+              return SalesApplicationResult.ok(PaymentMapper.toDTO(existingPayment));
+            }
+          }
+        } catch {
+          // Fall through to error reporting
+        }
+      }
       const error = err instanceof Error ? err : new Error(String(err));
       return SalesApplicationResult.fail(error);
     }

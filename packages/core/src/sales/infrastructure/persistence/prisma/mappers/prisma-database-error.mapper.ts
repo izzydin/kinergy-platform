@@ -76,10 +76,18 @@ export class PrismaDatabaseErrorMapper {
         : '';
     const fieldName = err.meta?.field_name ?? '';
 
-    // 3. Map P2002 (Unique Constraint Violation) -> DuplicatePaymentReferenceException
-    if (code === 'P2002' || (!code && message.includes('Unique constraint failed'))) {
+    // 3. Map P2002 / SQLSTATE 23505 (Unique Constraint Violation) -> DuplicatePaymentReferenceException
+    if (
+      code === 'P2002' ||
+      code === '23505' ||
+      (!code && message.includes('Unique constraint failed')) ||
+      message.includes('duplicate key value') ||
+      message.includes('uq_payments_sale_reference') ||
+      targetStr.includes('reference') ||
+      targetStr.includes('id')
+    ) {
       return new DuplicatePaymentReferenceException(
-        context?.reference ?? 'duplicate-reference',
+        context?.reference ?? context?.paymentId ?? 'duplicate-reference',
         context?.saleId ?? 'unknown-sale',
       );
     }

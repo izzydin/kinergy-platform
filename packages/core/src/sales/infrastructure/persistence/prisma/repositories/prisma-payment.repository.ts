@@ -216,11 +216,27 @@ export class PrismaPaymentRepository implements PaymentRepositoryPort {
             throw new PaymentOptimisticLockException(paymentData.id, existing.version);
           }
 
-          await tx.payment.upsert({
-            where: { id: paymentData.id },
-            create: paymentData,
-            update: paymentData,
-          });
+          if (!existing) {
+            if (typeof (tx.payment as { create?: unknown }).create === 'function') {
+              await (
+                tx.payment as unknown as { create: (args: unknown) => Promise<unknown> }
+              ).create({
+                data: paymentData,
+              });
+            } else {
+              await tx.payment.upsert({
+                where: { id: paymentData.id },
+                create: paymentData,
+                update: paymentData,
+              });
+            }
+          } else {
+            await tx.payment.upsert({
+              where: { id: paymentData.id },
+              create: paymentData,
+              update: paymentData,
+            });
+          }
         } else {
           // Optimistic concurrency control check against prior version
           const priorVersion = payment.version - 1;

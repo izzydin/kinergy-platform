@@ -11,6 +11,8 @@ export interface CreatePaymentCurrentUser {
 }
 
 export interface CreatePaymentInput {
+  id?: string;
+  idempotencyKey?: string;
   saleId: string;
   amount?: number;
   cents?: number;
