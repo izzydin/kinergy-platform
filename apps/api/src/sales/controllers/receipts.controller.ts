@@ -187,29 +187,49 @@ export class ReceiptsController {
   @Permissions('receipts.read')
   @ApiOperation({
     summary: 'Retrieve receipt voucher associated with a commercial sale',
-    description: 'Resolves the primary immutable receipt document evidencing the requested sale.',
+    description:
+      'Resolves the primary immutable receipt document evidencing an already settled commercial sale (PAID or COMPLETED). ' +
+      'Strictly read-only query: does NOT create, issue, reissue, update, or delete Receipt, Sale, or Payment records. ' +
+      'Returns the historical point-in-time snapshot of client presentation details, itemized lines, and settled tender payments captured at issuance, ' +
+      'completely decoupled from subsequent client profile updates, catalog modifications, or pricing changes. ' +
+      'Requires receipts.read permission and enforces object-level customer ownership boundaries. ' +
+      'Receipt is an immutable commercial proof-of-purchase voucher, not a fiscal invoice or accounting revenue entry.',
   })
-  @ApiParam({ name: 'saleId', description: 'Target Sale UUID identifier' })
+  @ApiParam({
+    name: 'saleId',
+    description:
+      'Target Sale identifier (UUID or non-empty alphanumeric string). Must not be empty or whitespace.',
+    type: String,
+    required: true,
+  })
   @ApiResponse({
     status: HttpStatus.OK,
     type: ReceiptResponseDto,
-    description: 'Receipt resolved successfully',
+    description:
+      'Receipt voucher resolved successfully. Includes complete point-in-time snapshot and deterministic Money representation.',
   })
   @ApiResponse({
     status: HttpStatus.BAD_REQUEST,
-    description: 'Sale ID cannot be empty or whitespace',
+    description: 'Sale ID cannot be empty or whitespace.',
   })
   @ApiResponse({
     status: HttpStatus.UNAUTHORIZED,
-    description: 'Missing or invalid authentication token.',
+    description: 'Missing, expired, invalid, or revoked JWT authentication token.',
   })
   @ApiResponse({
     status: HttpStatus.FORBIDDEN,
-    description: 'Caller lacks required receipts.read permission or cross-tenant access attempted',
+    description:
+      'Caller lacks required receipts.read permission, attempted cross-tenant access, or client user attempted to access another customer voucher.',
   })
   @ApiResponse({
     status: HttpStatus.NOT_FOUND,
-    description: 'Sale does not exist or receipt has not been issued yet',
+    description:
+      'Sale does not exist (Sale <id> was not found) or sale exists but no receipt has been issued yet (Receipt for sale <id> was not found).',
+  })
+  @ApiResponse({
+    status: HttpStatus.INTERNAL_SERVER_ERROR,
+    description:
+      'Unexpected persistence or infrastructure failure. Returns generic error envelope with correlation ID; zero database details or stack traces exposed.',
   })
   public async getReceiptBySale(
     @Param('saleId') saleId: string,
