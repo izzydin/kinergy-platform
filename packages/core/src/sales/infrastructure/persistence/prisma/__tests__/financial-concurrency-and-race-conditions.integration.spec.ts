@@ -27,6 +27,7 @@ import { SaleSourceType } from '../../../../domain/enums/sale-source-type.enum';
 import { SourceType } from '../../../../domain/enums/source-type.enum';
 import { DuplicateSaleException } from '../../../../domain/exceptions/duplicate-sale.exception';
 import { PaymentOverpaymentException } from '../../../../application/exceptions/payment-overpayment.exception';
+import { DuplicatePaymentReferenceException } from '../../../../application/exceptions/duplicate-payment-reference.exception';
 import {
   PaymentOptimisticLockException,
   SaleOptimisticLockException,
@@ -1583,7 +1584,12 @@ describe('Milestone 7.19 Financial Concurrency and Race-Condition Test Suite', (
       ]);
 
       const successCount = (res1.isSuccess ? 1 : 0) + (res2.isSuccess ? 1 : 0);
-      expect(successCount).toBeGreaterThanOrEqual(1);
+      const failureCount = (res1.isFailure ? 1 : 0) + (res2.isFailure ? 1 : 0);
+      expect(successCount).toBe(1);
+      expect(failureCount).toBe(1);
+
+      const failed = res1.isFailure ? res1 : res2;
+      expect(failed.getError() instanceof DuplicatePaymentReferenceException).toBe(true);
 
       // Database assertion: Exactly one payment record exists in persistence
       expect(db.payments.size).toBe(1);

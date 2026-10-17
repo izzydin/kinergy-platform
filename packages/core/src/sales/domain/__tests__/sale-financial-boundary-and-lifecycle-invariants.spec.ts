@@ -36,6 +36,7 @@ import {
   PaymentAlreadyCompletedException,
   PaymentAlreadyFailedException,
   PaymentAlreadyCancelledException,
+  InvalidMoneyException,
   ReceiptDomainException,
 } from '../exceptions';
 import { PaymentLifecycleStateMachine } from '../services/payment-lifecycle.state-machine';
@@ -283,7 +284,7 @@ describe('Milestone 7.19: Complete Sales and Payments Domain Invariants', () => 
       const sale = Sale.create({ source: createValidSource(), currency: 'USD' }, clock);
 
       // Negative unit price rejected by Money VO
-      expect(() => Money.create(-25, 'USD')).toThrow();
+      expect(() => Money.create(-25, 'USD')).toThrow(InvalidMoneyException);
 
       // Currency mismatch: cannot add CAD item to USD sale
       expect(() =>
