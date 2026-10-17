@@ -8,9 +8,18 @@ import { useSalesList } from '../hooks/use-sales-queries';
 import { SalesFilterBar } from '../components/sales-filter-bar';
 import { SalesListTable } from '../components/sales-list-table';
 import { HasPermission } from '../../../app/routes/permission-guard';
+import { useAuth } from '../../../app/providers/auth-provider';
+import { ForbiddenView } from '../../../app/routes/fallback-views';
 import type { SaleSortField, SaleStatus } from '../types/sales-query.types';
 
 export const SalesListPage: React.FC = () => {
+  const auth = useAuth();
+  const canRead = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('sales.read')
+      : auth.currentUser?.permissions?.includes('sales.read'),
+  );
+
   const navigate = useNavigate();
   const {
     params,
@@ -96,6 +105,12 @@ export const SalesListPage: React.FC = () => {
       isFetching,
     ],
   );
+
+  if (!canRead) {
+    return (
+      <ForbiddenView message="Access Denied: Missing required permission 'sales.read' to view sales orders directory." />
+    );
+  }
 
   return (
     <div className="space-y-6" data-testid="sales-list-page">

@@ -206,11 +206,43 @@ export function useSettlePayment() {
       notification.success('Payment confirmed settled');
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.payments.detail(payment.id) });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.payments.lists() });
+      queryClient.invalidateQueries({
+        queryKey: salesQueryKeys.paymentsBySale(payment.saleId),
+      });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(payment.saleId) });
+      queryClient.invalidateQueries({
+        queryKey: salesQueryKeys.receiptBySale(payment.saleId),
+      });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to settle payment');
+    },
+  });
+}
+
+/**
+ * Hook to fail a pending payment tender
+ */
+export function useFailPayment() {
+  const queryClient = useQueryClient();
+  const notification = useNotification();
+
+  return useMutation({
+    mutationFn: ({ paymentId, reason }: { paymentId: string; reason?: string }) =>
+      salesApi.failPayment(paymentId, reason),
+    onSuccess: (payment) => {
+      notification.error('Payment marked as failed');
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.payments.detail(payment.id) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.payments.lists() });
+      queryClient.invalidateQueries({
+        queryKey: salesQueryKeys.paymentsBySale(payment.saleId),
+      });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(payment.saleId) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
+    },
+    onError: (error: Error) => {
+      notification.error(error.message || 'Failed to update payment status');
     },
   });
 }
@@ -229,6 +261,9 @@ export function useCancelPayment() {
       notification.success('Payment tender cancelled');
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.payments.detail(payment.id) });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.payments.lists() });
+      queryClient.invalidateQueries({
+        queryKey: salesQueryKeys.paymentsBySale(payment.saleId),
+      });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(payment.saleId) });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
     },

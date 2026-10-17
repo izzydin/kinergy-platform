@@ -28,6 +28,7 @@ import { useCreateSale } from '../hooks/use-sales-mutations';
 import { VALID_SALE_SOURCE_TYPES } from '../types/sales.types';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
+import { SALES_ROUTES } from '../routes/sales-routes';
 
 export const SaleCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -174,7 +175,7 @@ export const SaleCreatePage: React.FC = () => {
         idempotencyKey,
       });
 
-      navigate(`/sales/${created.id}`);
+      navigate(SALES_ROUTES.detail(created.id));
     } catch (err: unknown) {
       const errorObj = err as Record<string, unknown>;
       const status =
@@ -209,7 +210,7 @@ export const SaleCreatePage: React.FC = () => {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs gap-1">
-            <Link to="/sales/list">
+            <Link to={SALES_ROUTES.list()}>
               <ArrowLeft className="h-4 w-4" /> Back to Directory
             </Link>
           </Button>
@@ -678,7 +679,7 @@ export const SaleCreatePage: React.FC = () => {
         {/* 8. Action Buttons */}
         <div className="flex items-center justify-end gap-3 pt-2">
           <Button asChild variant="outline" size="sm" className="h-9 px-4 text-xs">
-            <Link to="/sales/list">Cancel</Link>
+            <Link to={SALES_ROUTES.list()}>Cancel</Link>
           </Button>
 
           <Button

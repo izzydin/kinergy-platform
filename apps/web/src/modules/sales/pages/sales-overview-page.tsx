@@ -23,11 +23,20 @@ import {
 } from 'lucide-react';
 import { useSalesOverviewMetrics } from '../hooks/use-sales-queries';
 import { HasPermission } from '../../../app/routes/permission-guard';
+import { useAuth } from '../../../app/providers/auth-provider';
+import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { SaleStatusBadge } from '../components/sale-status-badge';
 import { MoneyDisplay } from '../components/money-display';
 import type { SaleStatus } from '../types/sales-query.types';
 
 export const SalesOverviewPage: React.FC = () => {
+  const auth = useAuth();
+  const canRead = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('sales.read')
+      : auth.currentUser?.permissions?.includes('sales.read'),
+  );
+
   const {
     isLoading,
     isError,
@@ -37,6 +46,12 @@ export const SalesOverviewPage: React.FC = () => {
     recentSales,
     refetchAll,
   } = useSalesOverviewMetrics();
+
+  if (!canRead) {
+    return (
+      <ForbiddenView message="Access Denied: Missing required permission 'sales.read' to view sales & payments overview." />
+    );
+  }
 
   return (
     <div className="space-y-6" data-testid="sales-overview-page">
