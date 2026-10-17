@@ -7,6 +7,7 @@ import '../../modules/identity/user-management';
 import '../../modules/settings';
 import '../../modules/attendance';
 import '../../modules/gym';
+import '../../modules/sales';
 
 import { AuthLayout, DashboardLayout, MainLayout } from '../layouts';
 import {

@@ -3,6 +3,7 @@ import {
   BarChart3,
   Boxes,
   LayoutDashboard,
+  Receipt,
   Settings,
   Shield,
   TestTube,
@@ -49,6 +50,15 @@ export const defaultNavigationItems: NavigationItem[] = [
     order: 20,
     section: 'core',
     requiredPermissions: ['client:read'],
+  },
+  {
+    id: 'sales',
+    label: 'Sales & Payments',
+    path: '/sales',
+    icon: Receipt,
+    order: 25,
+    section: 'core',
+    requiredPermissions: ['sales.read'],
   },
   {
     id: 'energy',
