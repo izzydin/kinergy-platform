@@ -110,11 +110,17 @@ export class PrismaDatabaseErrorMapper {
       return new PaymentNotFoundException(context?.paymentId ?? 'unknown-payment');
     }
 
-    // 6. Generic database error: never expose raw Prisma errors to callers
-    return new PaymentPersistenceException(
-      `Database persistence error occurred: ${message || 'internal persistence failure'}`,
-      { cause: error },
-    );
+    // 6. Generic database error: never expose raw Prisma errors or connection strings to callers
+    const sanitizedMsg = message
+      ? message.replace(
+          /(postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/[^\s"']+/gi,
+          '$1://[REDACTED_DATABASE_URL]',
+        )
+      : 'internal persistence failure';
+
+    return new PaymentPersistenceException(`Database persistence error occurred: ${sanitizedMsg}`, {
+      cause: error,
+    });
   }
   /**
    * Inspects an unknown error and maps known PostgreSQL CHECK constraint violations
