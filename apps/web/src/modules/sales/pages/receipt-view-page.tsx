@@ -1,18 +1,35 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from '@kinergy-platform/ui';
-import { ArrowLeft, Printer, Receipt, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Printer, Receipt, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
 import { useReceiptBySale } from '../hooks/use-sales-queries';
 import { useIssueReceipt } from '../hooks/use-sales-mutations';
 import { MoneyDisplay } from '../components/money-display';
 import { PaymentMethodBadge } from '../components/payment-method-badge';
 import { HasPermission } from '../../../app/routes/permission-guard';
+import { useAuth } from '../../../app/providers/auth-provider';
+import { ForbiddenView } from '../../../app/routes/fallback-views';
+import { SALES_ROUTES } from '../routes/sales-routes';
 
 export const ReceiptViewPage: React.FC = () => {
   const { saleId } = useParams<{ saleId: string }>();
+  const auth = useAuth();
 
-  const { data: receipt, isLoading, isError, refetch } = useReceiptBySale(saleId);
+  // Permission verification: receipts.read (or receipts.manage, sales.manage)
+  const canRead = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('receipts.read')
+      : auth.currentUser?.permissions?.includes('receipts.read'),
+  );
+
+  const { data: receipt, isLoading, isError, error, refetch } = useReceiptBySale(saleId);
   const issueReceiptMutation = useIssueReceipt();
+
+  if (!canRead) {
+    return (
+      <ForbiddenView message="Access Denied: Missing required permission 'receipts.read' to view receipt vouchers." />
+    );
+  }
 
   const handleIssueReceipt = async () => {
     if (!saleId) return;
@@ -26,28 +43,73 @@ export const ReceiptViewPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="p-8 text-center text-muted-foreground" data-testid="receipt-view-loading">
-        Loading official receipt voucher...
+      <div
+        className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center space-y-3"
+        data-testid="receipt-view-loading"
+      >
+        <RefreshCw className="h-6 w-6 animate-spin text-primary" />
+        <p className="text-sm">Loading authoritative receipt voucher...</p>
       </div>
     );
   }
 
-  // Not yet issued or error
-  if (isError || !receipt) {
+  // Distinguish expected 404 (receipt not yet issued for unsettled sale) from genuine 500 server failure
+  const statusError = error as unknown as
+    { statusCode?: number; status?: number; response?: { status?: number } } | null | undefined;
+
+  const isNotFound = Boolean(
+    !receipt &&
+    (!isError ||
+      statusError?.statusCode === 404 ||
+      statusError?.status === 404 ||
+      statusError?.response?.status === 404 ||
+      error?.message?.toLowerCase().includes('not found') ||
+      error?.message?.toLowerCase().includes('no receipt')),
+  );
+
+  if (isError && !isNotFound) {
+    return (
+      <div className="p-8 text-center space-y-4 max-w-md mx-auto" data-testid="receipt-view-error">
+        <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
+        <h2 className="text-xl font-bold">Failed to Load Receipt Voucher</h2>
+        <p className="text-sm text-muted-foreground">
+          {error?.message ||
+            'An unexpected server error occurred while retrieving the receipt. Please try again.'}
+        </p>
+
+        <div className="flex items-center justify-center gap-3 pt-2">
+          {saleId && (
+            <Button asChild variant="outline">
+              <Link to={SALES_ROUTES.detail(saleId)}>Return to Sale</Link>
+            </Button>
+          )}
+          <Button onClick={() => refetch()} variant="secondary" className="gap-1.5">
+            <RefreshCw className="h-4 w-4" /> Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Not yet issued / unavailable
+  if (isNotFound || !receipt) {
     return (
       <div className="p-8 text-center space-y-4 max-w-md mx-auto" data-testid="receipt-not-issued">
         <Receipt className="h-12 w-12 mx-auto text-muted-foreground" />
         <h2 className="text-xl font-bold">Receipt Not Issued Yet</h2>
         <p className="text-sm text-muted-foreground">
-          No official receipt document has been issued for sale{' '}
-          <span className="font-mono font-medium">{saleId}</span>. The sale must be fully settled
-          before a legal voucher is generated.
+          No official receipt voucher has been issued for sale{' '}
+          <span className="font-mono font-medium">{saleId || 'unknown'}</span>. In accordance with
+          financial audit rules, official receipts are generated only after a sale order is fully
+          settled.
         </p>
 
         <div className="flex items-center justify-center gap-3 pt-2">
-          <Button asChild variant="outline">
-            <Link to={`/sales/${saleId}`}>Return to Sale</Link>
-          </Button>
+          {saleId && (
+            <Button asChild variant="outline">
+              <Link to={SALES_ROUTES.detail(saleId)}>Return to Sale</Link>
+            </Button>
+          )}
 
           <HasPermission name="receipts.manage">
             <Button
@@ -65,17 +127,26 @@ export const ReceiptViewPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 max-w-2xl mx-auto" data-testid="receipt-view-page">
-      {/* Action Navigation Bar */}
-      <div className="flex items-center justify-between no-print">
+    <div
+      className="space-y-6 max-w-2xl mx-auto print:max-w-none print:m-0 print:p-0"
+      data-testid="receipt-view-page"
+    >
+      {/* Action Navigation Bar (Hidden during print) */}
+      <div className="flex items-center justify-between no-print print:hidden">
         <Button asChild variant="ghost" size="sm">
-          <Link to={`/sales/${saleId}`}>
+          <Link to={SALES_ROUTES.detail(saleId || receipt.saleId)}>
             <ArrowLeft className="h-4 w-4 mr-1" /> Back to Sale
           </Link>
         </Button>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handlePrint} className="gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handlePrint}
+            className="gap-1.5"
+            data-testid="receipt-print-button"
+          >
             <Printer className="h-4 w-4" /> Print Receipt
           </Button>
         </div>
@@ -84,10 +155,20 @@ export const ReceiptViewPage: React.FC = () => {
       {/* Printable Receipt Paper Card */}
       <Card className="border border-border shadow-sm print:border-none print:shadow-none bg-card">
         <CardHeader className="text-center border-b border-border pb-6 space-y-2">
-          <Badge variant="outline" className="mx-auto text-xs uppercase tracking-wider">
-            Official Proof of Purchase
-          </Badge>
-          <CardTitle className="text-2xl font-bold font-mono tracking-tight">
+          <div className="flex items-center justify-center gap-2">
+            <Badge variant="outline" className="text-xs uppercase tracking-wider">
+              Official Proof of Purchase
+            </Badge>
+            {receipt.status && (
+              <Badge variant="secondary" className="text-xs">
+                {receipt.status}
+              </Badge>
+            )}
+          </div>
+          <CardTitle
+            className="text-2xl font-bold font-mono tracking-tight"
+            data-testid="receipt-number"
+          >
             {receipt.receiptNumber}
           </CardTitle>
           <div className="text-xs text-muted-foreground space-y-0.5 font-mono">
@@ -98,7 +179,10 @@ export const ReceiptViewPage: React.FC = () => {
 
         <CardContent className="space-y-6 pt-6">
           {/* Customer Snapshot */}
-          <div className="text-xs space-y-1 pb-4 border-b border-border">
+          <div
+            className="text-xs space-y-1 pb-4 border-b border-border"
+            data-testid="receipt-client-snapshot"
+          >
             <span className="font-semibold text-muted-foreground uppercase tracking-wider block">
               Billed To
             </span>
@@ -115,14 +199,19 @@ export const ReceiptViewPage: React.FC = () => {
                     {receipt.clientSnapshot.email}
                   </div>
                 )}
+                {receipt.clientSnapshot.phone && (
+                  <div className="text-xs text-muted-foreground">
+                    {receipt.clientSnapshot.phone}
+                  </div>
+                )}
               </div>
             ) : (
-              <div className="text-muted-foreground">Walk-in Customer</div>
+              <div className="text-muted-foreground italic">Walk-in Customer</div>
             )}
           </div>
 
-          {/* Line Items Table */}
-          <div className="space-y-2">
+          {/* Line Items Table (Frozen Snapshot Preserved) */}
+          <div className="space-y-2" data-testid="receipt-items-table">
             <span className="font-semibold text-xs text-muted-foreground uppercase tracking-wider block">
               Purchased Items
             </span>
@@ -160,7 +249,10 @@ export const ReceiptViewPage: React.FC = () => {
           </div>
 
           {/* Monetary Totals Breakdown */}
-          <div className="pt-4 border-t border-border space-y-1.5 text-xs">
+          <div
+            className="pt-4 border-t border-border space-y-1.5 text-xs"
+            data-testid="receipt-totals-breakdown"
+          >
             <div className="flex justify-between text-muted-foreground">
               <span>Subtotal:</span>
               <MoneyDisplay value={receipt.subtotal} />
@@ -176,13 +268,16 @@ export const ReceiptViewPage: React.FC = () => {
             )}
 
             <div className="flex justify-between text-base font-bold font-mono border-t border-border pt-2 text-foreground">
-              <span>Total Paid:</span>
+              <span>Total Paid ({receipt.currency}):</span>
               <MoneyDisplay value={receipt.total} />
             </div>
           </div>
 
           {/* Settled Tender Payments */}
-          <div className="pt-4 border-t border-border space-y-2 text-xs">
+          <div
+            className="pt-4 border-t border-border space-y-2 text-xs"
+            data-testid="receipt-payments-snapshot"
+          >
             <span className="font-semibold text-muted-foreground uppercase tracking-wider block">
               Tender Settlement Records
             </span>
@@ -207,9 +302,12 @@ export const ReceiptViewPage: React.FC = () => {
           </div>
 
           {/* Legal / Voucher Footer */}
-          <div className="pt-6 border-t border-dashed border-border text-center text-[10px] text-muted-foreground">
+          <div className="pt-6 border-t border-dashed border-border text-center text-[10px] text-muted-foreground space-y-1">
             <p>Thank you for your business at Kinergy Platform.</p>
-            <p>Official tax & transaction voucher snapshotted upon settlement.</p>
+            <p>
+              Official proof-of-purchase voucher snapshotted upon settlement. Printing does not
+              alter server transaction state or issue a fiscal tax invoice.
+            </p>
           </div>
         </CardContent>
       </Card>

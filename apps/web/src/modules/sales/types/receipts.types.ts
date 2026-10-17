@@ -60,6 +60,9 @@ export interface ReceiptDTO {
   readonly payments: ReceiptPaymentSnapshotDTO[];
   readonly paymentMethod: PaymentMethod;
   readonly paymentStatus: PaymentStatus;
+  readonly status?: string;
+  readonly reprintCount?: number;
+  readonly lastReprintedAt?: string | null;
 }
 
 /**
