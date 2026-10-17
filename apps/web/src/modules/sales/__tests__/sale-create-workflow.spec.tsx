@@ -304,6 +304,39 @@ describe('SaleCreatePage Workflow & Contract Verification', () => {
         );
       });
     });
+
+    it('disables submit button and add-item button while creation request is in-flight', async () => {
+      let resolvePromise: (value: SaleDTO) => void = () => {};
+      const pendingPromise = new Promise<SaleDTO>((resolve) => {
+        resolvePromise = resolve;
+      });
+      (salesApi.createSale as jest.Mock).mockReturnValue(pendingPromise);
+
+      renderWithProviders(<SaleCreatePage />, {
+        queryClient,
+        initialRoute: '/sales/new',
+        initialSessionOverride: mockStaffUser,
+      });
+
+      fireEvent.change(screen.getByTestId('item-desc-0'), {
+        target: { value: 'Whey Protein' },
+      });
+      fireEvent.change(screen.getByTestId('item-price-0'), { target: { value: '30.00' } });
+
+      const submitBtn = screen.getByTestId('submit-create-sale-btn');
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(submitBtn).toBeDisabled();
+      });
+      expect(screen.getByTestId('add-line-item-btn')).toBeDisabled();
+      expect(screen.getByText('Initializing Draft Sale...')).toBeInTheDocument();
+
+      resolvePromise(mockCreatedSale);
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith(`/sales/${mockCreatedSale.id}`);
+      });
+    });
   });
 
   describe('5. Error Handling & Duplicate-Source Conflicts', () => {

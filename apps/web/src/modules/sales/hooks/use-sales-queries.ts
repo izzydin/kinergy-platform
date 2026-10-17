@@ -136,15 +136,29 @@ export function useSalesOverviewMetrics() {
     settledSalesQuery.isLoading ||
     recentSalesQuery.isLoading;
 
+  const isFetching =
+    pendingPaymentsQuery.isFetching ||
+    draftsQuery.isFetching ||
+    settledSalesQuery.isFetching ||
+    recentSalesQuery.isFetching;
+
   const isError =
     pendingPaymentsQuery.isError ||
     draftsQuery.isError ||
     settledSalesQuery.isError ||
     recentSalesQuery.isError;
 
+  const error =
+    pendingPaymentsQuery.error ||
+    draftsQuery.error ||
+    settledSalesQuery.error ||
+    recentSalesQuery.error;
+
   return {
     isLoading,
+    isFetching,
     isError,
+    error,
     pendingPaymentsCount: pendingPaymentsQuery.data?.total ?? 0,
     draftsCount: draftsQuery.data?.total ?? 0,
     settledSalesCount: settledSalesQuery.data?.total ?? 0,

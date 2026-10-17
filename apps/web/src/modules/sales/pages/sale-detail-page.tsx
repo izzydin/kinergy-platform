@@ -9,16 +9,7 @@ import {
   Button,
   Badge,
 } from '@kinergy-platform/ui';
-import {
-  ArrowLeft,
-  CheckCircle2,
-  XCircle,
-  CreditCard,
-  Receipt,
-  AlertCircle,
-  Tag,
-  User,
-} from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle, CreditCard, Receipt, Tag, User } from 'lucide-react';
 import { useSaleDetail, useSalePayments, useReceiptBySale } from '../hooks/use-sales-queries';
 import { useFinalizeSale, useCancelSale, useRecordPayment } from '../hooks/use-sales-mutations';
 import { SaleStatusBadge } from '../components/sale-status-badge';
@@ -30,6 +21,7 @@ import { RecordPaymentDialog } from '../components/record-payment-dialog';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
+import { CrudLoading, CrudEmpty, CrudError } from '../../../shared/crud';
 import { SALES_ROUTES } from '../routes/sales-routes';
 import type { PaymentMethod } from '../types';
 
@@ -44,7 +36,7 @@ export const SaleDetailPage: React.FC = () => {
       : auth.currentUser?.permissions?.includes('sales.read'),
   );
 
-  const { data: sale, isLoading, isError } = useSaleDetail(saleId);
+  const { data: sale, isLoading, isError, error, refetch } = useSaleDetail(saleId);
   const { data: payments } = useSalePayments(saleId);
   const { data: receipt } = useReceiptBySale(saleId);
 
@@ -61,36 +53,60 @@ export const SaleDetailPage: React.FC = () => {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !sale) {
     return (
-      <div
-        className="p-12 text-center text-muted-foreground space-y-3"
-        data-testid="sale-detail-loading"
-      >
-        <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm">Loading commercial sale agreement...</p>
+      <div className="p-6 max-w-5xl mx-auto space-y-6" data-testid="sale-detail-loading">
+        <CrudLoading variant="detail" />
       </div>
     );
   }
 
-  if (isError || !sale) {
+  // Distinguish 404 not-found from genuine server/network failure
+  const statusError = error as unknown as
+    { statusCode?: number; status?: number; response?: { status?: number } } | null | undefined;
+
+  const isNotFound = Boolean(
+    !sale &&
+    (!isError ||
+      statusError?.statusCode === 404 ||
+      statusError?.status === 404 ||
+      statusError?.response?.status === 404 ||
+      error?.message?.toLowerCase().includes('not found')),
+  );
+
+  if (isError && !isNotFound) {
     return (
-      <div
-        className="p-8 text-center text-destructive space-y-4 max-w-md mx-auto"
-        data-testid="sale-detail-error"
-      >
-        <AlertCircle className="h-10 w-10 mx-auto" />
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Sale Agreement Not Found</h2>
-          <p className="text-xs text-muted-foreground">
-            Sale agreement &ldquo;{saleId}&rdquo; does not exist or you lack permission to view it.
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to={SALES_ROUTES.list()}>
-            <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Sales Directory
-          </Link>
-        </Button>
+      <div className="p-8 max-w-xl mx-auto space-y-4" data-testid="sale-detail-error">
+        <CrudError
+          title="Failed to load sale agreement"
+          error={error}
+          onRetry={() => refetch()}
+          secondaryAction={
+            <Button asChild variant="outline" size="sm">
+              <Link to={SALES_ROUTES.list()}>
+                <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Directory
+              </Link>
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (isNotFound || !sale) {
+    return (
+      <div className="p-8 max-w-md mx-auto space-y-4" data-testid="sale-detail-error">
+        <CrudEmpty
+          title="Sale Agreement Not Found"
+          description={`Sale agreement "${saleId}" does not exist or you lack permission to view it.`}
+          action={
+            <Button asChild variant="outline" size="sm">
+              <Link to={SALES_ROUTES.list()}>
+                <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Sales Directory
+              </Link>
+            </Button>
+          }
+        />
       </div>
     );
   }
@@ -476,31 +492,43 @@ export const SaleDetailPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {sale.items.map((item, idx) => (
-                  <tr
-                    key={item.id}
-                    className="hover:bg-muted/20"
-                    data-testid={`sale-item-row-${idx}`}
-                  >
-                    <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground">
-                      {item.sourceType}
-                    </td>
-                    <td className="px-4 py-2.5 font-medium">{item.description}</td>
-                    <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground">
-                      {item.skuOrCode || '—'}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono">
-                      <MoneyDisplay value={item.unitPrice} />
-                    </td>
-                    <td className="px-4 py-2.5 text-center font-mono">{item.quantity}</td>
-                    <td className="px-4 py-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400">
-                      <MoneyDisplay value={item.discountTotal} />
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono font-semibold">
-                      <MoneyDisplay value={item.total} />
+                {sale.items.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={7}
+                      className="px-4 py-8 text-center text-xs text-muted-foreground"
+                      data-testid="no-items-msg"
+                    >
+                      No line items in this commercial agreement.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  sale.items.map((item, idx) => (
+                    <tr
+                      key={item.id}
+                      className="hover:bg-muted/20"
+                      data-testid={`sale-item-row-${idx}`}
+                    >
+                      <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground">
+                        {item.sourceType}
+                      </td>
+                      <td className="px-4 py-2.5 font-medium">{item.description}</td>
+                      <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground">
+                        {item.skuOrCode || '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono">
+                        <MoneyDisplay value={item.unitPrice} />
+                      </td>
+                      <td className="px-4 py-2.5 text-center font-mono">{item.quantity}</td>
+                      <td className="px-4 py-2.5 text-right font-mono text-emerald-600 dark:text-emerald-400">
+                        <MoneyDisplay value={item.discountTotal} />
+                      </td>
+                      <td className="px-4 py-2.5 text-right font-mono font-semibold">
+                        <MoneyDisplay value={item.total} />
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

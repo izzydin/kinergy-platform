@@ -446,6 +446,40 @@ describe('Screen 4 & Screen 5: Sale Detail & Payment Detail Contracts', () => {
       expect(screen.getByText('Sale Agreement Not Found')).toBeInTheDocument();
     });
 
+    it('renders loading skeleton while sale details are being fetched', () => {
+      (useParams as jest.Mock).mockReturnValue({ saleId: 'sale_101' });
+      (salesApi.getSaleById as jest.Mock).mockReturnValue(new Promise(() => {}));
+
+      renderWithProviders(<SaleDetailPage />, {
+        queryClient,
+        initialRoute: '/sales/sale_101',
+        initialSessionOverride: mockManagerUser,
+      });
+
+      expect(screen.getByTestId('sale-detail-loading')).toBeInTheDocument();
+    });
+
+    it('renders server error with retry option on unexpected 500 error', async () => {
+      (useParams as jest.Mock).mockReturnValue({ saleId: 'sale_101' });
+      const serverError = Object.assign(new Error('Internal Server Error 500'), {
+        statusCode: 500,
+      });
+      (salesApi.getSaleById as jest.Mock).mockRejectedValue(serverError);
+
+      renderWithProviders(<SaleDetailPage />, {
+        queryClient,
+        initialRoute: '/sales/sale_101',
+        initialSessionOverride: mockManagerUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sale-detail-error')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Failed to load sale agreement')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    });
+
     it('renders 403 ForbiddenView when user lacks sales.read permission', () => {
       (useParams as jest.Mock).mockReturnValue({ saleId: mockSettledSale.id });
 
@@ -592,6 +626,40 @@ describe('Screen 4 & Screen 5: Sale Detail & Payment Detail Contracts', () => {
       });
 
       expect(screen.getByText('Payment Record Not Found')).toBeInTheDocument();
+    });
+
+    it('renders loading skeleton while payment transaction is being fetched', () => {
+      (useParams as jest.Mock).mockReturnValue({ paymentId: 'pay_101' });
+      (salesApi.getPaymentById as jest.Mock).mockReturnValue(new Promise(() => {}));
+
+      renderWithProviders(<PaymentDetailPage />, {
+        queryClient,
+        initialRoute: '/sales/payments/pay_101',
+        initialSessionOverride: mockManagerUser,
+      });
+
+      expect(screen.getByTestId('payment-detail-loading')).toBeInTheDocument();
+    });
+
+    it('renders server error with retry option on unexpected 500 error', async () => {
+      (useParams as jest.Mock).mockReturnValue({ paymentId: 'pay_101' });
+      const serverError = Object.assign(new Error('Internal Server Error 500'), {
+        statusCode: 500,
+      });
+      (salesApi.getPaymentById as jest.Mock).mockRejectedValue(serverError);
+
+      renderWithProviders(<PaymentDetailPage />, {
+        queryClient,
+        initialRoute: '/sales/payments/pay_101',
+        initialSessionOverride: mockManagerUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-detail-error')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Failed to load payment transaction')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
     });
 
     it('renders 403 ForbiddenView when user lacks payments.read permission', () => {

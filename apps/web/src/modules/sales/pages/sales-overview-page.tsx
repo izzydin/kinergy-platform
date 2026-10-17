@@ -18,13 +18,13 @@ import {
   RefreshCw,
   ArrowRight,
   Receipt,
-  AlertCircle,
   FileText,
 } from 'lucide-react';
 import { useSalesOverviewMetrics } from '../hooks/use-sales-queries';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
+import { CrudLoading, CrudEmpty, CrudError } from '../../../shared/crud';
 import { SaleStatusBadge } from '../components/sale-status-badge';
 import { MoneyDisplay } from '../components/money-display';
 import type { SaleStatus } from '../types/sales-query.types';
@@ -39,7 +39,9 @@ export const SalesOverviewPage: React.FC = () => {
 
   const {
     isLoading,
+    isFetching,
     isError,
+    error,
     pendingPaymentsCount,
     draftsCount,
     settledSalesCount,
@@ -77,12 +79,12 @@ export const SalesOverviewPage: React.FC = () => {
             variant="outline"
             size="sm"
             onClick={() => refetchAll()}
-            disabled={isLoading}
+            disabled={isLoading || isFetching}
             data-testid="refresh-sales-overview-btn"
             className="h-8 text-xs gap-1.5"
             aria-label="Refresh sales overview"
           >
-            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
 
@@ -286,57 +288,33 @@ export const SalesOverviewPage: React.FC = () => {
         </CardHeader>
         <CardContent>
           {isError ? (
-            <div
-              className="flex items-center gap-3 p-4 rounded-md border border-destructive/20 bg-destructive/10 text-destructive text-sm"
-              data-testid="sales-overview-error"
-            >
-              <AlertCircle className="h-5 w-5 shrink-0" />
-              <div className="flex-1">
-                <span className="font-medium">Failed to retrieve sales records.</span>
-                <span className="block text-xs mt-0.5 opacity-90">
-                  Please verify your connection and permissions, then try again.
-                </span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => refetchAll()}
-                className="h-8 text-xs border-destructive/30 hover:bg-destructive/10"
-              >
-                Retry
-              </Button>
+            <div data-testid="sales-overview-error">
+              <CrudError
+                title="Failed to retrieve sales records"
+                error={error}
+                onRetry={() => refetchAll()}
+              />
             </div>
-          ) : isLoading ? (
-            <div className="space-y-3" data-testid="sales-overview-loading">
-              {[1, 2, 3, 4, 5].map((idx) => (
-                <div
-                  key={idx}
-                  className="py-3 flex items-center justify-between border-b border-border/50 last:border-b-0 animate-pulse"
-                >
-                  <div className="space-y-2">
-                    <div className="h-4 w-32 bg-muted rounded" />
-                    <div className="h-3 w-48 bg-muted rounded" />
-                  </div>
-                  <div className="h-5 w-20 bg-muted rounded" />
-                </div>
-              ))}
+          ) : isLoading && recentSales.length === 0 ? (
+            <div data-testid="sales-overview-loading" className="py-2">
+              <CrudLoading variant="table" count={5} />
             </div>
           ) : recentSales.length === 0 ? (
-            <div className="py-10 text-center space-y-3" data-testid="sales-overview-empty">
-              <ShoppingBag className="h-10 w-10 text-muted-foreground mx-auto stroke-1" />
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-foreground">No sales recorded yet</p>
-                <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-                  There are no commercial checkout agreements recorded in this facility.
-                </p>
-              </div>
-              <HasPermission name="sales.create">
-                <Button asChild size="sm" className="mt-2 text-xs">
-                  <Link to="/sales/new">
-                    <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Create First Sale
-                  </Link>
-                </Button>
-              </HasPermission>
+            <div data-testid="sales-overview-empty">
+              <CrudEmpty
+                type="dataset"
+                title="No sales recorded yet"
+                description="There are currently no commercial checkout agreements recorded in this facility. Create your first sale to get started."
+                action={
+                  <HasPermission name="sales.create">
+                    <Button asChild size="sm" className="mt-2 text-xs">
+                      <Link to="/sales/new">
+                        <PlusCircle className="mr-1.5 h-3.5 w-3.5" /> Create First Sale
+                      </Link>
+                    </Button>
+                  </HasPermission>
+                }
+              />
             </div>
           ) : (
             <div className="divide-y divide-border" data-testid="recent-sales-list">

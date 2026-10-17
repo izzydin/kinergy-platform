@@ -357,6 +357,18 @@ describe('Screen 6: Payment History Specification', () => {
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
   });
 
+  it('renders loading indicator while payment tenders history is being fetched', () => {
+    (salesApi.listPayments as jest.Mock).mockReturnValue(new Promise(() => {}));
+
+    renderWithProviders(<PaymentHistoryPage />, {
+      queryClient,
+      initialSessionOverride: mockStaffUser,
+      initialRoute: '/sales/payments',
+    });
+
+    expect(screen.getByTestId('payment-history-loading')).toBeInTheDocument();
+  });
+
   it('renders 403 ForbiddenView when user lacks payments.read permission', () => {
     renderWithProviders(<PaymentHistoryPage />, {
       queryClient,
@@ -508,6 +520,18 @@ describe('Screen 7: Receipt View Specification', () => {
     expect(printSpy).toHaveBeenCalledTimes(1);
 
     printSpy.mockRestore();
+  });
+
+  it('renders loading skeleton while receipt voucher is being fetched', () => {
+    (salesApi.getReceiptBySale as jest.Mock).mockReturnValue(new Promise(() => {}));
+
+    renderWithProviders(<ReceiptViewPage />, {
+      queryClient,
+      initialSessionOverride: mockStaffUser,
+      initialRoute: '/sales/sale_9001/receipt',
+    });
+
+    expect(screen.getByTestId('receipt-view-loading')).toBeInTheDocument();
   });
 
   it('renders 403 ForbiddenView when user lacks receipts.read permission', () => {

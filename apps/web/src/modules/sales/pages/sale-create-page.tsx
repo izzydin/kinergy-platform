@@ -427,6 +427,7 @@ export const SaleCreatePage: React.FC = () => {
               type="button"
               variant="outline"
               size="sm"
+              disabled={isPending}
               onClick={() =>
                 append({
                   sourceType: 'INVENTORY_ITEM',
@@ -463,6 +464,7 @@ export const SaleCreatePage: React.FC = () => {
                       type="button"
                       variant="ghost"
                       size="sm"
+                      disabled={isPending}
                       onClick={() => remove(index)}
                       className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
                       aria-label={`Remove line item ${index + 1}`}

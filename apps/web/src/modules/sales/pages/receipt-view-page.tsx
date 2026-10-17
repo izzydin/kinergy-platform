@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from '@kinergy-platform/ui';
-import { ArrowLeft, Printer, Receipt, CheckCircle2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Printer, CheckCircle2 } from 'lucide-react';
 import { useReceiptBySale } from '../hooks/use-sales-queries';
 import { useIssueReceipt } from '../hooks/use-sales-mutations';
 import { MoneyDisplay } from '../components/money-display';
@@ -9,6 +9,7 @@ import { PaymentMethodBadge } from '../components/payment-method-badge';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
+import { CrudLoading, CrudEmpty, CrudError } from '../../../shared/crud';
 import { SALES_ROUTES } from '../routes/sales-routes';
 
 export const ReceiptViewPage: React.FC = () => {
@@ -41,14 +42,10 @@ export const ReceiptViewPage: React.FC = () => {
     window.print();
   };
 
-  if (isLoading) {
+  if (isLoading && !receipt) {
     return (
-      <div
-        className="p-12 text-center text-muted-foreground flex flex-col items-center justify-center space-y-3"
-        data-testid="receipt-view-loading"
-      >
-        <RefreshCw className="h-6 w-6 animate-spin text-primary" />
-        <p className="text-sm">Loading authoritative receipt voucher...</p>
+      <div className="p-6 max-w-2xl mx-auto space-y-6" data-testid="receipt-view-loading">
+        <CrudLoading variant="detail" />
       </div>
     );
   }
@@ -69,24 +66,19 @@ export const ReceiptViewPage: React.FC = () => {
 
   if (isError && !isNotFound) {
     return (
-      <div className="p-8 text-center space-y-4 max-w-md mx-auto" data-testid="receipt-view-error">
-        <AlertCircle className="h-12 w-12 mx-auto text-destructive" />
-        <h2 className="text-xl font-bold">Failed to Load Receipt Voucher</h2>
-        <p className="text-sm text-muted-foreground">
-          {error?.message ||
-            'An unexpected server error occurred while retrieving the receipt. Please try again.'}
-        </p>
-
-        <div className="flex items-center justify-center gap-3 pt-2">
-          {saleId && (
-            <Button asChild variant="outline">
-              <Link to={SALES_ROUTES.detail(saleId)}>Return to Sale</Link>
-            </Button>
-          )}
-          <Button onClick={() => refetch()} variant="secondary" className="gap-1.5">
-            <RefreshCw className="h-4 w-4" /> Retry
-          </Button>
-        </div>
+      <div className="p-8 max-w-xl mx-auto space-y-4" data-testid="receipt-view-error">
+        <CrudError
+          title="Failed to Load Receipt Voucher"
+          error={error}
+          onRetry={() => refetch()}
+          secondaryAction={
+            saleId ? (
+              <Button asChild variant="outline" size="sm">
+                <Link to={SALES_ROUTES.detail(saleId)}>Return to Sale</Link>
+              </Button>
+            ) : undefined
+          }
+        />
       </div>
     );
   }
@@ -94,34 +86,34 @@ export const ReceiptViewPage: React.FC = () => {
   // Not yet issued / unavailable
   if (isNotFound || !receipt) {
     return (
-      <div className="p-8 text-center space-y-4 max-w-md mx-auto" data-testid="receipt-not-issued">
-        <Receipt className="h-12 w-12 mx-auto text-muted-foreground" />
-        <h2 className="text-xl font-bold">Receipt Not Issued Yet</h2>
-        <p className="text-sm text-muted-foreground">
-          No official receipt voucher has been issued for sale{' '}
-          <span className="font-mono font-medium">{saleId || 'unknown'}</span>. In accordance with
-          financial audit rules, official receipts are generated only after a sale order is fully
-          settled.
-        </p>
+      <div className="p-8 max-w-lg mx-auto space-y-4" data-testid="receipt-not-issued">
+        <CrudEmpty
+          title="Receipt Not Issued Yet"
+          description={`No official receipt voucher has been issued for sale "${saleId || 'unknown'}". In accordance with financial audit rules, official receipts are generated only after a sale order is fully settled.`}
+          action={
+            <div className="flex items-center justify-center gap-3 pt-2">
+              {saleId && (
+                <Button asChild variant="outline" size="sm">
+                  <Link to={SALES_ROUTES.detail(saleId)}>
+                    <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Sale
+                  </Link>
+                </Button>
+              )}
 
-        <div className="flex items-center justify-center gap-3 pt-2">
-          {saleId && (
-            <Button asChild variant="outline">
-              <Link to={SALES_ROUTES.detail(saleId)}>Return to Sale</Link>
-            </Button>
-          )}
-
-          <HasPermission name="receipts.manage">
-            <Button
-              onClick={handleIssueReceipt}
-              disabled={issueReceiptMutation.isPending}
-              className="gap-1.5"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              {issueReceiptMutation.isPending ? 'Issuing Receipt...' : 'Generate Receipt Now'}
-            </Button>
-          </HasPermission>
-        </div>
+              <HasPermission name="receipts.manage">
+                <Button
+                  onClick={handleIssueReceipt}
+                  disabled={issueReceiptMutation.isPending}
+                  size="sm"
+                  className="gap-1.5"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {issueReceiptMutation.isPending ? 'Issuing Receipt...' : 'Generate Receipt Now'}
+                </Button>
+              </HasPermission>
+            </div>
+          }
+        />
       </div>
     );
   }

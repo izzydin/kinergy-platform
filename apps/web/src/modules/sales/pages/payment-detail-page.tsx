@@ -26,6 +26,7 @@ import { MoneyDisplay } from '../components/money-display';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
+import { CrudLoading, CrudEmpty, CrudError } from '../../../shared/crud';
 import { SALES_ROUTES } from '../routes/sales-routes';
 
 export const PaymentDetailPage: React.FC = () => {
@@ -39,7 +40,7 @@ export const PaymentDetailPage: React.FC = () => {
       : auth.currentUser?.permissions?.includes('payments.read'),
   );
 
-  const { data: payment, isLoading, isError } = usePaymentDetail(paymentId);
+  const { data: payment, isLoading, isError, error, refetch } = usePaymentDetail(paymentId);
   const settleMutation = useSettlePayment();
   const cancelMutation = useCancelPayment();
 
@@ -49,37 +50,60 @@ export const PaymentDetailPage: React.FC = () => {
     );
   }
 
-  if (isLoading) {
+  if (isLoading && !payment) {
     return (
-      <div
-        className="p-12 text-center text-muted-foreground space-y-3"
-        data-testid="payment-detail-loading"
-      >
-        <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-        <p className="text-sm">Loading payment transaction details...</p>
+      <div className="p-6 max-w-3xl mx-auto space-y-6" data-testid="payment-detail-loading">
+        <CrudLoading variant="detail" />
       </div>
     );
   }
 
-  if (isError || !payment) {
+  // Distinguish 404 not-found from genuine server/network failure
+  const statusError = error as unknown as
+    { statusCode?: number; status?: number; response?: { status?: number } } | null | undefined;
+
+  const isNotFound = Boolean(
+    !payment &&
+    (!isError ||
+      statusError?.statusCode === 404 ||
+      statusError?.status === 404 ||
+      statusError?.response?.status === 404 ||
+      error?.message?.toLowerCase().includes('not found')),
+  );
+
+  if (isError && !isNotFound) {
     return (
-      <div
-        className="p-8 text-center text-destructive space-y-4 max-w-md mx-auto"
-        data-testid="payment-detail-error"
-      >
-        <AlertCircle className="h-10 w-10 mx-auto" />
-        <div className="space-y-1">
-          <h2 className="text-lg font-semibold">Payment Record Not Found</h2>
-          <p className="text-xs text-muted-foreground">
-            Payment transaction &ldquo;{paymentId}&rdquo; does not exist or you lack permission to
-            view it.
-          </p>
-        </div>
-        <Button asChild variant="outline" size="sm">
-          <Link to={SALES_ROUTES.payments()}>
-            <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Payments History
-          </Link>
-        </Button>
+      <div className="p-8 max-w-xl mx-auto space-y-4" data-testid="payment-detail-error">
+        <CrudError
+          title="Failed to load payment transaction"
+          error={error}
+          onRetry={() => refetch()}
+          secondaryAction={
+            <Button asChild variant="outline" size="sm">
+              <Link to={SALES_ROUTES.payments()}>
+                <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Payments Log
+              </Link>
+            </Button>
+          }
+        />
+      </div>
+    );
+  }
+
+  if (isNotFound || !payment) {
+    return (
+      <div className="p-8 max-w-md mx-auto space-y-4" data-testid="payment-detail-error">
+        <CrudEmpty
+          title="Payment Record Not Found"
+          description={`Payment transaction "${paymentId}" does not exist or you lack permission to view it.`}
+          action={
+            <Button asChild variant="outline" size="sm">
+              <Link to={SALES_ROUTES.payments()}>
+                <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Payments Log
+              </Link>
+            </Button>
+          }
+        />
       </div>
     );
   }
