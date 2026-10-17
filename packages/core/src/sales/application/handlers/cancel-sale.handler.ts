@@ -95,8 +95,11 @@ export class CancelSaleHandler implements SalesCommandHandler<
         if (this.paymentRepository) {
           const payments = await this.paymentRepository.findBySaleId(sale.id);
           const pendingPayments = payments.filter((p) => p.status === PaymentStatus.PENDING);
+          const cancelReason = input.reason?.trim()
+            ? `Sale cancelled: ${input.reason.trim()}`
+            : 'Sale cancelled';
           for (const payment of pendingPayments) {
-            payment.cancel(`Sale cancelled: ${input.reason}`, this.clock);
+            payment.cancel(cancelReason, this.clock);
             await this.paymentRepository.save(payment);
             pendingPaymentEvents.push(...payment.getUncommittedEvents());
             payment.clearEvents();

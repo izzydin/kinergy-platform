@@ -413,7 +413,7 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
           //    and targetVersion is existing.version + 1.
           const isTransition = sale.status !== 'DRAFT';
           const priorVersion = isTransition ? sale.version - 1 : sale.version;
-          const targetVersion = priorVersion + 1;
+          const targetVersion = isTransition ? sale.version : priorVersion + 1;
 
           const result = await tx.sale.updateMany({
             where: {

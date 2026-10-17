@@ -1011,5 +1011,211 @@ describe('Payment Creation and Completion Integrity Suite (Prompt 5 / ADR-0140)'
       const sale = harness.sales.get(saleId)!;
       expect(sale.status).toBe(PrismaSaleStatus.PAID);
     });
+
+    it('F-01 Regression: enforces tenant isolation and rejects cross-tenant replay in CreatePaymentHandler recovery', async () => {
+      const saleId = 'sale-tenant-replay-01';
+      await seedSale(saleId, 100.0);
+
+      // Create initial payment under the sale's tenant ('tenant_concurrency_spec')
+      const paymentId = 'pay-tenant-isolation-01';
+      const initial = await createPaymentHandler.execute(
+        new CreatePaymentCommand({
+          id: paymentId,
+          saleId,
+          amount: 50.0,
+          currency: 'USD',
+          method: PaymentMethod.CASH,
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+      expect(initial.isSuccess).toBe(true);
+
+      // Attempt replay with the same payment ID under a different tenant ('tenant-beta')
+      const crossTenantReplay = await createPaymentHandler.execute(
+        new CreatePaymentCommand({
+          id: paymentId,
+          saleId,
+          amount: 50.0,
+          currency: 'USD',
+          method: PaymentMethod.CASH,
+          tenantId: 'tenant-beta',
+          currentUser: { ...cashierUser, tenantId: 'tenant-beta' },
+        }),
+      );
+
+      expect(crossTenantReplay.isFailure).toBe(true);
+      expect(crossTenantReplay.getError()).toBeInstanceOf(PaymentUnauthorizedException);
+      expect((crossTenantReplay.getError() as Error).message).toContain(
+        'Cross-tenant access forbidden',
+      );
+    });
+
+    it('F-01 Regression: rejects parameter mismatch replay in CreatePaymentHandler with DuplicatePaymentReferenceException', async () => {
+      const saleId = 'sale-mismatch-replay-01';
+      await seedSale(saleId, 100.0);
+
+      const paymentId = 'pay-mismatch-replay-01';
+      const initial = await createPaymentHandler.execute(
+        new CreatePaymentCommand({
+          id: paymentId,
+          saleId,
+          amount: 40.0,
+          currency: 'USD',
+          method: PaymentMethod.CASH,
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+      expect(initial.isSuccess).toBe(true);
+
+      // Attempt replay with mismatched amount
+      const mismatchReplay = await createPaymentHandler.execute(
+        new CreatePaymentCommand({
+          id: paymentId,
+          saleId,
+          amount: 80.0,
+          currency: 'USD',
+          method: PaymentMethod.CASH,
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+
+      expect(mismatchReplay.isFailure).toBe(true);
+      expect(mismatchReplay.getError()).toBeInstanceOf(DuplicatePaymentReferenceException);
+    });
+
+    it('F-02 Regression: supports 3+ multi-installment partial payments without invalid state transition or OCC failure (CreatePaymentHandler)', async () => {
+      const saleId = 'sale-multi-part-03';
+      await seedSale(saleId, 100.0);
+
+      // Installment 1: 30.00 USD -> transitions PENDING_PAYMENT -> PARTIALLY_PAID
+      const part1 = await createPaymentHandler.execute(
+        new CreatePaymentCommand({
+          saleId,
+          amount: 30.0,
+          currency: 'USD',
+          method: PaymentMethod.CASH,
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+      expect(part1.isSuccess).toBe(true);
+      expect(harness.sales.get(saleId)!.status).toBe(PrismaSaleStatus.PARTIALLY_PAID);
+
+      // Installment 2: 30.00 USD -> Sale is ALREADY PARTIALLY_PAID (cumulative 60.00 USD < 100.00 USD)
+      // Must not throw SaleOptimisticLockException or InvalidSaleTransitionException
+      const part2 = await createPaymentHandler.execute(
+        new CreatePaymentCommand({
+          saleId,
+          amount: 30.0,
+          currency: 'USD',
+          method: PaymentMethod.CASH,
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+      expect(part2.isSuccess).toBe(true);
+      expect(harness.sales.get(saleId)!.status).toBe(PrismaSaleStatus.PARTIALLY_PAID);
+
+      // Installment 3: 40.00 USD -> cumulative 100.00 USD >= total 100.00 USD -> transitions PARTIALLY_PAID -> PAID
+      const part3 = await createPaymentHandler.execute(
+        new CreatePaymentCommand({
+          saleId,
+          amount: 40.0,
+          currency: 'USD',
+          method: PaymentMethod.CASH,
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+      expect(part3.isSuccess).toBe(true);
+      expect(harness.sales.get(saleId)!.status).toBe(PrismaSaleStatus.PAID);
+
+      // All 3 payments successfully SETTLED
+      expect(harness.payments.size).toBe(3);
+      const allPayments = Array.from(harness.payments.values());
+      expect(allPayments.every((p) => p.status === PrismaPaymentStatus.SETTLED)).toBe(true);
+    });
+
+    it('F-02 Regression: supports 3+ multi-installment partial payments via CompletePaymentHandler', async () => {
+      const saleId = 'sale-multi-part-complete-03';
+      await seedSale(saleId, 100.0);
+
+      // Create 3 pending payments: 30, 30, 40
+      const p1 = await createPaymentHandler.execute(
+        new CreatePaymentCommand({
+          saleId,
+          amount: 30.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          reference: 'QR-P1',
+          status: 'PENDING',
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+      const p2 = await createPaymentHandler.execute(
+        new CreatePaymentCommand({
+          saleId,
+          amount: 30.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          reference: 'QR-P2',
+          status: 'PENDING',
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+      const p3 = await createPaymentHandler.execute(
+        new CreatePaymentCommand({
+          saleId,
+          amount: 40.0,
+          currency: 'USD',
+          method: PaymentMethod.QR,
+          reference: 'QR-P3',
+          status: 'PENDING',
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+
+      // Complete 1: Transitions PENDING_PAYMENT -> PARTIALLY_PAID
+      const c1 = await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: p1.getValue().id,
+          saleId,
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+      expect(c1.isSuccess).toBe(true);
+      expect(harness.sales.get(saleId)!.status).toBe(PrismaSaleStatus.PARTIALLY_PAID);
+
+      // Complete 2: Sale is ALREADY PARTIALLY_PAID -> Must complete payment and keep sale in PARTIALLY_PAID
+      const c2 = await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: p2.getValue().id,
+          saleId,
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+      expect(c2.isSuccess).toBe(true);
+      expect(harness.sales.get(saleId)!.status).toBe(PrismaSaleStatus.PARTIALLY_PAID);
+
+      // Complete 3: Cumulative 100.00 USD -> Transitions PARTIALLY_PAID -> PAID
+      const c3 = await completePaymentHandler.execute(
+        new CompletePaymentCommand({
+          paymentId: p3.getValue().id,
+          saleId,
+          tenantId,
+          currentUser: cashierUser,
+        }),
+      );
+      expect(c3.isSuccess).toBe(true);
+      expect(harness.sales.get(saleId)!.status).toBe(PrismaSaleStatus.PAID);
+    });
   });
 });

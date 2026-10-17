@@ -121,11 +121,14 @@ export class CompletePaymentHandler implements SalesCommandHandler<
         );
       }
 
+      let saleTransitioned = false;
       const cumulativeSettled = settledTotalBefore.add(payment.amount);
       if (cumulativeSettled.greaterThanOrEqual(sale.total)) {
         sale.markPaid(this.clock);
-      } else {
+        saleTransitioned = true;
+      } else if (sale.status === SaleStatus.PENDING_PAYMENT) {
         sale.markPartiallyPaid(this.clock);
+        saleTransitioned = true;
       }
 
       // 10. Persist State Atomically
@@ -147,7 +150,9 @@ export class CompletePaymentHandler implements SalesCommandHandler<
         }
 
         await this.paymentRepository.save(payment);
-        await this.saleRepository.save(sale);
+        if (saleTransitioned) {
+          await this.saleRepository.save(sale);
+        }
       };
 
       if (this.unitOfWork) {

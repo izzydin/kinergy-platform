@@ -25,6 +25,7 @@ import { DuplicatePaymentReferenceException } from '../exceptions/duplicate-paym
 import { InvalidPaymentStatusException } from '../../domain/exceptions/invalid-payment-status.exception';
 import { InvalidPaymentAmountException } from '../../domain/exceptions/invalid-payment-amount.exception';
 import { InvalidPaymentMethodException } from '../../domain/exceptions/invalid-payment-method.exception';
+import { PaymentUnauthorizedException } from '../exceptions/payment-unauthorized.exception';
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 
 /**
@@ -282,17 +283,20 @@ export class CreatePaymentHandler implements SalesCommandHandler<
           );
         }
 
+        let saleTransitioned = false;
         if (payment.status === PaymentStatus.COMPLETED) {
           const newSettledTotal = currentSettledTotal.add(payment.amount);
           if (newSettledTotal.greaterThanOrEqual(sale.total)) {
             sale.markPaid(this.clock);
+            saleTransitioned = true;
           } else if (sale.status === SaleStatus.PENDING_PAYMENT) {
             sale.markPartiallyPaid(this.clock);
+            saleTransitioned = true;
           }
         }
 
         await this.paymentRepository.save(payment);
-        if (payment.status === PaymentStatus.COMPLETED) {
+        if (saleTransitioned) {
           await this.saleRepository.save(sale);
         }
       };
@@ -336,6 +340,8 @@ export class CreatePaymentHandler implements SalesCommandHandler<
         try {
           const existingPayment = await this.paymentRepository.findById(clientPaymentId);
           if (existingPayment) {
+            enforceTenantIsolation(existingPayment.tenantId, input.tenantId);
+
             const targetCurrency = (input.currency ?? existingPayment.amount.currency)
               .trim()
               .toUpperCase();
@@ -354,9 +360,16 @@ export class CreatePaymentHandler implements SalesCommandHandler<
 
             if (amountsMatch && currenciesMatch && methodsMatch && salesMatch) {
               return SalesApplicationResult.ok(PaymentMapper.toDTO(existingPayment));
+            } else {
+              return SalesApplicationResult.fail(
+                new DuplicatePaymentReferenceException(clientPaymentId, saleId),
+              );
             }
           }
-        } catch {
+        } catch (recoveryErr: unknown) {
+          if (recoveryErr instanceof PaymentUnauthorizedException) {
+            return SalesApplicationResult.fail(recoveryErr);
+          }
           // Fall through to error reporting
         }
       }
