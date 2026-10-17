@@ -1,7 +1,7 @@
-# Milestone 7.18: Receipt Reprint Auditing & Operational Workflow Specification
+# Receipt Reprint Auditing & Operational Workflow Specification (Future Scope)
 
-- **Status**: Proposed / Future Milestone Specification
-- **Milestone**: 7.18 (Phase 7: Commercial Sales, Payments & Receipts)
+- **Status**: Proposed / Future Milestone Specification (Deferred — Milestone 7.18 chartered for Financial Concurrency, Idempotency & Multi-Tender Settlement Integrity via ADR-0140)
+- **Milestone Designation**: Future Scope (Phase 7: Commercial Sales, Payments & Receipts)
 - **Bounded Context**: Sales & Payments (`apps/api`, `packages/core`, and platform security audit engine)
 - **Author**: Technical Product Architect & Principal Security Engineer
 - **Date**: 2026-10-16

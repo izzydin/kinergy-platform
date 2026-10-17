@@ -125,7 +125,7 @@ In Kinergy, commercial checkout sessions unify:
    - `saleRepository.save(sale)` verifies `WHERE id = :id AND version = :priorVersion`.
    - If a concurrent mutation advanced `Sale.version`, the transaction rolls back completely. The payment tender is not settled against an out-of-sync sale.
 
-### E. Atomic Balance and Overpayment Protection
+### E. Atomic Balance, Overpayment, and Multi-Installment Settlement Protection
 
 1. **Aggregate Outstanding Balance Invariant**:
    - Outstanding balance is defined strictly as:
@@ -134,6 +134,14 @@ In Kinergy, commercial checkout sessions unify:
    - In `CreatePaymentHandler` and `CompletePaymentHandler`, the calculation of `settledTotal` is executed **inside** the transactional unit of work.
    - For `PENDING` payment creation: To prevent unconstrained phantom QR codes that over-commit the order, `CreatePaymentHandler` validates cumulative tenders inside the transaction.
    - If a racing thread completes a payment during calculation, the losing thread encounters an OCC conflict on `Sale.version`, aborts, and retries against the freshly committed balance.
+3. **Multi-Installment Partial Payment Lifecycle**:
+   - **First Partial Tender**: Transitions `Sale.status` from `PENDING_PAYMENT` to `PARTIALLY_PAID` and increments `Sale.version` via `sale.markPartiallyPaid()`. Both the Payment and Sale aggregates are updated and persisted atomically.
+   - **Intermediate Partial Tenders**: When subsequent partial tenders arrive on a sale already in `PARTIALLY_PAID` (cumulative settled < total), the Sale remains in `PARTIALLY_PAID` without triggering illegal state transitions. The payment settles atomically while the parent Sale record remains untouched, avoiding false-positive OCC conflicts.
+   - **Final Settlement Tender**: When cumulative settled payments reach or exceed `Sale.total`, the Sale transitions from `PARTIALLY_PAID` to `PAID` via `sale.markPaid()`, bumping `Sale.version` and locking the sale against further tender attachments.
+4. **Idempotent Client Replay & Tenant Isolation**:
+   - When a client supplies an explicit idempotency identifier (`clientPaymentId`), duplicate primary key collisions in PostgreSQL (`payments_pkey`) are caught and evaluated for safe replay.
+   - **Strict Multi-Tenant Boundary**: The existing record's `tenantId` is rigorously verified against the caller's `tenantId`. Cross-tenant replay attempts are rejected with `PaymentUnauthorizedException` (403 Forbidden), preventing information leakage across organizations.
+   - **Attribute Parity Verification**: Replays must match `saleId`, `amount`, `currency`, and `method`. Identical requests return `200 OK` with the existing payment DTO; mismatched replays return `409 Conflict` (`DuplicatePaymentReferenceException`).
 
 ### F. Concurrent Cancellation and Settlement Coordination
 
