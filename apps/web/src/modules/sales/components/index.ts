@@ -4,3 +4,5 @@ export * from './payment-method-badge';
 export * from './money-display';
 export * from './cancel-sale-dialog';
 export * from './record-payment-dialog';
+export * from './sales-filter-bar';
+export * from './sales-list-table';

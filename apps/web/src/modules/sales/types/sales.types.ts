@@ -125,6 +125,7 @@ export interface SaleSummaryDTO {
   readonly currency: string;
   readonly status: SaleStatus;
   readonly sourceReference?: SaleSourceReferenceDTO | null;
+  readonly source?: SaleSourceReferenceDTO | null;
   readonly subtotalAmount: number;
   readonly discountTotalAmount: number;
   readonly totalAmount: number;
