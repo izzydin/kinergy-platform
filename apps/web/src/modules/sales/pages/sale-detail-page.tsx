@@ -1,8 +1,25 @@
 import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Card, CardContent, CardHeader, CardTitle, Button } from '@kinergy-platform/ui';
-import { ArrowLeft, CheckCircle2, XCircle, CreditCard, Receipt, AlertCircle } from 'lucide-react';
-import { useSaleDetail, useSalePayments } from '../hooks/use-sales-queries';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Button,
+  Badge,
+} from '@kinergy-platform/ui';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+  CreditCard,
+  Receipt,
+  AlertCircle,
+  Tag,
+  User,
+} from 'lucide-react';
+import { useSaleDetail, useSalePayments, useReceiptBySale } from '../hooks/use-sales-queries';
 import { useFinalizeSale, useCancelSale, useRecordPayment } from '../hooks/use-sales-mutations';
 import { SaleStatusBadge } from '../components/sale-status-badge';
 import { PaymentStatusBadge } from '../components/payment-status-badge';
@@ -11,13 +28,25 @@ import { MoneyDisplay } from '../components/money-display';
 import { CancelSaleDialog } from '../components/cancel-sale-dialog';
 import { RecordPaymentDialog } from '../components/record-payment-dialog';
 import { HasPermission } from '../../../app/routes/permission-guard';
+import { useAuth } from '../../../app/providers/auth-provider';
+import { ForbiddenView } from '../../../app/routes/fallback-views';
+import { SALES_ROUTES } from '../routes/sales-routes';
 import type { PaymentMethod } from '../types';
 
 export const SaleDetailPage: React.FC = () => {
   const { saleId } = useParams<{ saleId: string }>();
+  const auth = useAuth();
+
+  // Top-level permission check: sales.read
+  const canRead = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('sales.read')
+      : auth.currentUser?.permissions?.includes('sales.read'),
+  );
 
   const { data: sale, isLoading, isError } = useSaleDetail(saleId);
   const { data: payments } = useSalePayments(saleId);
+  const { data: receipt } = useReceiptBySale(saleId);
 
   const finalizeMutation = useFinalizeSale();
   const cancelMutation = useCancelSale();
@@ -26,24 +55,41 @@ export const SaleDetailPage: React.FC = () => {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isRecordPaymentDialogOpen, setIsRecordPaymentDialogOpen] = useState(false);
 
+  if (!canRead) {
+    return (
+      <ForbiddenView message="Access Denied: Missing required permission 'sales.read' to view sales agreements." />
+    );
+  }
+
   if (isLoading) {
     return (
-      <div className="p-8 text-center text-muted-foreground" data-testid="sale-detail-loading">
-        Loading commercial sale agreement...
+      <div
+        className="p-12 text-center text-muted-foreground space-y-3"
+        data-testid="sale-detail-loading"
+      >
+        <div className="h-6 w-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-sm">Loading commercial sale agreement...</p>
       </div>
     );
   }
 
   if (isError || !sale) {
     return (
-      <div className="p-8 text-center text-destructive space-y-3" data-testid="sale-detail-error">
-        <AlertCircle className="h-8 w-8 mx-auto" />
-        <h2 className="text-lg font-semibold">Sale Agreement Not Found</h2>
-        <p className="text-sm text-muted-foreground">
-          Sale order &ldquo;{saleId}&rdquo; does not exist or you lack permission to view it.
-        </p>
-        <Button asChild variant="outline">
-          <Link to="/sales/list">Return to Sales Directory</Link>
+      <div
+        className="p-8 text-center text-destructive space-y-4 max-w-md mx-auto"
+        data-testid="sale-detail-error"
+      >
+        <AlertCircle className="h-10 w-10 mx-auto" />
+        <div className="space-y-1">
+          <h2 className="text-lg font-semibold">Sale Agreement Not Found</h2>
+          <p className="text-xs text-muted-foreground">
+            Sale agreement &ldquo;{saleId}&rdquo; does not exist or you lack permission to view it.
+          </p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link to={SALES_ROUTES.list()}>
+            <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Sales Directory
+          </Link>
         </Button>
       </div>
     );
@@ -86,24 +132,40 @@ export const SaleDetailPage: React.FC = () => {
     });
   };
 
+  const sourceRef =
+    sale.sourceReference ||
+    (sale.source
+      ? {
+          type: sale.source.sourceType,
+          referenceId: sale.source.sourceId,
+          referenceCode: sale.source.sourceCode || undefined,
+        }
+      : null);
+
   return (
     <div className="space-y-6 max-w-5xl mx-auto" data-testid="sale-detail-page">
-      {/* Header Bar */}
+      {/* 1. Header Bar */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm">
-            <Link to="/sales/list">
-              <ArrowLeft className="h-4 w-4 mr-1" /> All Sales
+            <Link to={SALES_ROUTES.list()}>
+              <ArrowLeft className="h-4 w-4 mr-1.5" /> All Sales
             </Link>
           </Button>
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-2xl font-bold font-mono tracking-tight">{sale.id}</h1>
+              <h1 className="text-2xl font-bold font-mono tracking-tight" data-testid="sale-id">
+                {sale.id}
+              </h1>
               <SaleStatusBadge status={sale.status} />
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               Created {new Date(sale.createdAt).toLocaleString()} · Client:{' '}
-              {sale.clientId || 'Walk-in'}
+              {sale.clientId ? (
+                <span className="font-medium text-foreground">{sale.clientId}</span>
+              ) : (
+                <span className="italic">Anonymous Walk-in</span>
+              )}
             </p>
           </div>
         </div>
@@ -119,6 +181,7 @@ export const SaleDetailPage: React.FC = () => {
                 onClick={handleFinalize}
                 disabled={finalizeMutation.isPending}
                 className="gap-1.5"
+                data-testid="finalize-sale-btn"
               >
                 <CheckCircle2 className="h-4 w-4" /> Finalize Agreement
               </Button>
@@ -133,18 +196,28 @@ export const SaleDetailPage: React.FC = () => {
                 size="sm"
                 onClick={() => setIsRecordPaymentDialogOpen(true)}
                 className="gap-1.5"
+                data-testid="record-payment-btn"
               >
                 <CreditCard className="h-4 w-4" /> Record Payment
               </Button>
             </HasPermission>
           )}
 
-          {/* View Receipt Voucher */}
+          {/* View Official Receipt Voucher (distinct from claim that receipt is already issued) */}
           {isSettled && (
             <HasPermission name="receipts.read">
-              <Button asChild variant="outline" size="sm" className="gap-1.5">
-                <Link to={`/sales/${sale.id}/receipt`}>
-                  <Receipt className="h-4 w-4" /> View Official Receipt
+              <Button
+                asChild
+                variant="outline"
+                size="sm"
+                className="gap-1.5"
+                data-testid="view-receipt-btn"
+              >
+                <Link to={SALES_ROUTES.receipt(sale.id)}>
+                  <Receipt className="h-4 w-4" />
+                  {receipt?.receiptNumber
+                    ? `Receipt ${receipt.receiptNumber}`
+                    : 'View Official Receipt'}
                 </Link>
               </Button>
             </HasPermission>
@@ -158,6 +231,7 @@ export const SaleDetailPage: React.FC = () => {
                 size="sm"
                 onClick={() => setIsCancelDialogOpen(true)}
                 className="gap-1.5"
+                data-testid="cancel-sale-btn"
               >
                 <XCircle className="h-4 w-4" /> Cancel Order
               </Button>
@@ -166,34 +240,74 @@ export const SaleDetailPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Financial Summary & Breakdown Cards */}
+      {/* 2. Cancellation Notice Banner if Cancelled */}
+      {isCancelled && (
+        <div
+          className="p-4 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm space-y-1"
+          data-testid="cancellation-notice"
+        >
+          <div className="font-semibold flex items-center gap-1.5">
+            <XCircle className="h-4 w-4" /> Agreement Cancelled
+          </div>
+          <p className="text-xs">
+            Reason:{' '}
+            <span className="font-medium">{sale.cancellationReason || 'No reason specified'}</span>
+          </p>
+          <p className="text-[11px] text-muted-foreground">
+            Cancelled on {sale.cancelledAt ? new Date(sale.cancelledAt).toLocaleString() : 'N/A'}
+          </p>
+        </div>
+      )}
+
+      {/* 3. Authoritative Financial Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Gross Subtotal */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-              Order Subtotal
+              Authoritative Subtotal
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold font-mono">
+            <div className="text-xl font-bold font-mono" data-testid="sale-subtotal">
               <MoneyDisplay value={sale.subtotal} />
             </div>
+            <p className="text-[11px] text-muted-foreground mt-1">
+              Sum of {sale.itemCount} line item{sale.itemCount === 1 ? '' : 's'}
+            </p>
           </CardContent>
         </Card>
 
+        {/* Total Discounts */}
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
-              Total Discount
+              Total Order Discount
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400">
+            <div
+              className="text-xl font-bold font-mono text-emerald-600 dark:text-emerald-400"
+              data-testid="sale-discount"
+            >
               <MoneyDisplay value={sale.discountTotal} />
             </div>
+            {sale.orderDiscount ? (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                {sale.orderDiscount.type === 'PERCENTAGE'
+                  ? `${sale.orderDiscount.value}% order-level discount`
+                  : `${sale.currency} ${sale.orderDiscount.value.toFixed(2)} fixed discount`}{' '}
+                ({sale.orderDiscount.reason || 'Standard promotion'})
+              </p>
+            ) : (
+              <p className="text-[11px] text-muted-foreground mt-1">
+                No order-level discount applied
+              </p>
+            )}
           </CardContent>
         </Card>
 
+        {/* Net Total */}
         <Card className="border-primary/30 bg-primary/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-xs text-primary font-medium uppercase tracking-wider">
@@ -201,43 +315,160 @@ export const SaleDetailPage: React.FC = () => {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold font-mono text-primary">
+            <div className="text-2xl font-bold font-mono text-primary" data-testid="sale-total">
               <MoneyDisplay value={sale.total} />
             </div>
             {isPending && (
-              <p className="text-xs text-muted-foreground mt-1">
-                Remaining: ${remainingBalance.toFixed(2)}
+              <div className="mt-2 pt-2 border-t border-primary/20 space-y-0.5 text-xs">
+                <div className="flex justify-between text-muted-foreground">
+                  <span>Settled Tenders:</span>
+                  <span className="font-mono">
+                    {sale.currency} {settledPaymentSum.toFixed(2)}
+                  </span>
+                </div>
+                <div className="flex justify-between font-semibold text-foreground">
+                  <span>Remaining Balance:</span>
+                  <span className="font-mono">
+                    {sale.currency} {remainingBalance.toFixed(2)}
+                  </span>
+                </div>
+              </div>
+            )}
+            {isSettled && (
+              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
+                Agreement fully paid and settled
               </p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Cancellation Notice if Cancelled */}
-      {isCancelled && (
-        <div className="p-4 rounded-md border border-destructive/30 bg-destructive/10 text-destructive text-sm space-y-1">
-          <div className="font-semibold flex items-center gap-1.5">
-            <XCircle className="h-4 w-4" /> Order Cancelled
-          </div>
-          <p>Reason: {sale.cancellationReason || 'No reason specified'}</p>
-          <p className="text-xs text-muted-foreground">
-            Cancelled on {sale.cancelledAt ? new Date(sale.cancelledAt).toLocaleString() : 'N/A'}
-          </p>
-        </div>
-      )}
+      {/* 4. Commercial Origin Source & Customer Details */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Origin Source Reference */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Tag className="h-4 w-4 text-primary" />
+              Origin Source Reference
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Commercial source tracking and upstream catalog link
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            {sourceRef ? (
+              <div
+                className="grid grid-cols-2 gap-2 p-3 rounded-lg border border-border bg-muted/20"
+                data-testid="sale-source-info"
+              >
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Source Type</span>
+                  <Badge variant="outline" className="mt-0.5 font-mono text-[11px]">
+                    {sourceRef.type}
+                  </Badge>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Reference ID</span>
+                  <span
+                    className="font-mono font-medium block mt-0.5 truncate"
+                    title={sourceRef.referenceId}
+                  >
+                    {sourceRef.referenceId}
+                  </span>
+                </div>
+                {sourceRef.referenceCode && (
+                  <div className="col-span-2 pt-1 border-t border-border/50">
+                    <span className="text-muted-foreground block text-[11px]">
+                      Reference / Order Code
+                    </span>
+                    <span className="font-mono text-muted-foreground">
+                      {sourceRef.referenceCode}
+                    </span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div
+                className="p-3 rounded-lg border border-border bg-muted/10 text-muted-foreground"
+                data-testid="sale-source-none"
+              >
+                <p className="font-medium text-foreground">Direct Walk-in / POS Session</p>
+                <p className="text-[11px] mt-0.5">
+                  This checkout session does not originate from an upstream catalog entity.
+                </p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {/* Line Items Table */}
+        {/* Customer & Timestamp Audit Card */}
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <User className="h-4 w-4 text-primary" />
+              Customer & Lifecycle Audit
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Client identifier and transaction lifecycle timestamps
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-xs">
+            <div className="grid grid-cols-2 gap-2 p-3 rounded-lg border border-border bg-muted/20">
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Client Record</span>
+                <span
+                  className="font-medium text-foreground block mt-0.5"
+                  data-testid="sale-client-info"
+                >
+                  {sale.clientId ? sale.clientId : 'Anonymous Walk-in Customer'}
+                </span>
+              </div>
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Operating Currency</span>
+                <span className="font-mono font-bold block mt-0.5">{sale.currency}</span>
+              </div>
+              <div className="pt-1 border-t border-border/50">
+                <span className="text-muted-foreground block text-[11px]">Created At</span>
+                <span className="text-muted-foreground">
+                  {new Date(sale.createdAt).toLocaleString()}
+                </span>
+              </div>
+              <div className="pt-1 border-t border-border/50">
+                <span className="text-muted-foreground block text-[11px]">Last Updated</span>
+                <span className="text-muted-foreground">
+                  {new Date(sale.updatedAt).toLocaleString()}
+                </span>
+              </div>
+              {sale.completedAt && (
+                <div className="col-span-2 pt-1 border-t border-border/50">
+                  <span className="text-muted-foreground block text-[11px]">Completed At</span>
+                  <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                    {new Date(sale.completedAt).toLocaleString()}
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 5. Authoritative Line Items Table */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Order Line Items ({sale.itemCount})</CardTitle>
+          <CardDescription className="text-xs">
+            Line item subtotals and discounts authoritatively evaluated by the sales domain
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-left" data-testid="sale-line-items-table">
               <thead className="bg-muted/40 text-xs font-medium text-muted-foreground uppercase border-b border-border">
                 <tr>
-                  <th className="px-4 py-2.5">Type</th>
+                  <th className="px-4 py-2.5">Category</th>
                   <th className="px-4 py-2.5">Description</th>
+                  <th className="px-4 py-2.5">SKU / Code</th>
                   <th className="px-4 py-2.5 text-right">Unit Price</th>
                   <th className="px-4 py-2.5 text-center">Qty</th>
                   <th className="px-4 py-2.5 text-right">Discount</th>
@@ -245,12 +476,19 @@ export const SaleDetailPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {sale.items.map((item) => (
-                  <tr key={item.id} className="hover:bg-muted/20">
+                {sale.items.map((item, idx) => (
+                  <tr
+                    key={item.id}
+                    className="hover:bg-muted/20"
+                    data-testid={`sale-item-row-${idx}`}
+                  >
                     <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground">
                       {item.sourceType}
                     </td>
                     <td className="px-4 py-2.5 font-medium">{item.description}</td>
+                    <td className="px-4 py-2.5 text-xs font-mono text-muted-foreground">
+                      {item.skuOrCode || '—'}
+                    </td>
                     <td className="px-4 py-2.5 text-right font-mono">
                       <MoneyDisplay value={item.unitPrice} />
                     </td>
@@ -269,19 +507,25 @@ export const SaleDetailPage: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Payment Tenders History */}
+      {/* 6. Payment Tenders History */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Tender Payments Recorded</CardTitle>
+          <CardDescription className="text-xs">
+            Audit trail of payment tenders registered against this order agreement
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {!payments || payments.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">
+            <p
+              className="text-sm text-muted-foreground text-center py-6"
+              data-testid="no-payments-msg"
+            >
               No payment tenders registered for this order yet.
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left">
+              <table className="w-full text-sm text-left" data-testid="sale-payments-table">
                 <thead className="bg-muted/40 text-xs font-medium text-muted-foreground uppercase border-b border-border">
                   <tr>
                     <th className="px-4 py-2.5">Payment ID</th>
@@ -294,10 +538,14 @@ export const SaleDetailPage: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-border">
                   {payments.map((p) => (
-                    <tr key={p.id} className="hover:bg-muted/20">
+                    <tr
+                      key={p.id}
+                      className="hover:bg-muted/20"
+                      data-testid={`payment-row-${p.id}`}
+                    >
                       <td className="px-4 py-2.5 font-mono text-xs">
                         <Link
-                          to={`/sales/payments/${p.id}`}
+                          to={SALES_ROUTES.paymentDetail(p.id)}
                           className="hover:underline text-primary"
                         >
                           {p.id}
@@ -317,7 +565,7 @@ export const SaleDetailPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <Button asChild variant="ghost" size="sm">
-                          <Link to={`/sales/payments/${p.id}`}>Inspect</Link>
+                          <Link to={SALES_ROUTES.paymentDetail(p.id)}>Inspect</Link>
                         </Button>
                       </td>
                     </tr>
