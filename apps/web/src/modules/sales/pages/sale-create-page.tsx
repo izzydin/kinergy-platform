@@ -1,36 +1,87 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Card, CardContent, CardHeader, CardTitle, Button, Input } from '@kinergy-platform/ui';
-import { Plus, Trash2, ArrowLeft } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+  Button,
+  Input,
+  Badge,
+} from '@kinergy-platform/ui';
+import {
+  Plus,
+  Trash2,
+  ArrowLeft,
+  AlertCircle,
+  ShieldAlert,
+  Info,
+  ShoppingBag,
+  Percent,
+  Tag,
+} from 'lucide-react';
 import { createSaleSchema, type CreateSaleFormData } from '../schemas/create-sale.schema';
 import { useCreateSale } from '../hooks/use-sales-mutations';
 import { VALID_SALE_SOURCE_TYPES } from '../types/sales.types';
+import { useAuth } from '../../../app/providers/auth-provider';
+import { ForbiddenView } from '../../../app/routes/fallback-views';
 
 export const SaleCreatePage: React.FC = () => {
   const navigate = useNavigate();
+  const auth = useAuth();
   const createSaleMutation = useCreateSale();
+
+  // Permission check: sales.create
+  const canCreate = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('sales.create')
+      : auth.currentUser?.permissions?.includes('sales.create'),
+  );
+
+  const [hasSourceReference, setHasSourceReference] = useState(false);
+  const [hasOrderDiscount, setHasOrderDiscount] = useState(false);
+  const [serverError, setServerError] = useState<{
+    status?: number;
+    message: string;
+    isConflict?: boolean;
+  } | null>(null);
+
+  // Stable client idempotency key initialized once per form session
+  const [idempotencyKey] = useState(
+    () => `sale_init_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+  );
 
   const {
     register,
     control,
     handleSubmit,
-    formState: { errors },
+    setValue,
+    formState: { errors, isSubmitting },
   } = useForm<CreateSaleFormData>({
     resolver: zodResolver(createSaleSchema),
     defaultValues: {
       currency: 'USD',
       clientId: '',
+      hasSourceReference: false,
+      sourceReference: {
+        type: 'INVENTORY_ITEM',
+        referenceId: '',
+        referenceCode: '',
+      },
       items: [
         {
           sourceType: 'INVENTORY_ITEM',
-          sourceId: 'inv_item_default',
-          description: 'Standard Item',
-          unitPrice: 10.0,
+          sourceId: 'item_1',
+          description: '',
+          skuOrCode: '',
+          unitPrice: 0.0,
           quantity: 1,
         },
       ],
+      orderDiscount: undefined,
     },
   });
 
@@ -39,82 +90,338 @@ export const SaleCreatePage: React.FC = () => {
     name: 'items',
   });
 
+  const watchedItems = useWatch({ control, name: 'items' }) || [];
+  const watchedOrderDiscount = useWatch({ control, name: 'orderDiscount' });
+  const watchedCurrency = useWatch({ control, name: 'currency' }) || 'USD';
+
+  // Client preview calculation (Explicitly non-authoritative)
+  const previewTotals = useMemo(() => {
+    let subtotal = 0;
+    for (const item of watchedItems) {
+      const numQ = Number(item?.quantity);
+      const q = !isNaN(numQ) && numQ > 0 ? numQ : 0;
+      const numP = Number(item?.unitPrice);
+      const p = !isNaN(numP) && numP >= 0 ? numP : 0;
+      subtotal += q * p;
+    }
+
+    let discountTotal = 0;
+    if (hasOrderDiscount && watchedOrderDiscount?.value) {
+      const discVal = Number(watchedOrderDiscount.value);
+      if (!isNaN(discVal) && discVal > 0) {
+        if (watchedOrderDiscount.type === 'PERCENTAGE') {
+          discountTotal = (subtotal * Math.min(100, Math.max(0, discVal))) / 100;
+        } else {
+          discountTotal = Math.min(subtotal, Math.max(0, discVal));
+        }
+      }
+    }
+
+    const total = Math.max(0, subtotal - discountTotal);
+    return { subtotal, discountTotal, total };
+  }, [watchedItems, hasOrderDiscount, watchedOrderDiscount]);
+
+  if (!canCreate) {
+    return (
+      <ForbiddenView message="Access Denied: Missing required permission 'sales.create' to initialize sales agreements." />
+    );
+  }
+
   const onSubmit = async (data: CreateSaleFormData) => {
-    const idempotencyKey = `sale_create_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const created = await createSaleMutation.mutateAsync({
-      input: {
-        currency: data.currency,
-        clientId: data.clientId?.trim() || undefined,
-        sourceReference: data.sourceReference,
-        items: data.items,
-        orderDiscount: data.orderDiscount,
-      },
-      idempotencyKey,
-    });
-    navigate(`/sales/${created.id}`);
+    setServerError(null);
+
+    try {
+      const payloadSourceReference =
+        hasSourceReference && data.sourceReference?.referenceId?.trim()
+          ? {
+              type: data.sourceReference.type.trim(),
+              referenceId: data.sourceReference.referenceId.trim(),
+              referenceCode: data.sourceReference.referenceCode?.trim() || undefined,
+            }
+          : undefined;
+
+      const created = await createSaleMutation.mutateAsync({
+        input: {
+          currency: data.currency.trim().toUpperCase(),
+          clientId: data.clientId?.trim() || undefined,
+          sourceReference: payloadSourceReference,
+          items: data.items.map((item) => ({
+            description: item.description.trim(),
+            skuOrCode: item.skuOrCode?.trim() || undefined,
+            quantity: Number(item.quantity),
+            unitPrice: Number(item.unitPrice),
+            unitPriceAmount: Number(item.unitPrice),
+            sourceType: item.sourceType?.trim() || payloadSourceReference?.type || 'INVENTORY_ITEM',
+            sourceId:
+              item.sourceId?.trim() || payloadSourceReference?.referenceId || 'item_default',
+            discount: item.discount
+              ? {
+                  type: item.discount.type,
+                  value: Number(item.discount.value),
+                  reason: item.discount.reason?.trim() || undefined,
+                }
+              : undefined,
+          })),
+          orderDiscount:
+            hasOrderDiscount && data.orderDiscount
+              ? {
+                  type: data.orderDiscount.type,
+                  value: Number(data.orderDiscount.value),
+                  reason: data.orderDiscount.reason?.trim() || undefined,
+                }
+              : undefined,
+        },
+        idempotencyKey,
+      });
+
+      navigate(`/sales/${created.id}`);
+    } catch (err: unknown) {
+      const errorObj = err as Record<string, unknown>;
+      const status =
+        (errorObj?.status as number | undefined) ??
+        (errorObj?.statusCode as number | undefined) ??
+        ((errorObj?.response as Record<string, unknown>)?.status as number | undefined);
+
+      const message =
+        ((errorObj?.response as Record<string, unknown>)?.data as Record<string, unknown>)
+          ?.message ??
+        (errorObj?.message as string) ??
+        'Failed to initialize commercial sale agreement.';
+
+      const isConflict =
+        status === 409 ||
+        String(message).toLowerCase().includes('duplicate') ||
+        String(message).toLowerCase().includes('already exists');
+
+      setServerError({
+        status,
+        message: Array.isArray(message) ? message.join(', ') : String(message),
+        isConflict,
+      });
+    }
   };
+
+  const isPending = createSaleMutation.isPending || isSubmitting;
 
   return (
     <div className="space-y-6 max-w-4xl mx-auto" data-testid="sale-create-page">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {/* 1. Header Navigation */}
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="sm">
+          <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs gap-1">
             <Link to="/sales/list">
-              <ArrowLeft className="h-4 w-4 mr-1" /> Back
+              <ArrowLeft className="h-4 w-4" /> Back to Directory
             </Link>
           </Button>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">Create Commercial Sale</h1>
-            <p className="text-sm text-muted-foreground">
-              Initialize a checkout session in DRAFT status.
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold tracking-tight text-foreground">
+                Create Commercial Sale
+              </h1>
+              <Badge variant="outline" className="text-xs">
+                DRAFT Session
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Initialize a commercial checkout agreement. Line items and discounts will be
+              authoritatively computed upon submission.
             </p>
           </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-        {/* Customer & General Settings */}
-        <Card>
+      {/* 2. Server Error / Duplicate Conflict Alert */}
+      {serverError && (
+        <div
+          className={`flex items-start gap-3 p-4 rounded-lg border text-sm ${
+            serverError.isConflict
+              ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+              : 'border-destructive/30 bg-destructive/10 text-destructive'
+          }`}
+          data-testid="sale-create-error"
+          role="alert"
+        >
+          {serverError.isConflict ? (
+            <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
+          ) : (
+            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          )}
+          <div className="space-y-1">
+            <p className="font-semibold">
+              {serverError.isConflict
+                ? 'Duplicate Sale Transaction Detected'
+                : 'Sale Initialization Failed'}
+            </p>
+            <p className="text-xs">{serverError.message}</p>
+            {serverError.isConflict && (
+              <p className="text-xs opacity-90">
+                To prevent duplicate charges or repeated billing of the same entity, the system
+                prohibits creating duplicate sales for the same upstream reference.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+        {/* 3. Customer & Currency Settings */}
+        <Card className="border-border bg-card">
           <CardHeader>
-            <CardTitle className="text-base">Order Information</CardTitle>
+            <CardTitle className="text-base flex items-center gap-2">
+              <ShoppingBag className="h-4 w-4 text-primary" />
+              Customer & Currency
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Assign this agreement to a registered client or record it as an anonymous walk-in.
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {/* Client ID */}
               <div className="space-y-1.5">
-                <label htmlFor="clientId" className="text-sm font-medium">
-                  Client ID (Optional / Leave empty for Walk-in)
+                <label htmlFor="clientId" className="text-xs font-medium text-foreground">
+                  Client ID{' '}
+                  <span className="text-muted-foreground font-normal">(Optional for Walk-in)</span>
                 </label>
                 <Input
                   id="clientId"
-                  placeholder="e.g. cli_01j9876543210"
+                  placeholder="e.g. client_123 (Leave empty for Walk-in)"
                   {...register('clientId')}
+                  className="h-9 text-xs"
+                  data-testid="sale-client-id-input"
                 />
+                <p className="text-[11px] text-muted-foreground">
+                  If left blank, this checkout will be tracked as an anonymous Walk-in customer.
+                </p>
               </div>
 
+              {/* Currency */}
               <div className="space-y-1.5">
-                <label htmlFor="currency" className="text-sm font-medium">
-                  Currency (ISO-4217)
+                <label htmlFor="currency" className="text-xs font-medium text-foreground">
+                  Currency Code (ISO-4217) *
                 </label>
                 <Input
                   id="currency"
                   defaultValue="USD"
                   maxLength={3}
                   {...register('currency')}
-                  className="font-mono uppercase"
+                  className="h-9 text-xs uppercase font-mono"
+                  data-testid="sale-currency-input"
                 />
                 {errors.currency && (
                   <p className="text-xs text-destructive">{errors.currency.message}</p>
                 )}
+                <p className="text-[11px] text-muted-foreground">
+                  3-letter uppercase currency code (e.g. USD, CAD, EUR).
+                </p>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Line Items */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle className="text-base">Line Items</CardTitle>
+        {/* 4. Commercial Origin Source Selection */}
+        <Card className="border-border bg-card">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Tag className="h-4 w-4 text-primary" />
+              Origin Source Reference
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Specify whether this sale originates from an upstream catalog entity or a walk-in
+              retail session.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-4 text-xs">
+              <label className="flex items-center gap-2 cursor-pointer font-medium">
+                <input
+                  type="radio"
+                  name="originType"
+                  checked={!hasSourceReference}
+                  onChange={() => {
+                    setHasSourceReference(false);
+                    setValue('hasSourceReference', false, { shouldValidate: true });
+                  }}
+                  className="h-4 w-4 text-primary"
+                  data-testid="origin-walkin-radio"
+                />
+                <span>Walk-in / Point of Sale Checkout</span>
+              </label>
+
+              <label className="flex items-center gap-2 cursor-pointer font-medium">
+                <input
+                  type="radio"
+                  name="originType"
+                  checked={hasSourceReference}
+                  onChange={() => {
+                    setHasSourceReference(true);
+                    setValue('hasSourceReference', true, { shouldValidate: true });
+                  }}
+                  className="h-4 w-4 text-primary"
+                  data-testid="origin-source-radio"
+                />
+                <span>Upstream Entity Reference (Catalog / Appointment / Plan)</span>
+              </label>
+            </div>
+
+            {hasSourceReference && (
+              <div
+                className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-lg border border-border bg-muted/20"
+                data-testid="source-reference-fields"
+              >
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Source Type *</label>
+                  <select
+                    {...register('sourceReference.type')}
+                    className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    data-testid="source-type-select"
+                  >
+                    {VALID_SALE_SOURCE_TYPES.map((type) => (
+                      <option key={type} value={type}>
+                        {type.replace(/_/g, ' ')}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Reference ID *</label>
+                  <Input
+                    placeholder="e.g. inv_item_123 or session_456"
+                    {...register('sourceReference.referenceId')}
+                    className="h-8 text-xs"
+                    data-testid="source-reference-id-input"
+                  />
+                  {errors.sourceReference?.referenceId && (
+                    <p className="text-[11px] text-destructive">
+                      {errors.sourceReference.referenceId.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Order / Reference Code</label>
+                  <Input
+                    placeholder="e.g. SKU or order tag"
+                    {...register('sourceReference.referenceCode')}
+                    className="h-8 text-xs"
+                    data-testid="source-reference-code-input"
+                  />
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 5. Line Items */}
+        <Card className="border-border bg-card">
+          <CardHeader className="flex flex-row items-center justify-between pb-3">
+            <div>
+              <CardTitle className="text-base">Line Items</CardTitle>
+              <CardDescription className="text-xs">
+                Add catalog items or services to this checkout session.
+              </CardDescription>
+            </div>
             <Button
               type="button"
               variant="outline"
@@ -124,24 +431,31 @@ export const SaleCreatePage: React.FC = () => {
                   sourceType: 'INVENTORY_ITEM',
                   sourceId: `item_${Date.now()}`,
                   description: '',
+                  skuOrCode: '',
                   unitPrice: 0.0,
                   quantity: 1,
                 })
               }
-              className="text-xs gap-1"
+              className="h-8 text-xs gap-1.5"
+              data-testid="add-line-item-btn"
             >
-              <Plus className="h-3.5 w-3.5" /> Add Line Item
+              <Plus className="h-3.5 w-3.5" /> Add Item
             </Button>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
+            {errors.items?.message && (
+              <p className="text-xs text-destructive font-medium">{errors.items.message}</p>
+            )}
+
             {fields.map((field, index) => (
               <div
                 key={field.id}
-                className="p-4 border border-border rounded-md bg-muted/20 space-y-3"
+                className="p-3.5 border border-border rounded-lg bg-muted/15 space-y-3"
+                data-testid={`line-item-row-${index}`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground">
-                    Item #{index + 1}
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Line Item #{index + 1}
                   </span>
                   {fields.length > 1 && (
                     <Button
@@ -149,57 +463,95 @@ export const SaleCreatePage: React.FC = () => {
                       variant="ghost"
                       size="sm"
                       onClick={() => remove(index)}
-                      className="h-7 text-xs text-destructive hover:bg-destructive/10"
+                      className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                      aria-label={`Remove line item ${index + 1}`}
+                      data-testid={`remove-line-item-${index}`}
                     >
-                      <Trash2 className="h-3.5 w-3.5" />
+                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
                     </Button>
                   )}
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                  {/* Description */}
+                  <div className="space-y-1 sm:col-span-2">
+                    <label className="text-xs font-medium">Description *</label>
+                    <Input
+                      placeholder="e.g. Whey Protein 1kg"
+                      {...register(`items.${index}.description` as const)}
+                      className="h-8 text-xs"
+                      data-testid={`item-desc-${index}`}
+                    />
+                    {errors.items?.[index]?.description && (
+                      <p className="text-[11px] text-destructive">
+                        {errors.items[index]?.description?.message}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* SKU / Code */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-medium">SKU / Code</label>
+                    <Input
+                      placeholder="e.g. PROT-01"
+                      {...register(`items.${index}.skuOrCode` as const)}
+                      className="h-8 text-xs font-mono"
+                      data-testid={`item-sku-${index}`}
+                    />
+                  </div>
+
+                  {/* Category */}
                   <div className="space-y-1">
                     <label className="text-xs font-medium">Category</label>
                     <select
                       {...register(`items.${index}.sourceType` as const)}
-                      className="w-full h-9 rounded-md border border-input bg-background px-2 text-xs"
+                      className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      data-testid={`item-source-type-${index}`}
                     >
                       {VALID_SALE_SOURCE_TYPES.map((type) => (
                         <option key={type} value={type}>
-                          {type}
+                          {type.replace(/_/g, ' ')}
                         </option>
                       ))}
                     </select>
                   </div>
 
+                  {/* Unit Price */}
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Item Description</label>
-                    <Input
-                      placeholder="Product or service name"
-                      {...register(`items.${index}.description` as const)}
-                      className="h-9 text-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-medium">Unit Price</label>
+                    <label className="text-xs font-medium">Unit Price ({watchedCurrency}) *</label>
                     <Input
                       type="number"
                       step="0.01"
+                      min={0}
                       placeholder="0.00"
                       {...register(`items.${index}.unitPrice` as const, { valueAsNumber: true })}
-                      className="h-9 text-xs"
+                      className="h-8 text-xs font-mono"
+                      data-testid={`item-price-${index}`}
                     />
+                    {errors.items?.[index]?.unitPrice && (
+                      <p className="text-[11px] text-destructive">
+                        {errors.items[index]?.unitPrice?.message}
+                      </p>
+                    )}
                   </div>
 
+                  {/* Quantity */}
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Quantity</label>
+                    <label className="text-xs font-medium">Quantity *</label>
                     <Input
                       type="number"
-                      min={1}
+                      step="1"
+                      min={0.001}
                       defaultValue={1}
                       {...register(`items.${index}.quantity` as const, { valueAsNumber: true })}
-                      className="h-9 text-xs"
+                      className="h-8 text-xs font-mono"
+                      data-testid={`item-quantity-${index}`}
                     />
+                    {errors.items?.[index]?.quantity && (
+                      <p className="text-[11px] text-destructive">
+                        {errors.items[index]?.quantity?.message}
+                      </p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -207,13 +559,135 @@ export const SaleCreatePage: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Submit Actions */}
-        <div className="flex items-center justify-end gap-3">
-          <Button asChild variant="outline">
+        {/* 6. Order Discount (Optional) */}
+        <Card className="border-border bg-card">
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <div>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Percent className="h-4 w-4 text-primary" />
+                Order-Level Discount
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Optionally apply a fixed or percentage discount to the entire sale agreement.
+              </CardDescription>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setHasOrderDiscount(!hasOrderDiscount)}
+              className="h-7 text-xs"
+              data-testid="toggle-order-discount-btn"
+            >
+              {hasOrderDiscount ? 'Remove Discount' : 'Add Discount'}
+            </Button>
+          </CardHeader>
+          {hasOrderDiscount && (
+            <CardContent className="space-y-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Discount Type</label>
+                  <select
+                    {...register('orderDiscount.type')}
+                    className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                    data-testid="order-discount-type-select"
+                  >
+                    <option value="PERCENTAGE">Percentage (%)</option>
+                    <option value="FIXED">Fixed Amount ({watchedCurrency})</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Discount Value *</label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    min={0}
+                    placeholder="0.00"
+                    {...register('orderDiscount.value', { valueAsNumber: true })}
+                    className="h-8 text-xs font-mono"
+                    data-testid="order-discount-value-input"
+                  />
+                  {errors.orderDiscount?.value && (
+                    <p className="text-[11px] text-destructive">
+                      {errors.orderDiscount.value.message}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Reason / Authorization</label>
+                  <Input
+                    placeholder="e.g. Promotional coupon, Manager override"
+                    {...register('orderDiscount.reason')}
+                    className="h-8 text-xs"
+                    data-testid="order-discount-reason-input"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* 7. Client-Side Calculation Preview & Financial Disclosure */}
+        <Card className="border-border bg-card">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center justify-between">
+              <span>Estimated Calculation Preview</span>
+              <span className="text-xs font-normal text-muted-foreground">
+                Subject to server-side precision verification
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex items-start gap-2.5 p-3 rounded-md border border-border bg-muted/30 text-xs text-muted-foreground">
+              <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <span>
+                <strong>Authoritative Totals Policy:</strong> In accordance with Kinergy financial
+                safety rules, browser calculations shown below are estimates only. Authoritative
+                monetary precision, fractional rounding, and tax allocations are strictly computed
+                by the backend domain aggregate upon submission.
+              </span>
+            </div>
+
+            <div className="space-y-1.5 text-xs">
+              <div className="flex justify-between py-1 border-b border-border">
+                <span className="text-muted-foreground">Estimated Subtotal:</span>
+                <span className="font-mono font-medium" data-testid="preview-subtotal">
+                  {watchedCurrency} {previewTotals.subtotal.toFixed(2)}
+                </span>
+              </div>
+              {hasOrderDiscount && (
+                <div className="flex justify-between py-1 border-b border-border text-emerald-600 dark:text-emerald-400">
+                  <span>Estimated Discount:</span>
+                  <span className="font-mono font-medium" data-testid="preview-discount">
+                    - {watchedCurrency} {previewTotals.discountTotal.toFixed(2)}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between py-1.5 font-bold text-sm text-foreground">
+                <span>Estimated Net Total:</span>
+                <span className="font-mono text-primary" data-testid="preview-total">
+                  {watchedCurrency} {previewTotals.total.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* 8. Action Buttons */}
+        <div className="flex items-center justify-end gap-3 pt-2">
+          <Button asChild variant="outline" size="sm" className="h-9 px-4 text-xs">
             <Link to="/sales/list">Cancel</Link>
           </Button>
-          <Button type="submit" disabled={createSaleMutation.isPending}>
-            {createSaleMutation.isPending ? 'Initializing Sale...' : 'Initialize Draft Sale'}
+
+          <Button
+            type="submit"
+            disabled={isPending}
+            className="h-9 px-5 text-xs font-medium gap-1.5"
+            data-testid="submit-create-sale-btn"
+          >
+            {isPending ? 'Initializing Draft Sale...' : 'Initialize Draft Sale'}
           </Button>
         </div>
       </form>
