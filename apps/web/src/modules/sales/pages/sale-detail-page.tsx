@@ -9,7 +9,16 @@ import {
   Button,
   Badge,
 } from '@kinergy-platform/ui';
-import { ArrowLeft, CheckCircle2, XCircle, CreditCard, Receipt, Tag, User } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  XCircle,
+  CreditCard,
+  Receipt,
+  Tag,
+  User,
+  RefreshCw,
+} from 'lucide-react';
 import { useSaleDetail, useSalePayments, useReceiptBySale } from '../hooks/use-sales-queries';
 import { useFinalizeSale, useCancelSale, useRecordPayment } from '../hooks/use-sales-mutations';
 import { SaleStatusBadge } from '../components/sale-status-badge';
@@ -123,6 +132,7 @@ export const SaleDetailPage: React.FC = () => {
   const remainingBalance = Math.max(0, sale.totalAmount - settledPaymentSum);
 
   const handleFinalize = async () => {
+    if (finalizeMutation.isPending) return;
     await finalizeMutation.mutateAsync(sale.id);
   };
 
@@ -199,7 +209,15 @@ export const SaleDetailPage: React.FC = () => {
                 className="gap-1.5"
                 data-testid="finalize-sale-btn"
               >
-                <CheckCircle2 className="h-4 w-4" /> Finalize Agreement
+                {finalizeMutation.isPending ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin" /> Finalizing...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="h-4 w-4" /> Finalize Agreement
+                  </>
+                )}
               </Button>
             </HasPermission>
           )}

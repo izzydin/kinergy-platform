@@ -408,6 +408,63 @@ describe('SaleCreatePage Workflow & Contract Verification', () => {
       ).toBeInTheDocument();
       expect(screen.getByTestId('item-desc-0')).toHaveValue('Custom Service');
     });
+
+    it('detects ambiguous network error, displays guidance to check sales directory, and preserves idempotency token across retry', async () => {
+      const networkError = new Error('Network timeout: connection reset');
+      (salesApi.createSale as jest.Mock)
+        .mockRejectedValueOnce(networkError)
+        .mockResolvedValueOnce(mockCreatedSale);
+
+      renderWithProviders(<SaleCreatePage />, {
+        queryClient,
+        initialRoute: '/sales/new',
+        initialSessionOverride: mockStaffUser,
+      });
+
+      fireEvent.change(screen.getByTestId('item-desc-0'), {
+        target: { value: 'Annual Membership' },
+      });
+      fireEvent.change(screen.getByTestId('item-price-0'), { target: { value: '100.00' } });
+
+      const submitBtn = screen.getByTestId('submit-create-sale-btn');
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sale-create-error')).toBeInTheDocument();
+      });
+
+      // Ambiguous error guidance is shown
+      expect(screen.getByText(/A network interruption occurred/i)).toBeInTheDocument();
+      expect(screen.getByText(/check the/i)).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /Sales Directory/i })).toHaveAttribute(
+        'href',
+        '/sales/list',
+      );
+      expect(
+        screen.getByText(/your original idempotency token is safely preserved/i),
+      ).toBeInTheDocument();
+
+      // Form input preserved
+      expect(screen.getByTestId('item-desc-0')).toHaveValue('Annual Membership');
+
+      // The idempotency key passed to the first call:
+      const firstCallToken = (salesApi.createSale as jest.Mock).mock.calls[0][1];
+
+      // Re-try submission without refreshing the page
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(salesApi.createSale).toHaveBeenCalledTimes(2);
+      });
+
+      // The exact same idempotency key is reused on retry
+      const secondCallToken = (salesApi.createSale as jest.Mock).mock.calls[1][1];
+      expect(secondCallToken).toBe(firstCallToken);
+
+      await waitFor(() => {
+        expect(mockNavigate).toHaveBeenCalledWith(`/sales/${mockCreatedSale.id}`);
+      });
+    });
   });
 
   describe('6. Permission Enforcement', () => {

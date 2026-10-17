@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   Card,
@@ -17,12 +17,14 @@ import {
   Receipt,
   Clock,
   ShieldCheck,
+  RefreshCw,
 } from 'lucide-react';
 import { usePaymentDetail } from '../hooks/use-sales-queries';
 import { useSettlePayment, useCancelPayment } from '../hooks/use-sales-mutations';
 import { PaymentStatusBadge } from '../components/payment-status-badge';
 import { PaymentMethodBadge } from '../components/payment-method-badge';
 import { MoneyDisplay } from '../components/money-display';
+import { CancelPaymentDialog } from '../components/cancel-payment-dialog';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
@@ -43,6 +45,21 @@ export const PaymentDetailPage: React.FC = () => {
   const { data: payment, isLoading, isError, error, refetch } = usePaymentDetail(paymentId);
   const settleMutation = useSettlePayment();
   const cancelMutation = useCancelPayment();
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+
+  // Authorize settlement (payments.manage or payments.create) and cancellation (payments.manage exclusively)
+  const canSettle = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('payments.manage') || auth.hasPermission('payments.create')
+      : auth.currentUser?.permissions?.includes('payments.manage') ||
+          auth.currentUser?.permissions?.includes('payments.create'),
+  );
+
+  const canCancel = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('payments.manage')
+      : auth.currentUser?.permissions?.includes('payments.manage'),
+  );
 
   if (!canRead) {
     return (
@@ -114,13 +131,14 @@ export const PaymentDetailPage: React.FC = () => {
   const isFailed = payment.status === 'FAILED';
 
   const handleSettle = async () => {
+    if (settleMutation.isPending) return;
     await settleMutation.mutateAsync({ paymentId: payment.id });
   };
 
-  const handleCancel = async () => {
+  const handleConfirmCancel = async (reason: string) => {
     await cancelMutation.mutateAsync({
       paymentId: payment.id,
-      input: { reason: 'Voided by authorized cashier' },
+      input: { reason },
     });
   };
 
@@ -150,8 +168,8 @@ export const PaymentDetailPage: React.FC = () => {
         {/* Action Triggers (Only supported lifecycle transitions) */}
         <div className="flex items-center gap-2">
           {isPending && (
-            <HasPermission name="payments.manage">
-              <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+              {canSettle && (
                 <Button
                   variant="default"
                   size="sm"
@@ -160,20 +178,30 @@ export const PaymentDetailPage: React.FC = () => {
                   className="gap-1.5"
                   data-testid="settle-payment-btn"
                 >
-                  <CheckCircle2 className="h-4 w-4" /> Confirm Settlement
+                  {settleMutation.isPending ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" /> Settling...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" /> Confirm Settlement
+                    </>
+                  )}
                 </Button>
+              )}
+              {canCancel && (
                 <Button
                   variant="destructive"
                   size="sm"
-                  onClick={handleCancel}
+                  onClick={() => setIsCancelDialogOpen(true)}
                   disabled={cancelMutation.isPending}
                   className="gap-1.5"
                   data-testid="cancel-payment-btn"
                 >
                   <XCircle className="h-4 w-4" /> Cancel Tender
                 </Button>
-              </div>
-            </HasPermission>
+              )}
+            </div>
           )}
 
           {/* Link to Sale Receipt if payment is settled */}
@@ -304,6 +332,16 @@ export const PaymentDetailPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Confirmation Dialog for Irreversible Payment Tender Cancellation */}
+      <CancelPaymentDialog
+        open={isCancelDialogOpen}
+        onOpenChange={setIsCancelDialogOpen}
+        paymentId={payment.id}
+        amountFormatted={payment.amount?.formatted}
+        isSubmitting={cancelMutation.isPending}
+        onConfirm={handleConfirmCancel}
+      />
     </div>
   );
 };

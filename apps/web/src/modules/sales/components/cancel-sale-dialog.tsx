@@ -28,6 +28,11 @@ export const CancelSaleDialog: React.FC<CancelSaleDialogProps> = ({
   isSubmitting = false,
   onConfirm,
 }) => {
+  const [submissionError, setSubmissionError] = React.useState<{
+    message: string;
+    isAmbiguous?: boolean;
+  } | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -39,9 +44,35 @@ export const CancelSaleDialog: React.FC<CancelSaleDialogProps> = ({
   });
 
   const onSubmit = async (data: CancelSaleFormData) => {
-    await onConfirm(data.reason);
-    reset();
-    onOpenChange(false);
+    if (isSubmitting) return;
+    setSubmissionError(null);
+
+    try {
+      await onConfirm(data.reason);
+      reset();
+      onOpenChange(false);
+    } catch (err: unknown) {
+      const errorObj = err as Record<string, unknown>;
+      const status =
+        (errorObj?.status as number | undefined) ??
+        (errorObj?.statusCode as number | undefined) ??
+        ((errorObj?.response as Record<string, unknown>)?.status as number | undefined);
+      const rawMessage =
+        ((errorObj?.response as Record<string, unknown>)?.data as Record<string, unknown>)
+          ?.message ??
+        (errorObj?.message as string) ??
+        'Failed to cancel sale order.';
+      const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : String(rawMessage);
+
+      const isAmbiguous =
+        !status ||
+        status === 0 ||
+        message.toLowerCase().includes('network') ||
+        message.toLowerCase().includes('timeout') ||
+        message.toLowerCase().includes('fetch');
+
+      setSubmissionError({ message, isAmbiguous });
+    }
   };
 
   return (
@@ -49,12 +80,13 @@ export const CancelSaleDialog: React.FC<CancelSaleDialogProps> = ({
       open={open}
       onOpenChange={(next) => {
         if (!isSubmitting) {
+          setSubmissionError(null);
           reset();
           onOpenChange(next);
         }
       }}
     >
-      <DialogContent>
+      <DialogContent data-testid="cancel-sale-dialog">
         <DialogHeader>
           <DialogTitle>Cancel Commercial Sale</DialogTitle>
           <DialogDescription>
@@ -63,6 +95,26 @@ export const CancelSaleDialog: React.FC<CancelSaleDialogProps> = ({
             commercial cancellation reason is required for audit logs.
           </DialogDescription>
         </DialogHeader>
+
+        {submissionError && (
+          <div
+            className={`p-3 rounded-md text-xs border space-y-1 ${
+              submissionError.isAmbiguous
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                : 'border-destructive/30 bg-destructive/10 text-destructive'
+            }`}
+            data-testid="cancel-sale-error"
+            role="alert"
+          >
+            <p className="font-semibold">{submissionError.message}</p>
+            {submissionError.isAmbiguous && (
+              <p className="text-[11px] text-muted-foreground">
+                A network interruption occurred. Please inspect the sale agreement status before
+                retrying to prevent ambiguous state changes.
+              </p>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
           <div className="space-y-1.5">
@@ -75,6 +127,7 @@ export const CancelSaleDialog: React.FC<CancelSaleDialogProps> = ({
               {...register('reason')}
               disabled={isSubmitting}
               autoFocus
+              data-testid="cancellation-reason-input"
             />
             {errors.reason && <p className="text-xs text-destructive">{errors.reason.message}</p>}
           </div>
@@ -88,7 +141,13 @@ export const CancelSaleDialog: React.FC<CancelSaleDialogProps> = ({
             >
               Back
             </Button>
-            <Button type="submit" variant="destructive" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              variant="destructive"
+              disabled={isSubmitting}
+              className="gap-1.5"
+              data-testid="confirm-cancel-sale-btn"
+            >
               {isSubmitting ? 'Cancelling...' : 'Confirm Cancellation'}
             </Button>
           </DialogFooter>

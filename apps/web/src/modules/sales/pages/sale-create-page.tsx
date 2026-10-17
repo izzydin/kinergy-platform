@@ -48,6 +48,7 @@ export const SaleCreatePage: React.FC = () => {
     status?: number;
     message: string;
     isConflict?: boolean;
+    isAmbiguous?: boolean;
   } | null>(null);
 
   // Stable client idempotency key initialized once per form session
@@ -129,6 +130,7 @@ export const SaleCreatePage: React.FC = () => {
   }
 
   const onSubmit = async (data: CreateSaleFormData) => {
+    if (createSaleMutation.isPending || isSubmitting) return;
     setServerError(null);
 
     try {
@@ -194,10 +196,18 @@ export const SaleCreatePage: React.FC = () => {
         String(message).toLowerCase().includes('duplicate') ||
         String(message).toLowerCase().includes('already exists');
 
+      const isAmbiguous =
+        !status ||
+        status === 0 ||
+        String(message).toLowerCase().includes('network') ||
+        String(message).toLowerCase().includes('timeout') ||
+        String(message).toLowerCase().includes('fetch');
+
       setServerError({
         status,
         message: Array.isArray(message) ? message.join(', ') : String(message),
         isConflict,
+        isAmbiguous,
       });
     }
   };
@@ -258,6 +268,20 @@ export const SaleCreatePage: React.FC = () => {
               <p className="text-xs opacity-90">
                 To prevent duplicate charges or repeated billing of the same entity, the system
                 prohibits creating duplicate sales for the same upstream reference.
+              </p>
+            )}
+            {serverError.isAmbiguous && (
+              <p className="text-xs opacity-90 mt-1">
+                A network interruption occurred. Because the server may have already processed this
+                agreement, please check the{' '}
+                <Link
+                  to={SALES_ROUTES.list()}
+                  className="underline font-semibold hover:text-foreground"
+                >
+                  Sales Directory
+                </Link>{' '}
+                before resubmitting. If resubmitting, your original idempotency token is safely
+                preserved.
               </p>
             )}
           </div>

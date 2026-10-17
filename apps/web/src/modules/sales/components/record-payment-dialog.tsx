@@ -33,6 +33,11 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
   isSubmitting = false,
   onConfirm,
 }) => {
+  const [submissionError, setSubmissionError] = React.useState<{
+    message: string;
+    isAmbiguous?: boolean;
+  } | null>(null);
+
   const {
     register,
     handleSubmit,
@@ -55,9 +60,35 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
   }, [open, defaultAmount, setValue]);
 
   const onSubmit = async (data: RecordPaymentFormData) => {
-    await onConfirm(data);
-    reset();
-    onOpenChange(false);
+    if (isSubmitting) return;
+    setSubmissionError(null);
+
+    try {
+      await onConfirm(data);
+      reset();
+      onOpenChange(false);
+    } catch (err: unknown) {
+      const errorObj = err as Record<string, unknown>;
+      const status =
+        (errorObj?.status as number | undefined) ??
+        (errorObj?.statusCode as number | undefined) ??
+        ((errorObj?.response as Record<string, unknown>)?.status as number | undefined);
+      const rawMessage =
+        ((errorObj?.response as Record<string, unknown>)?.data as Record<string, unknown>)
+          ?.message ??
+        (errorObj?.message as string) ??
+        'Failed to record payment tender.';
+      const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : String(rawMessage);
+
+      const isAmbiguous =
+        !status ||
+        status === 0 ||
+        message.toLowerCase().includes('network') ||
+        message.toLowerCase().includes('timeout') ||
+        message.toLowerCase().includes('fetch');
+
+      setSubmissionError({ message, isAmbiguous });
+    }
   };
 
   return (
@@ -65,12 +96,13 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
       open={open}
       onOpenChange={(next) => {
         if (!isSubmitting) {
+          setSubmissionError(null);
           reset();
           onOpenChange(next);
         }
       }}
     >
-      <DialogContent>
+      <DialogContent data-testid="record-payment-dialog">
         <DialogHeader>
           <DialogTitle>Record Payment Tender</DialogTitle>
           <DialogDescription>
@@ -78,6 +110,26 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
             <span className="font-mono font-medium">{saleId}</span>.
           </DialogDescription>
         </DialogHeader>
+
+        {submissionError && (
+          <div
+            className={`p-3 rounded-md text-xs border space-y-1 ${
+              submissionError.isAmbiguous
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                : 'border-destructive/30 bg-destructive/10 text-destructive'
+            }`}
+            data-testid="record-payment-error"
+            role="alert"
+          >
+            <p className="font-semibold">{submissionError.message}</p>
+            {submissionError.isAmbiguous && (
+              <p className="text-[11px] text-muted-foreground">
+                A network interruption occurred while recording this tender. Please check the sale's
+                payment history to confirm whether the tender was recorded before re-submitting.
+              </p>
+            )}
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
           <div className="space-y-1.5">
@@ -138,7 +190,13 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
             >
               Cancel
             </Button>
-            <Button type="submit" variant="default" disabled={isSubmitting}>
+            <Button
+              type="submit"
+              variant="default"
+              disabled={isSubmitting}
+              className="gap-1.5"
+              data-testid="confirm-record-payment-btn"
+            >
               {isSubmitting ? 'Recording...' : 'Record Tender'}
             </Button>
           </DialogFooter>

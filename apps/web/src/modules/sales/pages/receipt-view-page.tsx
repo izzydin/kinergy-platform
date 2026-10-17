@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from '@kinergy-platform/ui';
-import { ArrowLeft, Printer, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Printer, CheckCircle2, RefreshCw } from 'lucide-react';
 import { useReceiptBySale } from '../hooks/use-sales-queries';
 import { useIssueReceipt } from '../hooks/use-sales-mutations';
 import { MoneyDisplay } from '../components/money-display';
@@ -33,7 +33,7 @@ export const ReceiptViewPage: React.FC = () => {
   }
 
   const handleIssueReceipt = async () => {
-    if (!saleId) return;
+    if (!saleId || issueReceiptMutation.isPending) return;
     await issueReceiptMutation.mutateAsync({ saleId });
     refetch();
   };
@@ -106,9 +106,17 @@ export const ReceiptViewPage: React.FC = () => {
                   disabled={issueReceiptMutation.isPending}
                   size="sm"
                   className="gap-1.5"
+                  data-testid="issue-receipt-btn"
                 >
-                  <CheckCircle2 className="h-4 w-4" />
-                  {issueReceiptMutation.isPending ? 'Issuing Receipt...' : 'Generate Receipt Now'}
+                  {issueReceiptMutation.isPending ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 animate-spin" /> Issuing Receipt...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4" /> Generate Receipt Now
+                    </>
+                  )}
                 </Button>
               </HasPermission>
             </div>

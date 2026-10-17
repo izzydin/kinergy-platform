@@ -60,6 +60,15 @@ const mockNoAccessUser: AuthUser = {
   tenantId: 'tenant_1',
 };
 
+const mockCashierUser: AuthUser = {
+  id: 'usr_cashier_1',
+  email: 'cashier@kinergy.test',
+  name: 'Front Desk Cashier',
+  roles: ['Receptionist'],
+  permissions: ['sales.read', 'sales.create', 'payments.read', 'payments.create'],
+  tenantId: 'tenant_1',
+};
+
 // Fixture: Settled Sale with Source Reference and Order Discount
 const mockSettledSale: SaleDTO = {
   id: 'sale_01jsettled1234567890abcdef',
@@ -429,6 +438,98 @@ describe('Screen 4 & Screen 5: Sale Detail & Payment Detail Contracts', () => {
       expect(screen.queryByTestId('finalize-sale-btn')).not.toBeInTheDocument();
     });
 
+    it('cancels sale agreement only after confirmation in CancelSaleDialog with audit reason', async () => {
+      (useParams as jest.Mock).mockReturnValue({ saleId: mockPendingSale.id });
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue(mockPendingSale);
+      (salesApi.getSalePaymentHistory as jest.Mock).mockResolvedValue([]);
+      (salesApi.cancelSale as jest.Mock).mockResolvedValue({
+        ...mockPendingSale,
+        status: 'CANCELLED',
+      });
+
+      renderWithProviders(<SaleDetailPage />, {
+        queryClient,
+        initialRoute: `/sales/${mockPendingSale.id}`,
+        initialSessionOverride: mockManagerUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('cancel-sale-btn')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('cancel-sale-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('cancel-sale-dialog')).toBeInTheDocument();
+      });
+
+      fireEvent.change(screen.getByTestId('cancellation-reason-input'), {
+        target: { value: 'Customer cancelled transaction' },
+      });
+
+      fireEvent.click(screen.getByTestId('confirm-cancel-sale-btn'));
+
+      await waitFor(() => {
+        expect(salesApi.cancelSale).toHaveBeenCalledWith(mockPendingSale.id, {
+          reason: 'Customer cancelled transaction',
+        });
+      });
+    });
+
+    it('records tender payment via RecordPaymentDialog and calls authoritative API', async () => {
+      (useParams as jest.Mock).mockReturnValue({ saleId: mockPendingSale.id });
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue(mockPendingSale);
+      (salesApi.getSalePaymentHistory as jest.Mock).mockResolvedValue([]);
+      (salesApi.recordPayment as jest.Mock).mockResolvedValue(mockCompletedPayment);
+
+      renderWithProviders(<SaleDetailPage />, {
+        queryClient,
+        initialRoute: `/sales/${mockPendingSale.id}`,
+        initialSessionOverride: mockManagerUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('record-payment-btn')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('record-payment-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('record-payment-dialog')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('confirm-record-payment-btn'));
+
+      await waitFor(() => {
+        expect(salesApi.recordPayment).toHaveBeenCalledWith(
+          mockPendingSale.id,
+          expect.objectContaining({
+            method: 'CASH',
+            amount: 100,
+          }),
+        );
+      });
+    });
+
+    it('hides cancel-sale-btn if user lacks sales.cancel permission', async () => {
+      (useParams as jest.Mock).mockReturnValue({ saleId: mockPendingSale.id });
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue(mockPendingSale);
+      (salesApi.getSalePaymentHistory as jest.Mock).mockResolvedValue([]);
+
+      renderWithProviders(<SaleDetailPage />, {
+        queryClient,
+        initialRoute: `/sales/${mockPendingSale.id}`,
+        initialSessionOverride: mockCashierUser, // has sales.read, sales.create, but lacks sales.cancel
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sale-id')).toHaveTextContent(mockPendingSale.id);
+      });
+
+      expect(screen.getByTestId('record-payment-btn')).toBeInTheDocument();
+      expect(screen.queryByTestId('cancel-sale-btn')).not.toBeInTheDocument();
+    });
+
     it('renders 404 error state when sale does not exist', async () => {
       (useParams as jest.Mock).mockReturnValue({ saleId: 'sale_non_existent' });
       (salesApi.getSaleById as jest.Mock).mockRejectedValue(new Error('Sale not found'));
@@ -571,6 +672,68 @@ describe('Screen 4 & Screen 5: Sale Detail & Payment Detail Contracts', () => {
       await waitFor(() => {
         expect(salesApi.settlePayment).toHaveBeenCalledWith(mockPendingPayment.id, undefined);
       });
+    });
+
+    it('cancels pending payment only after explicit confirmation in CancelPaymentDialog', async () => {
+      (useParams as jest.Mock).mockReturnValue({ paymentId: mockPendingPayment.id });
+      (salesApi.getPaymentById as jest.Mock).mockResolvedValue(mockPendingPayment);
+      (salesApi.cancelPayment as jest.Mock).mockResolvedValue({
+        ...mockPendingPayment,
+        status: 'CANCELLED',
+      });
+
+      renderWithProviders(<PaymentDetailPage />, {
+        queryClient,
+        initialRoute: `/sales/payments/${mockPendingPayment.id}`,
+        initialSessionOverride: mockManagerUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('cancel-payment-btn')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('cancel-payment-btn'));
+
+      // Confirmation dialog is rendered with irreversible warning
+      await waitFor(() => {
+        expect(screen.getByTestId('cancel-payment-dialog')).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText(/permanent and irreversible in accordance with financial audit controls/i),
+      ).toBeInTheDocument();
+
+      // Enter custom void reason
+      fireEvent.change(screen.getByTestId('void-payment-reason-input'), {
+        target: { value: 'Customer switched to cash tender' },
+      });
+
+      fireEvent.click(screen.getByTestId('confirm-void-payment-btn'));
+
+      await waitFor(() => {
+        expect(salesApi.cancelPayment).toHaveBeenCalledWith(mockPendingPayment.id, {
+          reason: 'Customer switched to cash tender',
+        });
+      });
+    });
+
+    it('hides cancel-payment-btn if user lacks payments.manage permission even with payments.create', async () => {
+      (useParams as jest.Mock).mockReturnValue({ paymentId: mockPendingPayment.id });
+      (salesApi.getPaymentById as jest.Mock).mockResolvedValue(mockPendingPayment);
+
+      renderWithProviders(<PaymentDetailPage />, {
+        queryClient,
+        initialRoute: `/sales/payments/${mockPendingPayment.id}`,
+        initialSessionOverride: mockCashierUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-id')).toHaveTextContent(mockPendingPayment.id);
+      });
+
+      // Settle is visible for payments.create
+      expect(screen.getByTestId('settle-payment-btn')).toBeInTheDocument();
+      // Cancel is HIDDEN for lack of payments.manage
+      expect(screen.queryByTestId('cancel-payment-btn')).not.toBeInTheDocument();
     });
 
     it('renders CANCELLED payment with void banner and no transition actions', async () => {
