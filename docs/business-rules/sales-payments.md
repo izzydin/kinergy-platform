@@ -105,16 +105,16 @@ Executable Test Suites:
   - packages/core/src/sales/domain/__tests__/sale-item.entity.spec.ts
 ```
 
-| Traceability Requirement                    | Business Rule        | Domain Rule                                 | Implementation                                  | Verification Test                                                           |
-| :------------------------------------------ | :------------------- | :------------------------------------------ | :---------------------------------------------- | :-------------------------------------------------------------------------- |
-| **Percentage cannot be negative**           | `ITEM-07`            | $0 \le \text{percentage}$                   | `Discount.percentage()` assertion               | `discount.vo.spec.ts`                                                       |
-| **Percentage maximum (100)**                | `ITEM-07`            | $\text{percentage} \le 100$                 | `Discount.percentage()` assertion               | `discount.vo.spec.ts`                                                       |
-| **Fixed discount cannot be negative**       | `ITEM-07`, `MNY-05`  | $\text{fixed} \ge 0.00$                     | `Discount.fixed()` assertion                    | `discount.vo.spec.ts`                                                       |
-| **Discount cannot exceed eligible amount**  | `ITEM-07`            | $\text{discountAmount} \le \text{eligible}$ | `calculate()` throws `InvalidDiscountException` | `discount.calculate.spec.ts`, `sale-discount-invariants.spec.ts`            |
-| **Deterministic calculation**               | `MNY-01`, `MNY-02`   | Half-Up Cent Rounding                       | Minor units in `calculate()`                    | `discount.calculate.spec.ts`                                                |
-| **No floating-point financial calculation** | `MNY-01`, ADR-0108   | Integer Cent Arithmetic                     | Strict cent math in `Discount` and `Money`      | `discount.calculate.spec.ts`, `money.vo.spec.ts`                            |
-| **Item-level scope**                        | `ITEM-01`, `ITEM-07` | Scope on `SaleItem`                         | `SaleItem.discount` (no order discount)         | `sale-item.entity.spec.ts`, `sale-discount-invariants.spec.ts`              |
-| **Historical discount stability**           | `SALE-08`, `ITEM-04` | Frozen Snapshot                             | Frozen terms, locked on finalization            | `sale-item-historical-snapshot.spec.ts`, `sale-discount-invariants.spec.ts` |
+| Traceability Requirement                    | Business Rule                   | Domain Rule                                 | Implementation                                  | Verification Test                                                           |
+| :------------------------------------------ | :------------------------------ | :------------------------------------------ | :---------------------------------------------- | :-------------------------------------------------------------------------- |
+| **Percentage cannot be negative**           | `ITEM-07`                       | $0 \le \text{percentage}$                   | `Discount.percentage()` assertion               | `discount.vo.spec.ts`                                                       |
+| **Percentage maximum (100)**                | `ITEM-07`                       | $\text{percentage} \le 100$                 | `Discount.percentage()` assertion               | `discount.vo.spec.ts`                                                       |
+| **Fixed discount cannot be negative**       | `ITEM-07`, `MNY-05`             | $\text{fixed} \ge 0.00$                     | `Discount.fixed()` assertion                    | `discount.vo.spec.ts`                                                       |
+| **Discount cannot exceed eligible amount**  | `ITEM-07`                       | $\text{discountAmount} \le \text{eligible}$ | `calculate()` throws `InvalidDiscountException` | `discount.calculate.spec.ts`, `sale-discount-invariants.spec.ts`            |
+| **Deterministic calculation**               | `MNY-01`, `MNY-02`              | Half-Up Cent Rounding                       | Minor units in `calculate()`                    | `discount.calculate.spec.ts`                                                |
+| **No floating-point financial calculation** | `MNY-01`, ADR-0108              | Integer Cent Arithmetic                     | Strict cent math in `Discount` and `Money`      | `discount.calculate.spec.ts`, `money.vo.spec.ts`                            |
+| **Item and order scope**                    | `ITEM-01`, `ITEM-07`, `SALE-05` | Scope on `SaleItem` & `Sale`                | `SaleItem.discount`, `Sale.orderDiscount`       | `sale-item.entity.spec.ts`, `sale-discount-invariants.spec.ts`              |
+| **Historical discount stability**           | `SALE-08`, `ITEM-04`            | Frozen Snapshot                             | Frozen terms, locked on finalization            | `sale-item-historical-snapshot.spec.ts`, `sale-discount-invariants.spec.ts` |
 
 ---
 
@@ -191,10 +191,10 @@ The domain enforces the following **canonical reconciliation formulas**, executi
    saleNet = saleSubtotal - saleDiscountTotal
 
 9. Order-Level Discount:
-   (Deferred / Out-of-Scope for Phase 7.3 & 7.4; orderDiscount = null)
+   orderDiscountAmount = orderDiscount ? orderDiscount.calculateReduction(saleNet) : Money.zero(currency)
 
 10. Total Discounts:
-    totalDiscounts = saleDiscountTotal
+    totalDiscounts = saleDiscountTotal + orderDiscountAmount
 
 11. Total Sale Tax:
     saleTaxTotal = Sum(lineTax[i])
