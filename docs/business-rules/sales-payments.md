@@ -93,7 +93,6 @@ This section establishes the authoritative specification for the 8 core financia
 - **Test References**:
   - [`sale-commercial-transaction-uniqueness.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-commercial-transaction-uniqueness.spec.ts)
   - [`financial-concurrency-and-race-conditions.integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/financial-concurrency-and-race-conditions.integration.spec.ts)
-  - [`prisma-sale-source-concurrency.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/prisma-sale-source-concurrency.spec.ts)
   - [`sale-creation-concurrency-and-uniqueness.integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/sale-creation-concurrency-and-uniqueness.integration.spec.ts)
 - **Status**: `IMPLEMENTED`
 
@@ -147,7 +146,7 @@ This section establishes the authoritative specification for the 8 core financia
   - _API Operations_: `POST /api/v1/sales/:id/discount`, `DELETE /api/v1/sales/:id/discount`, `POST /api/v1/sales/:id/items/:itemId/discount`.
 - **Test References**:
   - [`discount.vo.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/discount.vo.spec.ts)
-  - [`discount.calculate.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/discount.calculate.spec.ts)
+  - [`sale-discount-integration-lifecycle.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-discount-integration-lifecycle.spec.ts)
   - [`sale-discount-invariants.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-discount-invariants.spec.ts)
   - [`sale-totals-deterministic.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-totals-deterministic.spec.ts)
 - **Status**: `IMPLEMENTED`
