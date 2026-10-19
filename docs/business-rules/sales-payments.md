@@ -16,7 +16,10 @@
   - [ADR-0117: Receipt Domain Boundary, Document Model, and Legal Proof-of-Purchase Invariants](../adr/0117-receipt-domain-boundary-and-document-model.md)
   - [ADR-0118: Sale Reference and Receipt Identification Strategy](../adr/0118-sale-reference-and-receipt-identification-strategy.md)
   - [ADR-0119: Sale Aggregate Boundary, Invariants, and Commercial Transaction Integrity](../adr/0119-sale-aggregate-boundary-and-invariants.md)
-- **Authoritative Invariant Catalog (Milestone 7.8)**: [Sale Invariant Catalog (SALE-001 through SALE-021)](sale-invariants-catalog.md)
+  - [ADR-0120: Commercial Transaction Uniqueness and Sale Idempotency](../adr/0120-commercial-transaction-uniqueness-and-sale-idempotency.md)
+  - [ADR-0121: Sale Source References and Commercial Origin Model](../adr/0121-sale-source-references-and-commercial-origin-model.md)
+  - [ADR-0140: Financial Concurrency and Settlement Integrity](../adr/0140-financial-concurrency-and-settlement-integrity.md)
+- **Authoritative Invariant Catalog (Milestone 7.8)**: [Sale Invariant Catalog (SALE-001 through SALE-022)](sale-invariants-catalog.md)
 
 ---
 
@@ -47,7 +50,262 @@ flowchart TD
 
 ---
 
-## 2. Sale Business Rules
+## 2. Master Financial Business Rules Specification (Phase 6 Traceability Format)
+
+This section establishes the authoritative specification for the 8 core financial business rules of the Kinergy platform, conforming to the Phase 6 traceability standard.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                    MASTER BUSINESS RULES INDEX & TAXONOMY                    │
+│                                                                              │
+│  BR-SALES       Exactly One Sale Per Commercial Transaction                  │
+│  BR-ITEM        Sale Item Snapshot & Historical Immutability                 │
+│  BR-DISCOUNT    Discount Rules, Boundaries, and Calculation Order            │
+│  BR-TOTAL       Deterministic Sale Totals & Cent-Exact Reconciliation        │
+│  BR-PAYMENT     Payment Lifecycle, Tender Separation, and Settlement         │
+│  BR-CANCEL      Cancellation Invariants, Permitted States, and Concurrency   │
+│  BR-RECEIPT     Receipt Voucher Generation, Snapshots, and Idempotency       │
+│  BR-DUPLICATE   Duplicate Prevention, Idempotency, and Concurrency Safety    │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+### BR-SALES: Exactly One Sale Per Commercial Transaction
+
+- **Stable Rule Identifier**: `BR-SALES` (Sub-rules: `BR-SALES-01`, `BR-SALES-02`)
+- **Rule Statement**:
+  1. For clinical therapy encounters (`KINESIOLOGY_SESSION` / `TREATMENT_SESSION`), a commercial checkout transaction MUST correspond to exactly one completed clinical encounter. The platform MUST NOT permit more than one active (non-cancelled) `Sale` to reference the same clinical encounter instance (`BR-SALES-01`).
+  2. If an existing `Sale` for a clinical encounter was `CANCELLED`, creating a new `Sale` for that encounter MAY proceed (`BR-SALES-02`).
+  3. For retail consumables (`FOOD`, `DRINK`), gym membership plans (`GYM_MEMBERSHIP`), and space rentals (`ROOM_RENTAL`), repeat purchases and legitimate renewals MUST be assigned distinct commercial `SaleId`s; multiple independent `Sale` aggregates MAY legitimately reference the same catalog source entity.
+  4. An application-level preflight lookup MUST NOT be considered an atomic uniqueness guarantee under concurrency; atomic uniqueness MUST be guaranteed by database-level partial unique constraints.
+- **Rationale & Business Impact**: Prevents double-billing patients for clinical care while preserving normal retail POS checkouts and recurring gym membership subscription workflows. Eliminates lost revenues and customer disputes caused by race conditions.
+- **Preconditions & Expected Outcome**:
+  - _Preconditions_: Valid `tenantId`, valid `SaleSource` VO with recognized `SaleSourceType` and non-empty `referenceId`.
+  - _Expected Outcome_: If an active sale already exists for the clinical encounter, the request is rejected with `409 Conflict` (`DuplicateSaleException` with code `'DUPLICATE_SALE_DETECTED'`). Otherwise, a new `Sale` in `DRAFT` status with a unique UUID `SaleId` is created.
+- **Enforcement Location**:
+  - _Application Tier_: `CreateSaleHandler` preflight query `saleRepository.findBySourceReference()`.
+  - _Persistence Tier_: PostgreSQL partial unique index `uq_sales_clinical_session_active` on `sales(tenant_id, source_id) WHERE source_type IN ('TREATMENT_SESSION', 'KINESIOLOGY_SESSION') AND status != 'CANCELLED'`.
+  - _Domain Tier_: `SaleSource` value object immutability (`SALE-022`).
+- **Relevant Use Case & API Operation**:
+  - _Use Case_: `CreateSaleUseCase` (`CreateSaleHandler`).
+  - _API Operation_: `POST /api/v1/sales`.
+- **Test References**:
+  - [`sale-commercial-transaction-uniqueness.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-commercial-transaction-uniqueness.spec.ts)
+  - [`financial-concurrency-and-race-conditions.integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/financial-concurrency-and-race-conditions.integration.spec.ts)
+  - [`prisma-sale-source-concurrency.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/prisma-sale-source-concurrency.spec.ts)
+  - [`sale-creation-concurrency-and-uniqueness.integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/sale-creation-concurrency-and-uniqueness.integration.spec.ts)
+- **Status**: `IMPLEMENTED`
+
+---
+
+### BR-ITEM: Sale Item Snapshot & Historical Immutability
+
+- **Stable Rule Identifier**: `BR-ITEM` (Sub-rules: `BR-ITEM-01` to `BR-ITEM-04`)
+- **Rule Statement**:
+  1. Every `SaleItem` MUST permanently capture and freeze commercial snapshot attributes at checkout: `description`, `skuOrCode`, `unitPrice` (`Money`), and `source` (`SourceReference | SaleSource`) (`BR-ITEM-01`).
+  2. Subsequent upstream catalog modifications (renaming, price increases, archival, or deletion of products, services, or membership plans) MUST NOT alter past `SaleItem` records (`BR-ITEM-02`).
+  3. Domain queries MUST NOT dynamically query or join upstream source tables (`inventory_items`, `membership_plans`, `treatment_sessions`) to resolve line item details at read time (`BR-ITEM-03`).
+  4. `description`, `skuOrCode`, `unitPrice`, and `source` MUST NEVER change after item creation. Only `quantity` and `discount` MAY be modified, and ONLY while the parent `Sale` is in `DRAFT` status. Once the parent `Sale` departs `DRAFT`, ALL line item attributes, quantities, and discounts MUST be permanently locked (`BR-ITEM-04`).
+- **Rationale & Business Impact**: Protects legal and commercial auditability. Prevents retroactive price drift on historical orders, guaranteeing that customer receipts remain accurate and legally defensible.
+- **Preconditions & Expected Outcome**:
+  - _Preconditions_: Parent `Sale` in `DRAFT`, strictly positive quantity ($0.001 \le q \le 999,999$), non-negative unit price ($\ge \$0.00$), matching currency.
+  - _Expected Outcome_: An immutable `SaleItem` instance (`Object.freeze(this)`) attached to the `Sale` and persisted in standalone columns in `sale_items`.
+- **Enforcement Location**:
+  - _Domain Tier_: [`SaleItem.create()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/entities/sale-item.entity.ts#L106), `Object.freeze(this)`, [`Sale.assertDraftState()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/sale.aggregate.ts#L1233).
+  - _Persistence Tier_: Standalone snapshot columns `description`, `sku_or_code`, `unit_price`, `quantity`, `subtotal`, `discount_total`, `total` in `sale_items`.
+- **Relevant Use Case & API Operation**:
+  - _Use Cases_: `AddSaleItemUseCase`, `UpdateSaleItemUseCase`, `RemoveSaleItemUseCase`.
+  - _API Operations_: `POST /api/v1/sales/:id/items`, `PATCH /api/v1/sales/:id/items/:itemId`, `DELETE /api/v1/sales/:id/items/:itemId`.
+- **Test References**:
+  - [`sale-item.entity.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-item.entity.spec.ts)
+  - [`sale-item-historical-snapshot.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-item-historical-snapshot.spec.ts) (Scenarios 1–8: Price change, description change, status change, deletion/archival, finalized freeze, encapsulation, reconciliation, failure atomicity)
+  - [`sale-item-integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-item-integration.spec.ts)
+- **Status**: `IMPLEMENTED`
+
+---
+
+### BR-DISCOUNT: Discount Rules, Boundaries, and Calculation Order
+
+- **Stable Rule Identifier**: `BR-DISCOUNT` (Sub-rules: `BR-DISCOUNT-01` to `BR-DISCOUNT-05`)
+- **Rule Statement**:
+  1. Discounts MUST belong to one of two canonical types: `PERCENTAGE` or `FIXED` (with `FIXED_AMOUNT` alias) (`BR-DISCOUNT-01`).
+  2. Discount values MUST be non-negative. Percentage values MUST NOT exceed 100%. Fixed discount amounts MUST NOT exceed the item subtotal (`calculate()` throws `InvalidDiscountException` without silent clamping) (`BR-DISCOUNT-02`).
+  3. An optional business reason MAY be provided ($\le 255$ characters). If provided, it MUST NOT be empty or pure whitespace (`BR-DISCOUNT-03`).
+  4. Calculation Order: Line-item discounts MUST apply first against gross line subtotal. Order-level discounts MUST apply second against the remaining net pre-order-discount balance ($\text{subtotal} - \sum \text{lineDiscounts}$) (`BR-DISCOUNT-04`).
+  5. Rounding & Post-Payment Immutability: All discount calculations MUST execute using Commercial Half-Up rounding in integer minor units (cents). Discounts MUST NOT be added, modified, or removed after a `Sale` leaves `DRAFT` status (`SaleAlreadyFinalizedException`) (`BR-DISCOUNT-05`).
+- **Rationale & Business Impact**: Guarantees cashier discount accountability, eliminates penny drift, and strictly prevents negative order totals.
+- **Preconditions & Expected Outcome**:
+  - _Preconditions_: Parent `Sale` in `DRAFT`, valid percentage ($0 \le v \le 100$) or fixed amount ($v \ge 0$).
+  - _Expected Outcome_: Deterministic cent-exact discount deduction, line/order total recalculation, and audit justification captured.
+- **Enforcement Location**:
+  - _Domain Tier_: [`Discount.create()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/value-objects/discount.vo.ts#L73), [`Discount.calculate()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/value-objects/discount.vo.ts#L131), [`Discount.calculateReduction()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/value-objects/discount.vo.ts#L190), [`Sale.applyOrderDiscount()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/sale.aggregate.ts#L902).
+  - _Application Tier_: `ApplyDiscountHandler`.
+  - _API Tier_: DTO validation pipes `@Min(0) @Max(100)` for percentage, `@Min(0)` for fixed.
+- **Relevant Use Case & API Operation**:
+  - _Use Cases_: `ApplyDiscountUseCase`, `RemoveDiscountUseCase`.
+  - _API Operations_: `POST /api/v1/sales/:id/discount`, `DELETE /api/v1/sales/:id/discount`, `POST /api/v1/sales/:id/items/:itemId/discount`.
+- **Test References**:
+  - [`discount.vo.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/discount.vo.spec.ts)
+  - [`discount.calculate.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/discount.calculate.spec.ts)
+  - [`sale-discount-invariants.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-discount-invariants.spec.ts)
+  - [`sale-totals-deterministic.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-totals-deterministic.spec.ts)
+- **Status**: `IMPLEMENTED`
+
+---
+
+### BR-TOTAL: Deterministic Sale Totals & Cent-Exact Reconciliation
+
+- **Stable Rule Identifier**: `BR-TOTAL` (Sub-rules: `BR-TOTAL-01` to `BR-TOTAL-04`)
+- **Rule Statement**:
+  1. Financial totals across every `Sale` MUST strictly obey the 13 canonical reconciliation formulas (ADR-0114) operating in integer minor units (cents):
+     $$\text{subtotal} = \sum \text{SaleItem.subtotal}$$
+     $$\text{discountTotal} = \sum \text{SaleItem.discountTotal} + \text{orderDiscount.calculateReduction(subtotal} - \sum \text{SaleItem.discountTotal)}$$
+     $$\text{total} = \text{subtotal} - \text{discountTotal} \quad (\text{guaranteed } \ge \$0.00) \quad (\text{BR-TOTAL-01})$$
+  2. Single Currency Homogeneity: Every line item, discount, subtotal, and total within a `Sale` MUST share the identical ISO-4217 currency (`BR-TOTAL-02`).
+  3. Precision & Non-Negativity: Binary floating-point arithmetic is strictly prohibited. Intermediate math operates on integer cents with Commercial Half-Up rounding. Financial totals, prices, and discounts MUST NEVER be negative under any circumstance. If a calculation results in $< 0$, `recalculateTotals()` MUST throw `InvalidSaleStateException` (`NEGATIVE_SALE_TOTAL`), and `Money.create()` MUST throw `InvalidMoneyException` (`BR-TOTAL-03`).
+  4. Zero-Total & Reconstitution: A net total of exactly $\$0.00$ MUST be treated as valid and fully payable (e.g. 100% discount, promotional gifts). Reconstituting a `Sale` from persistence MUST re-verify all line subtotals and discounts from scratch; any mismatch against stored totals MUST throw `InvalidSaleStateException` (`BR-TOTAL-04`).
+- **Rationale & Business Impact**: Eliminates financial rounding drift, penny discrepancies between order and receipts, database tampering, and accounting reconciliation mismatches.
+- **Preconditions & Expected Outcome**:
+  - _Preconditions_: Homogeneous currency, valid non-negative items.
+  - _Expected Outcome_: Cent-exact mathematical balance, verifiable by customers, payment gateways, and accountants.
+- **Enforcement Location**:
+  - _Domain Tier_: [`Sale.recalculateTotals()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/sale.aggregate.ts#L1250), [`Sale.reconstitute()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/sale.aggregate.ts#L380), [`Money`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/value-objects/money.vo.ts).
+  - _Persistence Tier_: Column `@db.Decimal(12, 2)` and DB `CHECK (total >= 0)`.
+- **Relevant Use Case & API Operation**:
+  - _Use Cases_: `CalculateSaleTotalsUseCase`, `GetSaleUseCase`.
+  - _API Operations_: `POST /api/v1/sales/:id/calculate`, `GET /api/v1/sales/:id`.
+- **Test References**:
+  - [`sale-totals-deterministic.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-totals-deterministic.spec.ts)
+  - [`sale-authoritative-totals-calculation.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-authoritative-totals-calculation.spec.ts)
+  - [`sale-application-totals.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/__tests__/sale-application-totals.spec.ts)
+  - [`monetary-precision-safety-net.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/monetary-precision-safety-net.spec.ts)
+- **Status**: `IMPLEMENTED`
+
+---
+
+### BR-PAYMENT: Payment Lifecycle, Tender Separation, and Settlement
+
+- **Stable Rule Identifier**: `BR-PAYMENT` (Sub-rules: `BR-PAYMENT-01` to `BR-PAYMENT-05`)
+- **Rule Statement**:
+  1. `Payment` MUST follow an exact 4-state lifecycle machine: `PENDING`, `COMPLETED` (mapped to `SETTLED` in DB), `FAILED`, `CANCELLED`. All other transitions MUST be strictly rejected as illegal (`InvalidPaymentTransitionException`) (`BR-PAYMENT-01`).
+  2. Creation vs Completion: Physical `CASH` tenders MUST be instantiated directly in `COMPLETED` status with immediate `paidAt` timestamp. Asynchronous `QR` tenders MUST be instantiated in `PENDING` status (`paidAt = null`), awaiting customer scan (`BR-PAYMENT-02`).
+  3. Duplicate Completion: Calling `complete()` or `settle()` on an already `COMPLETED` payment MUST be rejected deterministically (`InvalidPaymentTransitionException`). Settled payment records are permanently immutable (`BR-PAYMENT-03`).
+  4. Sale Paid Precondition: A `Sale` MUST be transitioned to `PAID` if and only if the cumulative sum of all settled payments satisfies the order total:
+     $$\sum_{p \in \text{SettledPayments}} p.\text{amount} \ge \text{Sale.total} \quad (\text{BR-PAYMENT-04})$$
+  5. Overpayment Guards: For `QR` tenders, attempting to charge $\text{amount} > \text{Sale.balanceRemaining}$ MUST be rejected with HTTP 422 (`PaymentOverpaymentException`). Cash tendered exceeding balance records the exact balance-settling amount in `Payment.amount`; UI/POS captures `tenderedAmount` and `changeGiven` (`BR-PAYMENT-05`).
+- **Rationale & Business Impact**: Separates commercial purchase agreements from payment rail execution. Protects against duplicate charging and payment rail drift.
+- **Preconditions & Expected Outcome**:
+  - _Preconditions_: Valid parent `SaleId`, strictly positive amount ($> 0$), matching currency.
+  - _Expected Outcome_: Immutable tender record created, settled balance updated, and parent `Sale` advanced to `PARTIALLY_PAID` or `PAID`.
+- **Enforcement Location**:
+  - _Domain Tier_: [`Payment.createCompleted()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/payment.aggregate.ts#L143), [`Payment.createPending()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/payment.aggregate.ts#L173), [`PaymentLifecycleStateMachine`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/services/payment-lifecycle.state-machine.ts).
+  - _Application Tier_: `RecordPaymentHandler`, `CompletePaymentHandler`.
+  - _Persistence Tier_: Table `payments`, DB FK `ON DELETE RESTRICT`.
+- **Relevant Use Case & API Operation**:
+  - _Use Cases_: `RecordPaymentUseCase`, `CompletePaymentUseCase`.
+  - _API Operations_: `POST /api/v1/sales/:id/payments`, `POST /api/v1/sales/payments/:paymentId/complete`.
+- **Test References**:
+  - [`payment.aggregate.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/payment.aggregate.spec.ts)
+  - [`payment-lifecycle-qa-matrix.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/payment-lifecycle-qa-matrix.spec.ts)
+  - [`payments-lifecycle-api-qa.spec.ts`](file:///c:/Projects/kinergy-platform/apps/api/src/sales/__tests__/payments-lifecycle-api-qa.spec.ts)
+  - [`complete-payment-workflow.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/__tests__/complete-payment-workflow.spec.ts)
+  - [`concurrent-payment-completion.integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/concurrent-payment-completion.integration.spec.ts)
+- **Status**: `IMPLEMENTED`
+
+---
+
+### BR-CANCEL: Cancellation Invariants, Permitted States, and Concurrency
+
+- **Stable Rule Identifier**: `BR-CANCEL` (Sub-rules: `BR-CANCEL-01` to `BR-CANCEL-05`)
+- **Rule Statement**:
+  1. `Sale` Cancellation: A `Sale` MAY be cancelled ONLY from `DRAFT`, `PENDING_PAYMENT`, or `PARTIALLY_PAID` status. Cancelling requires a non-empty, trimmed `cancellationReason` string. Once cancelled, it is in a terminal state (`BR-CANCEL-01`).
+  2. `Sale` Cancellation Restrictions: A `Sale` in `PAID`, `COMPLETED`, or `REFUNDED` status MUST NOT be cancelled (`InvalidSaleTransitionException`). Paid sales require compensating refunds, not cancellations (`BR-CANCEL-02`).
+  3. `Payment` Cancellation: A `Payment` MAY be cancelled ONLY while in `PENDING` status (`payment.cancel(reason)`). A `COMPLETED` payment MUST NOT be cancelled (`BR-CANCEL-03`).
+  4. Consequences for Payments & Receipts: Cancelling a `Sale` in `PARTIALLY_PAID` does NOT delete or alter existing settled payments (`ON DELETE RESTRICT`). Application layer coordinates compensating refund of settled tenders. A cancelled sale has zero issued receipts (`BR-CANCEL-04`).
+  5. Concurrency & Reversal Distinction: Under concurrent race conditions between cancellation and payment settlement, Optimistic Concurrency Control (`version`) and interactive database transactions MUST ensure exactly one operation commits and the loser is rolled back with an OCC conflict (`409 Conflict`). Cancellation voids an unfulfilled commercial purchase agreement before full payment; refund is an append-only compensating reversal of an already paid or completed sale, preserving historical rows and generating distinct refund records (`BR-CANCEL-05`).
+- **Rationale & Business Impact**: Prevents rogue cancellation of paid transactions, mandates cashier audit justification, and guarantees concurrency safety during checkout voids.
+- **Preconditions & Expected Outcome**:
+  - _Preconditions_: Sale in un-settled state, non-empty cancellation reason.
+  - _Expected Outcome_: `status = CANCELLED`, `cancelledAt` set, `cancellationReason` recorded, commercial terms sealed forever.
+- **Enforcement Location**:
+  - _Domain Tier_: [`Sale.cancel(reason)`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/sale.aggregate.ts#L1140), [`Sale.canTransitionTo()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/sale.aggregate.ts#L1207).
+  - _Application Tier_: `CancelSaleHandler`, `CancelPaymentHandler`.
+  - _Persistence Tier_: OCC version validation in `PrismaSaleRepository.save()`.
+- **Relevant Use Case & API Operation**:
+  - _Use Cases_: `CancelSaleUseCase`, `CancelPaymentUseCase`.
+  - _API Operations_: `POST /api/v1/sales/:id/cancel`, `POST /api/v1/sales/payments/:paymentId/cancel`.
+- **Test References**:
+  - [`sale-cancelled-immutability.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-cancelled-immutability.spec.ts)
+  - [`sale-lifecycle.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-lifecycle.spec.ts)
+  - [`cancel-sale.handler.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/__tests__/cancel-sale.handler.spec.ts)
+  - [`cancel-payment.handler.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/__tests__/cancel-payment.handler.spec.ts)
+  - [`financial-concurrency-and-race-conditions.integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/financial-concurrency-and-race-conditions.integration.spec.ts)
+- **Status**: `IMPLEMENTED`
+
+---
+
+### BR-RECEIPT: Receipt Voucher Generation, Snapshots, and Idempotency
+
+- **Stable Rule Identifier**: `BR-RECEIPT` (Sub-rules: `BR-RECEIPT-01` to `BR-RECEIPT-05`)
+- **Rule Statement**:
+  1. Availability Preconditions: A `Receipt` voucher MUST be generated exclusively after a `Sale` reaches `PAID` or `COMPLETED` status and has at least one settled payment snapshot covering the total payable amount ($\sum \text{payments} \ge \text{total}$). Receipt issuance MUST be rejected for `DRAFT`, `PENDING_PAYMENT`, and `CANCELLED` sales (`BR-RECEIPT-01`).
+  2. Source of Values: Receipt values MUST be sourced directly from the settled `Sale` and `Payment` aggregates at issuance time (`BR-RECEIPT-02`).
+  3. Historical Snapshot Semantics: Sourced values MUST be embedded into frozen value objects: `ReceiptClientSnapshot` (`null` for walk-ins), `ReceiptItemSnapshot` (descriptions, SKUs, quantities, prices, discounts, totals), and `ReceiptPaymentSnapshot` (tender methods, amounts, references, `paidAt`). The receipt view MUST render purely from the embedded snapshots without performing SQL joins to `clients` or catalog tables (`BR-RECEIPT-03`).
+  4. Retrieval & Idempotency: Valid receipts are retrieved via `GetReceiptByIdQuery` or `GetReceiptBySaleIdQuery`. If no receipt has been issued, queries return 404 Not Found. Attempting to issue a receipt for an unpaid sale returns HTTP 422 (`SaleNotPaidException`). A settled sale MUST have at most one primary receipt (`unique_tenant_sale_receipt`). Repeated issuance requests return the existing receipt voucher idempotently (`BR-RECEIPT-04`).
+  5. Duplicate Reprinting & Exclusions: Reprint requests MUST NOT generate a new receipt. The system re-renders the existing snapshot stamped with a `DUPLICATE / REPRINT` watermark, increments `reprintCount`, updates `lastReprintedAt`, and emits `ReceiptReprintedEvent`. A `Receipt` is strictly a proof-of-purchase voucher; it does NOT represent a fiscal tax clearance invoice, double-entry ledger entry, or fiscal printer memory log (`BR-RECEIPT-05`).
+- **Rationale & Business Impact**: Provides customers with unalterable legal proof of purchase while protecting the business from invoice tampering or duplicate receipt issuance.
+- **Preconditions & Expected Outcome**:
+  - _Preconditions_: Settled `PAID` or `COMPLETED` sale, $\ge 1$ settled payment.
+  - _Expected Outcome_: Idempotent receipt voucher created with gap-free monotonic sequence `REC-YYYY-XXXXXX`.
+- **Enforcement Location**:
+  - _Domain Tier_: [`Receipt.fromSettledSale()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/receipt.aggregate.ts#L227), [`Receipt.validateProps()`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/receipt.aggregate.ts#L298), `Object.seal(this)`.
+  - _Application Tier_: `IssueReceiptHandler`, `GetReceiptByIdQuery`.
+  - _Persistence Tier_: Composite unique index `unique_tenant_sale_receipt`, sequence table `receipt_sequences`.
+- **Relevant Use Case & API Operation**:
+  - _Use Cases_: `IssueReceiptUseCase`, `GetReceiptByIdQuery`, `GetReceiptBySaleIdQuery`.
+  - _API Operations_: `POST /api/v1/sales/:id/receipt`, `GET /api/v1/sales/receipts/:id`, `GET /api/v1/sales/:id/receipt`.
+- **Test References**:
+  - [`receipt.aggregate.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/receipt.aggregate.spec.ts)
+  - [`issue-receipt.handler.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/application/__tests__/issue-receipt.handler.spec.ts)
+  - [`receipt-concurrency-idempotency.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/receipt-concurrency-idempotency.spec.ts)
+  - [`receipt-snapshot-model.md`](file:///c:/Projects/kinergy-platform/docs/domain/receipt-snapshot-model.md)
+- **Status**: `IMPLEMENTED` (Thermal ESC/POS hardware printing driver and vector PDF generation deferred to Milestone 7.17; HTTP dedicated reprint endpoint deferred to Milestone 7.18).
+
+---
+
+### BR-DUPLICATE: Duplicate Prevention, Idempotency, and Concurrency Safety
+
+- **Stable Rule Identifier**: `BR-DUPLICATE` (Sub-rules: `BR-DUPLICATE-01` to `BR-DUPLICATE-03`)
+- **Rule Statement**:
+  1. Uniqueness Scope & Constraints:
+     - Primary Receipts: Exactly one primary receipt per sale (`unique_tenant_sale_receipt` on `receipts(tenant_id, sale_id)`).
+     - Clinical Treatment Encounters: Exactly one active (non-cancelled) sale per clinical session (`uq_sales_clinical_session_active` on `sales(tenant_id, source_id) WHERE source_type IN ('TREATMENT_SESSION', 'KINESIOLOGY_SESSION') AND status != 'CANCELLED'`).
+     - Tender References: Electronic payment references MUST be unique per sale (`uq_payments_sale_reference`) (`BR-DUPLICATE-01`).
+  2. Retry & Idempotency Semantics: Repeating a clinical checkout with the same `sourceReference` returns the existing active sale (or HTTP 409 if executed in parallel). Concurrent or repeated receipt issuance calls catch unique constraint collisions and safely return the existing receipt. Concurrent duplicate completion attempts on the same payment are blocked by OCC `version` check; only one commits, the loser receives OCC conflict (`BR-DUPLICATE-02`).
+  3. Limitations: Retail items (`FOOD`, `DRINK`) and general gym memberships do not enforce source uniqueness; they allow multiple distinct commercial checkout transactions by design (`BR-DUPLICATE-03`).
+- **Rationale & Business Impact**: Eliminates double-charging, double-billing of patients, race conditions under high concurrency, and duplicate receipt sequence numbers.
+- **Preconditions & Expected Outcome**:
+  - _Preconditions_: Incoming request with identical correlation identifiers.
+  - _Expected Outcome_: Deterministic rejection of concurrent duplicates (HTTP 409) or idempotent return of existing record.
+- **Enforcement Location**:
+  - _Database Tier_: Unique indexes `unique_tenant_sale_receipt`, `uq_sales_clinical_session_active`, `uq_payments_sale_reference`.
+  - _Application Tier_: `CreateSaleHandler` idempotency check, `IssueReceiptHandler` duplicate catch.
+  - _Domain Tier_: OCC `version` assertions on all mutating aggregates.
+- **Relevant Use Case & API Operation**:
+  - _Use Cases_: `CreateSaleUseCase`, `CompletePaymentUseCase`, `IssueReceiptUseCase`.
+  - _API Operations_: `POST /api/v1/sales`, `POST /api/v1/sales/:id/payments/:paymentId/complete`, `POST /api/v1/sales/:id/receipt`.
+- **Test References**:
+  - [`sale-commercial-transaction-uniqueness.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/sale-commercial-transaction-uniqueness.spec.ts)
+  - [`financial-concurrency-and-race-conditions.integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/financial-concurrency-and-race-conditions.integration.spec.ts)
+  - [`receipt-concurrency-idempotency.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/domain/__tests__/receipt-concurrency-idempotency.spec.ts)
+  - [`concurrent-payment-completion.integration.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/concurrent-payment-completion.integration.spec.ts)
+  - [`prisma-constraint-error-mapping.spec.ts`](file:///c:/Projects/kinergy-platform/packages/core/src/sales/infrastructure/persistence/prisma/__tests__/prisma-constraint-error-mapping.spec.ts)
+- **Status**: `IMPLEMENTED`
+
+---
+
+## 3. Sale Invariant Catalog (`SALE-01` to `SALE-13`)
 
 | Rule ID       | Rule Statement                                                                                                                                                                                                             | Architectural Tier | Enforcement Mechanism                                                                                                        |
 | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------- | :--------------------------------------------------------------------------------------------------------------------------- |
@@ -67,7 +325,7 @@ flowchart TD
 
 ---
 
-## 3. SaleItem Business Rules
+## 4. SaleItem Invariant Catalog (`ITEM-01` to `ITEM-09`)
 
 | Rule ID       | Rule Statement                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Architectural Tier     | Enforcement Mechanism                                                                       |
 | :------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :--------------------- | :------------------------------------------------------------------------------------------ |
@@ -81,44 +339,9 @@ flowchart TD
 | **`ITEM-08`** | **Line Net & Total Determinism**: Item financial amounts are calculated deterministically: $$\text{subtotal} = \text{unitPrice} \times \text{quantity}$$ $$\text{total} = \text{subtotal} - \text{discountTotal}$$ Pre-tax line net total is guaranteed $\ge 0.00$. (Tax calculation deferred to Phase 7.3+).                                                                                                                                                                                                                                     | `DOMAIN INVARIANT`     | `SaleItem.subtotal`, `SaleItem.total`, `Money.multiply()`                                   |
 | **`ITEM-09`** | **Post-Finalization Freeze**: `SaleItem` attributes, quantities, discounts, and parent collection cannot be updated, adjusted, or deleted once the parent `Sale` departs `DRAFT` status.                                                                                                                                                                                                                                                                                                                                                          | `DOMAIN INVARIANT`     | `Sale.assertDraftState()` throws `SaleAlreadyFinalizedException` (`SALE_ALREADY_FINALIZED`) |
 
-### Historical Snapshot & Discount Traceability Chain
-
-```text
-Requirement: REQ-HIST-01 (Historical Commercial Truth) & REQ-DISC-01 (Deterministic Discounts)
-    ↓
-Business Rules: SALE-08 (Commercial Lock), ITEM-04 (Permanent Snapshot), ITEM-07 (Discount Guard), ITEM-09 (Post-Finalization Freeze)
-    ↓
-SaleItem Invariants: ITEM-01 (Ownership), ITEM-02 (Quantity), ITEM-03 (Price), ITEM-07 (Discount Bounds & Non-Exceeding)
-    ↓
-Domain Implementation:
-  - packages/core/src/sales/domain/sale.aggregate.ts
-  - packages/core/src/sales/domain/entities/sale-item.entity.ts
-  - packages/core/src/sales/domain/value-objects/discount.vo.ts
-  - packages/core/src/sales/domain/value-objects/source-reference.vo.ts
-    ↓
-Executable Test Suites:
-  - packages/core/src/sales/domain/__tests__/sale-discount-invariants.spec.ts (Phase 7.3 Regression)
-  - packages/core/src/sales/domain/__tests__/discount.calculate.spec.ts
-  - packages/core/src/sales/domain/__tests__/discount.vo.spec.ts
-  - packages/core/src/sales/domain/__tests__/sale-item-historical-snapshot.spec.ts (Scenarios 1–8)
-  - packages/core/src/sales/domain/__tests__/sale-item-integration.spec.ts
-  - packages/core/src/sales/domain/__tests__/sale-item.entity.spec.ts
-```
-
-| Traceability Requirement                    | Business Rule                   | Domain Rule                                 | Implementation                                  | Verification Test                                                           |
-| :------------------------------------------ | :------------------------------ | :------------------------------------------ | :---------------------------------------------- | :-------------------------------------------------------------------------- |
-| **Percentage cannot be negative**           | `ITEM-07`                       | $0 \le \text{percentage}$                   | `Discount.percentage()` assertion               | `discount.vo.spec.ts`                                                       |
-| **Percentage maximum (100)**                | `ITEM-07`                       | $\text{percentage} \le 100$                 | `Discount.percentage()` assertion               | `discount.vo.spec.ts`                                                       |
-| **Fixed discount cannot be negative**       | `ITEM-07`, `MNY-05`             | $\text{fixed} \ge 0.00$                     | `Discount.fixed()` assertion                    | `discount.vo.spec.ts`                                                       |
-| **Discount cannot exceed eligible amount**  | `ITEM-07`                       | $\text{discountAmount} \le \text{eligible}$ | `calculate()` throws `InvalidDiscountException` | `discount.calculate.spec.ts`, `sale-discount-invariants.spec.ts`            |
-| **Deterministic calculation**               | `MNY-01`, `MNY-02`              | Half-Up Cent Rounding                       | Minor units in `calculate()`                    | `discount.calculate.spec.ts`                                                |
-| **No floating-point financial calculation** | `MNY-01`, ADR-0108              | Integer Cent Arithmetic                     | Strict cent math in `Discount` and `Money`      | `discount.calculate.spec.ts`, `money.vo.spec.ts`                            |
-| **Item and order scope**                    | `ITEM-01`, `ITEM-07`, `SALE-05` | Scope on `SaleItem` & `Sale`                | `SaleItem.discount`, `Sale.orderDiscount`       | `sale-item.entity.spec.ts`, `sale-discount-invariants.spec.ts`              |
-| **Historical discount stability**           | `SALE-08`, `ITEM-04`            | Frozen Snapshot                             | Frozen terms, locked on finalization            | `sale-item-historical-snapshot.spec.ts`, `sale-discount-invariants.spec.ts` |
-
 ---
 
-## 4. Payment Business Rules
+## 5. Payment Invariant Catalog (`PAY-01` to `PAY-13`)
 
 | Rule ID      | Rule Statement                                                                                                                                                                                                                                   | Architectural Tier     | Enforcement Mechanism                                     |
 | :----------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------- | :-------------------------------------------------------- |
@@ -138,7 +361,7 @@ Executable Test Suites:
 
 ---
 
-## 5. Receipt Business Rules
+## 6. Receipt Invariant Catalog (`REC-01` to `REC-09`)
 
 | Rule ID      | Rule Statement                                                                                                                                                                                                                                                                                            | Architectural Tier | Enforcement Mechanism                         |
 | :----------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :----------------- | :-------------------------------------------- |
@@ -154,7 +377,7 @@ Executable Test Suites:
 
 ---
 
-## 6. Deterministic Money & Arithmetic Rules
+## 7. Deterministic Money & Precision Rules (`MNY-01` to `MNY-10`)
 
 > **There is exactly one canonical monetary policy for Sales.**
 >
@@ -224,7 +447,7 @@ The domain enforces the following **canonical reconciliation formulas**, executi
 
 ---
 
-## 7. Organization & Multi-Tenant Isolation Rules
+## 8. Organization & Multi-Tenant Isolation Rules (`ORG-01` to `ORG-04`)
 
 | Rule ID      | Rule Statement                                                                                                                                                                                                                                                                                          | Architectural Tier | Enforcement Mechanism                                  |
 | :----------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | :----------------- | :----------------------------------------------------- |
@@ -235,7 +458,7 @@ The domain enforces the following **canonical reconciliation formulas**, executi
 
 ---
 
-## 8. Authorization & Access Control Rules
+## 9. Authorization & Access Control Rules (`AUTH-01` to `AUTH-09`)
 
 In accordance with Phase 1 IAM architecture, permissions follow canonical dot notation:
 
@@ -258,9 +481,9 @@ In accordance with Phase 1 IAM architecture, permissions follow canonical dot no
 
 ---
 
-## 9. Audit & Security Rules
+## 10. Audit & Security Rules (`AUD-01` to `AUD-08`, `SEC-01` to `SEC-04`)
 
-### 9.1 Business Audit Logging (Durable Compliance Events)
+### 10.1 Business Audit Logging (Durable Compliance Events)
 
 | Rule ID      | Event Trigger                           | Audited Event Name        | Payload Captured                                                                                |
 | :----------- | :-------------------------------------- | :------------------------ | :---------------------------------------------------------------------------------------------- |
@@ -273,11 +496,11 @@ In accordance with Phase 1 IAM architecture, permissions follow canonical dot no
 | **`AUD-07`** | Customer receipt generated              | `ReceiptIssued`           | `receiptId`, `receiptNumber`, `saleId`, `tenantId`, `totalAmount`, timestamp                    |
 | **`AUD-08`** | Duplicate receipt reprint performed     | `ReceiptReprinted`        | `receiptId`, `receiptNumber`, `saleId`, `tenantId`, `actorId`, timestamp (Security Log)         |
 
-### 9.2 Excluded Ephemeral Cart Churn
+### 10.2 Excluded Ephemeral Cart Churn
 
 - Draft cart modifications (`SaleItemAddedToDraft`, `SaleItemQuantityChangedInDraft`) are **NOT** business audit events. They are captured exclusively in transient application debug logs to prevent audit database pollution.
 
-### 9.3 Sensitive Payment Data Redaction (PCI-DSS)
+### 10.3 Sensitive Payment Data Redaction (PCI-DSS)
 
 | Rule ID      | Rule Statement                                                                                                                                          | Architectural Tier | Enforcement Mechanism                     |
 | :----------- | :------------------------------------------------------------------------------------------------------------------------------------------------------ | :----------------- | :---------------------------------------- |
@@ -288,47 +511,15 @@ In accordance with Phase 1 IAM architecture, permissions follow canonical dot no
 
 ---
 
-## 10. Traceability Matrix
+## 11. End-to-End Business Rules Traceability Matrix
 
-### 10.1 Phase 7.1 Sale Domain Traceability
-
-```text
-Business Requirement
-        ↓
-Business Rule
-        ↓
-Sale Domain Rule
-        ↓
-Sale Aggregate Behavior
-        ↓
-Domain Test
-```
-
-| Business Requirement             | Business Rule                   | Domain Concept                        | Domain Behavior Guarantee                                                                           | Phase 7.1 Automated Test Suite (`packages/core/src/sales/domain/`)                                                                  |
-| :------------------------------- | :------------------------------ | :------------------------------------ | :-------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------- |
-| **Multi-Service POS Checkout**   | `SALE-01`, `SALE-05`, `ITEM-05` | `Sale`, `SaleItem`, `SourceReference` | `Sale.create()`, `Sale.addItem()`, `Sale.finalize()`                                                | [`__tests__/sale.aggregate.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale.aggregate.spec.ts)                       |
-| **Price & Catalog Decoupling**   | `ITEM-04`, `ITEM-09`            | `SaleItem` snapshot attributes        | `SaleItem.create()`, `SaleItem.reconstitute()` freeze description, SKU, unitPrice, discount         | [`__tests__/sale-item.entity.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-item.entity.spec.ts)                   |
-| **Positive Quantity & Pricing**  | `ITEM-02`, `ITEM-03`            | `SaleItem` domain invariants          | Rejects zero/negative quantities, normalizes to 3 decimals, enforces non-negative Money             | [`__tests__/sale-item.entity.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-item.entity.spec.ts)                   |
-| **Exact Cent Reconciliation**    | `MNY-01`, `MNY-02`, `SALE-07`   | `Money` VO, 13 Formulas               | `recalculateTotals()` computes subtotals, item discounts, order discount, and total payable $\ge 0$ | [`__tests__/sale.aggregate.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale.aggregate.spec.ts)                       |
-| **Commercial Immutability**      | `SALE-08`, `ITEM-09`            | Progressive Immutability Milestone    | `assertDraftState()` blocks adding, removing, editing items or discounts after departing `DRAFT`    | [`__tests__/sale-hardening.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-hardening.spec.ts)                       |
-| **Collection Safety**            | `ITEM-01`, `SALE-08`            | Encapsulated Collections              | `items` getter returns `Object.freeze([...items])`; date getters return defensive clones            | [`__tests__/sale-hardening.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-hardening.spec.ts)                       |
-| **7-State Commercial Lifecycle** | `SALE-04`, `SALE-09` to `13`    | `SaleStatus` State Machine            | `finalize()`, `markPartiallyPaid()`, `markPaid()`, `markCompleted()`, `markRefunded()`, `cancel()`  | [`__tests__/sale-lifecycle.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-lifecycle.spec.ts)                       |
-| **Cancellation Invariants**      | `SALE-09`                       | Order Cancellation Rule               | Allowed from `DRAFT`, `PENDING_PAYMENT`, `PARTIALLY_PAID`; requires non-empty reason string         | [`__tests__/sale-lifecycle.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-lifecycle.spec.ts)                       |
-| **Deterministic Domain Errors**  | `SALE-05`, `SALE-08`, `SALE-09` | `SaleDomainException` Hierarchy       | Throws typed errors with machine-readable `code` properties (`EMPTY_SALE`, etc.)                    | [`__tests__/sale-deterministic-errors.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-deterministic-errors.spec.ts) |
-| **Failure Atomicity**            | `SALE-01` to `SALE-13`          | Aggregate Consistency Boundary        | Failed operations abort prior to mutation; zero uncommitted events staged                           | [`__tests__/sale-deterministic-errors.spec.ts`](file:///packages/core/src/sales/domain/__tests__/sale-deterministic-errors.spec.ts) |
-| **Exception Inheritance**        | `SALE-05`, `SALE-08`            | Domain Exception Classes              | Prototype chain preserved (`instanceof Error`, `instanceof SaleDomainException`)                    | [`exceptions/exceptions.spec.ts`](file:///packages/core/src/sales/domain/exceptions/exceptions.spec.ts)                             |
-| **Discount Boundaries & Caps**   | `SALE-07`, `ITEM-07`            | `Discount` Value Object               | Validates percentage ($0-100\%$) and fixed amount; caps reduction at subtotal; requires reason      | [`__tests__/discount.vo.spec.ts`](file:///packages/core/src/sales/domain/__tests__/discount.vo.spec.ts)                             |
-| **Unconstrained Source Ref**     | `ITEM-05`                       | `SourceReference` Value Object        | Validates sourceType, scalar sourceId, optional sourceCode without cross-context foreign keys       | [`__tests__/source-reference.vo.spec.ts`](file:///packages/core/src/sales/domain/__tests__/source-reference.vo.spec.ts)             |
-
-### 10.2 Milestone Implementation & Verification Status
-
-| Milestone     | Area Covered                                        | Implemented & Certified Status                                          | Governing Test Suites                                                                                                                   |
-| :------------ | :-------------------------------------------------- | :---------------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
-| **Phase 7.1** | Sale Domain Foundation & Invariants                 | **CERTIFIED PASS** (`docs/architecture/sales-foundation-acceptance.md`) | `sale.aggregate.spec.ts`, `sale-lifecycle.spec.ts`, `sale-hardening.spec.ts`                                                            |
-| **Phase 7.2** | SaleItem Entity & Historical Snapshots              | **CERTIFIED PASS** (`docs/architecture/sale-item-acceptance.md`)        | `sale-item.entity.spec.ts`, `sale-item-historical-snapshot.spec.ts`                                                                     |
-| **Phase 7.3** | Item-Level Discounts & Bounds                       | **CERTIFIED PASS** (`docs/architecture/discount-domain-acceptance.md`)  | `discount.vo.spec.ts`, `phase-7-3-discount-test-matrix.spec.ts`                                                                         |
-| **Phase 7.4** | Deterministic Sale Totals, Money Rules & Safety Net | **CERTIFIED PASS** (`docs/architecture/sale-totals-acceptance.md`)      | `sale-application-totals.spec.ts`, `monetary-precision-safety-net.spec.ts`, `sales-monetary-anti-patterns.spec.ts`                      |
-| **Phase 7.5** | Multi-Tender Settlement & Payments                  | **CERTIFIED PASS** (`docs/architecture/payment-domain-acceptance.md`)   | `payment.aggregate.spec.ts`, `payment-application.spec.ts`, `phase-7-5-payment-qa-safety-net.spec.ts`, `payments-qa-safety-net.spec.ts` |
-| **Phase 7.6** | Payment State Machine & Lifecycle Determinism       | **CERTIFIED PASS** (`docs/architecture/payment-domain-acceptance.md`)   | `payment-lifecycle-qa-matrix.spec.ts`, `payments-lifecycle-api-qa.spec.ts`                                                              |
-| **Phase 7.7** | Receipt Domain, Sequential Numbering & Idempotency  | **CERTIFIED PASS** (`docs/architecture/receipt-traceability-matrix.md`) | `receipt.aggregate.spec.ts`, `issue-receipt.handler.spec.ts`, `receipt-concurrency-idempotency.spec.ts`                                 |
-| **Phase 7.8** | Sale Aggregate Boundary & Invariant Catalog         | **CERTIFIED PASS** (`docs/business-rules/sale-invariants-catalog.md`)   | `sale-aggregate-invariants-catalog.spec.ts`, `sale.aggregate.spec.ts`, `sale-totals-deterministic.spec.ts`                              |
+| Business Rule      | Domain Concept       | Enforcing Mechanism                                                              | Governing Test Suite                                                                                                 | Implementation Status |
+| :----------------- | :------------------- | :------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------- | :-------------------- |
+| **`BR-SALES`**     | `Sale`, `SaleSource` | `CreateSaleHandler`, partial unique index `uq_sales_clinical_session_active`     | `sale-commercial-transaction-uniqueness.spec.ts`, `financial-concurrency-and-race-conditions.integration.spec.ts`    | `IMPLEMENTED`         |
+| **`BR-ITEM`**      | `SaleItem`           | `SaleItem.create()`, `Object.freeze(this)`, standalone snapshot columns          | `sale-item.entity.spec.ts`, `sale-item-historical-snapshot.spec.ts`                                                  | `IMPLEMENTED`         |
+| **`BR-DISCOUNT`**  | `Discount`           | `Discount.calculate()`, `Discount.calculateReduction()`, non-exceeding guard     | `discount.vo.spec.ts`, `discount.calculate.spec.ts`, `sale-discount-invariants.spec.ts`                              | `IMPLEMENTED`         |
+| **`BR-TOTAL`**     | `Money`, `Sale`      | 13 formulas, minor unit integer math, `@db.Decimal(12, 2)`, negative check       | `sale-totals-deterministic.spec.ts`, `monetary-precision-safety-net.spec.ts`                                         | `IMPLEMENTED`         |
+| **`BR-PAYMENT`**   | `Payment`            | `PaymentLifecycleStateMachine`, `RecordPaymentHandler`, `CompletePaymentHandler` | `payment.aggregate.spec.ts`, `payment-lifecycle-qa-matrix.spec.ts`, `complete-payment-workflow.spec.ts`              | `IMPLEMENTED`         |
+| **`BR-CANCEL`**    | `Sale`, `Payment`    | `Sale.cancel(reason)`, `CancelPaymentHandler`, OCC versioning, atomic rollback   | `sale-cancelled-immutability.spec.ts`, `cancel-sale.handler.spec.ts`, `sale-lifecycle.spec.ts`                       | `IMPLEMENTED`         |
+| **`BR-RECEIPT`**   | `Receipt`            | `Receipt.fromSettledSale()`, snapshots, `unique_tenant_sale_receipt`, sequence   | `receipt.aggregate.spec.ts`, `issue-receipt.handler.spec.ts`, `receipt-concurrency-idempotency.spec.ts`              | `IMPLEMENTED`         |
+| **`BR-DUPLICATE`** | Multi-Aggregate      | Indexes `uq_sales_clinical_session_active`, `unique_tenant_sale_receipt`, OCC    | `financial-concurrency-and-race-conditions.integration.spec.ts`, `concurrent-payment-completion.integration.spec.ts` | `IMPLEMENTED`         |
