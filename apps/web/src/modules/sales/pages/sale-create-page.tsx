@@ -29,6 +29,8 @@ import { VALID_SALE_SOURCE_TYPES } from '../types/sales.types';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { SALES_ROUTES } from '../routes/sales-routes';
+import { useDirtyGuard, ConfirmDiscardDialog, useApplyServerErrors } from '../../../shared/forms';
+import { ValidationError } from '../../../shared/query';
 
 export const SaleCreatePage: React.FC = () => {
   const navigate = useNavigate();
@@ -44,6 +46,7 @@ export const SaleCreatePage: React.FC = () => {
 
   const [hasSourceReference, setHasSourceReference] = useState(false);
   const [hasOrderDiscount, setHasOrderDiscount] = useState(false);
+  const [isNavigatingPostSubmit, setIsNavigatingPostSubmit] = useState(false);
   const [serverError, setServerError] = useState<{
     status?: number;
     message: string;
@@ -61,7 +64,8 @@ export const SaleCreatePage: React.FC = () => {
     control,
     handleSubmit,
     setValue,
-    formState: { errors, isSubmitting },
+    setError,
+    formState: { errors, isSubmitting, isDirty, isSubmitSuccessful },
   } = useForm<CreateSaleFormData>({
     resolver: zodResolver(createSaleSchema),
     defaultValues: {
@@ -86,6 +90,25 @@ export const SaleCreatePage: React.FC = () => {
       orderDiscount: undefined,
     },
   });
+
+  const {
+    isBlocked,
+    proceed,
+    reset: resetDirtyGuard,
+  } = useDirtyGuard({
+    isDirty: isDirty && !isNavigatingPostSubmit,
+    isSubmitSuccessful: isSubmitSuccessful || isNavigatingPostSubmit,
+    enabled: !isNavigatingPostSubmit,
+  });
+
+  // Auto-proceed if blocked during authorized post-submit navigation
+  React.useEffect(() => {
+    if (isBlocked && isNavigatingPostSubmit) {
+      proceed();
+    }
+  }, [isBlocked, isNavigatingPostSubmit, proceed]);
+
+  const applyServerErrors = useApplyServerErrors<CreateSaleFormData>(setError);
 
   const { fields, append, remove } = useFieldArray({
     control,
@@ -177,8 +200,14 @@ export const SaleCreatePage: React.FC = () => {
         idempotencyKey,
       });
 
+      setIsNavigatingPostSubmit(true);
       navigate(SALES_ROUTES.detail(created.id));
     } catch (err: unknown) {
+      setIsNavigatingPostSubmit(false);
+      if (err instanceof ValidationError) {
+        applyServerErrors(err, { fallbackField: 'currency' });
+      }
+
       const errorObj = err as Record<string, unknown>;
       const status =
         (errorObj?.status as number | undefined) ??
@@ -219,7 +248,13 @@ export const SaleCreatePage: React.FC = () => {
       {/* 1. Header Navigation */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs gap-1">
+          <Button
+            asChild
+            variant="ghost"
+            size="sm"
+            className="h-8 px-2 text-xs gap-1"
+            data-testid="back-to-directory-btn"
+          >
             <Link to={SALES_ROUTES.list()}>
               <ArrowLeft className="h-4 w-4" /> Back to Directory
             </Link>
@@ -313,9 +348,10 @@ export const SaleCreatePage: React.FC = () => {
                   placeholder="e.g. client_123 (Leave empty for Walk-in)"
                   {...register('clientId')}
                   className="h-9 text-xs"
+                  aria-describedby="client-id-helper"
                   data-testid="sale-client-id-input"
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p id="client-id-helper" className="text-[11px] text-muted-foreground">
                   If left blank, this checkout will be tracked as an anonymous Walk-in customer.
                 </p>
               </div>
@@ -331,12 +367,16 @@ export const SaleCreatePage: React.FC = () => {
                   maxLength={3}
                   {...register('currency')}
                   className="h-9 text-xs uppercase font-mono"
+                  aria-invalid={Boolean(errors.currency)}
+                  aria-describedby={errors.currency ? 'currency-error' : 'currency-helper'}
                   data-testid="sale-currency-input"
                 />
                 {errors.currency && (
-                  <p className="text-xs text-destructive">{errors.currency.message}</p>
+                  <p id="currency-error" className="text-xs text-destructive">
+                    {errors.currency.message}
+                  </p>
                 )}
-                <p className="text-[11px] text-muted-foreground">
+                <p id="currency-helper" className="text-[11px] text-muted-foreground">
                   3-letter uppercase currency code (e.g. USD, CAD, EUR).
                 </p>
               </div>
@@ -395,8 +435,11 @@ export const SaleCreatePage: React.FC = () => {
                 data-testid="source-reference-fields"
               >
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Source Type *</label>
+                  <label htmlFor="source-type" className="text-xs font-medium">
+                    Source Type *
+                  </label>
                   <select
+                    id="source-type"
                     {...register('sourceReference.type')}
                     className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
                     data-testid="source-type-select"
@@ -410,23 +453,33 @@ export const SaleCreatePage: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Reference ID *</label>
+                  <label htmlFor="source-ref-id" className="text-xs font-medium">
+                    Reference ID *
+                  </label>
                   <Input
+                    id="source-ref-id"
                     placeholder="e.g. inv_item_123 or session_456"
                     {...register('sourceReference.referenceId')}
                     className="h-8 text-xs"
+                    aria-invalid={Boolean(errors.sourceReference?.referenceId)}
+                    aria-describedby={
+                      errors.sourceReference?.referenceId ? 'source-ref-id-error' : undefined
+                    }
                     data-testid="source-reference-id-input"
                   />
                   {errors.sourceReference?.referenceId && (
-                    <p className="text-[11px] text-destructive">
+                    <p id="source-ref-id-error" className="text-[11px] text-destructive">
                       {errors.sourceReference.referenceId.message}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Order / Reference Code</label>
+                  <label htmlFor="source-ref-code" className="text-xs font-medium">
+                    Order / Reference Code
+                  </label>
                   <Input
+                    id="source-ref-code"
                     placeholder="e.g. SKU or order tag"
                     {...register('sourceReference.referenceCode')}
                     className="h-8 text-xs"
@@ -502,15 +555,22 @@ export const SaleCreatePage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
                   {/* Description */}
                   <div className="space-y-1 sm:col-span-2">
-                    <label className="text-xs font-medium">Description *</label>
+                    <label htmlFor={`item-desc-${index}`} className="text-xs font-medium">
+                      Description *
+                    </label>
                     <Input
+                      id={`item-desc-${index}`}
                       placeholder="e.g. Whey Protein 1kg"
                       {...register(`items.${index}.description` as const)}
                       className="h-8 text-xs"
+                      aria-invalid={Boolean(errors.items?.[index]?.description)}
+                      aria-describedby={
+                        errors.items?.[index]?.description ? `item-desc-error-${index}` : undefined
+                      }
                       data-testid={`item-desc-${index}`}
                     />
                     {errors.items?.[index]?.description && (
-                      <p className="text-[11px] text-destructive">
+                      <p id={`item-desc-error-${index}`} className="text-[11px] text-destructive">
                         {errors.items[index]?.description?.message}
                       </p>
                     )}
@@ -518,8 +578,11 @@ export const SaleCreatePage: React.FC = () => {
 
                   {/* SKU / Code */}
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">SKU / Code</label>
+                    <label htmlFor={`item-sku-${index}`} className="text-xs font-medium">
+                      SKU / Code
+                    </label>
                     <Input
+                      id={`item-sku-${index}`}
                       placeholder="e.g. PROT-01"
                       {...register(`items.${index}.skuOrCode` as const)}
                       className="h-8 text-xs font-mono"
@@ -529,8 +592,11 @@ export const SaleCreatePage: React.FC = () => {
 
                   {/* Category */}
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Category</label>
+                    <label htmlFor={`item-source-type-${index}`} className="text-xs font-medium">
+                      Category
+                    </label>
                     <select
+                      id={`item-source-type-${index}`}
                       {...register(`items.${index}.sourceType` as const)}
                       className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
                       data-testid={`item-source-type-${index}`}
@@ -545,18 +611,26 @@ export const SaleCreatePage: React.FC = () => {
 
                   {/* Unit Price */}
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Unit Price ({watchedCurrency}) *</label>
+                    <label htmlFor={`item-price-${index}`} className="text-xs font-medium">
+                      Unit Price ({watchedCurrency}) *
+                    </label>
                     <Input
+                      id={`item-price-${index}`}
                       type="number"
                       step="0.01"
                       min={0}
+                      autoComplete="off"
                       placeholder="0.00"
                       {...register(`items.${index}.unitPrice` as const, { valueAsNumber: true })}
                       className="h-8 text-xs font-mono"
+                      aria-invalid={Boolean(errors.items?.[index]?.unitPrice)}
+                      aria-describedby={
+                        errors.items?.[index]?.unitPrice ? `item-price-error-${index}` : undefined
+                      }
                       data-testid={`item-price-${index}`}
                     />
                     {errors.items?.[index]?.unitPrice && (
-                      <p className="text-[11px] text-destructive">
+                      <p id={`item-price-error-${index}`} className="text-[11px] text-destructive">
                         {errors.items[index]?.unitPrice?.message}
                       </p>
                     )}
@@ -564,18 +638,29 @@ export const SaleCreatePage: React.FC = () => {
 
                   {/* Quantity */}
                   <div className="space-y-1">
-                    <label className="text-xs font-medium">Quantity *</label>
+                    <label htmlFor={`item-quantity-${index}`} className="text-xs font-medium">
+                      Quantity *
+                    </label>
                     <Input
+                      id={`item-quantity-${index}`}
                       type="number"
                       step="1"
                       min={0.001}
+                      autoComplete="off"
                       defaultValue={1}
                       {...register(`items.${index}.quantity` as const, { valueAsNumber: true })}
                       className="h-8 text-xs font-mono"
+                      aria-invalid={Boolean(errors.items?.[index]?.quantity)}
+                      aria-describedby={
+                        errors.items?.[index]?.quantity ? `item-quantity-error-${index}` : undefined
+                      }
                       data-testid={`item-quantity-${index}`}
                     />
                     {errors.items?.[index]?.quantity && (
-                      <p className="text-[11px] text-destructive">
+                      <p
+                        id={`item-quantity-error-${index}`}
+                        className="text-[11px] text-destructive"
+                      >
                         {errors.items[index]?.quantity?.message}
                       </p>
                     )}
@@ -613,8 +698,11 @@ export const SaleCreatePage: React.FC = () => {
             <CardContent className="space-y-3 pt-2">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Discount Type</label>
+                  <label htmlFor="order-discount-type" className="text-xs font-medium">
+                    Discount Type
+                  </label>
                   <select
+                    id="order-discount-type"
                     {...register('orderDiscount.type')}
                     className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
                     data-testid="order-discount-type-select"
@@ -625,26 +713,37 @@ export const SaleCreatePage: React.FC = () => {
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Discount Value *</label>
+                  <label htmlFor="order-discount-value" className="text-xs font-medium">
+                    Discount Value *
+                  </label>
                   <Input
+                    id="order-discount-value"
                     type="number"
                     step="0.01"
                     min={0}
+                    autoComplete="off"
                     placeholder="0.00"
                     {...register('orderDiscount.value', { valueAsNumber: true })}
                     className="h-8 text-xs font-mono"
+                    aria-invalid={Boolean(errors.orderDiscount?.value)}
+                    aria-describedby={
+                      errors.orderDiscount?.value ? 'order-discount-value-error' : undefined
+                    }
                     data-testid="order-discount-value-input"
                   />
                   {errors.orderDiscount?.value && (
-                    <p className="text-[11px] text-destructive">
+                    <p id="order-discount-value-error" className="text-[11px] text-destructive">
                       {errors.orderDiscount.value.message}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-xs font-medium">Reason / Authorization</label>
+                  <label htmlFor="order-discount-reason" className="text-xs font-medium">
+                    Reason / Authorization
+                  </label>
                   <Input
+                    id="order-discount-reason"
                     placeholder="e.g. Promotional coupon, Manager override"
                     {...register('orderDiscount.reason')}
                     className="h-8 text-xs"
@@ -704,7 +803,13 @@ export const SaleCreatePage: React.FC = () => {
 
         {/* 8. Action Buttons */}
         <div className="flex items-center justify-end gap-3 pt-2">
-          <Button asChild variant="outline" size="sm" className="h-9 px-4 text-xs">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-9 px-4 text-xs"
+            data-testid="cancel-create-sale-btn"
+          >
             <Link to={SALES_ROUTES.list()}>Cancel</Link>
           </Button>
 
@@ -718,6 +823,14 @@ export const SaleCreatePage: React.FC = () => {
           </Button>
         </div>
       </form>
+
+      <ConfirmDiscardDialog
+        open={isBlocked}
+        onConfirm={proceed}
+        onCancel={resetDirtyGuard}
+        title="Discard new sale draft?"
+        description="You have unsaved line items or customer data that will be lost. Are you sure you want to discard this draft?"
+      />
     </div>
   );
 };
