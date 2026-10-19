@@ -228,13 +228,21 @@ export const ReceiptViewPage: React.FC = () => {
             <span className="font-semibold text-xs text-muted-foreground uppercase tracking-wider block">
               Purchased Items
             </span>
-            <table className="w-full text-xs">
+            <table className="w-full text-xs" aria-label="Purchased items">
               <thead>
                 <tr className="border-b border-border text-muted-foreground">
-                  <th className="py-1.5 text-left font-medium">Item Description</th>
-                  <th className="py-1.5 text-center font-medium">Qty</th>
-                  <th className="py-1.5 text-right font-medium">Unit Price</th>
-                  <th className="py-1.5 text-right font-medium">Total</th>
+                  <th scope="col" className="py-1.5 text-left font-medium">
+                    Item Description
+                  </th>
+                  <th scope="col" className="py-1.5 text-center font-medium">
+                    Qty
+                  </th>
+                  <th scope="col" className="py-1.5 text-right font-medium">
+                    Unit Price
+                  </th>
+                  <th scope="col" className="py-1.5 text-right font-medium">
+                    Total
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/60">

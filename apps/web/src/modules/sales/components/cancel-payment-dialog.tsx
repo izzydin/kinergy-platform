@@ -112,8 +112,23 @@ export const CancelPaymentDialog: React.FC<CancelPaymentDialogProps> = ({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={guardedOnOpenChange}>
-        <DialogContent data-testid="cancel-payment-dialog">
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (isSubmitting) return;
+          guardedOnOpenChange(nextOpen);
+        }}
+      >
+        <DialogContent
+          data-testid="cancel-payment-dialog"
+          hideCloseButton={isSubmitting}
+          onEscapeKeyDown={(e) => {
+            if (isSubmitting) e.preventDefault();
+          }}
+          onPointerDownOutside={(e) => {
+            if (isSubmitting) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-destructive">
               <ShieldAlert className="h-5 w-5" /> Void Payment Tender
@@ -161,12 +176,13 @@ export const CancelPaymentDialog: React.FC<CancelPaymentDialogProps> = ({
                 {...register('reason')}
                 disabled={isSubmitting}
                 autoFocus
+                aria-required="true"
                 aria-invalid={Boolean(errors.reason)}
                 aria-describedby={errors.reason ? 'void-reason-error' : undefined}
                 data-testid="void-payment-reason-input"
               />
               {errors.reason && (
-                <p id="void-reason-error" className="text-xs text-destructive">
+                <p id="void-reason-error" role="alert" className="text-xs text-destructive">
                   {errors.reason.message}
                 </p>
               )}

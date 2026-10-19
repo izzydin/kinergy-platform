@@ -118,8 +118,23 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={guardedOnOpenChange}>
-        <DialogContent data-testid="record-payment-dialog">
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (isSubmitting) return;
+          guardedOnOpenChange(nextOpen);
+        }}
+      >
+        <DialogContent
+          data-testid="record-payment-dialog"
+          hideCloseButton={isSubmitting}
+          onEscapeKeyDown={(e) => {
+            if (isSubmitting) e.preventDefault();
+          }}
+          onPointerDownOutside={(e) => {
+            if (isSubmitting) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Record Payment Tender</DialogTitle>
             <DialogDescription>
@@ -172,6 +187,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                 id="tender-method"
                 {...register('method')}
                 disabled={isSubmitting}
+                aria-required="true"
                 aria-invalid={Boolean(errors.method)}
                 aria-describedby={errors.method ? 'tender-method-error' : undefined}
                 className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -183,7 +199,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                 ))}
               </select>
               {errors.method && (
-                <p id="tender-method-error" className="text-xs text-destructive">
+                <p id="tender-method-error" role="alert" className="text-xs text-destructive">
                   {errors.method.message}
                 </p>
               )}
@@ -202,11 +218,12 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                 placeholder="0.00"
                 {...register('amount', { valueAsNumber: true })}
                 disabled={isSubmitting}
+                aria-required="true"
                 aria-invalid={Boolean(errors.amount)}
                 aria-describedby={errors.amount ? 'tender-amount-error' : undefined}
               />
               {errors.amount && (
-                <p id="tender-amount-error" className="text-xs text-destructive">
+                <p id="tender-amount-error" role="alert" className="text-xs text-destructive">
                   {errors.amount.message}
                 </p>
               )}
@@ -225,7 +242,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                 aria-describedby={errors.reference ? 'tender-reference-error' : undefined}
               />
               {errors.reference && (
-                <p id="tender-reference-error" className="text-xs text-destructive">
+                <p id="tender-reference-error" role="alert" className="text-xs text-destructive">
                   {errors.reference.message}
                 </p>
               )}

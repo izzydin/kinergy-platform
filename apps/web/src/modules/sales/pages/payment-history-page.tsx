@@ -208,16 +208,30 @@ export const PaymentHistoryPage: React.FC = () => {
       {/* Tenders Table */}
       <div className="rounded-md border border-border bg-card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left" aria-label="Payment tenders history">
             <thead className="bg-muted/40 text-xs font-medium text-muted-foreground uppercase border-b border-border">
               <tr>
-                <th className="px-4 py-3">Date & Time</th>
-                <th className="px-4 py-3">Payment ID</th>
-                <th className="px-4 py-3">Sale ID</th>
-                <th className="px-4 py-3">Method</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 text-right">Amount</th>
-                <th className="px-4 py-3 text-right">Actions</th>
+                <th scope="col" className="px-4 py-3">
+                  Date & Time
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Payment ID
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Sale ID
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Method
+                </th>
+                <th scope="col" className="px-4 py-3">
+                  Status
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Amount
+                </th>
+                <th scope="col" className="px-4 py-3 text-right">
+                  Actions
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -320,7 +334,12 @@ export const PaymentHistoryPage: React.FC = () => {
                     </td>
                     <td className="px-4 py-3 text-right">
                       <Button asChild variant="ghost" size="sm" className="h-7 text-xs">
-                        <Link to={SALES_ROUTES.paymentDetail(payment.id)}>Inspect</Link>
+                        <Link
+                          to={SALES_ROUTES.paymentDetail(payment.id)}
+                          aria-label={`Inspect payment tender ${payment.id}`}
+                        >
+                          Inspect
+                        </Link>
                       </Button>
                     </td>
                   </tr>

@@ -104,8 +104,24 @@ export const SettlePaymentDialog: React.FC<SettlePaymentDialogProps> = ({
   };
 
   return (
-    <Dialog open={open} onOpenChange={isSubmitting ? undefined : onOpenChange}>
-      <DialogContent className="max-w-xl" data-testid="settle-payment-dialog">
+    <Dialog
+      open={open}
+      onOpenChange={(nextOpen) => {
+        if (isSubmitting) return;
+        onOpenChange(nextOpen);
+      }}
+    >
+      <DialogContent
+        className="max-w-xl"
+        data-testid="settle-payment-dialog"
+        hideCloseButton={isSubmitting}
+        onEscapeKeyDown={(e) => {
+          if (isSubmitting) e.preventDefault();
+        }}
+        onPointerDownOutside={(e) => {
+          if (isSubmitting) e.preventDefault();
+        }}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />

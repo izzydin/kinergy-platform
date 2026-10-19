@@ -97,8 +97,23 @@ export const CancelSaleDialog: React.FC<CancelSaleDialogProps> = ({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={guardedOnOpenChange}>
-        <DialogContent data-testid="cancel-sale-dialog">
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (isSubmitting) return;
+          guardedOnOpenChange(nextOpen);
+        }}
+      >
+        <DialogContent
+          data-testid="cancel-sale-dialog"
+          hideCloseButton={isSubmitting}
+          onEscapeKeyDown={(e) => {
+            if (isSubmitting) e.preventDefault();
+          }}
+          onPointerDownOutside={(e) => {
+            if (isSubmitting) e.preventDefault();
+          }}
+        >
           <DialogHeader>
             <DialogTitle>Cancel Commercial Sale</DialogTitle>
             <DialogDescription>
@@ -139,12 +154,13 @@ export const CancelSaleDialog: React.FC<CancelSaleDialogProps> = ({
                 {...register('reason')}
                 disabled={isSubmitting}
                 autoFocus
+                aria-required="true"
                 aria-invalid={Boolean(errors.reason)}
                 aria-describedby={errors.reason ? 'cancellation-reason-error' : undefined}
                 data-testid="cancellation-reason-input"
               />
               {errors.reason && (
-                <p id="cancellation-reason-error" className="text-xs text-destructive">
+                <p id="cancellation-reason-error" role="alert" className="text-xs text-destructive">
                   {errors.reason.message}
                 </p>
               )}

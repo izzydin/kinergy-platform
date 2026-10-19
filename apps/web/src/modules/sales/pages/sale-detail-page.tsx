@@ -530,16 +530,34 @@ export const SaleDetailPage: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left" data-testid="sale-line-items-table">
+            <table
+              className="w-full text-sm text-left"
+              data-testid="sale-line-items-table"
+              aria-label="Order line items"
+            >
               <thead className="bg-muted/40 text-xs font-medium text-muted-foreground uppercase border-b border-border">
                 <tr>
-                  <th className="px-4 py-2.5">Category</th>
-                  <th className="px-4 py-2.5">Description</th>
-                  <th className="px-4 py-2.5">SKU / Code</th>
-                  <th className="px-4 py-2.5 text-right">Unit Price</th>
-                  <th className="px-4 py-2.5 text-center">Qty</th>
-                  <th className="px-4 py-2.5 text-right">Discount</th>
-                  <th className="px-4 py-2.5 text-right">Total</th>
+                  <th scope="col" className="px-4 py-2.5">
+                    Category
+                  </th>
+                  <th scope="col" className="px-4 py-2.5">
+                    Description
+                  </th>
+                  <th scope="col" className="px-4 py-2.5">
+                    SKU / Code
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-right">
+                    Unit Price
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-center">
+                    Qty
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-right">
+                    Discount
+                  </th>
+                  <th scope="col" className="px-4 py-2.5 text-right">
+                    Total
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -604,15 +622,31 @@ export const SaleDetailPage: React.FC = () => {
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm text-left" data-testid="sale-payments-table">
+              <table
+                className="w-full text-sm text-left"
+                data-testid="sale-payments-table"
+                aria-label="Payment tenders recorded"
+              >
                 <thead className="bg-muted/40 text-xs font-medium text-muted-foreground uppercase border-b border-border">
                   <tr>
-                    <th className="px-4 py-2.5">Payment ID</th>
-                    <th className="px-4 py-2.5">Method</th>
-                    <th className="px-4 py-2.5">Status</th>
-                    <th className="px-4 py-2.5">Reference</th>
-                    <th className="px-4 py-2.5 text-right">Amount</th>
-                    <th className="px-4 py-2.5 text-right">Action</th>
+                    <th scope="col" className="px-4 py-2.5">
+                      Payment ID
+                    </th>
+                    <th scope="col" className="px-4 py-2.5">
+                      Method
+                    </th>
+                    <th scope="col" className="px-4 py-2.5">
+                      Status
+                    </th>
+                    <th scope="col" className="px-4 py-2.5">
+                      Reference
+                    </th>
+                    <th scope="col" className="px-4 py-2.5 text-right">
+                      Amount
+                    </th>
+                    <th scope="col" className="px-4 py-2.5 text-right">
+                      Action
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
@@ -644,7 +678,12 @@ export const SaleDetailPage: React.FC = () => {
                       </td>
                       <td className="px-4 py-2.5 text-right">
                         <Button asChild variant="ghost" size="sm">
-                          <Link to={SALES_ROUTES.paymentDetail(p.id)}>Inspect</Link>
+                          <Link
+                            to={SALES_ROUTES.paymentDetail(p.id)}
+                            aria-label={`Inspect payment tender ${p.id}`}
+                          >
+                            Inspect
+                          </Link>
                         </Button>
                       </td>
                     </tr>

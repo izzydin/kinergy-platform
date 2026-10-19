@@ -480,6 +480,7 @@ export const SaleCreatePage: React.FC = () => {
                     placeholder="e.g. inv_item_123 or session_456"
                     {...register('sourceReference.referenceId')}
                     className="h-8 text-xs"
+                    aria-required="true"
                     aria-invalid={Boolean(errors.sourceReference?.referenceId)}
                     aria-describedby={
                       errors.sourceReference?.referenceId ? 'source-ref-id-error' : undefined
@@ -487,7 +488,11 @@ export const SaleCreatePage: React.FC = () => {
                     data-testid="source-reference-id-input"
                   />
                   {errors.sourceReference?.referenceId && (
-                    <p id="source-ref-id-error" className="text-[11px] text-destructive">
+                    <p
+                      id="source-ref-id-error"
+                      role="alert"
+                      className="text-[11px] text-destructive"
+                    >
                       {errors.sourceReference.referenceId.message}
                     </p>
                   )}
@@ -542,7 +547,9 @@ export const SaleCreatePage: React.FC = () => {
           </CardHeader>
           <CardContent className="space-y-3">
             {errors.items?.message && (
-              <p className="text-xs text-destructive font-medium">{errors.items.message}</p>
+              <p className="text-xs text-destructive font-medium" role="alert">
+                {errors.items.message}
+              </p>
             )}
 
             {fields.map((field, index) => (
@@ -582,6 +589,7 @@ export const SaleCreatePage: React.FC = () => {
                       placeholder="e.g. Whey Protein 1kg"
                       {...register(`items.${index}.description` as const)}
                       className="h-8 text-xs"
+                      aria-required="true"
                       aria-invalid={Boolean(errors.items?.[index]?.description)}
                       aria-describedby={
                         errors.items?.[index]?.description ? `item-desc-error-${index}` : undefined
@@ -589,7 +597,11 @@ export const SaleCreatePage: React.FC = () => {
                       data-testid={`item-desc-${index}`}
                     />
                     {errors.items?.[index]?.description && (
-                      <p id={`item-desc-error-${index}`} className="text-[11px] text-destructive">
+                      <p
+                        id={`item-desc-error-${index}`}
+                        role="alert"
+                        className="text-[11px] text-destructive"
+                      >
                         {errors.items[index]?.description?.message}
                       </p>
                     )}
@@ -642,6 +654,7 @@ export const SaleCreatePage: React.FC = () => {
                       placeholder="0.00"
                       {...register(`items.${index}.unitPrice` as const, { valueAsNumber: true })}
                       className="h-8 text-xs font-mono"
+                      aria-required="true"
                       aria-invalid={Boolean(errors.items?.[index]?.unitPrice)}
                       aria-describedby={
                         errors.items?.[index]?.unitPrice ? `item-price-error-${index}` : undefined
@@ -649,7 +662,11 @@ export const SaleCreatePage: React.FC = () => {
                       data-testid={`item-price-${index}`}
                     />
                     {errors.items?.[index]?.unitPrice && (
-                      <p id={`item-price-error-${index}`} className="text-[11px] text-destructive">
+                      <p
+                        id={`item-price-error-${index}`}
+                        role="alert"
+                        className="text-[11px] text-destructive"
+                      >
                         {errors.items[index]?.unitPrice?.message}
                       </p>
                     )}
@@ -669,6 +686,7 @@ export const SaleCreatePage: React.FC = () => {
                       defaultValue={1}
                       {...register(`items.${index}.quantity` as const, { valueAsNumber: true })}
                       className="h-8 text-xs font-mono"
+                      aria-required="true"
                       aria-invalid={Boolean(errors.items?.[index]?.quantity)}
                       aria-describedby={
                         errors.items?.[index]?.quantity ? `item-quantity-error-${index}` : undefined
@@ -678,6 +696,7 @@ export const SaleCreatePage: React.FC = () => {
                     {errors.items?.[index]?.quantity && (
                       <p
                         id={`item-quantity-error-${index}`}
+                        role="alert"
                         className="text-[11px] text-destructive"
                       >
                         {errors.items[index]?.quantity?.message}
@@ -751,7 +770,11 @@ export const SaleCreatePage: React.FC = () => {
                     data-testid="order-discount-value-input"
                   />
                   {errors.orderDiscount?.value && (
-                    <p id="order-discount-value-error" className="text-[11px] text-destructive">
+                    <p
+                      id="order-discount-value-error"
+                      role="alert"
+                      className="text-[11px] text-destructive"
+                    >
                       {errors.orderDiscount.value.message}
                     </p>
                   )}
