@@ -45,7 +45,11 @@ export class PrismaSaleMapper {
 
     let source: SaleSource | SourceReference;
     if (isValidSaleSourceType(raw.sourceType)) {
-      source = SaleSource.create(raw.sourceType as SaleSourceType, raw.sourceId);
+      source = SaleSource.create(
+        raw.sourceType as SaleSourceType,
+        raw.sourceId,
+        raw.sourceCode ?? null,
+      );
     } else {
       source = SourceReference.create({
         sourceType: raw.sourceType as SourceType,

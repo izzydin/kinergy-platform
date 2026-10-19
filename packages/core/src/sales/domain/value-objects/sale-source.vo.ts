@@ -5,6 +5,7 @@ import { InvalidSaleSourceException } from '../exceptions/invalid-sale-source.ex
 export interface SaleSourceProps {
   type: SaleSourceType;
   referenceId: string;
+  sourceCode?: string | null;
 }
 
 /**
@@ -14,6 +15,7 @@ export interface SaleSourceProps {
  * Enforces:
  * - Supported source type (KINESIOLOGY_SESSION, GYM_MEMBERSHIP, FOOD, DRINK, ROOM_RENTAL)
  * - Non-empty, sanitized generic reference identifier (without interpreting format)
+ * - Optional human order referenceCode (ADR-0140)
  * - Complete immutability (Object.freeze)
  * - Deterministic value equality
  */
@@ -22,19 +24,27 @@ export class SaleSource implements ValueObject<SaleSourceProps> {
 
   private readonly _type: SaleSourceType;
   private readonly _referenceId: string;
+  private readonly _sourceCode: string | null;
 
-  constructor(type: SaleSourceType, referenceId: string);
+  constructor(type: SaleSourceType, referenceId: string, sourceCode?: string | null);
   constructor(props: SaleSourceProps);
-  constructor(typeOrProps: SaleSourceType | SaleSourceProps, maybeReferenceId?: string) {
+  constructor(
+    typeOrProps: SaleSourceType | SaleSourceProps,
+    maybeReferenceId?: string,
+    maybeSourceCode?: string | null,
+  ) {
     let rawType: unknown;
     let rawRefId: unknown;
+    let rawSourceCode: unknown;
 
     if (typeof typeOrProps === 'object' && typeOrProps !== null) {
       rawType = typeOrProps.type;
       rawRefId = typeOrProps.referenceId;
+      rawSourceCode = typeOrProps.sourceCode;
     } else {
       rawType = typeOrProps;
       rawRefId = maybeReferenceId;
+      rawSourceCode = maybeSourceCode;
     }
 
     if (!rawType || !isValidSaleSourceType(rawType)) {
@@ -79,19 +89,28 @@ export class SaleSource implements ValueObject<SaleSourceProps> {
 
     this._type = rawType;
     this._referenceId = trimmedRefId;
+    this._sourceCode =
+      typeof rawSourceCode === 'string' && rawSourceCode.trim().length > 0
+        ? rawSourceCode.trim()
+        : null;
     Object.freeze(this);
   }
 
-  public static create(type: SaleSourceType, referenceId: string): SaleSource;
+  public static create(
+    type: SaleSourceType,
+    referenceId: string,
+    sourceCode?: string | null,
+  ): SaleSource;
   public static create(props: SaleSourceProps): SaleSource;
   public static create(
     typeOrProps: SaleSourceType | SaleSourceProps,
     maybeReferenceId?: string,
+    maybeSourceCode?: string | null,
   ): SaleSource {
     if (typeof typeOrProps === 'object' && typeOrProps !== null) {
       return new SaleSource(typeOrProps);
     }
-    return new SaleSource(typeOrProps, maybeReferenceId as string);
+    return new SaleSource(typeOrProps, maybeReferenceId as string, maybeSourceCode);
   }
 
   public get type(): SaleSourceType {
@@ -120,13 +139,14 @@ export class SaleSource implements ValueObject<SaleSourceProps> {
    * Compatibility alias matching existing event / persistence contracts.
    */
   public get sourceCode(): string | null {
-    return null;
+    return this._sourceCode;
   }
 
   public getValue(): SaleSourceProps {
     return {
       type: this._type,
       referenceId: this._referenceId,
+      ...(this._sourceCode ? { sourceCode: this._sourceCode } : {}),
     };
   }
 
@@ -134,7 +154,11 @@ export class SaleSource implements ValueObject<SaleSourceProps> {
     if (!other || !(other instanceof SaleSource)) {
       return false;
     }
-    return this._type === other.type && this._referenceId === other.referenceId;
+    return (
+      this._type === other.type &&
+      this._referenceId === other.referenceId &&
+      (this._sourceCode ?? null) === (other.sourceCode ?? null)
+    );
   }
 
   public toString(): string {
@@ -156,6 +180,7 @@ export class SaleSource implements ValueObject<SaleSourceProps> {
     return SaleSource.create({
       type: candidate.type as SaleSourceType,
       referenceId: candidate.referenceId as string,
+      sourceCode: candidate.sourceCode,
     });
   }
 }

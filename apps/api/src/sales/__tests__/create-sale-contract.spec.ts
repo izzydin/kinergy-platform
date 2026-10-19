@@ -233,7 +233,7 @@ describe('POST /sales Contract Specification (Milestone 7.14)', () => {
       expect(result.clientId).toBe('client_existing_123');
       expect(result.sourceReference?.type).toBe(SaleSourceType.FOOD);
       expect(result.sourceReference?.referenceId).toBe('order_food_999');
-      expect(result.sourceReference?.referenceCode).toBeNull();
+      expect(result.sourceReference?.referenceCode).toBe('TABLE-12');
     });
 
     it('creates a sale with initial items and order discount, computing authoritative totals', async () => {

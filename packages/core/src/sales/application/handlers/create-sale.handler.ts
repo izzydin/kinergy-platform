@@ -76,7 +76,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
           sourceInput = {
             sourceType: SaleSourceType.DRINK,
             sourceId: 'pos_checkout_terminal',
-            sourceCode: 'POS_REGISTER',
+            sourceCode: null,
           };
         } else {
           return SalesApplicationResult.fail(
@@ -308,7 +308,11 @@ export class CreateSaleHandler implements SalesCommandHandler<
         // 10. Construct Domain Value Objects
         let source: SaleSource | SourceReference;
         if (isSaleSourceType) {
-          source = SaleSource.create(rawSourceType as SaleSourceType, sourceInput.sourceId.trim());
+          source = SaleSource.create(
+            rawSourceType as SaleSourceType,
+            sourceInput.sourceId.trim(),
+            sourceInput.sourceCode?.trim() ?? null,
+          );
         } else {
           source = SourceReference.create({
             sourceType: rawSourceType as SourceType,
