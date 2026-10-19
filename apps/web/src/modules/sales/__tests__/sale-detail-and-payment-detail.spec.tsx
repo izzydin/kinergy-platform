@@ -640,6 +640,8 @@ describe('Screen 4 & Screen 5: Sale Detail & Payment Detail Contracts', () => {
     it('renders PENDING payment with settlement and cancellation controls for authorized cashier', async () => {
       (useParams as jest.Mock).mockReturnValue({ paymentId: mockPendingPayment.id });
       (salesApi.getPaymentById as jest.Mock).mockResolvedValue(mockPendingPayment);
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue(mockPendingSale);
+      (salesApi.getSalePaymentHistory as jest.Mock).mockResolvedValue([mockPendingPayment]);
       (salesApi.settlePayment as jest.Mock).mockResolvedValue({
         ...mockPendingPayment,
         status: 'COMPLETED',
@@ -666,11 +668,27 @@ describe('Screen 4 & Screen 5: Sale Detail & Payment Detail Contracts', () => {
       expect(settleBtn).toBeInTheDocument();
       expect(cancelBtn).toBeInTheDocument();
 
-      // Settle payment invokes authoritative backend mutation
+      // Settle payment opens SettlePaymentDialog with authoritative financial confirmation summary
       fireEvent.click(settleBtn);
 
       await waitFor(() => {
-        expect(salesApi.settlePayment).toHaveBeenCalledWith(mockPendingPayment.id, undefined);
+        expect(screen.getByTestId('settle-payment-dialog')).toBeInTheDocument();
+      });
+
+      // Verifies all 4 values: Sale Total, Payment Amount, Payment Method, Remaining Balance
+      expect(screen.getByTestId('financial-confirmation-summary')).toBeInTheDocument();
+      expect(screen.getByTestId('summary-sale-total')).toHaveTextContent('$100.00');
+      expect(screen.getByTestId('summary-payment-amount')).toHaveTextContent('$100.00');
+      expect(screen.getByTestId('summary-payment-method')).toBeInTheDocument();
+      expect(screen.getByTestId('summary-remaining-balance')).toHaveTextContent('$0.00');
+
+      // Confirms settlement
+      fireEvent.click(screen.getByTestId('confirm-settle-payment-btn'));
+
+      await waitFor(() => {
+        expect(salesApi.settlePayment).toHaveBeenCalledWith(mockPendingPayment.id, {
+          reference: mockPendingPayment.reference,
+        });
       });
     });
 

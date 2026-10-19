@@ -276,6 +276,25 @@ export const SaleCreatePage: React.FC = () => {
         </div>
       </div>
 
+      {/* Commercial Agreement Scope Disclaimer */}
+      <div
+        className="p-3.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-950 dark:text-blue-200 text-xs flex items-start gap-2.5"
+        data-testid="sale-create-scope-banner"
+      >
+        <Info className="h-4 w-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+        <div className="space-y-0.5">
+          <span className="font-semibold block">Commercial Agreement Scope:</span>
+          <span>
+            Creating a sale initializes a commercial order agreement in <strong>DRAFT</strong>{' '}
+            status. This action defines the purchased line items, discounts, and net payable total.
+            It does
+            <strong> NOT</strong> collect payment tender, charge client payment methods, or settle
+            funds. Payment recording occurs in a separate, explicit step once the agreement is
+            finalized.
+          </span>
+        </div>
+      </div>
+
       {/* 2. Server Error / Duplicate Conflict Alert */}
       {serverError && (
         <div

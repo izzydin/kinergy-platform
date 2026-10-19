@@ -132,12 +132,25 @@ export const ReceiptViewPage: React.FC = () => {
       data-testid="receipt-view-page"
     >
       {/* Action Navigation Bar (Hidden during print) */}
-      <div className="flex items-center justify-between no-print print:hidden">
-        <Button asChild variant="ghost" size="sm">
-          <Link to={SALES_ROUTES.detail(saleId || receipt.saleId)}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Back to Sale
-          </Link>
-        </Button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between no-print print:hidden">
+        <div className="flex items-center gap-3">
+          <Button asChild variant="ghost" size="sm">
+            <Link to={SALES_ROUTES.detail(saleId || receipt.saleId)}>
+              <ArrowLeft className="h-4 w-4 mr-1" /> Back to Sale
+            </Link>
+          </Button>
+          <div>
+            <h1
+              className="text-xl font-bold tracking-tight text-foreground"
+              data-testid="receipt-page-title"
+            >
+              Official Receipt Document
+            </h1>
+            <p className="text-xs text-muted-foreground">
+              Read-only proof-of-payment voucher snapshotted upon full payment settlement
+            </p>
+          </div>
+        </div>
 
         <div className="flex items-center gap-2">
           <Button
@@ -304,9 +317,10 @@ export const ReceiptViewPage: React.FC = () => {
           {/* Legal / Voucher Footer */}
           <div className="pt-6 border-t border-dashed border-border text-center text-[10px] text-muted-foreground space-y-1">
             <p>Thank you for your business at Kinergy Platform.</p>
-            <p>
-              Official proof-of-purchase voucher snapshotted upon settlement. Printing does not
-              alter server transaction state or issue a fiscal tax invoice.
+            <p data-testid="receipt-audit-disclaimer">
+              Official proof-of-purchase voucher snapshotted upon settlement. Viewing, downloading,
+              or printing this document is strictly read-only and does not create, settle, or alter
+              server payment records or transaction lifecycle states.
             </p>
           </div>
         </CardContent>

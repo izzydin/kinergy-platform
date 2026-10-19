@@ -123,10 +123,24 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
           <DialogHeader>
             <DialogTitle>Record Payment Tender</DialogTitle>
             <DialogDescription>
-              Register tender payment against commercial sale{' '}
+              Register a payment tender against commercial sale agreement{' '}
               <span className="font-mono font-medium">{saleId}</span>.
             </DialogDescription>
           </DialogHeader>
+
+          {/* Tender lifecycle disclaimer */}
+          <div
+            className="p-2.5 rounded-md bg-muted/50 border text-[11px] text-muted-foreground space-y-0.5"
+            data-testid="tender-lifecycle-notice"
+          >
+            <span className="font-semibold text-foreground block">Tender Lifecycle Notice:</span>
+            <span>
+              Recording a payment registers the tender against this sale agreement. The tender will
+              be recorded in <strong>PENDING</strong> status (awaiting settlement) or{' '}
+              <strong>COMPLETED</strong> status depending on the payment rail. Tender recording does
+              not mark payment as settled until verified and confirmed by the server.
+            </span>
+          </div>
 
           {submissionError && (
             <div

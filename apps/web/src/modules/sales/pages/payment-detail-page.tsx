@@ -17,14 +17,20 @@ import {
   Receipt,
   Clock,
   ShieldCheck,
-  RefreshCw,
 } from 'lucide-react';
-import { usePaymentDetail } from '../hooks/use-sales-queries';
+import { usePaymentDetail, useSaleDetail, useSalePayments } from '../hooks/use-sales-queries';
 import { useSettlePayment, useCancelPayment } from '../hooks/use-sales-mutations';
 import { PaymentStatusBadge } from '../components/payment-status-badge';
 import { PaymentMethodBadge } from '../components/payment-method-badge';
 import { MoneyDisplay } from '../components/money-display';
 import { CancelPaymentDialog } from '../components/cancel-payment-dialog';
+import { SettlePaymentDialog } from '../components/settle-payment-dialog';
+import {
+  evaluateSettlementConfirmation,
+  centsToDecimal,
+  formatMoneyCents,
+} from '../utils/financial-math';
+import type { SettlePaymentInputDTO } from '../types/payments.types';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
@@ -43,9 +49,13 @@ export const PaymentDetailPage: React.FC = () => {
   );
 
   const { data: payment, isLoading, isError, error, refetch } = usePaymentDetail(paymentId);
+  const { data: relatedSale, isLoading: isSaleLoading } = useSaleDetail(payment?.saleId);
+  const { data: relatedPayments, isLoading: isPaymentsLoading } = useSalePayments(payment?.saleId);
+
   const settleMutation = useSettlePayment();
   const cancelMutation = useCancelPayment();
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [isSettleDialogOpen, setIsSettleDialogOpen] = useState(false);
 
   // Authorize settlement (payments.manage or payments.create) and cancellation (payments.manage exclusively)
   const canSettle = Boolean(
@@ -130,9 +140,13 @@ export const PaymentDetailPage: React.FC = () => {
   const isCancelled = payment.status === 'CANCELLED';
   const isFailed = payment.status === 'FAILED';
 
-  const handleSettle = async () => {
-    if (settleMutation.isPending) return;
-    await settleMutation.mutateAsync({ paymentId: payment.id });
+  const settlementSummary = evaluateSettlementConfirmation(payment, relatedSale, relatedPayments);
+
+  const handleConfirmSettle = async (input?: SettlePaymentInputDTO) => {
+    await settleMutation.mutateAsync({
+      paymentId: payment.id,
+      input,
+    });
   };
 
   const handleConfirmCancel = async (reason: string) => {
@@ -173,20 +187,12 @@ export const PaymentDetailPage: React.FC = () => {
                 <Button
                   variant="default"
                   size="sm"
-                  onClick={handleSettle}
-                  disabled={settleMutation.isPending}
+                  onClick={() => setIsSettleDialogOpen(true)}
+                  disabled={settleMutation.isPending || payment.status !== 'PENDING'}
                   className="gap-1.5"
                   data-testid="settle-payment-btn"
                 >
-                  {settleMutation.isPending ? (
-                    <>
-                      <RefreshCw className="h-4 w-4 animate-spin" /> Settling...
-                    </>
-                  ) : (
-                    <>
-                      <CheckCircle2 className="h-4 w-4" /> Confirm Settlement
-                    </>
-                  )}
+                  <CheckCircle2 className="h-4 w-4" /> Settle Payment Tender
                 </Button>
               )}
               {canCancel && (
@@ -276,7 +282,138 @@ export const PaymentDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* 3. Authoritative Transaction Details Card */}
+      {/* 3. Financial Confirmation Summary Card (Authoritative for Pending Settlements) */}
+      {isPending && (
+        <Card
+          className="border-primary/30 bg-primary/5"
+          data-testid="payment-settlement-summary-card"
+        >
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center justify-between">
+              <span>Financial Settlement Summary</span>
+              <span className="text-xs font-mono font-normal text-muted-foreground">
+                Authoritative Reconciliation
+              </span>
+            </CardTitle>
+            <CardDescription className="text-xs">
+              Reconciliation of sale total, tender amount, payment method, and remaining balance
+              prior to settlement
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              {/* Value 1: Sale Total */}
+              <div className="p-2.5 rounded border bg-card">
+                <span className="text-muted-foreground block text-[11px]">1. Sale Total</span>
+                <div
+                  className="mt-1 text-base font-bold font-mono text-foreground"
+                  data-testid="page-sale-total"
+                >
+                  <MoneyDisplay
+                    value={centsToDecimal(settlementSummary.saleTotalCents)}
+                    currency={settlementSummary.currency}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground">Authoritative order total</span>
+              </div>
+
+              {/* Value 2: Payment Amount */}
+              <div className="p-2.5 rounded border bg-card">
+                <span className="text-muted-foreground block text-[11px]">2. Payment Amount</span>
+                <div
+                  className="mt-1 text-base font-bold font-mono text-primary"
+                  data-testid="page-payment-amount"
+                >
+                  <MoneyDisplay
+                    value={centsToDecimal(settlementSummary.paymentAmountCents)}
+                    currency={settlementSummary.currency}
+                  />
+                </div>
+                <span className="text-[10px] text-muted-foreground">Current tender amount</span>
+              </div>
+
+              {/* Value 3: Payment Method */}
+              <div className="p-2.5 rounded border bg-card">
+                <span className="text-muted-foreground block text-[11px]">3. Payment Method</span>
+                <div className="mt-1.5" data-testid="page-payment-method">
+                  <PaymentMethodBadge method={payment.method} />
+                </div>
+                <span className="text-[10px] text-muted-foreground block mt-1">
+                  Settlement rail
+                </span>
+              </div>
+
+              {/* Value 4: Remaining Balance */}
+              <div
+                className={`p-2.5 rounded border bg-card ${
+                  settlementSummary.isOverpayment
+                    ? 'border-destructive/50 bg-destructive/5'
+                    : settlementSummary.isPaidInFullAfterSettlement
+                      ? 'border-emerald-500/40 bg-emerald-500/5'
+                      : 'border-primary/30'
+                }`}
+              >
+                <span className="text-muted-foreground block text-[11px]">
+                  4. Projected Remaining Balance
+                </span>
+                <div
+                  className={`mt-1 text-base font-bold font-mono ${
+                    settlementSummary.isOverpayment
+                      ? 'text-destructive'
+                      : settlementSummary.isPaidInFullAfterSettlement
+                        ? 'text-emerald-600 dark:text-emerald-400'
+                        : 'text-foreground'
+                  }`}
+                  data-testid="page-remaining-balance"
+                >
+                  <MoneyDisplay
+                    value={centsToDecimal(settlementSummary.balanceAfterSettlementCents)}
+                    currency={settlementSummary.currency}
+                  />
+                </div>
+                <div className="mt-1">
+                  {settlementSummary.isOverpayment ? (
+                    <span className="text-[10px] font-bold text-destructive">
+                      INVALID: Overpayment (+
+                      {formatMoneyCents(
+                        settlementSummary.overpaymentExcessCents,
+                        settlementSummary.currency,
+                      )}
+                      )
+                    </span>
+                  ) : settlementSummary.isPaidInFullAfterSettlement ? (
+                    <span className="text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                      PAID IN FULL (Zero Balance)
+                    </span>
+                  ) : (
+                    <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                      PARTIAL (
+                      {formatMoneyCents(
+                        settlementSummary.balanceAfterSettlementCents,
+                        settlementSummary.currency,
+                      )}{' '}
+                      Remaining)
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {settlementSummary.validationError && (
+              <div
+                className="p-3 rounded-lg border border-destructive/40 bg-destructive/10 text-destructive text-xs flex items-center gap-2"
+                role="alert"
+                data-testid="page-settlement-blocker-alert"
+              >
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{settlementSummary.validationError}</span>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* 4. Authoritative Transaction Details Card */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Transaction Details</CardTitle>
@@ -332,6 +469,18 @@ export const PaymentDetailPage: React.FC = () => {
           </div>
         </CardContent>
       </Card>
+
+      {/* Settle Payment Confirmation Modal with Complete Financial Breakdown */}
+      <SettlePaymentDialog
+        open={isSettleDialogOpen}
+        onOpenChange={setIsSettleDialogOpen}
+        payment={payment}
+        sale={relatedSale}
+        salePayments={relatedPayments}
+        isSaleLoading={isSaleLoading || isPaymentsLoading}
+        isSubmitting={settleMutation.isPending}
+        onConfirm={handleConfirmSettle}
+      />
 
       {/* Confirmation Dialog for Irreversible Payment Tender Cancellation */}
       <CancelPaymentDialog

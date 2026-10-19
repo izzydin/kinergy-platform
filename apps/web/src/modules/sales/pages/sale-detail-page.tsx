@@ -27,6 +27,7 @@ import { PaymentMethodBadge } from '../components/payment-method-badge';
 import { MoneyDisplay } from '../components/money-display';
 import { CancelSaleDialog } from '../components/cancel-sale-dialog';
 import { RecordPaymentDialog } from '../components/record-payment-dialog';
+import { evaluateSaleBalances, centsToDecimal } from '../utils/financial-math';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
@@ -125,11 +126,10 @@ export const SaleDetailPage: React.FC = () => {
   const isSettled = sale.status === 'PAID' || sale.status === 'COMPLETED';
   const isCancelled = sale.status === 'CANCELLED';
 
-  const settledPaymentSum =
-    payments?.filter((p) => p.status === 'COMPLETED').reduce((sum, p) => sum + p.amountValue, 0) ??
-    0;
-
-  const remainingBalance = Math.max(0, sale.totalAmount - settledPaymentSum);
+  const balanceBreakdown = evaluateSaleBalances(sale, payments);
+  const settledPaymentSum = centsToDecimal(balanceBreakdown.completedCents);
+  const pendingPaymentSum = centsToDecimal(balanceBreakdown.pendingCents);
+  const remainingBalance = balanceBreakdown.remainingBalance;
 
   const handleFinalize = async () => {
     if (finalizeMutation.isPending) return;
@@ -353,25 +353,58 @@ export const SaleDetailPage: React.FC = () => {
               <MoneyDisplay value={sale.total} />
             </div>
             {isPending && (
-              <div className="mt-2 pt-2 border-t border-primary/20 space-y-0.5 text-xs">
+              <div className="mt-2 pt-2 border-t border-primary/20 space-y-1 text-xs">
                 <div className="flex justify-between text-muted-foreground">
                   <span>Settled Tenders:</span>
                   <span className="font-mono">
                     {sale.currency} {settledPaymentSum.toFixed(2)}
                   </span>
                 </div>
-                <div className="flex justify-between font-semibold text-foreground">
+                {balanceBreakdown.hasPendingTenders && (
+                  <div className="flex justify-between text-amber-600 dark:text-amber-400">
+                    <span>Pending Settlement:</span>
+                    <span className="font-mono">
+                      {sale.currency} {pendingPaymentSum.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between font-semibold text-foreground pt-1 border-t border-border/50">
                   <span>Remaining Balance:</span>
                   <span className="font-mono">
                     {sale.currency} {remainingBalance.toFixed(2)}
                   </span>
                 </div>
+                <div className="pt-1">
+                  {balanceBreakdown.isPaidInFull ? (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800"
+                    >
+                      PAID IN FULL (Zero Balance)
+                    </Badge>
+                  ) : (
+                    <Badge
+                      variant="outline"
+                      className="text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800"
+                    >
+                      OUTSTANDING BALANCE ({sale.currency} {remainingBalance.toFixed(2)})
+                    </Badge>
+                  )}
+                </div>
               </div>
             )}
             {isSettled && (
-              <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium mt-1">
-                Agreement fully paid and settled
-              </p>
+              <div className="mt-2 pt-2 border-t border-primary/20 space-y-1">
+                <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                  Agreement fully paid and settled
+                </p>
+                <Badge
+                  variant="outline"
+                  className="text-[10px] text-emerald-700 bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800"
+                >
+                  PAID IN FULL (Zero Balance)
+                </Badge>
+              </div>
             )}
           </CardContent>
         </Card>
