@@ -15,6 +15,9 @@ import type { AuthUser } from '../modules/auth/domain/auth-state.types';
 
 export interface ExtendedRenderOptions extends Omit<RenderOptions, 'queries'> {
   initialRoute?: string;
+  initialEntries?: (
+    string | { pathname: string; search?: string; hash?: string; state?: unknown; key?: string }
+  )[];
   queryClient?: QueryClient;
   initialSessionOverride?: AuthUser | null;
   skipBootstrap?: boolean;
@@ -29,6 +32,7 @@ export function renderWithProviders(
   ui: React.ReactElement,
   {
     initialRoute = '/',
+    initialEntries,
     queryClient = createQueryClient({ maxRetries: 0 }),
     initialSessionOverride,
     skipBootstrap = true,
@@ -46,7 +50,9 @@ export function renderWithProviders(
             >
               <LocaleProvider>
                 <FeatureFlagProvider>
-                  <MemoryRouter initialEntries={[initialRoute]}>{children}</MemoryRouter>
+                  <MemoryRouter initialEntries={initialEntries || [initialRoute]}>
+                    {children}
+                  </MemoryRouter>
                 </FeatureFlagProvider>
               </LocaleProvider>
             </AuthProvider>

@@ -47,18 +47,25 @@ export function usePaymentFilters(): UsePaymentFiltersReturn {
   const rawMethod = searchParams.get('method')?.toUpperCase() as PaymentMethod | undefined;
   const method = rawMethod && VALID_PAYMENT_METHODS.includes(rawMethod) ? rawMethod : undefined;
 
-  const saleId = searchParams.get('saleId') || undefined;
-  const fromDate = searchParams.get('fromDate') || undefined;
-  const toDate = searchParams.get('toDate') || undefined;
+  const saleId = searchParams.get('saleId')?.trim() || undefined;
+
+  const rawFromDate = searchParams.get('fromDate')?.trim();
+  const fromDate = rawFromDate && !isNaN(Date.parse(rawFromDate)) ? rawFromDate : undefined;
+
+  const rawToDate = searchParams.get('toDate')?.trim();
+  const toDate = rawToDate && !isNaN(Date.parse(rawToDate)) ? rawToDate : undefined;
 
   const isFiltered = Boolean(status || method || saleId || fromDate || toDate);
 
   const updateParams = useCallback(
     (updater: (prev: URLSearchParams) => URLSearchParams) => {
-      setSearchParams((prev) => {
-        const next = updater(new URLSearchParams(prev));
-        return next;
-      });
+      setSearchParams(
+        (prev) => {
+          const next = updater(new URLSearchParams(prev));
+          return next;
+        },
+        { replace: true },
+      );
     },
     [setSearchParams],
   );
@@ -162,7 +169,7 @@ export function usePaymentFilters(): UsePaymentFiltersReturn {
   }, [updateParams]);
 
   const resetAll = useCallback(() => {
-    setSearchParams(new URLSearchParams());
+    setSearchParams(new URLSearchParams(), { replace: true });
   }, [setSearchParams]);
 
   const params: ListPaymentsQueryParams = useMemo(

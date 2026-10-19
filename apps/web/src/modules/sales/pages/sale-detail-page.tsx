@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import {
   Card,
   CardContent,
@@ -37,7 +37,9 @@ import type { PaymentMethod } from '../types';
 
 export const SaleDetailPage: React.FC = () => {
   const { saleId } = useParams<{ saleId: string }>();
+  const location = useLocation();
   const auth = useAuth();
+  const backTo = (location.state as { from?: string } | null)?.from || SALES_ROUTES.list();
 
   // Top-level permission check: sales.read
   const canRead = Boolean(
@@ -93,7 +95,7 @@ export const SaleDetailPage: React.FC = () => {
           onRetry={() => refetch()}
           secondaryAction={
             <Button asChild variant="outline" size="sm">
-              <Link to={SALES_ROUTES.list()}>
+              <Link to={backTo}>
                 <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Directory
               </Link>
             </Button>
@@ -111,7 +113,7 @@ export const SaleDetailPage: React.FC = () => {
           description={`Sale agreement "${saleId}" does not exist or you lack permission to view it.`}
           action={
             <Button asChild variant="outline" size="sm">
-              <Link to={SALES_ROUTES.list()}>
+              <Link to={backTo}>
                 <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Sales Directory
               </Link>
             </Button>
@@ -174,7 +176,7 @@ export const SaleDetailPage: React.FC = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm">
-            <Link to={SALES_ROUTES.list()}>
+            <Link to={backTo}>
               <ArrowLeft className="h-4 w-4 mr-1.5" /> All Sales
             </Link>
           </Button>
@@ -247,7 +249,10 @@ export const SaleDetailPage: React.FC = () => {
                 className="gap-1.5"
                 data-testid="view-receipt-btn"
               >
-                <Link to={SALES_ROUTES.receipt(sale.id)}>
+                <Link
+                  to={SALES_ROUTES.receipt(sale.id)}
+                  state={{ from: location.pathname + location.search }}
+                >
                   <Receipt className="h-4 w-4" />
                   {receipt?.receiptNumber
                     ? `Receipt ${receipt.receiptNumber}`
@@ -659,6 +664,7 @@ export const SaleDetailPage: React.FC = () => {
                       <td className="px-4 py-2.5 font-mono text-xs">
                         <Link
                           to={SALES_ROUTES.paymentDetail(p.id)}
+                          state={{ from: location.pathname + location.search }}
                           className="hover:underline text-primary"
                         >
                           {p.id}
@@ -680,6 +686,7 @@ export const SaleDetailPage: React.FC = () => {
                         <Button asChild variant="ghost" size="sm">
                           <Link
                             to={SALES_ROUTES.paymentDetail(p.id)}
+                            state={{ from: location.pathname + location.search }}
                             aria-label={`Inspect payment tender ${p.id}`}
                           >
                             Inspect

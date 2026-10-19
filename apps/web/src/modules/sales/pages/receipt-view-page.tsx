@@ -1,5 +1,5 @@
 import React from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from '@kinergy-platform/ui';
 import { ArrowLeft, Printer, CheckCircle2, RefreshCw } from 'lucide-react';
 import { useReceiptBySale } from '../hooks/use-sales-queries';
@@ -14,7 +14,11 @@ import { SALES_ROUTES } from '../routes/sales-routes';
 
 export const ReceiptViewPage: React.FC = () => {
   const { saleId } = useParams<{ saleId: string }>();
+  const location = useLocation();
   const auth = useAuth();
+  const backTo =
+    (location.state as { from?: string } | null)?.from ||
+    (saleId ? SALES_ROUTES.detail(saleId) : SALES_ROUTES.list());
 
   // Permission verification: receipts.read (or receipts.manage, sales.manage)
   const canRead = Boolean(
@@ -74,7 +78,7 @@ export const ReceiptViewPage: React.FC = () => {
           secondaryAction={
             saleId ? (
               <Button asChild variant="outline" size="sm">
-                <Link to={SALES_ROUTES.detail(saleId)}>Return to Sale</Link>
+                <Link to={backTo}>Return to Sale</Link>
               </Button>
             ) : undefined
           }
@@ -94,7 +98,7 @@ export const ReceiptViewPage: React.FC = () => {
             <div className="flex items-center justify-center gap-3 pt-2">
               {saleId && (
                 <Button asChild variant="outline" size="sm">
-                  <Link to={SALES_ROUTES.detail(saleId)}>
+                  <Link to={backTo}>
                     <ArrowLeft className="h-4 w-4 mr-1.5" /> Return to Sale
                   </Link>
                 </Button>
@@ -135,7 +139,7 @@ export const ReceiptViewPage: React.FC = () => {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between no-print print:hidden">
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm">
-            <Link to={SALES_ROUTES.detail(saleId || receipt.saleId)}>
+            <Link to={backTo}>
               <ArrowLeft className="h-4 w-4 mr-1" /> Back to Sale
             </Link>
           </Button>
@@ -279,7 +283,7 @@ export const ReceiptViewPage: React.FC = () => {
               <MoneyDisplay value={receipt.subtotal} />
             </div>
 
-            {receipt.discountTotal.amount > 0 && (
+            {Boolean(receipt.discountTotal?.amount && receipt.discountTotal.amount > 0) && (
               <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
                 <span>Total Discount Applied:</span>
                 <span>

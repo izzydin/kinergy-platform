@@ -1,5 +1,5 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { Link, useLocation } from 'react-router-dom';
 import { Button, Badge, Input } from '@kinergy-platform/ui';
 import { RefreshCw, X, ShoppingBag, AlertCircle, Calendar, Hash } from 'lucide-react';
 import { usePaymentFilters } from '../hooks/use-payment-filters';
@@ -19,6 +19,7 @@ import {
 
 export const PaymentHistoryPage: React.FC = () => {
   const auth = useAuth();
+  const location = useLocation();
 
   // Permission verification: payments.read (or payments.manage)
   const canRead = Boolean(
@@ -45,6 +46,13 @@ export const PaymentHistoryPage: React.FC = () => {
   } = usePaymentFilters();
 
   const { data, isLoading, isError, error, refetch } = usePaymentsList(params);
+
+  // Clamp pagination when filter changes make current page exceed totalPages
+  useEffect(() => {
+    if (data && data.totalPages > 0 && page > data.totalPages) {
+      setPage(data.totalPages);
+    }
+  }, [data, page, setPage]);
 
   if (!canRead) {
     return (
@@ -310,6 +318,7 @@ export const PaymentHistoryPage: React.FC = () => {
                     <td className="px-4 py-3 font-mono text-xs">
                       <Link
                         to={SALES_ROUTES.paymentDetail(payment.id)}
+                        state={{ from: location.pathname + location.search }}
                         className="hover:underline text-primary font-medium"
                       >
                         {payment.id}
@@ -318,6 +327,7 @@ export const PaymentHistoryPage: React.FC = () => {
                     <td className="px-4 py-3 font-mono text-xs text-muted-foreground">
                       <Link
                         to={SALES_ROUTES.detail(payment.saleId)}
+                        state={{ from: location.pathname + location.search }}
                         className="hover:underline hover:text-foreground"
                       >
                         {payment.saleId}
@@ -336,6 +346,7 @@ export const PaymentHistoryPage: React.FC = () => {
                       <Button asChild variant="ghost" size="sm" className="h-7 text-xs">
                         <Link
                           to={SALES_ROUTES.paymentDetail(payment.id)}
+                          state={{ from: location.pathname + location.search }}
                           aria-label={`Inspect payment tender ${payment.id}`}
                         >
                           Inspect

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
 import { Badge, Button } from '@kinergy-platform/ui';
 import { Eye, PlusCircle } from 'lucide-react';
@@ -49,6 +49,8 @@ export const SalesListTable: React.FC<SalesListTableProps> = ({
   toolbar,
   onCreateClick,
 }) => {
+  const location = useLocation();
+
   const columns = useMemo<ColumnDef<SaleSummaryDTO, unknown>[]>(() => {
     return [
       {
@@ -85,6 +87,7 @@ export const SalesListTable: React.FC<SalesListTableProps> = ({
           return (
             <Link
               to={`/sales/${id}`}
+              state={{ from: location.pathname + location.search }}
               className="font-mono text-xs font-semibold text-primary hover:underline"
               data-testid={`sale-row-id-${id}`}
             >
@@ -164,7 +167,11 @@ export const SalesListTable: React.FC<SalesListTableProps> = ({
           return (
             <div className="flex justify-end">
               <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs gap-1">
-                <Link to={`/sales/${id}`} aria-label={`View sale ${id}`}>
+                <Link
+                  to={`/sales/${id}`}
+                  state={{ from: location.pathname + location.search }}
+                  aria-label={`View sale ${id}`}
+                >
                   <Eye className="h-3.5 w-3.5 text-muted-foreground" />
                   <span>View</span>
                 </Link>
@@ -174,7 +181,7 @@ export const SalesListTable: React.FC<SalesListTableProps> = ({
         },
       },
     ];
-  }, []);
+  }, [location.pathname, location.search]);
 
   const emptyAction = (
     <HasPermission name="sales.create">

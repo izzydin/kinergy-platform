@@ -157,6 +157,7 @@ export function useCancelSale() {
     onSuccess: (updatedSale) => {
       notification.success('Sale order cancelled');
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(updatedSale.id) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.receiptBySale(updatedSale.id) });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
     },
     onError: (error: Error) => {
@@ -182,6 +183,9 @@ export function useRecordPayment() {
       });
       queryClient.invalidateQueries({
         queryKey: salesQueryKeys.detail(variables.saleId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: salesQueryKeys.receiptBySale(variables.saleId),
       });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.payments.lists() });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
@@ -213,6 +217,7 @@ export function useSettlePayment() {
       queryClient.invalidateQueries({
         queryKey: salesQueryKeys.receiptBySale(payment.saleId),
       });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.receipts() });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
     },
     onError: (error: Error) => {
@@ -239,6 +244,9 @@ export function useFailPayment() {
         queryKey: salesQueryKeys.paymentsBySale(payment.saleId),
       });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(payment.saleId) });
+      queryClient.invalidateQueries({
+        queryKey: salesQueryKeys.receiptBySale(payment.saleId),
+      });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
     },
     onError: (error: Error) => {
@@ -265,6 +273,9 @@ export function useCancelPayment() {
         queryKey: salesQueryKeys.paymentsBySale(payment.saleId),
       });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(payment.saleId) });
+      queryClient.invalidateQueries({
+        queryKey: salesQueryKeys.receiptBySale(payment.saleId),
+      });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
     },
     onError: (error: Error) => {
@@ -288,8 +299,10 @@ export function useIssueReceipt() {
       queryClient.invalidateQueries({
         queryKey: salesQueryKeys.receiptBySale(receipt.saleId),
       });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.receiptById(receipt.id) });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.receipts() });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(receipt.saleId) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to issue receipt voucher');
