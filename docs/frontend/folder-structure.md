@@ -32,8 +32,11 @@ apps/web/src/
 ├── modules/              # Bounded Domain Feature Modules (Domain Logic & Views)
 │   ├── auth/             # Identity & Access Management Feature Module
 │   ├── client/           # Client Profile Administration Feature Module
-│   ├── energy/           # Energy Monitoring & Telemetry Feature Module
-│   └── analytics/        # Energy Trends & Reporting Feature Module
+│   ├── gym/              # Gym Management & Attendance Feature Module
+│   ├── kinesiology/      # Clinical Treatments & SOAP Feature Module
+│   ├── resources/        # Consumable Inventory & Fixed Assets Feature Module
+│   ├── sales/            # Commercial Sales, Payments & Receipts Feature Module
+│   └── scheduling/       # Appointments & Schedulable Resources Feature Module
 ├── shared/               # Cross-Cutting Application Infrastructure (Domain-Agnostic)
 │   ├── components/       # App-specific reusable composite components (Header, Footer, Nav)
 │   ├── hooks/            # Low-level browser/DOM hooks (useWindowSize, useLocalStorage)
@@ -105,6 +108,63 @@ apps/web/src/modules/client/
 ├── utils/                  # Pure feature-specific formatting & domain helpers
 │   └── client-formatters.ts# Client-specific formatting utilities
 └── index.ts                # Mandatory Public API Contract for the feature module
+```
+
+### 4.1 Sales & Payments Feature Module (`src/modules/sales/`)
+
+The Sales & Payments bounded context encapsulates point-of-sale checkout, multi-tender settlement, and proof-of-purchase vouchers:
+
+```text
+apps/web/src/modules/sales/
+├── api/
+│   ├── sales-api.ts               # HTTP client consuming backend REST API
+│   ├── sales-query-keys.ts        # Hierarchical TanStack Query key factories
+│   └── index.ts                   # Public API exports
+├── components/
+│   ├── apply-discount-dialog.tsx  # Order-level discount modal
+│   ├── cancel-payment-dialog.tsx  # Void pending tender modal
+│   ├── cancel-sale-dialog.tsx     # Sale cancellation modal
+│   ├── money-display.tsx          # Consistent currency formatting primitive
+│   ├── payment-method-badge.tsx   # Visual badge for CASH, QR
+│   ├── payment-status-badge.tsx   # Badge for PENDING, COMPLETED, FAILED, CANCELLED
+│   ├── record-payment-dialog.tsx  # Payment tender recording modal
+│   ├── sale-status-badge.tsx      # Badge for DRAFT, PAID, PARTIALLY_PAID, etc.
+│   ├── sales-filter-bar.tsx       # Filter bar for sales queries
+│   ├── sales-list-table.tsx       # TanStack Table component for sales records
+│   ├── settle-payment-dialog.tsx  # 4-point reconciliation modal for payment settlement
+│   └── index.ts                   # Components barrel
+├── hooks/
+│   ├── use-payment-filters.ts     # URL-state synchronization for payments
+│   ├── use-sales-filters.ts       # URL-state synchronization for sales
+│   ├── use-sales-mutations.ts     # TanStack Query mutations with cache invalidation
+│   ├── use-sales-queries.ts       # TanStack Query read hooks with 4-state contracts
+│   └── index.ts                   # Hooks barrel
+├── pages/
+│   ├── sales-overview-page.tsx    # Screen 1: Operational KPI cards & recent agreements
+│   ├── sales-list-page.tsx        # Screen 2: URL-synchronized, filterable sales table
+│   ├── sale-create-page.tsx       # Screen 3: Commercial sale checkout workflow
+│   ├── sale-detail-page.tsx       # Screen 4: Authoritative financial breakdown & balance
+│   ├── payment-detail-page.tsx    # Screen 5: Payment lifecycle & settlement inspection
+│   ├── payment-history-page.tsx   # Screen 6: Multi-tender payment transaction ledger
+│   ├── receipt-view-page.tsx      # Screen 7: Canonical proof-of-purchase receipt voucher
+│   └── index.ts                   # Pages barrel
+├── routes/
+│   ├── sales-routes.ts            # Canonical route path builders (SALES_ROUTES)
+│   ├── sales.router.tsx           # React Router sub-router with permission guards
+│   └── index.ts                   # Routes barrel
+├── schemas/
+│   ├── create-sale.schema.ts      # Zod validation schema for sale creation & line items
+│   ├── record-payment.schema.ts   # Zod validation schema for recording tender
+│   ├── cancel-sale.schema.ts      # Zod validation schema for cancellation reason
+│   ├── apply-discount.schema.ts   # Zod validation schema for order discount
+│   └── index.ts                   # Schemas barrel
+├── types/
+│   ├── sales.types.ts             # Sale DTOs, items, and status contracts
+│   ├── payments.types.ts          # Payment DTOs and lifecycle enums
+│   ├── receipts.types.ts          # Canonical receipt snapshot contracts
+│   ├── sales-query.types.ts       # Query parameter and filter interfaces
+│   └── index.ts                   # Types barrel
+└── __tests__/                     # Co-located unit and integration test suites (14 suites, 183 tests)
 ```
 
 ---

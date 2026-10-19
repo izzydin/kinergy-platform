@@ -392,7 +392,116 @@ To support the future expansion into a multi-tenant SaaS platform, the frontend 
 
 ---
 
-## 12. Related Documentation
+## 12. Sales & Payments Bounded Context Feature Architecture (`apps/web/src/modules/sales/`)
+
+Following the completion of Milestones 7.20 and 7.21, the **Sales & Payments** module provides the authoritative commercial point-of-sale checkout, multi-tender payment ledger, and proof-of-purchase receipt experience.
+
+### 12.1 Internal Directory Organization & Subsystem Responsibilities
+
+```text
+apps/web/src/modules/sales/
+├── api/
+│   ├── sales-api.ts               # HTTP client functions consuming backend REST API
+│   ├── sales-query-keys.ts        # Hierarchical TanStack Query key factories
+│   └── index.ts                   # Public API exports
+├── components/
+│   ├── apply-discount-dialog.tsx  # Modal for applying order-level discounts
+│   ├── cancel-payment-dialog.tsx  # Confirmation modal for voiding pending tenders
+│   ├── cancel-sale-dialog.tsx     # Confirmation modal for cancelling draft/unsettled sales
+│   ├── money-display.tsx          # Consistent currency formatting primitive
+│   ├── payment-method-badge.tsx   # Visual indicator for CASH, QR
+│   ├── payment-status-badge.tsx   # Badge for PENDING, COMPLETED, FAILED, CANCELLED
+│   ├── record-payment-dialog.tsx  # Modal for submitting payment installments
+│   ├── sale-status-badge.tsx      # Badge for DRAFT, PAID, PARTIALLY_PAID, etc.
+│   ├── sales-filter-bar.tsx       # Filter bar for sales queries
+│   ├── sales-list-table.tsx       # TanStack Table component for sales records
+│   ├── settle-payment-dialog.tsx  # 4-point reconciliation modal for payment settlement
+│   └── index.ts                   # Components barrel
+├── hooks/
+│   ├── use-payment-filters.ts     # URL-state synchronization for payments ledger
+│   ├── use-sales-filters.ts       # URL-state synchronization for sales directory
+│   ├── use-sales-mutations.ts     # TanStack Query mutations with cache invalidation
+│   ├── use-sales-queries.ts       # TanStack Query read hooks with 4-state contracts
+│   └── index.ts                   # Hooks barrel
+├── pages/
+│   ├── sales-overview-page.tsx    # Screen 1: Operational KPI cards & recent agreements
+│   ├── sales-list-page.tsx        # Screen 2: URL-synchronized, filterable sales table
+│   ├── sale-create-page.tsx       # Screen 3: Commercial sale checkout workflow
+│   ├── sale-detail-page.tsx       # Screen 4: Authoritative financial breakdown & balance
+│   ├── payment-detail-page.tsx    # Screen 5: Payment lifecycle & settlement inspection
+│   ├── payment-history-page.tsx   # Screen 6: Multi-tender payment transaction ledger
+│   ├── receipt-view-page.tsx      # Screen 7: Canonical proof-of-purchase receipt voucher
+│   └── index.ts                   # Pages barrel
+├── routes/
+│   ├── sales-routes.ts            # Canonical route path builders (SALES_ROUTES)
+│   ├── sales.router.tsx           # React Router sub-router with permission guards
+│   └── index.ts                   # Routes barrel
+├── schemas/
+│   ├── create-sale.schema.ts      # Zod validation schema for sale creation & line items
+│   ├── record-payment.schema.ts   # Zod validation schema for recording tender
+│   ├── cancel-sale.schema.ts      # Zod validation schema for cancellation reason
+│   ├── apply-discount.schema.ts   # Zod validation schema for order discount
+│   └── index.ts                   # Schemas barrel
+├── types/
+│   ├── sales.types.ts             # Sale DTOs, items, and status contracts
+│   ├── payments.types.ts          # Payment DTOs and lifecycle enums
+│   ├── receipts.types.ts          # Canonical receipt snapshot contracts
+│   ├── sales-query.types.ts       # Query parameter and filter interfaces
+│   └── index.ts                   # Types barrel
+└── __tests__/                     # Co-located unit and integration test suites (14 suites, 183 tests)
+```
+
+### 12.2 Architectural Conventions & Implementation Policies
+
+1. **Public Module Encapsulation (`index.ts`)**:
+   - External consumers (app shell, main router) import exclusively from `apps/web/src/modules/sales`. Deep imports into internal files are blocked by ESLint boundary rules.
+2. **Authoritative API Client Usage (`salesApi`)**:
+   - `sales-api.ts` delegates HTTP transport strictly to the platform's standard `httpClient`. It wraps all query parameter serialization, path parameter encoding (`encodeURIComponent`), and DTO typing.
+3. **TanStack Query Key Hierarchy & Cache Invalidation**:
+   - Governed by `salesQueryKeys`:
+     ```typescript
+     salesQueryKeys = {
+       all: ['sales'],
+       lists: () => ['sales', 'list'],
+       list: (params) => ['sales', 'list', params],
+       detail: (id) => ['sales', 'detail', id],
+       calculate: (id) => ['sales', 'detail', id, 'calculate'],
+       paymentsBySale: (saleId) => ['sales', 'detail', saleId, 'payments'],
+       receipts: () => ['receipts'],
+       receiptBySale: (saleId) => ['receipts', 'sale', saleId],
+       payments: {
+         all: ['payments'],
+         lists: () => ['payments', 'list'],
+         list: (params) => ['payments', 'list', params],
+         detail: (id) => ['payments', 'detail', id],
+       },
+     };
+     ```
+   - Mutations invalidate targeted subtrees (e.g. `useSettlePayment` invalidates `payments.all`, `paymentsBySale`, `sales.detail`, and `receiptBySale`), ensuring immediate cross-screen consistency.
+4. **React Hook Form & Zod Schema Validation**:
+   - Form inputs (`SaleCreatePage`, `RecordPaymentDialog`, `CancelSaleDialog`) bind to Zod schemas via `@hookform/resolvers/zod`.
+   - Forms feature dirty-form protection (`useDirtyGuard`), disable submit buttons during mutation pending states, and auto-focus the first invalid field upon validation failure.
+5. **Route Protection & Permission-Aware Actions**:
+   - Route level: `sales.router.tsx` wraps screens with `<RequirePermission permission="...">` (`sales.read`, `sales.create`, `payments.read`, `receipts.read`).
+   - Component level: Action buttons verify permissions before rendering (e.g. `Cancel Sale` requires `sales.cancel`; `Settle Payment` requires `payments.manage`).
+6. **URL-Driven Table State Synchronization**:
+   - All table parameters (`page`, `limit`, `sort`, `status`, `method`, `q`, `dateFrom`, `dateTo`) are bi-directionally synchronized to URL search params.
+   - Filter adjustments reset page index to `1` using `{ replace: true }` to avoid browser history pollution.
+7. **4-State UI Contract Compliance**:
+   - All 7 screens implement deterministic Loading, Empty, Error, and Populated states.
+8. **Authoritative Financial Values & Non-Clamping UX**:
+   - The UI never recalculates order totals or invents payment statuses. Subtotals, discount totals, net payables, and remaining balances are rendered strictly from server DTOs.
+   - Settlement dialogs feature an authoritative **4-point reconciliation summary** (Net Payable Total, Registered Tender, Tender Method, and Remaining Balance After Settlement).
+9. **Receipt Snapshot Presentation**:
+   - `ReceiptViewPage` renders the immutable point-in-time snapshot (`clientSnapshot`, `items`, `payments`), including print stylesheets (`@media print`) for clean paper voucher printing.
+10. **Accessibility & WCAG 2.1 AA Compliance**:
+    - Focus trapping in Radix UI dialogs, full keyboard operability across tables and action dropdowns, and high-contrast ARIA status indicators.
+11. **Co-located Testing**:
+    - 14 test suites covering URL hydration, dialog accessibility, dirty form safety, payment confirmation, and end-to-end multi-screen workflows co-located in `__tests__/`.
+
+---
+
+## 13. Related Documentation
 
 - [Frontend Engineering Principles](./principles.md)
 - [Frontend Folder Structure & Architectural Boundaries](./folder-structure.md)
@@ -402,5 +511,7 @@ To support the future expansion into a multi-tenant SaaS platform, the frontend 
 - [Frontend UI Architecture & Design System Strategy](./ui-architecture.md)
 - [Frontend Testing Strategy & Quality Assurance Architecture](./testing.md)
 - [Frontend Error Handling Strategy & Fault Tolerance Architecture](./error-handling.md)
+- [Milestone 7.20 Sales & Payments Frontend Specification](./milestone-7.20-sales-and-payments-frontend.md)
+- [Milestone 7.21 Financial UX Hardening Specification](./milestone-7.21-financial-ux-hardening-and-consistency.md)
 - [Frontend Technical Glossary](./glossary.md)
 - [Master Platform Documentation Index](../README.md)
