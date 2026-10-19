@@ -118,6 +118,8 @@ This directory contains records of key architectural and technical decisions mad
 | [0136](file:///c:/Projects/kinergy-platform/docs/adr/0136-sales-api-architecture-and-contracts.md)                                                                   | Sales API Architecture, HTTP Contracts & Unified Commercial Ledger Specification                             | Accepted   | 2026-10-12              |
 | [0137](file:///c:/Projects/kinergy-platform/docs/adr/0137-sales-performance-and-consistency-review.md)                                                               | Sales Performance, Pagination Stability, Tiebreaker Semantics, and Optimistic Concurrency Control            | Accepted   | 2026-10-14              |
 | [0138](file:///c:/Projects/kinergy-platform/docs/adr/0138-payment-api-architecture-and-contracts.md)                                                                 | Payment API Architecture, HTTP Contracts & Monetary Settlement Specification                                 | Accepted   | 2026-10-14              |
+| [0139](file:///c:/Projects/kinergy-platform/docs/adr/0139-cross-domain-commercial-integration-contract.md)                                                           | Cross-Domain Commercial Integration Contract, Source Resolution, and Fulfillment Orchestration               | Accepted   | 2026-10-16              |
+| [0140](file:///c:/Projects/kinergy-platform/docs/adr/0140-financial-concurrency-and-settlement-integrity.md)                                                         | Financial Concurrency, Idempotency, and Multi-Tender Settlement Integrity                                    | Accepted   | 2026-10-16              |
 
 ## Format
 
