@@ -338,17 +338,48 @@ describe('Gym Management Genuine Database Persistence Integration (ADR-0080)', (
     it('appends attendance logs and computes operational counts across repository instances', async () => {
       if (shouldSkipDueToMissingDatabase()) return;
 
+      const planRepo = new PrismaMembershipPlanRepository(prisma);
+      const memberRepo = new PrismaMembershipRepository(prisma);
       const attendanceRepoA = new PrismaAttendanceRecordRepository(prisma);
       const attendanceRepoB = new PrismaAttendanceRecordRepository(prisma);
 
-      const checkInTime = new Date();
-      const gymDay = GymDay.fromUtc(checkInTime, 'America/New_York', 'FAC_MAIN');
       const uniqueSuffix = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
       const clientId = `client_turnstile_${uniqueSuffix}`;
+
+      // Create and persist plan and membership for foreign key & domain validity
+      const plan = MembershipPlan.create(
+        {
+          code: PlanCode.create(`ATT_PLAN_${uniqueSuffix}`),
+          name: 'Attendance Host Plan',
+          duration: PlanDuration.ofDays(30),
+          price: PlanPrice.create(50.0, 'USD'),
+          status: PlanStatus.ACTIVE,
+        },
+        clock.now(),
+      );
+      createdPlanIds.push(plan.id.value);
+      await planRepo.save(plan);
+
+      const startDate = new Date();
+      const endDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const membership = Membership.create(
+        {
+          clientId,
+          planId: plan.id.value,
+          period: MembershipPeriod.create(startDate, endDate),
+        },
+        clock,
+      );
+      createdMembershipIds.push(membership.id.value);
+      await memberRepo.save(membership);
+
+      const checkInTime = new Date();
+      const gymDay = GymDay.fromUtc(checkInTime, 'America/New_York', 'FAC_MAIN');
 
       const record = AttendanceRecord.record(
         {
           clientId,
+          membershipId: membership.id.value,
           checkInTime,
           gymDay,
           method: CheckInMethod.QR_CODE,
