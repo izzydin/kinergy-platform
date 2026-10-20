@@ -76,9 +76,11 @@ export const clientEnvSchema = z
       .default('http://localhost:3000/api/v1'),
     VITE_APP_TITLE: z.string().min(1).default('Kinergy Platform'),
     VITE_ENABLE_MSW: z
-      .union([z.boolean(), z.enum(['true', 'false'])])
-      .transform((val) => String(val) === 'true')
-      .default('true'),
+      .preprocess((val) => {
+        if (val === true || val === 'true') return true;
+        return false;
+      }, z.boolean())
+      .default(false),
     VITE_ENABLE_TELEMETRY: z
       .union([z.boolean(), z.enum(['true', 'false'])])
       .transform((val) => String(val) === 'true')

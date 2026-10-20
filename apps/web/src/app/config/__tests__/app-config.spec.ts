@@ -213,4 +213,62 @@ describe('Step A6.1 — Frontend Environment Configuration Architecture', () => 
       expect(config.apiBaseUrl).toBe('http://localhost:3000/api/v1');
     });
   });
+
+  describe('5. MSW Activation Policy (Milestone 2.3)', () => {
+    it('defaults enableMsw to false in development when VITE_ENABLE_MSW is omitted', () => {
+      const config = getAppConfig(undefined, {
+        MODE: 'development',
+        VITE_API_BASE_URL: 'http://localhost:3000/api/v1',
+      });
+
+      expect(config.isDev).toBe(true);
+      expect(config.enableMsw).toBe(false);
+    });
+
+    it('enables enableMsw in development when VITE_ENABLE_MSW is explicitly true', () => {
+      const config = getAppConfig(undefined, {
+        MODE: 'development',
+        VITE_API_BASE_URL: 'http://localhost:3000/api/v1',
+        VITE_ENABLE_MSW: 'true',
+      });
+
+      expect(config.isDev).toBe(true);
+      expect(config.enableMsw).toBe(true);
+    });
+
+    it('strictly forces enableMsw to false in production even if VITE_ENABLE_MSW is set to true', () => {
+      const config = getAppConfig(undefined, {
+        MODE: 'production',
+        VITE_API_BASE_URL: 'https://api.kinergy-platform.io/api/v1',
+        VITE_ENABLE_MSW: 'true',
+      });
+
+      expect(config.isProd).toBe(true);
+      expect(config.enableMsw).toBe(false);
+    });
+
+    it('strictly forces enableMsw to false in test environment even if VITE_ENABLE_MSW is true', () => {
+      const config = getAppConfig(undefined, {
+        MODE: 'test',
+        VITE_API_BASE_URL: 'http://localhost:3000/api/v1',
+        VITE_ENABLE_MSW: 'true',
+      });
+
+      expect(config.isTest).toBe(true);
+      expect(config.enableMsw).toBe(false);
+    });
+
+    it('fails safely and defaults enableMsw to false when invalid or unexpected flag values are passed', () => {
+      for (const invalidVal of ['yes', '1', 'enabled', 'TRUE', 'null', 123, 'random_string']) {
+        resetAppConfigCache();
+        const config = getAppConfig(undefined, {
+          MODE: 'development',
+          VITE_API_BASE_URL: 'http://localhost:3000/api/v1',
+          VITE_ENABLE_MSW: invalidVal,
+        });
+
+        expect(config.enableMsw).toBe(false);
+      }
+    });
+  });
 });

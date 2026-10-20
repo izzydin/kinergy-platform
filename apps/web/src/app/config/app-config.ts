@@ -61,16 +61,25 @@ function createConfigInstance(
   const validatedEnv: ClientEnv = validateClientEnv(envInput);
 
   const envMode = validatedEnv.MODE;
+  const isDev = envMode === 'development';
+  const isProd = envMode === 'production';
+  const isTest = envMode === 'test';
+
+  // MSW Activation Policy (Milestone 2.3):
+  // - Production builds and runtimes NEVER activate MSW regardless of env variables.
+  // - Development MSW strictly requires an explicit opt-in (VITE_ENABLE_MSW === true).
+  // - Default or invalid values resolve to false (disabled).
+  const enableMsw = isDev && !isProd && validatedEnv.VITE_ENABLE_MSW === true;
 
   const baseConfig: AppConfig = {
     env: envMode,
-    isDev: envMode === 'development',
-    isProd: envMode === 'production',
-    isTest: envMode === 'test',
+    isDev,
+    isProd,
+    isTest,
     apiBaseUrl: validatedEnv.VITE_API_BASE_URL,
     appTitle: validatedEnv.VITE_APP_TITLE,
     enableTelemetry: validatedEnv.VITE_ENABLE_TELEMETRY,
-    enableMsw: validatedEnv.VITE_ENABLE_MSW,
+    enableMsw,
     queryDefaultStaleTimeMs: 1000 * 60 * 5, // 5 minutes default stale time
     queryMaxRetries: 3, // Max 3 exponential backoff retries for 5xx/network errors
   };

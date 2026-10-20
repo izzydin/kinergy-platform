@@ -16,21 +16,33 @@ declare global {
 }
 
 /**
- * Registers global window.__KINERGY_DEBUG__ helper in development environment.
+ * Registers global window.__KINERGY_DEBUG__ helper strictly in development environment.
+ * In production or test environments, or when isDev is false, this function is a complete no-op.
+ * URL parameters, storage keys, or runtime flags cannot force debug helper attachment in production.
  */
-export function initDebugHelpers(queryClient?: QueryClient): void {
-  if (typeof window === 'undefined') return;
+export function initDebugHelpers(
+  queryClient?: QueryClient,
+  overrideConfig?: ReturnType<typeof getAppConfig>,
+): boolean {
+  if (typeof window === 'undefined') return false;
 
-  const config = getAppConfig();
+  const config = overrideConfig ?? getAppConfig();
 
-  if (config.isDev) {
-    window.__KINERGY_DEBUG__ = {
-      config,
-      logger,
-      queryClient,
-      version: '1.0.0-dev',
-    };
-
-    logger.debug('Kinergy Debug Helpers attached to window.__KINERGY_DEBUG__');
+  // Strict boundary: Only development mode allows debug helper registration
+  if (!config.isDev || config.isProd) {
+    if (window.__KINERGY_DEBUG__) {
+      delete window.__KINERGY_DEBUG__;
+    }
+    return false;
   }
+
+  window.__KINERGY_DEBUG__ = {
+    config,
+    logger,
+    queryClient,
+    version: '1.0.0-dev',
+  };
+
+  logger.debug('Kinergy Debug Helpers attached to window.__KINERGY_DEBUG__');
+  return true;
 }

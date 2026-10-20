@@ -1,11 +1,9 @@
 import { AppProvider, AppRouter, getAppConfig } from '@app/index';
 import { httpClient } from '@shared/api';
 import { setupAuthTransport } from '@shared/auth';
-import { initDebugHelpers } from '@shared/debug/debug-helper';
 import '@shared/styles/globals.css';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import { initMsw } from './test/mocks/init-msw';
 
 async function bootstrap(): Promise<void> {
   // 1. Resolve typed application configuration
@@ -14,11 +12,15 @@ async function bootstrap(): Promise<void> {
   // 2. Wire authentication transport onto shared HttpClient
   setupAuthTransport(httpClient);
 
-  // 3. Conditionally initialize Mock Service Worker (MSW) in development mode
-  await initMsw();
+  // 3. In development mode only, conditionally initialize Mock Service Worker (MSW) and debug helpers.
+  // Gating behind import.meta.env.DEV guarantees Rollup/Vite dead-code eliminates these modules in production builds.
+  if (import.meta.env.DEV) {
+    const { initMsw } = await import('./test/mocks/init-msw');
+    await initMsw();
 
-  // 4. Attach window.__KINERGY_DEBUG__ helpers
-  initDebugHelpers();
+    const { initDebugHelpers } = await import('./shared/debug/debug-helper');
+    initDebugHelpers();
+  }
 
   // 5. Locate HTML DOM mounting node
   const rootElement = document.getElementById('root');
