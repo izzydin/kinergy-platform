@@ -13,3 +13,4 @@ export * from './guards';
 export * from './authorization';
 export * from './decorators';
 export * from './context';
+export * from './controllers';

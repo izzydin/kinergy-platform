@@ -51,6 +51,7 @@ import {
 } from './use-cases';
 
 import { AuthController } from './controllers/auth.controller';
+import { UsersController } from './controllers/users.controller';
 import {
   LoginUseCase,
   RefreshTokenUseCase,
@@ -59,7 +60,7 @@ import {
 } from './use-cases';
 
 @Module({
-  controllers: [AuthController],
+  controllers: [AuthController, UsersController],
   providers: [
     PlaceholderIdentityContextService,
     {
