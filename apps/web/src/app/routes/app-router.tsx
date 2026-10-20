@@ -9,7 +9,7 @@ import '../../modules/attendance';
 import '../../modules/gym';
 import '../../modules/sales';
 
-import { AuthLayout, DashboardLayout, MainLayout } from '../layouts';
+import { AuthLayout, DashboardLayout } from '../layouts';
 import {
   ForbiddenView,
   NotFoundView,
@@ -347,19 +347,6 @@ export const AppRouter: React.FC = () => {
                 />
               );
             })}
-          </Route>
-
-          {/* Alternative MainLayout Shell for Full-width Views */}
-          <Route path="/shell" element={<MainLayout />}>
-            <Route
-              index
-              element={
-                <PlaceholderView
-                  title="Full Width Main Layout Shell"
-                  subtitle="Alternative Layout View Boundary (/shell)"
-                />
-              }
-            />
           </Route>
         </Route>
 

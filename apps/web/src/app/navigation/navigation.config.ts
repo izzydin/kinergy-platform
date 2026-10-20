@@ -1,4 +1,4 @@
-import { Boxes, LayoutDashboard, Receipt, Settings, Shield, TestTube, Users } from 'lucide-react';
+import { Boxes, LayoutDashboard, Receipt, Settings, Shield, Users } from 'lucide-react';
 import type { NavigationItem } from './navigation.types';
 
 /**
@@ -21,14 +21,6 @@ export const defaultNavigationItems: NavigationItem[] = [
     path: '/dashboard',
     icon: LayoutDashboard,
     order: 10,
-    section: 'overview',
-  },
-  {
-    id: 'dashboard-ui-states',
-    label: 'UI States & A6 Showcase',
-    path: '/dashboard/ui-states',
-    icon: TestTube,
-    order: 15,
     section: 'overview',
   },
 

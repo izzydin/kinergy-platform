@@ -110,11 +110,12 @@ describe('Step A5 Architectural Validation Modules', () => {
       expect(await screen.findByText('System Notification')).toBeInTheDocument();
     });
 
-    it('renders DashboardRouter sub-routes correctly', async () => {
-      renderWithProviders(<DashboardRouter />, { initialEntries: ['/metrics'] });
+    it('renders DashboardRouter sub-routes correctly and handles obsolete sub-routes with 404', async () => {
+      renderWithProviders(<DashboardRouter />, { initialEntries: ['/'] });
+      expect(screen.getByRole('heading', { name: /dashboard overview/i })).toBeInTheDocument();
 
-      expect(screen.getByRole('heading', { name: /metrics & performance/i })).toBeInTheDocument();
-      expect(screen.getByText('Telemetry Throughput')).toBeInTheDocument();
+      renderWithProviders(<DashboardRouter />, { initialEntries: ['/metrics'] });
+      expect(screen.getByRole('heading', { name: /404 — View Not Found/i })).toBeInTheDocument();
     });
   });
 

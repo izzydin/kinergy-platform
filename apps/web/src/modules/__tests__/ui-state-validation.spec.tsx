@@ -32,7 +32,7 @@ import { SlotProvider } from '../../shared/ui/slots/SlotProvider';
 
 import { DashboardActivitySection } from '../dashboard/components/dashboard-activity-section';
 import { DashboardMetricsSection } from '../dashboard/components/dashboard-metrics-section';
-import { DashboardUiStatesPage } from '../dashboard/routes/dashboard-ui-states-page';
+import { DashboardOverviewPage } from '../dashboard';
 import { SettingsProfileSection } from '../settings/components/settings-profile-section';
 import { settingsKeys } from '../settings/api/settings-query-keys';
 import type { UserProfileViewModel } from '../dashboard/types';
@@ -332,81 +332,17 @@ describe('A5.6 — SettingsProfileSection (4-State Contract)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. DashboardUiStatesPage — Page-Level Integration
+// 5. Dashboard Overview Clean of Temporary Links
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('A5.6 — DashboardUiStatesPage (Page Integration)', () => {
-  it('renders page heading and milestone badge', () => {
-    renderWithProviders(<DashboardUiStatesPage />, {
-      initialEntries: ['/dashboard/ui-states'],
+describe('A5.6 — Dashboard Overview Clean of Temporary Links', () => {
+  it('does not contain obsolete links to /dashboard/ui-states or /dashboard/metrics', async () => {
+    renderWithProviders(<DashboardOverviewPage />, {
+      initialEntries: ['/dashboard'],
     });
-    expect(screen.getByRole('heading', { name: /ui state validation/i })).toBeInTheDocument();
-    expect(screen.getByText('Milestone A5.6')).toBeInTheDocument();
-  });
 
-  it('renders simulation controller with all four state buttons', () => {
-    renderWithProviders(<DashboardUiStatesPage />, {
-      initialEntries: ['/dashboard/ui-states'],
-    });
-    expect(screen.getByTestId('sim-btn-success')).toBeInTheDocument();
-    expect(screen.getByTestId('sim-btn-loading')).toBeInTheDocument();
-    expect(screen.getByTestId('sim-btn-empty')).toBeInTheDocument();
-    expect(screen.getByTestId('sim-btn-error')).toBeInTheDocument();
-  });
-
-  it('starts in success state — renders StateView success content', async () => {
-    renderWithProviders(<DashboardUiStatesPage />, {
-      initialEntries: ['/dashboard/ui-states'],
-    });
-    await waitFor(() => {
-      expect(screen.getByTestId('state-view-success')).toBeInTheDocument();
-    });
-    expect(screen.getByText('StateView Success State')).toBeInTheDocument();
-  });
-
-  it('switching to error state — renders all section error alerts', async () => {
-    renderWithProviders(<DashboardUiStatesPage />, {
-      initialEntries: ['/dashboard/ui-states'],
-    });
-    fireEvent.click(screen.getByTestId('sim-btn-error'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('metrics-error')).toBeInTheDocument();
-      expect(screen.getByTestId('activity-error')).toBeInTheDocument();
-    });
-  });
-
-  it('switching to empty state — renders all section empty alerts', async () => {
-    renderWithProviders(<DashboardUiStatesPage />, {
-      initialEntries: ['/dashboard/ui-states'],
-    });
-    fireEvent.click(screen.getByTestId('sim-btn-empty'));
-
-    await waitFor(() => {
-      expect(screen.getByTestId('metrics-empty')).toBeInTheDocument();
-      expect(screen.getByTestId('activity-empty')).toBeInTheDocument();
-      expect(screen.getByText('No Profile Found')).toBeInTheDocument();
-    });
-  });
-
-  it('switching to loading state — renders section skeleton elements', () => {
-    renderWithProviders(<DashboardUiStatesPage />, {
-      initialEntries: ['/dashboard/ui-states'],
-    });
-    fireEvent.click(screen.getByTestId('sim-btn-loading'));
-    expect(screen.getByTestId('metrics-loading')).toBeInTheDocument();
-    expect(screen.getByTestId('activity-loading')).toBeInTheDocument();
-    expect(screen.getByTestId('profile-loading')).toBeInTheDocument();
-  });
-
-  it('renders all four section labels', () => {
-    renderWithProviders(<DashboardUiStatesPage />, {
-      initialEntries: ['/dashboard/ui-states'],
-    });
-    expect(screen.getByText(/section 1 — stateview primitive/i)).toBeInTheDocument();
-    expect(screen.getByText(/section 2 — dashboard metrics/i)).toBeInTheDocument();
-    expect(screen.getByText(/section 3 — dashboard activities/i)).toBeInTheDocument();
-    expect(screen.getByText(/section 4 — settings profile/i)).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /ui states/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /metrics detail/i })).not.toBeInTheDocument();
   });
 });
 

@@ -7,7 +7,6 @@ import { MemoryRouter } from 'react-router-dom';
 import { DashboardLayout } from '../../app/layouts/dashboard-layout';
 import { SlotProvider } from '../../shared/ui/slots/SlotProvider';
 import { DashboardOverviewPage } from '../dashboard';
-import { DashboardMetricsPage } from '../dashboard/routes/dashboard-metrics-page';
 import { GeneralSettingsForm } from '../settings/components/general-settings-form';
 import { SecuritySettingsForm } from '../settings/components/security-settings-form';
 import { SettingsLayoutPage } from '../settings/routes/settings-layout-page';
@@ -57,15 +56,6 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
 
       // Wait for async metric cards to resolve to success state
       await screen.findByTestId('metrics-success');
-
-      const results = await axe(container);
-      expect(results).toHaveNoViolations();
-    });
-
-    it('passes WCAG accessibility checks on Dashboard Metrics Page', async () => {
-      const { container } = renderWithProviders(<DashboardMetricsPage />, {
-        initialEntries: ['/dashboard/metrics'],
-      });
 
       const results = await axe(container);
       expect(results).toHaveNoViolations();

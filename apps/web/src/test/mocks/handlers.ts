@@ -1,4 +1,4 @@
-import { delay, http, HttpResponse, type RequestHandler } from 'msw';
+import { http, HttpResponse, type RequestHandler } from 'msw';
 
 import { authHandlers } from '../../modules/auth/mocks/auth-handlers';
 import { dashboardHandlers } from '../../modules/dashboard/mocks/dashboard-handlers';
@@ -20,33 +20,6 @@ export const infrastructureHandlers: RequestHandler[] = [
       timestamp: new Date().toISOString(),
       service: '@kinergy-platform/web',
     });
-  }),
-
-  // Infrastructure Integration Test Endpoints (Step A6.8)
-  http.post('*/api/v1/test/mutation-success', async () => {
-    await delay(100);
-    return HttpResponse.json({
-      status: 'ok',
-      id: 'res_100',
-      message: 'Mutation executed successfully',
-    });
-  }),
-
-  http.post('*/api/v1/test/mutation-failure', async () => {
-    await delay(100);
-    return HttpResponse.json(
-      {
-        code: 'VALIDATION_ERROR',
-        message: 'Validation failed',
-        details: { name: ['Name is required'], email: ['Invalid format'] },
-      },
-      { status: 400 },
-    );
-  }),
-
-  http.post('*/api/v1/test/auth-failure', async () => {
-    await delay(100);
-    return HttpResponse.json({ message: 'Session expired or invalid token' }, { status: 401 });
   }),
 ];
 

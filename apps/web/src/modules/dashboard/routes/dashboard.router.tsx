@@ -1,13 +1,11 @@
 import React from 'react';
 import { Route, Routes } from 'react-router-dom';
-import { DashboardMetricsPage } from './dashboard-metrics-page';
+import { NotFoundView } from '../../../app/routes/fallback-views';
 import { DashboardOverviewPage } from './dashboard-overview-page';
-import { DashboardUiStatesPage } from './dashboard-ui-states-page';
 
 /**
  * Dashboard Sub-Router
- * Encapsulates module sub-routes (/dashboard, /dashboard/metrics, /dashboard/ui-states)
- * and specifies breadcrumb metadata.
+ * Encapsulates module sub-routes (/dashboard) and specifies breadcrumb metadata.
  */
 export const DashboardRouter: React.FC = () => {
   return (
@@ -19,20 +17,7 @@ export const DashboardRouter: React.FC = () => {
           breadcrumb: 'Dashboard Overview',
         }}
       />
-      <Route
-        path="metrics"
-        element={<DashboardMetricsPage />}
-        handle={{
-          breadcrumb: 'Metrics & Performance',
-        }}
-      />
-      <Route
-        path="ui-states"
-        element={<DashboardUiStatesPage />}
-        handle={{
-          breadcrumb: 'UI State Validation',
-        }}
-      />
+      <Route path="*" element={<NotFoundView message="Dashboard view not found." />} />
     </Routes>
   );
 };

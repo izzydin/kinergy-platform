@@ -265,14 +265,49 @@ describe('Track B — Step B3.4: Routing Architecture Integration', () => {
       expect(screen.queryByText(/Analytics & Reporting/i)).not.toBeInTheDocument();
     });
 
-    it('ensures defaultNavigationItems does not contain obsolete energy or analytics entries', () => {
+    it('ensures defaultNavigationItems does not contain obsolete energy, analytics, or temporary ui-states entries', () => {
       const paths = defaultNavigationItems.map((item) => item.path);
       const ids = defaultNavigationItems.map((item) => item.id);
 
       expect(paths).not.toContain('/energy');
       expect(paths).not.toContain('/analytics');
+      expect(paths).not.toContain('/dashboard/ui-states');
       expect(ids).not.toContain('energy');
       expect(ids).not.toContain('analytics');
+      expect(ids).not.toContain('dashboard-ui-states');
+    });
+
+    it('resolves obsolete /dashboard/ui-states route to 404 NotFoundView', async () => {
+      renderAppWithRouter('/dashboard/ui-states', AUTHENTICATED_ARCHITECT_USER);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { level: 2, name: /404 — View Not Found/i }),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/UI State Validation/i)).not.toBeInTheDocument();
+    });
+
+    it('resolves obsolete /dashboard/metrics route to 404 NotFoundView', async () => {
+      renderAppWithRouter('/dashboard/metrics', AUTHENTICATED_ARCHITECT_USER);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { level: 2, name: /404 — View Not Found/i }),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/Metrics & Performance/i)).not.toBeInTheDocument();
+    });
+
+    it('resolves obsolete /shell route to 404 NotFoundView', async () => {
+      renderAppWithRouter('/shell', AUTHENTICATED_ARCHITECT_USER);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { level: 2, name: /404 — View Not Found/i }),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/Full Width Main Layout Shell/i)).not.toBeInTheDocument();
     });
   });
 });

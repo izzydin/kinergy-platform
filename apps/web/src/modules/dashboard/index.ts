@@ -12,5 +12,4 @@ moduleRegistry.register({
 
 export { DashboardRouter };
 export { DashboardOverviewPage } from './routes/dashboard-overview-page';
-export { DashboardUiStatesPage } from './routes/dashboard-ui-states-page';
 export type { DashboardMetricItem, DashboardStatusSummary } from './types';
