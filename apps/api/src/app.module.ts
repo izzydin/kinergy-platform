@@ -6,6 +6,7 @@ import { appConfig, databaseConfig, validateEnv } from './config';
 import { PlatformModule } from './platform';
 import { SchedulingModule } from './scheduling';
 import { GymModule } from './gym';
+import { KinesiologyModule } from './kinesiology';
 import { ResourcesModule } from './resources';
 import { SalesModule } from './sales';
 import { GlobalSanitizationValidationPipe } from './common/pipes';
@@ -19,6 +20,7 @@ import { GlobalSanitizationValidationPipe } from './common/pipes';
     }),
     PlatformModule,
     SchedulingModule,
+    KinesiologyModule,
     GymModule,
     ResourcesModule,
     SalesModule,

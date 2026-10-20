@@ -15,7 +15,17 @@ import {
   BadRequestException,
   ConflictException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+  ApiProperty,
+  ApiPropertyOptional,
+} from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Permissions } from '../../platform/identity/decorators';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
 import {
@@ -39,33 +49,97 @@ import {
 } from '@kinergy-platform/core';
 
 export class CreateTreatmentSessionDto {
+  @ApiProperty({ description: 'Scheduled appointment unique identifier' })
+  @IsString()
+  @IsNotEmpty({ message: 'appointmentId is required.' })
   appointmentId!: string;
+
+  @ApiPropertyOptional({ description: 'Optional initial clinical notes' })
+  @IsOptional()
+  @IsString()
   initialNotes?: string;
+
+  @ApiPropertyOptional({ description: 'Optionally transition immediately to in-progress' })
+  @IsOptional()
+  @IsBoolean()
   autoStart?: boolean;
 }
 
 export class AssignTherapistDto {
+  @ApiProperty({ description: 'Unique identifier of the newly assigned practitioner' })
+  @IsString()
+  @IsNotEmpty({ message: 'newTherapistId is required.' })
   newTherapistId!: string;
 }
 
 export class UpdateSessionNotesDto {
+  @ApiPropertyOptional({ description: 'Subjective client report' })
+  @IsOptional()
+  @IsString()
   subjective?: string;
+
+  @ApiPropertyOptional({ description: 'Objective clinical observations' })
+  @IsOptional()
+  @IsString()
   objective?: string;
+
+  @ApiPropertyOptional({ description: 'Assessment and diagnosis' })
+  @IsOptional()
+  @IsString()
   assessment?: string;
+
+  @ApiPropertyOptional({ description: 'Treatment and follow-up plan' })
+  @IsOptional()
+  @IsString()
   plan?: string;
+
+  @ApiPropertyOptional({ description: 'Free-form clinical notes' })
+  @IsOptional()
+  @IsString()
   rawText?: string;
 }
 
 export class CancelTreatmentSessionDto {
+  @ApiProperty({ description: 'Mandatory explanation for treatment session cancellation' })
+  @IsString()
+  @IsNotEmpty({ message: 'Cancellation reason is required.' })
   reason!: string;
 }
 
 export class TreatmentHistoryQueryDto {
+  @ApiPropertyOptional({ description: 'Page number for pagination (1-indexed)', example: 1 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   page?: number;
+
+  @ApiPropertyOptional({ description: 'Page size limit (min: 1, max: 100)', example: 20 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(100)
   limit?: number;
+
+  @ApiPropertyOptional({ description: 'Filter by session lifecycle status', enum: SessionStatus })
+  @IsOptional()
+  @IsString()
   status?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by practitioner ID' })
+  @IsOptional()
+  @IsString()
   therapistId?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by start date ISO string' })
+  @IsOptional()
+  @IsString()
   dateFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by end date ISO string' })
+  @IsOptional()
+  @IsString()
   dateTo?: string;
 }
 
@@ -180,7 +254,6 @@ export class TreatmentSessionsController {
   }
 
   @Post('sessions/:id/assign-therapist')
-  @Patch('sessions/:id/therapist')
   @HttpCode(HttpStatus.OK)
   @Permissions('kinesiology.sessions.assign')
   @ApiOperation({ summary: 'Assign practitioner to treatment session' })
@@ -218,8 +291,17 @@ export class TreatmentSessionsController {
     return result.getValue();
   }
 
+  @Patch('sessions/:id/therapist')
+  @HttpCode(HttpStatus.OK)
+  @Permissions('kinesiology.sessions.assign')
+  @ApiOperation({ summary: 'Update practitioner assigned to treatment session (alias)' })
+  @ApiParam({ name: 'id', description: 'Treatment session unique identifier' })
+  @ApiResponse({ status: 200, description: 'Therapist assigned successfully' })
+  public async patchTherapist(@Param('id') sessionId: string, @Body() dto: AssignTherapistDto) {
+    return this.assignTherapist(sessionId, dto);
+  }
+
   @Put('sessions/:id/notes')
-  @Patch('sessions/:id/notes')
   @HttpCode(HttpStatus.OK)
   @Permissions('kinesiology.sessions.treat')
   @ApiOperation({ summary: 'Update clinical SOAP notes' })
@@ -251,6 +333,16 @@ export class TreatmentSessionsController {
     }
 
     return result.getValue();
+  }
+
+  @Patch('sessions/:id/notes')
+  @HttpCode(HttpStatus.OK)
+  @Permissions('kinesiology.sessions.treat')
+  @ApiOperation({ summary: 'Patch clinical SOAP notes (alias)' })
+  @ApiParam({ name: 'id', description: 'Treatment session unique identifier' })
+  @ApiResponse({ status: 200, description: 'Notes updated successfully' })
+  public async patchNotes(@Param('id') sessionId: string, @Body() dto: UpdateSessionNotesDto) {
+    return this.updateNotes(sessionId, dto);
   }
 
   @Post('sessions/:id/complete')
