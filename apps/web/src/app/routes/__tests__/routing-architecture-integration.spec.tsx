@@ -16,6 +16,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AppRouter } from '../app-router';
 import { AuthProvider } from '../../providers/auth-provider';
 import { NavigationProvider } from '../../navigation/navigation-provider';
+import { defaultNavigationItems } from '../../navigation/navigation.config';
 import { FeatureFlagProvider } from '../../providers/feature-flag-provider';
 import { NotificationProvider } from '../../providers/notification-provider';
 import { BreadcrumbProvider } from '../../breadcrumbs/breadcrumb-provider';
@@ -234,6 +235,44 @@ describe('Track B — Step B3.4: Routing Architecture Integration', () => {
       await waitFor(() => {
         expect(screen.getByRole('heading', { name: /Platform Settings/i })).toBeInTheDocument();
       });
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 4. Obsolete Route Removal & 404 Fallback Verification
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('4. Obsolete Route Removal & 404 Fallback Verification', () => {
+    it('resolves obsolete /energy route to established 404 NotFoundView', async () => {
+      renderAppWithRouter('/energy', AUTHENTICATED_ARCHITECT_USER);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { level: 2, name: /404 — View Not Found/i }),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/Energy Telemetry/i)).not.toBeInTheDocument();
+    });
+
+    it('resolves obsolete /analytics route to established 404 NotFoundView', async () => {
+      renderAppWithRouter('/analytics', AUTHENTICATED_ARCHITECT_USER);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { level: 2, name: /404 — View Not Found/i }),
+        ).toBeInTheDocument();
+      });
+      expect(screen.queryByText(/Analytics & Reporting/i)).not.toBeInTheDocument();
+    });
+
+    it('ensures defaultNavigationItems does not contain obsolete energy or analytics entries', () => {
+      const paths = defaultNavigationItems.map((item) => item.path);
+      const ids = defaultNavigationItems.map((item) => item.id);
+
+      expect(paths).not.toContain('/energy');
+      expect(paths).not.toContain('/analytics');
+      expect(ids).not.toContain('energy');
+      expect(ids).not.toContain('analytics');
     });
   });
 });

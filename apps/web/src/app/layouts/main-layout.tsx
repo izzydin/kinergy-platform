@@ -33,7 +33,7 @@ export const MainLayout: React.FC = () => {
       <footer className="border-t border-border/40 py-6">
         <div className="container flex flex-col items-center justify-between gap-4 md:h-12 md:flex-row md:py-0">
           <p className="text-center text-sm text-muted-foreground md:text-left">
-            &copy; {new Date().getFullYear()} Kinergy Platform. Enterprise Energy System.
+            &copy; {new Date().getFullYear()} Kinergy Platform. All rights reserved.
           </p>
         </div>
       </footer>

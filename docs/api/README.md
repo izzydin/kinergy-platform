@@ -16,7 +16,7 @@ http://localhost:3000/api/docs
 ```
 
 - **Title**: Kinergy Platform API
-- **Description**: Enterprise Energy & Sustainability Management System API
+- **Description**: Kinergy Health, Wellness, Gym, and Clinic Management Platform API
 - **Version**: 1.0
 - **Security Scheme**: `bearerAuth` (JWT Access Token)
 

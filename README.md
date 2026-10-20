@@ -5,7 +5,7 @@
 ![Architecture](https://img.shields.io/badge/Architecture-Clean%20%2F%20DDD-green)
 ![Monorepo](https://img.shields.io/badge/Monorepo-Nx-blueviolet)
 
-Welcome to the **Kinergy Platform** repository. Kinergy Platform is an enterprise energy and sustainability management system built with an Nx monorepo architecture adhering to **Clean Architecture**, **Domain-Driven Design (DDD)**, and **SOLID** principles.
+Welcome to the **Kinergy Platform** repository. Kinergy Platform is an integrated health, wellness, gym, and clinic management platform built with an Nx monorepo architecture adhering to **Clean Architecture**, **Domain-Driven Design (DDD)**, and **SOLID** principles.
 
 ---
 

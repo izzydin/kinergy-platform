@@ -1,14 +1,4 @@
-import {
-  Activity,
-  BarChart3,
-  Boxes,
-  LayoutDashboard,
-  Receipt,
-  Settings,
-  Shield,
-  TestTube,
-  Users,
-} from 'lucide-react';
+import { Boxes, LayoutDashboard, Receipt, Settings, Shield, TestTube, Users } from 'lucide-react';
 import type { NavigationItem } from './navigation.types';
 
 /**
@@ -61,16 +51,6 @@ export const defaultNavigationItems: NavigationItem[] = [
     requiredPermissions: ['sales.read'],
   },
   {
-    id: 'energy',
-    label: 'Energy Telemetry',
-    path: '/energy',
-    icon: Activity,
-    order: 30,
-    section: 'core',
-    requiredPermissions: ['energy:read'],
-    requiredTenantFeatures: ['ENABLE_TELEMETRY'],
-  },
-  {
     id: 'resources',
     label: 'Resource Overview',
     path: '/resources/overview',
@@ -78,16 +58,6 @@ export const defaultNavigationItems: NavigationItem[] = [
     order: 35,
     section: 'core',
     requiredPermissions: ['inventory.read', 'assets.read'],
-  },
-  {
-    id: 'analytics',
-    label: 'Analytics',
-    path: '/analytics',
-    icon: BarChart3,
-    order: 40,
-    section: 'core',
-    requiredPermissions: ['analytics:read'],
-    requiredTenantFeatures: ['ENABLE_ADVANCED_ANALYTICS'],
   },
   {
     id: 'admin',

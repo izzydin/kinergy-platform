@@ -20,7 +20,7 @@ export interface StandardQueryKeys<TFilter = Record<string, unknown>, TId = stri
 /**
  * Creates a domain-scoped Query Key Factory.
  *
- * @param domain Domain feature name (e.g. 'clients', 'energy', 'analytics')
+ * @param domain Domain feature name (e.g. 'clients', 'gym', 'kinesiology')
  */
 export function createQueryKeyFactory<TFilter = Record<string, unknown>, TId = string>(
   domain: string,

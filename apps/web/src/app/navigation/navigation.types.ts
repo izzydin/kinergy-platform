@@ -6,11 +6,11 @@ import type React from 'react';
  * Defines the public navigation entry specification exported by feature modules (src/modules/<domain>/).
  */
 export interface NavigationItem {
-  /** Unique navigation item identifier (e.g., 'client:directory', 'energy:metrics') */
+  /** Unique navigation item identifier (e.g., 'client:directory', 'gym:dashboard') */
   readonly id: string;
   /** Human-readable display label (or translation key) */
   readonly label: string;
-  /** Primary URL path target (e.g., '/clients', '/energy') */
+  /** Primary URL path target (e.g., '/clients', '/gym') */
   readonly path: string;
   /** Optional icon identifier or React component */
   readonly icon?: React.ComponentType<{ className?: string }> | string;

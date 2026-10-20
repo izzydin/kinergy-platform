@@ -36,7 +36,7 @@ async function bootstrap(): Promise<void> {
   // OpenAPI Swagger Setup
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Kinergy Platform API')
-    .setDescription('Enterprise Energy & Sustainability Management System API')
+    .setDescription('Kinergy Health, Wellness, Gym, and Clinic Management Platform API')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

@@ -8,10 +8,10 @@
 
 ## 1. Executive Summary & Purpose of the Frontend
 
-The **Kinergy Platform Frontend** (`apps/web`) serves as the primary presentation and user interaction delivery layer for the enterprise energy management and monitoring system. Designed as a high-performance single-page web application (SPA), its core responsibilities are:
+The **Kinergy Platform Frontend** (`apps/web`) serves as the primary presentation and user interaction delivery layer for the integrated health, wellness, gym, and clinic management system. Designed as a high-performance single-page web application (SPA), its core responsibilities are:
 
-1. **Energy Monitoring & Dashboard Visualization**: Rendering real-time and historical telemetry data, energy asset states, analytics metrics, and system alerts with minimal latency.
-2. **Enterprise User Experience**: Providing intuitional, responsive, and accessible workflows for administrators, facility managers, and enterprise operators.
+1. **Operational Dashboard Visualization**: Rendering operational metrics, resource overview, clinical appointments, attendance summaries, and sales analytics with minimal latency.
+2. **Enterprise User Experience**: Providing intuitive, responsive, and accessible workflows for administrators, practitioners, trainers, and enterprise operators.
 3. **Decoupled Client Architecture**: Operating as a stateless client that delegates all business invariant enforcement, security decisions, and data persistence to backend bounded contexts while maintaining a resilient, local presentation layer.
 
 ---

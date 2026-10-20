@@ -73,45 +73,6 @@ const ClientSubRouter: React.FC = () => (
   </Routes>
 );
 
-const EnergySubRouter: React.FC = () => (
-  <Routes>
-    <Route
-      path="/"
-      element={
-        <PlaceholderView
-          title="Energy Telemetry Monitoring"
-          subtitle="Energy Module Route Boundary (/energy)"
-        />
-      }
-    />
-    <Route
-      path="meters"
-      element={
-        <PlaceholderView
-          title="Smart Meter Telemetry"
-          subtitle="Energy Module Sub-route Boundary (/energy/meters)"
-        />
-      }
-    />
-    <Route path="*" element={<NotFoundView message="Energy view not found." />} />
-  </Routes>
-);
-
-const AnalyticsSubRouter: React.FC = () => (
-  <Routes>
-    <Route
-      path="/"
-      element={
-        <PlaceholderView
-          title="Energy Analytics & Trends"
-          subtitle="Analytics Module Route Boundary (/analytics)"
-        />
-      }
-    />
-    <Route path="*" element={<NotFoundView message="Analytics view not found." />} />
-  </Routes>
-);
-
 import { ErrorBoundary } from '../../shared/ui/error-boundary';
 
 import {
@@ -152,24 +113,6 @@ moduleRegistry.register({
   isProtected: true,
   requiredPermissions: ['kinesiology.sessions.read'],
   component: KinesiologySubRouter,
-});
-
-moduleRegistry.register({
-  id: 'energy',
-  prefix: '/energy',
-  title: 'Energy Telemetry',
-  isProtected: true,
-  requiredPermissions: ['energy:read'],
-  component: EnergySubRouter,
-});
-
-moduleRegistry.register({
-  id: 'analytics',
-  prefix: '/analytics',
-  title: 'Analytics & Reporting',
-  isProtected: true,
-  requiredPermissions: ['analytics:read'],
-  component: AnalyticsSubRouter,
 });
 
 import {

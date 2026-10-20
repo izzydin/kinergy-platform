@@ -353,7 +353,7 @@ describe('Track B — Milestone B1.3: Protected Route & Auth Routing Integration
 
   describe('6. Return Location', () => {
     it('PublicRoute redirects authenticated users to the target path specified in ?redirect= query param', async () => {
-      const encodedTarget = encodeURIComponent('/energy/meters');
+      const encodedTarget = encodeURIComponent('/resources/overview');
 
       render(
         <QueryClientProvider client={createTestQueryClient()}>
@@ -363,14 +363,14 @@ describe('Track B — Milestone B1.3: Protected Route & Auth Routing Integration
                 <Route element={<PublicRoute />}>
                   <Route path="/auth/login" element={<div>Public Login Form</div>} />
                 </Route>
-                <Route path="/energy/meters" element={<div>Target Smart Meters View</div>} />
+                <Route path="/resources/overview" element={<div>Target Resources View</div>} />
               </Routes>
             </AuthProvider>
           </MemoryRouter>
         </QueryClientProvider>,
       );
 
-      expect(screen.getByText('Target Smart Meters View')).toBeInTheDocument();
+      expect(screen.getByText('Target Resources View')).toBeInTheDocument();
       expect(screen.queryByText('Public Login Form')).not.toBeInTheDocument();
     });
   });

@@ -8,12 +8,15 @@
 
 ## 1. Project Overview
 
-The **Kinergy Platform** is an enterprise energy and sustainability management system built within an **Nx Integrated Monorepo**. The platform is designed following **Clean Architecture**, **Domain-Driven Design (DDD)**, and **SOLID principles** to deliver a modular, secure, and highly testable multi-tenant SaaS application.
+The **Kinergy Platform** is an integrated health, wellness, gym, and clinic management platform built within an **Nx Integrated Monorepo**. The platform is designed following **Clean Architecture**, **Domain-Driven Design (DDD)**, and **SOLID principles** to deliver a modular, secure, and highly testable multi-tenant SaaS application.
 
 ### Key Platform Capabilities
 
 - **Identity & Security (IAM)**: Dual-token JWT authentication, Refresh Token Rotation (RTR), Argon2id memory-hard password hashing, zero-information-disclosure generic errors, and fine-grained RBAC/ABAC authorization.
-- **Sustainability & Energy Monitoring**: High-throughput telemetry ingestion, energy asset monitoring, and carbon emission analytics.
+- **Gym & Facility Operations**: Membership lifecycles, check-ins, trainer allocation, and attendance tracking.
+- **Kinesiology & Clinical Charting**: Multi-stage treatment sessions, clinical documentation, and therapist assignments.
+- **Resource Management**: Fixed asset lifecycle maintenance, condition assessment, and consumable inventory control.
+- **Sales & Point of Sale**: Multi-tender payments, fiscal receipt generation, and transaction settlements.
 - **Enterprise Platform Services**: Decoupled audit logging infrastructure (`IAuditEventPublisher`), AsyncLocalStorage request context propagation (`RequestContext`), and centralized Zod environment validation.
 
 ---

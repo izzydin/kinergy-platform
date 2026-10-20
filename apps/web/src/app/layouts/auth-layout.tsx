@@ -46,9 +46,7 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, header, footer
 
       {/* Footer Links Extension Point */}
       <footer className="mt-8 text-center text-xs text-muted-foreground">
-        {footer || (
-          <>&copy; {new Date().getFullYear()} Kinergy Platform. Enterprise Energy Infrastructure.</>
-        )}
+        {footer || <>&copy; {new Date().getFullYear()} Kinergy Platform. All rights reserved.</>}
       </footer>
     </div>
   );

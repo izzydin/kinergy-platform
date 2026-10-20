@@ -6,9 +6,9 @@ import React from 'react';
  * Defines the public route specification exported by feature modules (src/modules/<domain>/).
  */
 export interface ModuleRouteDefinition {
-  /** Unique module identifier (e.g., 'auth', 'client', 'energy', 'analytics') */
+  /** Unique module identifier (e.g., 'auth', 'client', 'gym', 'kinesiology') */
   readonly id: string;
-  /** Primary URL path prefix (e.g., '/auth', '/clients', '/energy', '/analytics') */
+  /** Primary URL path prefix (e.g., '/auth', '/clients', '/gym', '/kinesiology') */
   readonly prefix: string;
   /** Human-readable module title for navigation headers */
   readonly title: string;
