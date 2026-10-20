@@ -12,4 +12,20 @@ moduleRegistry.register({
 
 export { DashboardRouter };
 export { DashboardOverviewPage } from './routes/dashboard-overview-page';
+export { DashboardMetricsSection } from './components/dashboard-metrics-section';
+export {
+  GymCheckInsCard,
+  LowStockAlertsCard,
+  TodayAppointmentsCard,
+  DailySalesTotalCard,
+} from './components/operational-metric-cards';
+export {
+  useTodayGymCheckIns,
+  useLowStockAlerts,
+  operationalDashboardKeys,
+} from './api/operational-dashboard-queries';
+export type {
+  GymCheckInsSummary,
+  LowStockAlertsSummary,
+} from './api/operational-dashboard-queries';
 export type { DashboardMetricItem, DashboardStatusSummary } from './types';

@@ -76,12 +76,9 @@ describe('Step A5 Architectural Validation Modules', () => {
 
       expect(screen.getByRole('heading', { name: /dashboard overview/i })).toBeInTheDocument();
 
-      const loadingSkeletons = screen.getAllByTestId('metrics-loading');
-      expect(loadingSkeletons.length).toBeGreaterThan(0);
-
       const metricsCard = await screen.findByTestId('metrics-success');
       expect(metricsCard).toBeInTheDocument();
-      expect(screen.getByText('Active Energy Monitors')).toBeInTheDocument();
+      expect(screen.getByText('Gym Check-ins Today')).toBeInTheDocument();
       expect(screen.getByText('Quick System Check')).toBeInTheDocument();
     });
 

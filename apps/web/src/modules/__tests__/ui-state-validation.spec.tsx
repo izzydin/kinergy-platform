@@ -201,8 +201,8 @@ describe('A5.6 — DashboardMetricsSection (4-State Contract)', () => {
     renderWithProviders(<DashboardMetricsSection simulationState="success" />);
     const successGrid = await screen.findByTestId('metrics-success');
     expect(successGrid).toBeInTheDocument();
-    expect(screen.getByText('Active Energy Monitors')).toBeInTheDocument();
-    expect(screen.getByText('System Throughput')).toBeInTheDocument();
+    expect(screen.getByText('Gym Check-ins Today')).toBeInTheDocument();
+    expect(screen.getByText('Low-Stock Alerts')).toBeInTheDocument();
   });
 
   it('error state shows the correct error message text', async () => {

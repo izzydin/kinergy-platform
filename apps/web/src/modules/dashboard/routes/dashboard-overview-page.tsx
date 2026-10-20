@@ -36,12 +36,12 @@ export const DashboardOverviewPage: React.FC = () => {
               Dashboard Overview
             </h1>
             <Badge variant="outline" className="hidden sm:inline-flex">
-              Step A5.2 Validation
+              Live Operations
             </Badge>
           </div>
           <p className="text-muted-foreground text-sm">
-            Architectural validation screen verifying layout, header, breadcrumbs, slot injection,
-            cards, buttons, badges, skeletons, spinner, toasts, theme tokens, and 4-State UI.
+            Real-time facility attendance, consumable inventory alerts, and operational telemetry
+            for Kinergy wellness platform.
           </p>
         </div>
       </div>
