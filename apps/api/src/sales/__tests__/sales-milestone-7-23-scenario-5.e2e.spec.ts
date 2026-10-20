@@ -22,10 +22,12 @@ import {
   GetPaymentByIdHandler,
   GetPaymentsBySaleIdHandler,
   GetSalePaymentHistoryHandler,
+} from '@kinergy-platform/core';
+import {
   PrismaSaleRepository,
   PrismaPaymentRepository,
   PrismaSalesUnitOfWork,
-} from '@kinergy-platform/core';
+} from '@kinergy-platform/core/server';
 
 import { SalesController, SALE_REPOSITORY_TOKEN } from '../controllers/sales.controller';
 import { PaymentsController, PAYMENT_REPOSITORY_TOKEN } from '../controllers/payments.controller';

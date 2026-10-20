@@ -9,8 +9,8 @@ import {
   CompleteTreatmentSessionHandler,
   CancelTreatmentSessionHandler,
   GetClientTreatmentHistoryHandler,
-  PrismaAppointmentRepository,
 } from '@kinergy-platform/core';
+import { PrismaAppointmentRepository } from '@kinergy-platform/core/server';
 import { KinesiologyModule } from '../kinesiology.module';
 import { TreatmentSessionsController } from '../controllers/treatment-sessions.controller';
 import {

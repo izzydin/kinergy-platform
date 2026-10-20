@@ -20,8 +20,8 @@ import {
   GetReceiptBySaleHandler,
   SaleNotFoundException,
   ReceiptNotFoundException,
-  InMemoryReceiptSequenceGenerator,
 } from '@kinergy-platform/core';
+import { InMemoryReceiptSequenceGenerator } from '@kinergy-platform/core/server';
 import { ReceiptsController, RECEIPT_REPOSITORY_TOKEN } from '../controllers/receipts.controller';
 import { SALE_REPOSITORY_TOKEN } from '../controllers/sales.controller';
 import { PAYMENT_REPOSITORY_TOKEN } from '../controllers/payments.controller';

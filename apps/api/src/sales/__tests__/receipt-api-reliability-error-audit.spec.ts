@@ -25,9 +25,11 @@ import {
   SaleNotFoundException,
   ReceiptNotFoundException,
   ReceiptUnauthorizedException,
+} from '@kinergy-platform/core';
+import {
   ReceiptPersistenceException,
   InMemoryReceiptSequenceGenerator,
-} from '@kinergy-platform/core';
+} from '@kinergy-platform/core/server';
 import { ReceiptsController, RECEIPT_REPOSITORY_TOKEN } from '../controllers/receipts.controller';
 import { SALE_REPOSITORY_TOKEN } from '../controllers/sales.controller';
 import { PAYMENT_REPOSITORY_TOKEN } from '../controllers/payments.controller';

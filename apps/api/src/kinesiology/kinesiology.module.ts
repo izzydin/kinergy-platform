@@ -8,14 +8,16 @@ import {
   CompleteTreatmentSessionHandler,
   CancelTreatmentSessionHandler,
   GetClientTreatmentHistoryHandler,
-  SchedulingAppointmentLookupAdapter,
   GetAppointmentByIdHandler,
-  PrismaAppointmentRepository,
   SystemClock,
   Clock,
   ITreatmentSessionRepository,
   ISchedulingAppointmentLookupPort,
 } from '@kinergy-platform/core';
+import {
+  SchedulingAppointmentLookupAdapter,
+  PrismaAppointmentRepository,
+} from '@kinergy-platform/core/server';
 import { TreatmentSessionsController } from './controllers/treatment-sessions.controller';
 import {
   TREATMENT_SESSION_REPOSITORY_TOKEN,

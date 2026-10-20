@@ -28,8 +28,8 @@ import {
   GetReceiptHandler,
   GetReceiptBySaleHandler,
   ReceiptUnauthorizedException,
-  InMemoryReceiptSequenceGenerator,
 } from '@kinergy-platform/core';
+import { InMemoryReceiptSequenceGenerator } from '@kinergy-platform/core/server';
 
 // ---------------------------------------------------------------------------
 // In-Memory Test Doubles

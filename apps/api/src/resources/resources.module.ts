@@ -3,6 +3,8 @@ import { PrismaService } from '../platform/persistence/prisma/prisma.service';
 import {
   PrismaInventoryItemRepository,
   PrismaFixedAssetRepository,
+} from '@kinergy-platform/core/server';
+import {
   ResourcesEventPublisherPort,
   CreateInventoryItemHandler,
   UpdateInventoryItemHandler,

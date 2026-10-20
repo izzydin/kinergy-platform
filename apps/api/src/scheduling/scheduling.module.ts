@@ -4,6 +4,8 @@ import {
   PrismaAppointmentRepository,
   PrismaRecurrenceSeriesRepository,
   PrismaRoomRepository,
+} from '@kinergy-platform/core/server';
+import {
   ConflictDetectionService,
   CreateRecurrenceSeriesHandler,
   GenerateRecurringOccurrencesHandler,

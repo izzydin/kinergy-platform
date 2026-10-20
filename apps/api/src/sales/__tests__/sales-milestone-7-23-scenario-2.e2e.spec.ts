@@ -38,8 +38,10 @@ import {
   IssueReceiptHandler,
   GetReceiptHandler,
   GetReceiptBySaleHandler,
-  InMemoryReceiptSequenceGenerator,
   IUnitOfWork,
+} from '@kinergy-platform/core';
+import { InMemoryReceiptSequenceGenerator } from '@kinergy-platform/core/server';
+import {
   InventoryItem,
   InventoryCategory,
   UnitOfMeasure,

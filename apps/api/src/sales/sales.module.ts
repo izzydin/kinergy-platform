@@ -6,6 +6,8 @@ import {
   PrismaPaymentRepository,
   PrismaReceiptRepository,
   PrismaSalesUnitOfWork,
+} from '@kinergy-platform/core/server';
+import {
   CreateSaleHandler,
   AssignSaleSourceHandler,
   GetSaleByIdHandler,

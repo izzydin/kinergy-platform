@@ -44,11 +44,13 @@ import {
   IssueReceiptHandler,
   GetReceiptHandler,
   GetReceiptBySaleHandler,
-  InMemoryReceiptSequenceGenerator,
   IUnitOfWork,
+} from '@kinergy-platform/core';
+import {
+  InMemoryReceiptSequenceGenerator,
   PrismaSaleMapper,
   PrismaMoneyMapper,
-} from '@kinergy-platform/core';
+} from '@kinergy-platform/core/server';
 
 import { SalesController, SALE_REPOSITORY_TOKEN } from '../controllers/sales.controller';
 import { PaymentsController, PAYMENT_REPOSITORY_TOKEN } from '../controllers/payments.controller';
