@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import { moduleRegistry } from '../../../app/routes/module-registry';
 import { NotFoundView } from '../../../app/routes/fallback-views';
 import { MembershipsSubRouter } from '../memberships/routes/memberships.router';
@@ -9,6 +9,8 @@ import { TrainerDashboardSubRouter } from '../trainer-dashboard/routes/trainer-d
 
 export const GymManagementSubRouter: React.FC = () => (
   <Routes>
+    <Route index element={<Navigate to="memberships" replace />} />
+    <Route path="/" element={<Navigate to="memberships" replace />} />
     <Route path="memberships/*" element={<MembershipsSubRouter />} />
     <Route path="plans/*" element={<PlansSubRouter />} />
     <Route path="attendance/*" element={<GymAttendanceSubRouter />} />

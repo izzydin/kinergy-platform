@@ -33,7 +33,7 @@ const useSafeMatches = () => {
 export const BreadcrumbProvider: React.FC<BreadcrumbProviderProps> = ({
   children,
   homeLabel = 'Dashboard',
-  homePath = '/',
+  homePath = '/dashboard',
 }) => {
   const location = useLocation();
   const matches = useSafeMatches();

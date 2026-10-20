@@ -35,28 +35,36 @@ export class BreadcrumbGenerator {
       matches = [],
       navigationItems = [],
       homeLabel = 'Dashboard',
-      homePath = '/',
+      homePath = '/dashboard',
     } = options;
 
     const breadcrumbs: BreadcrumbItem[] = [];
 
     // Root Home / Dashboard baseline item
-    const homeNavMatch = navigationItems.find((item) => item.path === homePath);
+    const homeNavMatch = navigationItems.find(
+      (item) => item.path === homePath || (homePath === '/dashboard' && item.path === '/'),
+    );
+    const isAtRootHome = pathname === homePath || (homePath === '/dashboard' && pathname === '/');
+
     breadcrumbs.push({
       id: 'root-home',
       label: homeNavMatch?.label || homeLabel,
       path: homePath,
-      isCurrent: pathname === homePath,
+      isCurrent: isAtRootHome,
       icon: homeNavMatch?.icon,
     });
 
-    if (pathname === homePath) {
+    if (isAtRootHome) {
       return breadcrumbs;
     }
 
     // Strategy A: Check React Router matches for route handle metadata
     const handleMatches = matches.filter(
-      (m) => m.handle && typeof (m.handle as RouteBreadcrumbHandle).breadcrumb !== 'undefined',
+      (m) =>
+        m.handle &&
+        typeof (m.handle as RouteBreadcrumbHandle).breadcrumb !== 'undefined' &&
+        m.pathname !== homePath &&
+        !(homePath === '/dashboard' && m.pathname === '/'),
     );
 
     if (handleMatches.length > 0) {
@@ -90,6 +98,12 @@ export class BreadcrumbGenerator {
 
     rawSegments.forEach((segment, index) => {
       accumulatedPath += `/${segment}`;
+      if (
+        accumulatedPath === homePath ||
+        (homePath === '/dashboard' && accumulatedPath === '/dashboard')
+      ) {
+        return;
+      }
       const isCurrent = index === rawSegments.length - 1;
 
       // Look up label from Navigation Framework configuration

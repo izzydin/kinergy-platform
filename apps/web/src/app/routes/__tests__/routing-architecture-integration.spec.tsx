@@ -63,6 +63,15 @@ const AUTHENTICATED_ARCHITECT_USER: AuthUser = {
   tenantId: 'tenant_b3_4',
 };
 
+const AUTHENTICATED_GYM_STAFF_USER: AuthUser = {
+  id: 'usr-gym-staff',
+  email: 'gymstaff@kinergy.io',
+  name: 'Gym Staff',
+  roles: ['OPERATOR'],
+  permissions: ['memberships.read', 'gym.attendance.read'],
+  tenantId: 'tenant_b3_4',
+};
+
 function renderAppWithRouter(initialEntry = '/', userOverride?: AuthUser | null) {
   const queryClient = createTestQueryClient();
 
@@ -265,16 +274,40 @@ describe('Track B — Step B3.4: Routing Architecture Integration', () => {
       expect(screen.queryByText(/Analytics & Reporting/i)).not.toBeInTheDocument();
     });
 
-    it('ensures defaultNavigationItems does not contain obsolete energy, analytics, or temporary ui-states entries', () => {
+    it('ensures defaultNavigationItems contains authoritative entries and excludes obsolete or dead links', () => {
       const paths = defaultNavigationItems.map((item) => item.path);
       const ids = defaultNavigationItems.map((item) => item.id);
 
+      // Exclude obsolete and dead routes
       expect(paths).not.toContain('/energy');
       expect(paths).not.toContain('/analytics');
       expect(paths).not.toContain('/dashboard/ui-states');
+      expect(paths).not.toContain('/admin'); // Dead route
+      expect(paths).not.toContain('/'); // Consolidated into /dashboard
       expect(ids).not.toContain('energy');
       expect(ids).not.toContain('analytics');
       expect(ids).not.toContain('dashboard-ui-states');
+      expect(ids).not.toContain('overview');
+
+      // Include completed authoritative routes
+      expect(paths).toContain('/dashboard');
+      expect(paths).toContain('/clients');
+      expect(paths).toContain('/gym');
+      expect(paths).toContain('/attendance');
+      expect(paths).toContain('/sales');
+      expect(paths).toContain('/resources/overview');
+      expect(paths).toContain('/admin/users');
+      expect(paths).toContain('/settings');
+    });
+
+    it('resolves dead /admin route to 404 NotFoundView', async () => {
+      renderAppWithRouter('/admin', AUTHENTICATED_ARCHITECT_USER);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { level: 2, name: /404 — View Not Found/i }),
+        ).toBeInTheDocument();
+      });
     });
 
     it('resolves obsolete /dashboard/ui-states route to 404 NotFoundView', async () => {
@@ -308,6 +341,46 @@ describe('Track B — Step B3.4: Routing Architecture Integration', () => {
         ).toBeInTheDocument();
       });
       expect(screen.queryByText(/Full Width Main Layout Shell/i)).not.toBeInTheDocument();
+    });
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // 5. Authoritative Route Registration & Protected Feature Routing
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  describe('5. Authoritative Route Registration & Protected Feature Routing', () => {
+    it('redirects /gym to /gym/memberships and renders Memberships view for authorized user', async () => {
+      renderAppWithRouter('/gym', AUTHENTICATED_GYM_STAFF_USER);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /Gym Memberships/i })).toBeInTheDocument();
+      });
+    });
+
+    it('blocks direct navigation to /gym with 403 ForbiddenView for user lacking memberships.read', async () => {
+      renderAppWithRouter('/gym', AUTHENTICATED_ARCHITECT_USER);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /403.*Access Denied/i })).toBeInTheDocument();
+      });
+    });
+
+    it('renders AttendanceReceptionPage for authorized user navigating to /attendance', async () => {
+      renderAppWithRouter('/attendance', AUTHENTICATED_GYM_STAFF_USER);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { name: /Gym Admission & Reception/i }),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('blocks direct navigation to /attendance with 403 ForbiddenView for user lacking gym.attendance.read', async () => {
+      renderAppWithRouter('/attendance', AUTHENTICATED_ARCHITECT_USER);
+
+      await waitFor(() => {
+        expect(screen.getByRole('heading', { name: /403.*Access Denied/i })).toBeInTheDocument();
+      });
     });
   });
 });

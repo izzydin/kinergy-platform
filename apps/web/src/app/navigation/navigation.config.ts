@@ -1,20 +1,21 @@
-import { Boxes, LayoutDashboard, Receipt, Settings, Shield, Users } from 'lucide-react';
+import {
+  Boxes,
+  Dumbbell,
+  LayoutDashboard,
+  Receipt,
+  Settings,
+  Shield,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import type { NavigationItem } from './navigation.types';
 
 /**
  * Baseline Core Navigation Configuration
  *
- * Registered baseline navigation entries for platform infrastructure and mock feature modules.
+ * Authoritative navigation entries for platform infrastructure and feature modules.
  */
 export const defaultNavigationItems: NavigationItem[] = [
-  {
-    id: 'overview',
-    label: 'Overview',
-    path: '/',
-    icon: LayoutDashboard,
-    order: 5,
-    section: 'overview',
-  },
   {
     id: 'dashboard',
     label: 'Dashboard',
@@ -23,7 +24,6 @@ export const defaultNavigationItems: NavigationItem[] = [
     order: 10,
     section: 'overview',
   },
-
   {
     id: 'clients',
     label: 'Client Profiles',
@@ -32,6 +32,24 @@ export const defaultNavigationItems: NavigationItem[] = [
     order: 20,
     section: 'core',
     requiredPermissions: ['client:read'],
+  },
+  {
+    id: 'gym',
+    label: 'Gym Operations',
+    path: '/gym',
+    icon: Dumbbell,
+    order: 22,
+    section: 'core',
+    requiredPermissions: ['memberships.read'],
+  },
+  {
+    id: 'attendance',
+    label: 'Attendance & Check-In',
+    path: '/attendance',
+    icon: UserCheck,
+    order: 24,
+    section: 'core',
+    requiredPermissions: ['gym.attendance.read'],
   },
   {
     id: 'sales',
@@ -52,13 +70,13 @@ export const defaultNavigationItems: NavigationItem[] = [
     requiredPermissions: ['inventory.read', 'assets.read'],
   },
   {
-    id: 'admin',
-    label: 'Administration',
-    path: '/admin',
+    id: 'user-management',
+    label: 'User Management',
+    path: '/admin/users',
     icon: Shield,
-    order: 90,
+    order: 50,
     section: 'admin',
-    requiredPermissions: ['admin:read'],
+    requiredPermissions: ['manage:users'],
   },
   {
     id: 'settings',

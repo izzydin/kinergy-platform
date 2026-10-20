@@ -1,3 +1,4 @@
+import { Shield } from 'lucide-react';
 import { navigationRegistry } from '../../../app/navigation/navigation-registry';
 import { moduleRegistry } from '../../../app/routes/module-registry';
 import { UserManagementSubRouter } from './routes/user-management-router';
@@ -17,6 +18,7 @@ navigationRegistry.register({
   id: 'user-management',
   label: 'User Management',
   path: '/admin/users',
+  icon: Shield,
   order: 50,
   section: 'admin',
   requiredPermissions: ['manage:users'],

@@ -44,12 +44,15 @@ class NavigationRegistry {
    */
   public register(item: NavigationItem): void {
     if (this.items.has(item.id)) {
-      this.log.warn(
-        'Duplicate navigation item ID warning. Overwriting existing navigation definition.',
-        {
-          itemId: item.id,
-        },
-      );
+      const existing = this.items.get(item.id);
+      if (existing?.path !== item.path || existing?.section !== item.section) {
+        this.log.warn(
+          'Duplicate navigation item ID warning. Overwriting existing navigation definition.',
+          {
+            itemId: item.id,
+          },
+        );
+      }
     }
     this.items.set(item.id, item);
     this.notify();

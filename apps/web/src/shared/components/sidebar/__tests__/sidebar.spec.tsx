@@ -12,13 +12,14 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { Sidebar } from '../sidebar';
 import { AuthProvider } from '../../../../app/providers/auth-provider';
 import { FeatureFlagProvider } from '../../../../app/providers/feature-flag-provider';
+import type { AuthUser } from '../../../../modules/auth/domain/auth-state.types';
 import { NavigationProvider } from '../../../../app/navigation';
 import { defaultNavigationItems } from '../../../../app/navigation/navigation.config';
 
-function renderSidebar(initialEntries: string[] = ['/dashboard']) {
+function renderSidebar(initialEntries: string[] = ['/dashboard'], userOverride?: AuthUser) {
   return render(
     <MemoryRouter initialEntries={initialEntries}>
-      <AuthProvider skipBootstrap>
+      <AuthProvider initialSessionOverride={userOverride} skipBootstrap={!userOverride}>
         <FeatureFlagProvider>
           <NavigationProvider initialItems={defaultNavigationItems}>
             <Routes>
@@ -30,6 +31,23 @@ function renderSidebar(initialEntries: string[] = ['/dashboard']) {
     </MemoryRouter>,
   );
 }
+
+const FULLY_PERMITTED_USER: AuthUser = {
+  id: 'usr_full_perm',
+  email: 'staff@kinergy.io',
+  name: 'Full Staff Member',
+  roles: ['OPERATOR', 'ADMIN'],
+  permissions: [
+    'client:read',
+    'memberships.read',
+    'gym.attendance.read',
+    'sales.read',
+    'inventory.read',
+    'assets.read',
+    'manage:users',
+  ],
+  tenantId: 'tenant_main',
+};
 
 describe('Track B — Step B4.3: Authenticated Sidebar Integration', () => {
   describe('1. Route Navigation & Active State Resolution', () => {
@@ -43,6 +61,16 @@ describe('Track B — Step B4.3: Authenticated Sidebar Integration', () => {
       expect(settingsLink).toBeInTheDocument();
     });
 
+    it('renders authoritative links for Gym Operations, Attendance, and User Management when permitted', () => {
+      renderSidebar(['/dashboard'], FULLY_PERMITTED_USER);
+
+      expect(screen.getByRole('link', { name: /gym operations/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /attendance & check-in/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /sales & payments/i })).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /user management/i })).toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: /^administration$/i })).not.toBeInTheDocument();
+    });
+
     it('sets aria-current="page" on Dashboard link when active on /dashboard', () => {
       renderSidebar(['/dashboard']);
 
@@ -51,6 +79,13 @@ describe('Track B — Step B4.3: Authenticated Sidebar Integration', () => {
 
       expect(dashboardLink).toHaveAttribute('aria-current', 'page');
       expect(settingsLink).not.toHaveAttribute('aria-current');
+    });
+
+    it('sets aria-current="page" on Gym link when active on nested route /gym/memberships', () => {
+      renderSidebar(['/gym/memberships'], FULLY_PERMITTED_USER);
+
+      const gymLink = screen.getByRole('link', { name: /gym operations/i });
+      expect(gymLink).toHaveAttribute('aria-current', 'page');
     });
 
     it('sets aria-current="page" on Settings link when active on /settings', () => {
