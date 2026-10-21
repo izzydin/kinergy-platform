@@ -30,13 +30,18 @@ export interface DashboardActivity {
 }
 
 /**
- * User profile ViewModel returned by /api/v1/settings/profile
+ * User profile ViewModel returned by /api/v1/auth/me (authoritative identity contract)
  */
 export interface UserProfileViewModel {
   readonly id: string;
-  readonly displayName: string;
   readonly email: string;
-  readonly avatarUrl: string | null;
+  readonly status?: string;
+  readonly roles?: readonly string[];
+  readonly permissions?: readonly string[];
+  readonly tenantId?: string | null;
+  readonly displayName: string;
   readonly role: string;
+  readonly avatarUrl: string | null;
   readonly createdAt: string;
+  readonly updatedAt?: string;
 }

@@ -142,9 +142,20 @@ export const SettingsProfileSection: React.FC<SettingsProfileSectionProps> = ({
                 </div>
               </div>
 
-              <Badge variant="default" className="shrink-0">
-                {profile.role}
-              </Badge>
+              <div className="flex items-center gap-2">
+                {profile.status && (
+                  <Badge
+                    variant="outline"
+                    className="shrink-0 uppercase text-xs"
+                    data-testid="profile-status-badge"
+                  >
+                    {profile.status}
+                  </Badge>
+                )}
+                <Badge variant="default" className="shrink-0" data-testid="profile-role-badge">
+                  {profile.role}
+                </Badge>
+              </div>
             </div>
           )}
         </StateView>

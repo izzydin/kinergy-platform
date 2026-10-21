@@ -35,12 +35,16 @@ import {
   ToastViewport,
 } from '@kinergy-platform/ui';
 import { securitySettingsSchema, type SecuritySettingsFormValues } from '../types';
+import { useChangePasswordMutation } from '../api/settings-mutations';
 
 export const SecuritySettingsForm: React.FC = () => {
   const [simulateError, setSimulateError] = useState<boolean>(false);
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
   const [sessionsRevokedToast, setSessionsRevokedToast] = useState<boolean>(false);
+
+  const changePasswordMutation = useChangePasswordMutation();
 
   const {
     register,
@@ -57,21 +61,36 @@ export const SecuritySettingsForm: React.FC = () => {
     },
   });
 
-  const onSubmit = async (_data: SecuritySettingsFormValues) => {
+  const onSubmit = async (data: SecuritySettingsFormValues) => {
     setSubmitStatus('idle');
     setToastMessage(null);
-
-    // Simulate network delay
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    setServerErrorMessage(null);
 
     if (simulateError) {
       setSubmitStatus('error');
+      setServerErrorMessage(
+        'Current password validation failed on security server. Please verify your credentials.',
+      );
       return;
     }
 
-    setSubmitStatus('success');
-    setToastMessage('Security credential policy updated successfully.');
-    reset();
+    try {
+      await changePasswordMutation.mutateAsync({
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
+      });
+
+      setSubmitStatus('success');
+      setToastMessage('Security credential policy updated successfully.');
+      reset();
+    } catch (error) {
+      setSubmitStatus('error');
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Current password validation failed on security server. Please verify your credentials.';
+      setServerErrorMessage(message);
+    }
   };
 
   const handleRevokeAllSessions = () => {
@@ -100,8 +119,8 @@ export const SecuritySettingsForm: React.FC = () => {
               <Alert variant="destructive" data-testid="security-form-error">
                 <AlertTitle>Password Update Failed</AlertTitle>
                 <AlertDescription>
-                  Current password validation failed on security server. Please verify your
-                  credentials.
+                  {serverErrorMessage ||
+                    'Current password validation failed on security server. Please verify your credentials.'}
                 </AlertDescription>
               </Alert>
             )}
@@ -217,8 +236,10 @@ export const SecuritySettingsForm: React.FC = () => {
                 type="submit"
                 variant="default"
                 size="sm"
-                isLoading={isSubmitting}
+                isLoading={isSubmitting || changePasswordMutation.isPending}
                 loadingText="Updating Password..."
+                disabled={isSubmitting || changePasswordMutation.isPending}
+                data-testid="security-submit-btn"
               >
                 Update Password Policy
               </Button>

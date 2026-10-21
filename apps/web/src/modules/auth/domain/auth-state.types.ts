@@ -16,9 +16,12 @@ export interface UserSession {
   readonly id: string;
   readonly email: string;
   readonly name: string;
+  readonly status?: string;
   readonly roles: readonly string[];
   readonly permissions: readonly string[];
   readonly tenantId?: string;
+  readonly createdAt?: string;
+  readonly updatedAt?: string;
 }
 
 /**
@@ -46,15 +49,26 @@ export interface AuthUser {
   readonly permissions: readonly string[];
   /** Tenant scope identifier (present in multi-tenant deployments) */
   readonly tenantId?: string;
+  /** Account status */
+  readonly status?: string;
+  /** Account creation timestamp */
+  readonly createdAt?: string;
 }
 
-export const DEFAULT_DEV_USER: AuthUser = {
+export const DEFAULT_DEV_USER: AuthUser & {
+  readonly status: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+} = {
   id: 'usr-dev-123',
   email: 'operator@kinergy.io',
   name: 'Enterprise Operator',
+  status: 'ACTIVE',
   roles: ['OPERATOR'],
   permissions: ['client:read', 'energy:read', 'analytics:read'],
   tenantId: 'tenant_default',
+  createdAt: '2026-01-01T00:00:00.000Z',
+  updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
 /**

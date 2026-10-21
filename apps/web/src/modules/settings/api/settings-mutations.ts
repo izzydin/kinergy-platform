@@ -5,15 +5,11 @@ import type { ChangePasswordInput, UpdateProfileInput } from './settings-api';
 import type { UserProfileViewModel } from '../../dashboard/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Profile Update Mutation — with Optimistic Update
+// Profile Update Mutation (Deprecated / Capability Gap)
 //
-// Demonstrates optimistic cache update for settings profile:
-//  1. Cancel outgoing refetches
-//  2. Snapshot previous profile
-//  3. Apply optimistic display name + email change to cache
-//  4. PATCH to /api/v1/settings/profile
-//  5a. On success → invalidate so cache is refreshed from server
-//  5b. On error   → restore snapshot (deterministic rollback)
+// Self-service profile updates are not supported by the backend identity API.
+// User identity attributes (email, roles, status) are managed via administrative
+// endpoints (PUT /api/v1/users/:id). Any invocation safely rejects.
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface ProfileMutationContext {
@@ -76,11 +72,11 @@ export function useUpdateProfileMutation() {
 /**
  * useChangePasswordMutation
  *
- * Sends a password change request. No optimistic update is applied because
- * passwords are never stored in the client-side query cache.
+ * Sends a password change request to the authoritative identity API:
+ * POST /api/v1/auth/change-password
  *
- * On 422 Unprocessable Entity the component receives the error and can display
- * a targeted field-level error message.
+ * Passwords are never stored in the client-side query cache.
+ * Non-idempotent operation (retry: false).
  */
 export function useChangePasswordMutation() {
   return useMutation<{ success: boolean }, Error, ChangePasswordInput>({

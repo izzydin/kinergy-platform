@@ -262,59 +262,24 @@ describe('A5.4 Transport — fetchUserProfile', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. Settings — Profile Update (PATCH)
+// 6. Settings — Profile Update Capability Gap
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('A5.4 Transport — updateUserProfile', () => {
-  it('returns updated profile on success', async () => {
-    mockFetchSuccess({
-      id: 'usr-a5-validation',
-      displayName: 'Updated Engineer',
-      email: 'updated@kinergy.io',
-      avatarUrl: null,
-      role: 'PLATFORM_ADMIN',
-      createdAt: '2026-01-01T00:00:00.000Z',
-    });
-
-    const result = await updateUserProfile({
-      displayName: 'Updated Engineer',
-      email: 'updated@kinergy.io',
-    });
-    expect(result.displayName).toBe('Updated Engineer');
-    expect(result.email).toBe('updated@kinergy.io');
-  });
-
-  it('throws on 422 validation error', async () => {
-    mockFetchError(422, 'Display name must be at least 2 characters.');
+describe('A5.4 Transport — updateUserProfile (Capability Gap)', () => {
+  it('rejects with explicit capability gap error as self-service profile editing is unsupported', async () => {
     await expect(
-      updateUserProfile({ displayName: 'X', email: 'valid@kinergy.io' }),
-    ).rejects.toThrow('Display name must be at least 2 characters.');
-  });
-
-  it('sends PATCH method with correct body', async () => {
-    const spy = mockFetchSuccess({
-      id: 'usr-1',
-      displayName: 'Name',
-      email: 'name@kinergy.io',
-      avatarUrl: null,
-      role: 'ADMIN',
-      createdAt: '2026-01-01T00:00:00.000Z',
-    });
-
-    await updateUserProfile({ displayName: 'Name', email: 'name@kinergy.io' });
-
-    expect(spy).toHaveBeenCalledWith(
-      expect.stringContaining('/api/v1/settings/profile'),
-      expect.objectContaining({
-        method: 'PATCH',
-        body: JSON.stringify({ displayName: 'Name', email: 'name@kinergy.io' }),
+      updateUserProfile({
+        displayName: 'Updated Engineer',
+        email: 'updated@kinergy.io',
       }),
+    ).rejects.toThrow(
+      'Self-service profile updates are not supported by the platform identity API.',
     );
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 7. Settings — Change Password
+// 7. Settings — Change Password (POST /api/v1/auth/change-password)
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('A5.4 Transport — changePassword', () => {
@@ -327,29 +292,32 @@ describe('A5.4 Transport — changePassword', () => {
     expect(result).toEqual({ success: true });
   });
 
-  it('throws on 422 with wrong current password', async () => {
-    mockFetchError(422, 'Current password is incorrect.');
+  it('throws on 400 with wrong current password', async () => {
+    mockFetchError(400, 'Invalid current password.');
     await expect(
       changePassword({ currentPassword: 'wrong-password', newPassword: 'NewPass123!' }),
-    ).rejects.toThrow('Current password is incorrect.');
+    ).rejects.toThrow('Invalid current password.');
   });
 
-  it('throws on 422 when new password equals current', async () => {
-    mockFetchError(422, 'New password must differ from the current password.');
+  it('throws on 400 when new password equals current', async () => {
+    mockFetchError(400, 'New password must differ from current password.');
     await expect(
       changePassword({ currentPassword: 'SamePass123!', newPassword: 'SamePass123!' }),
-    ).rejects.toThrow('New password must differ from the current password.');
+    ).rejects.toThrow('New password must differ from current password.');
   });
 
-  it('sends POST method with correct credentials body', async () => {
+  it('sends POST method with correct credentials body to /api/v1/auth/change-password', async () => {
     const spy = mockFetchSuccess({ success: true });
-    await changePassword({ currentPassword: 'Old!', newPassword: 'New123!' });
+    await changePassword({ currentPassword: 'OldPassword123!', newPassword: 'NewPassword456!' });
 
     expect(spy).toHaveBeenCalledWith(
-      expect.stringContaining('/api/v1/settings/security/change-password'),
+      expect.stringContaining('/api/v1/auth/change-password'),
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ currentPassword: 'Old!', newPassword: 'New123!' }),
+        body: JSON.stringify({
+          currentPassword: 'OldPassword123!',
+          newPassword: 'NewPassword456!',
+        }),
       }),
     );
   });

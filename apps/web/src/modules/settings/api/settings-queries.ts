@@ -6,10 +6,8 @@ import type { UserProfileViewModel } from '../../dashboard/types';
 /**
  * useUserProfileQuery
  *
- * Fetches the authenticated user's profile from /api/v1/settings/profile.
+ * Fetches the authenticated user's profile from /api/v1/auth/me.
  * Data is cached for 5 minutes (suitable for a settings page — changes infrequently).
- *
- * Populated by the useUpdateProfileMutation optimistic update on successful mutations.
  */
 export function useUserProfileQuery() {
   return useQuery<UserProfileViewModel, Error>({

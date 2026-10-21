@@ -1,95 +1,68 @@
 import { delay, http, HttpResponse, type RequestHandler } from 'msw';
-import type { UserProfileViewModel } from '../../dashboard/types';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mock User Profile State
-// ─────────────────────────────────────────────────────────────────────────────
-
-let MOCK_PROFILE: UserProfileViewModel = {
-  id: 'usr-a5-validation',
-  displayName: 'Kinergy Admin',
-  email: 'admin@kinergy-platform.io',
-  avatarUrl: null,
-  role: 'PLATFORM_ADMIN',
-  createdAt: '2026-01-01T00:00:00.000Z',
-};
-
-/** Dev/test only: reset profile to default between tests */
-export function __resetSettingsMockState(): void {
-  MOCK_PROFILE = {
-    id: 'usr-a5-validation',
-    displayName: 'Kinergy Admin',
-    email: 'admin@kinergy-platform.io',
-    avatarUrl: null,
-    role: 'PLATFORM_ADMIN',
-    createdAt: '2026-01-01T00:00:00.000Z',
-  };
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MSW Handlers
+// Authoritative Settings & Password MSW Handlers
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const settingsHandlers: RequestHandler[] = [
-  http.get('*/api/v1/settings/profile', async () => {
-    await delay(180);
-    return HttpResponse.json(MOCK_PROFILE);
-  }),
+  /**
+   * Password Change Handler
+   * Authoritative backend route: POST /api/v1/auth/change-password
+   */
+  http.post('*/api/v1/auth/change-password', async ({ request }) => {
+    await delay(100);
 
-  http.patch('*/api/v1/settings/profile', async ({ request }) => {
-    await delay(250);
-
-    const body = (await request.json()) as {
-      displayName?: string;
-      email?: string;
-    };
-
-    if (!body.displayName || body.displayName.length < 2) {
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return HttpResponse.json(
-        { message: 'Display name must be at least 2 characters.', statusCode: 422 },
-        { status: 422 },
+        { message: 'Authentication required.', statusCode: 401 },
+        { status: 401 },
       );
     }
-
-    if (!body.email || !body.email.includes('@')) {
-      return HttpResponse.json(
-        { message: 'A valid email address is required.', statusCode: 422 },
-        { status: 422 },
-      );
-    }
-
-    // Persist the mutation in mock state for subsequent GET calls
-    MOCK_PROFILE = {
-      ...MOCK_PROFILE,
-      displayName: body.displayName,
-      email: body.email,
-    };
-
-    return HttpResponse.json(MOCK_PROFILE);
-  }),
-
-  http.post('*/api/v1/settings/security/change-password', async ({ request }) => {
-    await delay(300);
 
     const body = (await request.json()) as {
       currentPassword?: string;
       newPassword?: string;
     };
 
-    if (body.currentPassword === 'wrong-password') {
+    if (!body.currentPassword || body.currentPassword.length < 8) {
       return HttpResponse.json(
-        { message: 'Current password is incorrect.', statusCode: 422 },
-        { status: 422 },
+        { message: 'Current password must be at least 8 characters.', statusCode: 400 },
+        { status: 400 },
+      );
+    }
+
+    if (!body.newPassword || body.newPassword.length < 8) {
+      return HttpResponse.json(
+        { message: 'New password must be at least 8 characters.', statusCode: 400 },
+        { status: 400 },
+      );
+    }
+
+    if (body.currentPassword === 'wrong-password' || body.currentPassword === 'invalid-password') {
+      return HttpResponse.json(
+        { message: 'Invalid current password.', statusCode: 400 },
+        { status: 400 },
       );
     }
 
     if (body.currentPassword === body.newPassword) {
       return HttpResponse.json(
-        { message: 'New password must differ from the current password.', statusCode: 422 },
-        { status: 422 },
+        { message: 'New password must differ from current password.', statusCode: 400 },
+        { status: 400 },
       );
     }
 
-    return HttpResponse.json({ success: true });
+    if (body.newPassword === 'RecentPass123!') {
+      return HttpResponse.json(
+        {
+          message: 'Password has been used recently. Please choose a new password.',
+          statusCode: 400,
+        },
+        { status: 400 },
+      );
+    }
+
+    return HttpResponse.json({ success: true }, { status: 200 });
   }),
 ];
