@@ -1,22 +1,42 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { moduleRegistry } from '../../../app/routes/module-registry';
 import { NotFoundView } from '../../../app/routes/fallback-views';
-import { MembershipsSubRouter } from '../memberships/routes/memberships.router';
-import { PlansSubRouter } from '../plans/routes/plans.router';
-import { GymAttendanceSubRouter } from '../attendance/routes/attendance.router';
-import { TrainerDashboardSubRouter } from '../trainer-dashboard/routes/trainer-dashboard.router';
+import { lazyWithRetry, SuspenseFallback } from '../../../app/routes/lazy-loading';
+
+const MembershipsSubRouter = lazyWithRetry(() =>
+  import('../memberships/routes/memberships.router').then((m) => ({
+    default: m.MembershipsSubRouter,
+  })),
+);
+const PlansSubRouter = lazyWithRetry(() =>
+  import('../plans/routes/plans.router').then((m) => ({
+    default: m.PlansSubRouter,
+  })),
+);
+const GymAttendanceSubRouter = lazyWithRetry(() =>
+  import('../attendance/routes/attendance.router').then((m) => ({
+    default: m.GymAttendanceSubRouter,
+  })),
+);
+const TrainerDashboardSubRouter = lazyWithRetry(() =>
+  import('../trainer-dashboard/routes/trainer-dashboard.router').then((m) => ({
+    default: m.TrainerDashboardSubRouter,
+  })),
+);
 
 export const GymManagementSubRouter: React.FC = () => (
-  <Routes>
-    <Route index element={<Navigate to="memberships" replace />} />
-    <Route path="/" element={<Navigate to="memberships" replace />} />
-    <Route path="memberships/*" element={<MembershipsSubRouter />} />
-    <Route path="plans/*" element={<PlansSubRouter />} />
-    <Route path="attendance/*" element={<GymAttendanceSubRouter />} />
-    <Route path="trainer-dashboard/*" element={<TrainerDashboardSubRouter />} />
-    <Route path="*" element={<NotFoundView message="Gym module view not found." />} />
-  </Routes>
+  <Suspense fallback={<SuspenseFallback label="Loading Gym Operations..." />}>
+    <Routes>
+      <Route index element={<Navigate to="memberships" replace />} />
+      <Route path="/" element={<Navigate to="memberships" replace />} />
+      <Route path="memberships/*" element={<MembershipsSubRouter />} />
+      <Route path="plans/*" element={<PlansSubRouter />} />
+      <Route path="attendance/*" element={<GymAttendanceSubRouter />} />
+      <Route path="trainer-dashboard/*" element={<TrainerDashboardSubRouter />} />
+      <Route path="*" element={<NotFoundView message="Gym module view not found." />} />
+    </Routes>
+  </Suspense>
 );
 
 // Register Top-Level Gym Module Route Contract

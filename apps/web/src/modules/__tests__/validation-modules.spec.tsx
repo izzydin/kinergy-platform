@@ -202,12 +202,12 @@ describe('Step A5 Architectural Validation Modules', () => {
       ).toBeInTheDocument();
     });
 
-    it('renders SettingsRouter sub-routes correctly', () => {
+    it('renders SettingsRouter sub-routes correctly (lazy pages resolve via Suspense)', async () => {
       renderWithProviders(<SettingsRouter />, { initialEntries: ['/general'] });
-      expect(screen.getByText('General Workspace Preferences')).toBeInTheDocument();
+      expect(await screen.findByText('General Workspace Preferences')).toBeInTheDocument();
 
       renderWithProviders(<SettingsRouter />, { initialEntries: ['/security'] });
-      expect(screen.getByText('Security & Password Policy')).toBeInTheDocument();
+      expect(await screen.findByText('Security & Password Policy')).toBeInTheDocument();
     });
   });
 });

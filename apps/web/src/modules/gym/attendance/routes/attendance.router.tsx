@@ -1,11 +1,17 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
-import { AttendancePage } from './attendance-page';
 import { NotFoundView } from '../../../../app/routes/fallback-views';
+import { lazyWithRetry, SuspenseFallback } from '../../../../app/routes/lazy-loading';
+
+const AttendancePage = lazyWithRetry(() =>
+  import('./attendance-page').then((m) => ({ default: m.AttendancePage })),
+);
 
 export const GymAttendanceSubRouter: React.FC = () => (
-  <Routes>
-    <Route path="/" element={<AttendancePage />} />
-    <Route path="*" element={<NotFoundView message="Attendance view not found." />} />
-  </Routes>
+  <Suspense fallback={<SuspenseFallback label="Loading Gym Attendance..." />}>
+    <Routes>
+      <Route path="/" element={<AttendancePage />} />
+      <Route path="*" element={<NotFoundView message="Attendance view not found." />} />
+    </Routes>
+  </Suspense>
 );

@@ -37,6 +37,27 @@ export const LazyView: React.FC<{
 };
 
 /**
+ * Dynamic import wrapper with single automatic retry for recoverable network / chunk loading failures.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function lazyWithRetry<T extends React.ComponentType<any>>(
+  importFn: () => Promise<{ default: T }>,
+): React.LazyExoticComponent<T> {
+  return React.lazy(async () => {
+    try {
+      return await importFn();
+    } catch {
+      // Retry once after a 500ms delay in case of transient network drop
+      return new Promise<{ default: T }>((resolve, reject) => {
+        setTimeout(() => {
+          importFn().then(resolve, reject);
+        }, 500);
+      });
+    }
+  });
+}
+
+/**
  * Higher-Order Component Helper for Lazy Loading Page Components
  *
  * @param importFn Dynamic import function () => import('./my-component')
@@ -46,7 +67,7 @@ export function withLazy<P extends object>(
   importFn: () => Promise<{ default: React.ComponentType<P> }>,
   fallbackLabel?: string,
 ): React.FC<P> {
-  const LazyComponent = React.lazy(importFn);
+  const LazyComponent = lazyWithRetry(importFn);
 
   return (props: P) => (
     <LazyView fallbackLabel={fallbackLabel}>

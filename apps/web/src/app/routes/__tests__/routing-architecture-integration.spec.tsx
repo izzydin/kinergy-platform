@@ -10,7 +10,7 @@
  */
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, configure, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { AppRouter } from '../app-router';
@@ -25,6 +25,10 @@ import { authTokenStore } from '../../../shared/auth/auth-token-store';
 import { setupAuthTransport } from '../../../shared/auth/auth-transport';
 import { httpClient } from '../../../shared/api/http-client';
 import type { AuthUser } from '../../../modules/auth/domain/auth-state.types';
+
+// Feature routes are code-split; cold dynamic imports in Jest can exceed the default 1s
+// waitFor timeout when the whole suite runs in parallel.
+configure({ asyncUtilTimeout: 5000 });
 
 function createTestQueryClient(): QueryClient {
   return new QueryClient({

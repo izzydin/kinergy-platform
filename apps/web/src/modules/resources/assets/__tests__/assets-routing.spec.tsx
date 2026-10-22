@@ -1,4 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { configure, render, screen } from '@testing-library/react';
+
+// Resource routes are code-split; cold dynamic imports can exceed the default 1s timeout under load.
+configure({ asyncUtilTimeout: 5000 });
 import '@testing-library/jest-dom';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';

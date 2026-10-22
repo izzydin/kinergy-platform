@@ -1,28 +1,5 @@
-import { Shield } from 'lucide-react';
-import { navigationRegistry } from '../../../app/navigation/navigation-registry';
-import { moduleRegistry } from '../../../app/routes/module-registry';
-import { UserManagementSubRouter } from './routes/user-management-router';
-
-// Register User Management Feature Module Route Contract with central router shell
-moduleRegistry.register({
-  id: 'user-management',
-  prefix: '/admin/users',
-  title: 'User Management',
-  isProtected: true,
-  requiredPermissions: ['manage:users'],
-  component: UserManagementSubRouter,
-});
-
-// Register User Management Navigation Entry with central navigation registry
-navigationRegistry.register({
-  id: 'user-management',
-  label: 'User Management',
-  path: '/admin/users',
-  icon: Shield,
-  order: 50,
-  section: 'admin',
-  requiredPermissions: ['manage:users'],
-});
+// Register User Management Feature Module Route Contract and Nav Entry
+import './routes/user-management-router';
 
 // Views & Sub-Router
 export { UserManagementSubRouter } from './routes/user-management-router';

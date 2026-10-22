@@ -3,11 +3,11 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 
 // Import Feature Modules (registers module route contracts with moduleRegistry)
 import '../../modules/dashboard';
-import '../../modules/identity/user-management';
-import '../../modules/settings';
-import '../../modules/attendance';
-import '../../modules/gym';
-import '../../modules/sales';
+import '../../modules/identity/user-management/routes/user-management-router';
+import '../../modules/settings/routes/settings.router';
+import '../../modules/attendance/routes/attendance.router';
+import '../../modules/gym/routes/gym.router';
+import '../../modules/sales/routes/sales.router';
 
 import { AuthLayout, DashboardLayout } from '../layouts';
 import {
@@ -16,76 +16,87 @@ import {
   PlaceholderView,
   UnauthenticatedView,
 } from './fallback-views';
-import { LazyView, SuspenseFallback } from './lazy-loading';
+import { LazyView, SuspenseFallback, lazyWithRetry } from './lazy-loading';
 import { moduleRegistry } from './module-registry';
 import { RequirePermission } from './permission-guard';
 import { ProtectedRoute } from './protected-route';
 import { PublicRoute } from './public-route';
-
-import { LoginRoute } from '../../modules/identity/authentication';
-
-// ------------------------------------------------------------------------------
-// Sub-Routers for Domain Modules
-// ------------------------------------------------------------------------------
-const AuthSubRouter: React.FC = () => (
-  <Routes>
-    <Route path="login" element={<LoginRoute />} />
-    <Route
-      path="reset-password"
-      element={
-        <PlaceholderView
-          title="Password Reset View Placeholder"
-          subtitle="Public Authentication Route Boundary (/auth/reset-password)"
-        />
-      }
-    />
-    <Route path="unauthorized" element={<ForbiddenView />} />
-    <Route path="unauthenticated" element={<UnauthenticatedView />} />
-    <Route path="*" element={<Navigate to="login" replace />} />
-  </Routes>
-);
-
-import { ClientTimelinePage } from '../../modules/client';
-
-const ClientSubRouter: React.FC = () => (
-  <Routes>
-    <Route
-      path="/"
-      element={
-        <PlaceholderView
-          title="Client Profiles Directory"
-          subtitle="Client Module Route Boundary (/clients)"
-        />
-      }
-    />
-    <Route
-      path=":clientId"
-      element={
-        <PlaceholderView
-          title="Client Detail View"
-          subtitle="Client Module Sub-route Boundary (/clients/:clientId)"
-        />
-      }
-    />
-    <Route path=":clientId/timeline" element={<ClientTimelinePage />} />
-    <Route path=":clientId/treatments" element={<ClientTreatmentHistoryPage />} />
-    <Route path="*" element={<NotFoundView message="Client view not found." />} />
-  </Routes>
-);
-
 import { ErrorBoundary } from '../../shared/ui/error-boundary';
 
-import {
-  TreatmentSessionWorkspacePage,
-  ClientTreatmentHistoryPage,
-} from '../../modules/kinesiology';
+// ------------------------------------------------------------------------------
+// Sub-Routers for Domain Modules (with Code-Splitting Boundaries)
+// ------------------------------------------------------------------------------
+const LoginRoute = lazyWithRetry(() =>
+  import('../../modules/identity/authentication').then((m) => ({ default: m.LoginRoute })),
+);
+
+const AuthSubRouter: React.FC = () => (
+  <React.Suspense fallback={<SuspenseFallback label="Loading Authentication..." />}>
+    <Routes>
+      <Route path="login" element={<LoginRoute />} />
+      <Route
+        path="reset-password"
+        element={
+          <PlaceholderView
+            title="Password Reset View Placeholder"
+            subtitle="Public Authentication Route Boundary (/auth/reset-password)"
+          />
+        }
+      />
+      <Route path="unauthorized" element={<ForbiddenView />} />
+      <Route path="unauthenticated" element={<UnauthenticatedView />} />
+      <Route path="*" element={<Navigate to="login" replace />} />
+    </Routes>
+  </React.Suspense>
+);
+
+const ClientTimelinePage = lazyWithRetry(() =>
+  import('../../modules/client').then((m) => ({ default: m.ClientTimelinePage })),
+);
+const ClientTreatmentHistoryPage = lazyWithRetry(() =>
+  import('../../modules/kinesiology').then((m) => ({ default: m.ClientTreatmentHistoryPage })),
+);
+
+const ClientSubRouter: React.FC = () => (
+  <React.Suspense fallback={<SuspenseFallback label="Loading Client Management..." />}>
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <PlaceholderView
+            title="Client Profiles Directory"
+            subtitle="Client Module Route Boundary (/clients)"
+          />
+        }
+      />
+      <Route
+        path=":clientId"
+        element={
+          <PlaceholderView
+            title="Client Detail View"
+            subtitle="Client Module Sub-route Boundary (/clients/:clientId)"
+          />
+        }
+      />
+      <Route path=":clientId/timeline" element={<ClientTimelinePage />} />
+      <Route path=":clientId/treatments" element={<ClientTreatmentHistoryPage />} />
+      <Route path="*" element={<NotFoundView message="Client view not found." />} />
+    </Routes>
+  </React.Suspense>
+);
+
+const TreatmentSessionWorkspacePage = lazyWithRetry(() =>
+  import('../../modules/kinesiology').then((m) => ({ default: m.TreatmentSessionWorkspacePage })),
+);
 
 const KinesiologySubRouter: React.FC = () => (
-  <Routes>
-    <Route path="sessions/:sessionId" element={<TreatmentSessionWorkspacePage />} />
-    <Route path="clients/:clientId/history" element={<ClientTreatmentHistoryPage />} />
-    <Route path="*" element={<NotFoundView message="Kinesiology view not found." />} />
-  </Routes>
+  <React.Suspense fallback={<SuspenseFallback label="Loading Kinesiology..." />}>
+    <Routes>
+      <Route path="sessions/:sessionId" element={<TreatmentSessionWorkspacePage />} />
+      <Route path="clients/:clientId/history" element={<ClientTreatmentHistoryPage />} />
+      <Route path="*" element={<NotFoundView message="Kinesiology view not found." />} />
+    </Routes>
+  </React.Suspense>
 );
 
 // Register Infrastructure Module Route Contracts
@@ -115,165 +126,192 @@ moduleRegistry.register({
   component: KinesiologySubRouter,
 });
 
-import {
-  InventoryOverviewPage,
-  InventoryListPage,
-  InventoryCreatePage,
-  InventoryDetailPage,
-  InventoryEditPage,
-  InventoryMovementsPage,
-  LowStockPage,
-} from '../../modules/resources/inventory';
-import {
-  AssetOverviewPage,
-  AssetsListPage,
-  AssetDetailPage,
-  AssetCreatePage,
-  AssetEditPage,
-  AssetHistoryPage,
-  AssetMaintenancePage,
-} from '../../modules/resources/assets';
-
-import { ResourceOverviewPage } from '../../modules/resources/overview';
+const ResourceOverviewPage = lazyWithRetry(() =>
+  import('../../modules/resources/overview').then((m) => ({ default: m.ResourceOverviewPage })),
+);
+const InventoryOverviewPage = lazyWithRetry(() =>
+  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryOverviewPage })),
+);
+const InventoryListPage = lazyWithRetry(() =>
+  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryListPage })),
+);
+const InventoryCreatePage = lazyWithRetry(() =>
+  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryCreatePage })),
+);
+const LowStockPage = lazyWithRetry(() =>
+  import('../../modules/resources/inventory').then((m) => ({ default: m.LowStockPage })),
+);
+const InventoryDetailPage = lazyWithRetry(() =>
+  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryDetailPage })),
+);
+const InventoryEditPage = lazyWithRetry(() =>
+  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryEditPage })),
+);
+const InventoryMovementsPage = lazyWithRetry(() =>
+  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryMovementsPage })),
+);
+const AssetOverviewPage = lazyWithRetry(() =>
+  import('../../modules/resources/assets').then((m) => ({ default: m.AssetOverviewPage })),
+);
+const AssetsListPage = lazyWithRetry(() =>
+  import('../../modules/resources/assets').then((m) => ({ default: m.AssetsListPage })),
+);
+const AssetCreatePage = lazyWithRetry(() =>
+  import('../../modules/resources/assets').then((m) => ({ default: m.AssetCreatePage })),
+);
+const AssetDetailPage = lazyWithRetry(() =>
+  import('../../modules/resources/assets').then((m) => ({ default: m.AssetDetailPage })),
+);
+const AssetEditPage = lazyWithRetry(() =>
+  import('../../modules/resources/assets').then((m) => ({ default: m.AssetEditPage })),
+);
+const AssetHistoryPage = lazyWithRetry(() =>
+  import('../../modules/resources/assets').then((m) => ({ default: m.AssetHistoryPage })),
+);
+const AssetMaintenancePage = lazyWithRetry(() =>
+  import('../../modules/resources/assets').then((m) => ({ default: m.AssetMaintenancePage })),
+);
 
 const ResourcesSubRouter: React.FC = () => (
-  <Routes>
-    {/* Executive Resource Overview Dashboard (Milestone 6.14) */}
-    <Route
-      index
-      element={
-        <RequirePermission permissions={['inventory.read', 'assets.read']}>
-          <ResourceOverviewPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="overview"
-      element={
-        <RequirePermission permissions={['inventory.read', 'assets.read']}>
-          <ResourceOverviewPage />
-        </RequirePermission>
-      }
-    />
+  <React.Suspense fallback={<SuspenseFallback label="Loading Resource View..." />}>
+    <Routes>
+      {/* Executive Resource Overview Dashboard (Milestone 6.14) */}
+      <Route
+        index
+        element={
+          <RequirePermission permissions={['inventory.read', 'assets.read']}>
+            <ResourceOverviewPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="overview"
+        element={
+          <RequirePermission permissions={['inventory.read', 'assets.read']}>
+            <ResourceOverviewPage />
+          </RequirePermission>
+        }
+      />
 
-    {/* Consumable Inventory Routes */}
-    <Route
-      path="inventory/overview"
-      element={
-        <RequirePermission permission="inventory.read">
-          <InventoryOverviewPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="inventory"
-      element={
-        <RequirePermission permission="inventory.read">
-          <InventoryListPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="inventory/new"
-      element={
-        <RequirePermission permission="inventory.write">
-          <InventoryCreatePage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="inventory/low-stock"
-      element={
-        <RequirePermission permission="inventory.read">
-          <LowStockPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="inventory/:id"
-      element={
-        <RequirePermission permission="inventory.read">
-          <InventoryDetailPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="inventory/:id/edit"
-      element={
-        <RequirePermission permission="inventory.write">
-          <InventoryEditPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="inventory/:id/movements"
-      element={
-        <RequirePermission permission="inventory.read">
-          <InventoryMovementsPage />
-        </RequirePermission>
-      }
-    />
+      {/* Consumable Inventory Routes */}
+      <Route
+        path="inventory/overview"
+        element={
+          <RequirePermission permission="inventory.read">
+            <InventoryOverviewPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="inventory"
+        element={
+          <RequirePermission permission="inventory.read">
+            <InventoryListPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="inventory/new"
+        element={
+          <RequirePermission permission="inventory.write">
+            <InventoryCreatePage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="inventory/low-stock"
+        element={
+          <RequirePermission permission="inventory.read">
+            <LowStockPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="inventory/:id"
+        element={
+          <RequirePermission permission="inventory.read">
+            <InventoryDetailPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="inventory/:id/edit"
+        element={
+          <RequirePermission permission="inventory.write">
+            <InventoryEditPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="inventory/:id/movements"
+        element={
+          <RequirePermission permission="inventory.read">
+            <InventoryMovementsPage />
+          </RequirePermission>
+        }
+      />
 
-    {/* Fixed Capital Assets Routes */}
-    <Route
-      path="assets/overview"
-      element={
-        <RequirePermission permission="assets.read">
-          <AssetOverviewPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="assets"
-      element={
-        <RequirePermission permission="assets.read">
-          <AssetsListPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="assets/new"
-      element={
-        <RequirePermission permission="assets.write">
-          <AssetCreatePage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="assets/:id"
-      element={
-        <RequirePermission permission="assets.read">
-          <AssetDetailPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="assets/:id/edit"
-      element={
-        <RequirePermission permission="assets.write">
-          <AssetEditPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="assets/:id/history"
-      element={
-        <RequirePermission permission="assets.read">
-          <AssetHistoryPage />
-        </RequirePermission>
-      }
-    />
-    <Route
-      path="assets/:id/maintenance"
-      element={
-        <RequirePermission permission="assets.read">
-          <AssetMaintenancePage />
-        </RequirePermission>
-      }
-    />
+      {/* Fixed Capital Assets Routes */}
+      <Route
+        path="assets/overview"
+        element={
+          <RequirePermission permission="assets.read">
+            <AssetOverviewPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="assets"
+        element={
+          <RequirePermission permission="assets.read">
+            <AssetsListPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="assets/new"
+        element={
+          <RequirePermission permission="assets.write">
+            <AssetCreatePage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="assets/:id"
+        element={
+          <RequirePermission permission="assets.read">
+            <AssetDetailPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="assets/:id/edit"
+        element={
+          <RequirePermission permission="assets.write">
+            <AssetEditPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="assets/:id/history"
+        element={
+          <RequirePermission permission="assets.read">
+            <AssetHistoryPage />
+          </RequirePermission>
+        }
+      />
+      <Route
+        path="assets/:id/maintenance"
+        element={
+          <RequirePermission permission="assets.read">
+            <AssetMaintenancePage />
+          </RequirePermission>
+        }
+      />
 
-    <Route path="*" element={<NotFoundView message="Resource view not found." />} />
-  </Routes>
+      <Route path="*" element={<NotFoundView message="Resource view not found." />} />
+    </Routes>
+  </React.Suspense>
 );
 
 moduleRegistry.register({
