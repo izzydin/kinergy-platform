@@ -59,9 +59,13 @@ export function useClientFilters(): UseClientFiltersReturn {
     },
   });
 
+  const isCustomSortValid = Boolean(
+    state.sortState?.id && ['name', 'createdAt', 'updatedAt'].includes(state.sortState.id),
+  );
+
   // Parse sorting state for TanStack Table header bindings
   const sortState: SortingState = useMemo(() => {
-    if (!state.sortState) {
+    if (!state.sortState || !isCustomSortValid) {
       return [{ id: 'createdAt', desc: true }];
     }
     return [
@@ -70,17 +74,17 @@ export function useClientFilters(): UseClientFiltersReturn {
         desc: state.sortState.desc,
       },
     ];
-  }, [state.sortState]);
+  }, [state.sortState, isCustomSortValid]);
 
-  const sortField: ClientSortField = useMemo(() => {
-    const rawId = state.sortState?.id;
-    if (rawId === 'name' || rawId === 'updatedAt') {
-      return rawId;
-    }
-    return 'createdAt';
-  }, [state.sortState?.id]);
+  const sortField: ClientSortField = isCustomSortValid
+    ? (state.sortState!.id as ClientSortField)
+    : 'createdAt';
 
-  const sortDirection: ClientSortDirection = state.sortState?.desc ? 'desc' : 'asc';
+  const sortDirection: ClientSortDirection = isCustomSortValid
+    ? state.sortState?.desc
+      ? 'desc'
+      : 'asc'
+    : 'desc';
   const sortOrderUpper: ClientSortDirectionUpper = sortDirection === 'desc' ? 'DESC' : 'ASC';
 
   // Construct strongly typed query parameters matching SearchClientsQueryDto

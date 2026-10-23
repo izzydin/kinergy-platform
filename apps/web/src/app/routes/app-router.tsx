@@ -50,6 +50,9 @@ const AuthSubRouter: React.FC = () => (
   </React.Suspense>
 );
 
+const ClientListPage = lazyWithRetry(() =>
+  import('../../modules/client').then((m) => ({ default: m.ClientListPage })),
+);
 const ClientTimelinePage = lazyWithRetry(() =>
   import('../../modules/client').then((m) => ({ default: m.ClientTimelinePage })),
 );
@@ -60,15 +63,7 @@ const ClientTreatmentHistoryPage = lazyWithRetry(() =>
 const ClientSubRouter: React.FC = () => (
   <React.Suspense fallback={<SuspenseFallback label="Loading Client Management..." />}>
     <Routes>
-      <Route
-        path="/"
-        element={
-          <PlaceholderView
-            title="Client Profiles Directory"
-            subtitle="Client Module Route Boundary (/clients)"
-          />
-        }
-      />
+      <Route path="/" element={<ClientListPage />} />
       <Route
         path=":clientId"
         element={
