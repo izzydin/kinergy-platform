@@ -24,11 +24,11 @@ export function useClientList(params?: SearchClientsQueryParams, options?: { ena
 /**
  * Custom TanStack Query Hook: Fetches a single client profile by ID.
  */
-export function useClientDetail(clientId: string | undefined) {
+export function useClientDetail(clientId: string | undefined, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: clientQueryKeys.detail(clientId ?? ''),
     queryFn: () => clientApi.getClientProfile(clientId!),
-    enabled: Boolean(clientId),
+    enabled: Boolean(clientId) && (options?.enabled ?? true),
     staleTime: 15 * 1000,
   });
 }

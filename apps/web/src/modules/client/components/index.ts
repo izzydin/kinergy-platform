@@ -4,3 +4,6 @@ export * from './client-table-toolbar';
 export * from './client-list-table';
 export * from './potential-matches-card';
 export * from './client-registration-form';
+export * from './client-profile-header';
+export * from './client-details-card';
+export * from './client-related-features-card';

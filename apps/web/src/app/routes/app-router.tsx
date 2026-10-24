@@ -56,6 +56,9 @@ const ClientListPage = lazyWithRetry(() =>
 const ClientCreatePage = lazyWithRetry(() =>
   import('../../modules/client').then((m) => ({ default: m.ClientCreatePage })),
 );
+const ClientDetailPage = lazyWithRetry(() =>
+  import('../../modules/client').then((m) => ({ default: m.ClientDetailPage })),
+);
 const ClientTimelinePage = lazyWithRetry(() =>
   import('../../modules/client').then((m) => ({ default: m.ClientTimelinePage })),
 );
@@ -68,15 +71,7 @@ const ClientSubRouter: React.FC = () => (
     <Routes>
       <Route path="/" element={<ClientListPage />} />
       <Route path="new" element={<ClientCreatePage />} />
-      <Route
-        path=":clientId"
-        element={
-          <PlaceholderView
-            title="Client Detail View"
-            subtitle="Client Module Sub-route Boundary (/clients/:clientId)"
-          />
-        }
-      />
+      <Route path=":clientId" element={<ClientDetailPage />} />
       <Route path=":clientId/timeline" element={<ClientTimelinePage />} />
       <Route path=":clientId/treatments" element={<ClientTreatmentHistoryPage />} />
       <Route path="*" element={<NotFoundView message="Client view not found." />} />
