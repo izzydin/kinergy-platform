@@ -260,7 +260,7 @@ describe('Client Profile and Activity Timeline (/clients/:clientId)', () => {
       expect(screen.getByRole('button', { name: /Restore client profile/i })).toBeInTheDocument();
     });
 
-    it('displays informative planned milestone notice when edit or archive action is clicked', async () => {
+    it('opens Edit and Archive dialogs when action triggers are clicked', async () => {
       (clientApi.getClientProfile as jest.Mock).mockResolvedValue(sampleActiveClient);
 
       renderProfilePage(sampleActiveClient.id, mockFullStaffUser);
@@ -268,15 +268,18 @@ describe('Client Profile and Activity Timeline (/clients/:clientId)', () => {
       const editBtn = await screen.findByTestId('edit-client-button');
       fireEvent.click(editBtn);
 
-      expect(
-        await screen.findByText(/Client profile editing will be implemented in Milestone 3.3/i),
-      ).toBeInTheDocument();
+      expect(await screen.findByRole('dialog')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /Edit Client Profile/i })).toBeInTheDocument();
+
+      // Close edit dialog
+      const cancelBtn = screen.getByRole('button', { name: /Cancel/i });
+      fireEvent.click(cancelBtn);
 
       const archiveBtn = screen.getByTestId('archive-toggle-button');
       fireEvent.click(archiveBtn);
 
       expect(
-        await screen.findByText(/Client profile archiving will be implemented in Milestone 3.4/i),
+        await screen.findByRole('heading', { name: /Archive Client Profile/i }),
       ).toBeInTheDocument();
     });
   });

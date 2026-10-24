@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Archive, ArchiveRestore, AlertCircle, Info } from 'lucide-react';
+import { ArrowLeft, Edit, Archive, ArchiveRestore, AlertCircle } from 'lucide-react';
 import {
   Button,
   Card,
@@ -11,6 +11,9 @@ import {
   AlertDescription,
 } from '@kinergy-platform/ui';
 import { ClientStatusBadge } from './client-status-badge';
+import { ClientEditDialog } from './client-edit-dialog';
+import { ClientArchiveDialog } from './client-archive-dialog';
+import { ClientRestoreDialog } from './client-restore-dialog';
 import type { ClientModel } from '../types/client.types';
 
 export interface ClientProfileHeaderProps {
@@ -27,54 +30,16 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
   activeTab = 'overview',
 }) => {
   const navigate = useNavigate();
-  const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
+  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
 
   const displayName =
     client.fullName || `${client.firstName} ${client.lastName}`.trim() || client.referenceNumber;
   const isArchived = client.status === 'ARCHIVED';
 
-  const handleEditClick = () => {
-    setFeedbackNotice('Client profile editing will be implemented in Milestone 3.3.');
-  };
-
-  const handleArchiveToggleClick = () => {
-    setFeedbackNotice(
-      isArchived
-        ? 'Client profile restoration will be implemented in Milestone 3.4.'
-        : 'Client profile archiving will be implemented in Milestone 3.4.',
-    );
-  };
-
   return (
     <div className="space-y-4">
-      {/* Informational Feedback Notice if an action belonging to subsequent milestones is triggered */}
-      {feedbackNotice && (
-        <Alert
-          variant="default"
-          className="bg-indigo-50/80 border-indigo-200 text-indigo-900 flex items-start gap-3"
-          role="status"
-        >
-          <Info className="h-4 w-4 text-indigo-600 mt-0.5 shrink-0" aria-hidden="true" />
-          <div className="flex-1">
-            <AlertTitle className="text-xs font-semibold text-indigo-950">
-              Planned Capability
-            </AlertTitle>
-            <AlertDescription className="text-xs text-indigo-800 mt-0.5">
-              {feedbackNotice}
-            </AlertDescription>
-          </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setFeedbackNotice(null)}
-            className="h-6 px-2 text-xs text-indigo-600 hover:text-indigo-950 hover:bg-indigo-100"
-            aria-label="Dismiss notice"
-          >
-            Dismiss
-          </Button>
-        </Alert>
-      )}
-
       {/* Archived Status Warning Banner */}
       {isArchived && (
         <Alert
@@ -88,7 +53,8 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
           </AlertTitle>
           <AlertDescription className="text-xs text-amber-800 mt-1">
             This client record is currently archived. Active service delivery, recurring
-            memberships, and new appointment scheduling may be restricted.
+            memberships, and new appointment scheduling are restricted. To make changes, restore the
+            profile.
           </AlertDescription>
         </Alert>
       )}
@@ -134,7 +100,9 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleEditClick}
+                  onClick={() => setIsEditOpen(true)}
+                  disabled={isArchived}
+                  title={isArchived ? 'Archived client profiles cannot be edited' : undefined}
                   className="gap-1.5 text-xs"
                   aria-label="Edit client profile"
                   data-testid="edit-client-button"
@@ -148,7 +116,7 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={handleArchiveToggleClick}
+                  onClick={() => (isArchived ? setIsRestoreOpen(true) : setIsArchiveOpen(true))}
                   className="gap-1.5 text-xs"
                   aria-label={isArchived ? 'Restore client profile' : 'Archive client profile'}
                   data-testid="archive-toggle-button"
@@ -204,6 +172,21 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Profile Modal Dialog */}
+      {canEdit && (
+        <ClientEditDialog client={client} open={isEditOpen} onOpenChange={setIsEditOpen} />
+      )}
+
+      {/* Archive Confirmation Dialog */}
+      {canArchive && (
+        <ClientArchiveDialog client={client} open={isArchiveOpen} onOpenChange={setIsArchiveOpen} />
+      )}
+
+      {/* Restore Confirmation Dialog */}
+      {canArchive && (
+        <ClientRestoreDialog client={client} open={isRestoreOpen} onOpenChange={setIsRestoreOpen} />
+      )}
     </div>
   );
 };

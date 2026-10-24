@@ -7,3 +7,6 @@ export * from './client-registration-form';
 export * from './client-profile-header';
 export * from './client-details-card';
 export * from './client-related-features-card';
+export * from './client-edit-dialog';
+export * from './client-archive-dialog';
+export * from './client-restore-dialog';
