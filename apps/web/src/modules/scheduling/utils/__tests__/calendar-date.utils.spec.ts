@@ -4,6 +4,8 @@ import {
   formatFacilityDate,
   formatFacilityTime,
   facilityDateTimeToUtcIso,
+  facilityDayStartToUtcIso,
+  facilityDayEndToUtcIso,
   addMinutesToIso,
   getDayRange,
   getMonthRange,
@@ -103,8 +105,64 @@ describe('Calendar Date & Facility Timezone Utilities', () => {
     });
   });
 
+  describe('facilityDayStartToUtcIso and facilityDayEndToUtcIso', () => {
+    it('converts facility-local day boundaries to UTC ISO in EDT (UTC-4)', () => {
+      // Oct 24, 2026 in America/New_York (EDT)
+      const start = facilityDayStartToUtcIso('2026-10-24');
+      const end = facilityDayEndToUtcIso('2026-10-24');
+
+      expect(start).toBe('2026-10-24T04:00:00.000Z'); // 00:00 EDT = 04:00 UTC
+      expect(end).toBe('2026-10-25T03:59:59.999Z'); // 23:59:59.999 EDT = 03:59:59.999 UTC
+      expect(formatFacilityDate(start)).toContain('Oct 24, 2026');
+      expect(formatFacilityDate(end)).toContain('Oct 24, 2026');
+      expect(formatFacilityTime(start)).toBe('12:00 AM');
+      expect(formatFacilityTime(end)).toBe('11:59 PM');
+    });
+
+    it('converts facility-local day boundaries to UTC ISO in EST (UTC-5 in winter)', () => {
+      // Jan 15, 2026 in America/New_York (EST)
+      const start = facilityDayStartToUtcIso('2026-01-15');
+      const end = facilityDayEndToUtcIso('2026-01-15');
+
+      expect(start).toBe('2026-01-15T05:00:00.000Z'); // 00:00 EST = 05:00 UTC
+      expect(end).toBe('2026-01-16T04:59:59.999Z'); // 23:59:59.999 EST = 04:59:59.999 UTC
+      expect(formatFacilityDate(start)).toContain('Jan 15, 2026');
+      expect(formatFacilityDate(end)).toContain('Jan 15, 2026');
+    });
+
+    it('handles Fall Back DST transition accurately (25-hour day on Nov 1, 2026)', () => {
+      // Nov 1, 2026: clocks fall back 02:00 -> 01:00 in America/New_York
+      const start = facilityDayStartToUtcIso('2026-11-01');
+      const end = facilityDayEndToUtcIso('2026-11-01');
+
+      // Nov 1 00:00 is EDT (UTC-4) -> 04:00 UTC
+      expect(start).toBe('2026-11-01T04:00:00.000Z');
+      // Nov 2 00:00 is EST (UTC-5) -> 05:00 UTC
+      expect(end).toBe('2026-11-02T04:59:59.999Z');
+
+      const dayDurationMs = new Date(end).getTime() - new Date(start).getTime() + 1;
+      const hours = dayDurationMs / (1000 * 60 * 60);
+      expect(hours).toBe(25); // Exactly 25 hours
+    });
+
+    it('handles Spring Forward DST transition accurately (23-hour day on Mar 8, 2026)', () => {
+      // Mar 8, 2026: clocks spring forward 02:00 -> 03:00 in America/New_York
+      const start = facilityDayStartToUtcIso('2026-03-08');
+      const end = facilityDayEndToUtcIso('2026-03-08');
+
+      // Mar 8 00:00 is EST (UTC-5) -> 05:00 UTC
+      expect(start).toBe('2026-03-08T05:00:00.000Z');
+      // Mar 9 00:00 is EDT (UTC-4) -> 04:00 UTC
+      expect(end).toBe('2026-03-09T03:59:59.999Z');
+
+      const dayDurationMs = new Date(end).getTime() - new Date(start).getTime() + 1;
+      const hours = dayDurationMs / (1000 * 60 * 60);
+      expect(hours).toBe(23); // Exactly 23 hours
+    });
+  });
+
   describe('getWeekRange', () => {
-    it('computes 7-day Monday to Sunday week range containing reference date', () => {
+    it('computes 7-day Monday to Sunday week range aligned to facility midnight boundaries', () => {
       // 2026-10-24 is a Saturday
       const week = getWeekRange('2026-10-24');
       expect(week.days).toHaveLength(7);
@@ -114,22 +172,23 @@ describe('Calendar Date & Facility Timezone Utilities', () => {
       expect(week.days[6]!.dateString).toBe('2026-10-25');
       expect(week.rangeTitle).toContain('Oct 19');
       expect(week.rangeTitle).toContain('Oct 25, 2026');
-      expect(week.startDate).toContain('2026-10-19T00:00:00.000Z');
-      expect(week.endDate).toContain('2026-10-25T23:59:59.999Z');
+      // Aligned to facility midnight: Oct 19 00:00 EDT = 04:00 UTC; Oct 25 23:59:59.999 EDT = Oct 26 03:59:59.999 UTC
+      expect(week.startDate).toBe('2026-10-19T04:00:00.000Z');
+      expect(week.endDate).toBe('2026-10-26T03:59:59.999Z');
     });
   });
 
   describe('getDayRange', () => {
-    it('computes single day boundaries in UTC', () => {
+    it('computes single day boundaries in facility timezone', () => {
       const day = getDayRange('2026-10-24');
-      expect(day.startDate).toBe('2026-10-24T00:00:00.000Z');
-      expect(day.endDate).toBe('2026-10-24T23:59:59.999Z');
+      expect(day.startDate).toBe('2026-10-24T04:00:00.000Z');
+      expect(day.endDate).toBe('2026-10-25T03:59:59.999Z');
       expect(day.rangeTitle).toContain('October 24, 2026');
     });
   });
 
   describe('getMonthRange', () => {
-    it('computes complete calendar month grid boundaries starting on Monday', () => {
+    it('computes complete calendar month grid boundaries aligned to facility timezone', () => {
       const month = getMonthRange('2026-10-24');
       expect(month.rangeTitle).toBe('October 2026');
       expect(month.monthGridDays.length).toBeGreaterThanOrEqual(28);
@@ -137,6 +196,8 @@ describe('Calendar Date & Facility Timezone Utilities', () => {
       expect(month.monthGridDays[0]!.dayName).toBe('Mon');
       // Last day of grid is Sunday
       expect(month.monthGridDays[month.monthGridDays.length - 1]!.dayName).toBe('Sun');
+      expect(month.startDate).toBe('2026-09-28T04:00:00.000Z'); // Starts on Monday Sep 28 EDT
+      expect(month.endDate).toBe('2026-11-02T04:59:59.999Z'); // Ends on Sunday Nov 1 EST (clocks fell back)
     });
   });
 
@@ -188,6 +249,35 @@ describe('Calendar Date & Facility Timezone Utilities', () => {
         '2026-10-24T13:00:00.000Z', // 9am EDT
         8,
         20,
+      );
+
+      expect(topPercent).toBe(0);
+    });
+
+    it('gracefully handles appointments spanning midnight into next calendar day', () => {
+      // 11:30 PM EDT on Oct 24 (23:30) to 12:30 AM EDT on Oct 25 (00:30)
+      // 23:30 EDT = Oct 25 03:30 UTC
+      // 00:30 EDT = Oct 25 04:30 UTC
+      const { topPercent, heightPercent } = calculateSlotPosition(
+        '2026-10-25T03:30:00.000Z',
+        '2026-10-25T04:30:00.000Z',
+        8,
+        24, // 8am to midnight grid
+      );
+
+      // Start at 23:30 in 8-24 grid (15.5 hours into 16 hour grid = 930/960 = 96.88%)
+      expect(topPercent).toBeCloseTo(96.88, 1);
+      // Visible duration is from 23:30 to 24:00 (30 mins = 30/960 = 3.12%)
+      expect(heightPercent).toBeCloseTo(3.12, 1);
+    });
+
+    it('positions midnight (00:00) appointments at top of 0-24 grid', () => {
+      // 12:00 AM EDT = 04:00 UTC
+      const { topPercent } = calculateSlotPosition(
+        '2026-10-24T04:00:00.000Z',
+        '2026-10-24T05:00:00.000Z',
+        0,
+        24,
       );
 
       expect(topPercent).toBe(0);

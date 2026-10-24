@@ -137,6 +137,25 @@ export function toDateString(year: number, month: number, day: number): string {
   return `${year}-${pad(month + 1)}-${pad(day)}`;
 }
 
+/**
+ * Computes the UTC ISO string for the start of the day (00:00:00.000) in the facility timezone.
+ */
+export function facilityDayStartToUtcIso(dateStr: string): string {
+  return facilityDateTimeToUtcIso(dateStr, '00:00');
+}
+
+/**
+ * Computes the UTC ISO string for the end of the day (23:59:59.999) in the facility timezone.
+ * Anchored to the millisecond immediately preceding 00:00:00 of the subsequent facility calendar day.
+ * Correctly accounts for 23h (spring DST), 24h (standard), and 25h (fall DST) days.
+ */
+export function facilityDayEndToUtcIso(dateStr: string): string {
+  const nextDayStr = navigatePeriod(dateStr, 'next', 'day');
+  const nextDayStartIso = facilityDateTimeToUtcIso(nextDayStr, '00:00');
+  const nextDayStartDate = new Date(nextDayStartIso);
+  return new Date(nextDayStartDate.getTime() - 1).toISOString();
+}
+
 export interface DayDescriptor {
   dateString: string; // "YYYY-MM-DD"
   dayName: string; // "Mon", "Tue"
@@ -148,6 +167,7 @@ export interface DayDescriptor {
 
 /**
  * Computes the 7-day Monday–Sunday week range encompassing the reference date.
+ * Both startDate and endDate are authoritative UTC ISO timestamps aligned to facility local midnight.
  */
 export function getWeekRange(referenceDateStr: string): {
   startDate: string;
@@ -177,11 +197,8 @@ export function getWeekRange(referenceDateStr: string): {
       timeZone: 'UTC',
     }).format(dayDate);
 
-    // Facility timezone boundary approximation in UTC (EST is UTC-5 / EDT is UTC-4)
-    // 00:00:00 facility time ~ 04:00:00 UTC / 05:00:00 UTC
-    // Querying with safe bounds covering full day:
-    const isoStart = `${dStr}T00:00:00.000Z`;
-    const isoEnd = `${dStr}T23:59:59.999Z`;
+    const isoStart = facilityDayStartToUtcIso(dStr);
+    const isoEnd = facilityDayEndToUtcIso(dStr);
 
     days.push({
       dateString: dStr,
@@ -212,7 +229,7 @@ export function getWeekRange(referenceDateStr: string): {
 }
 
 /**
- * Computes single-day boundaries for Day view.
+ * Computes single-day boundaries for Day view in authoritative facility timezone.
  */
 export function getDayRange(referenceDateStr: string): {
   startDate: string;
@@ -220,8 +237,8 @@ export function getDayRange(referenceDateStr: string): {
   rangeTitle: string;
   isToday: boolean;
 } {
-  const isoStart = `${referenceDateStr}T00:00:00.000Z`;
-  const isoEnd = `${referenceDateStr}T23:59:59.999Z`;
+  const isoStart = facilityDayStartToUtcIso(referenceDateStr);
+  const isoEnd = facilityDayEndToUtcIso(referenceDateStr);
   const rangeTitle = formatFacilityDate(referenceDateStr, {
     weekday: 'long',
     month: 'long',
@@ -238,7 +255,7 @@ export function getDayRange(referenceDateStr: string): {
 }
 
 /**
- * Computes calendar month boundaries for Month view.
+ * Computes calendar month boundaries for Month view aligned to facility timezone.
  */
 export function getMonthRange(referenceDateStr: string): {
   startDate: string;
@@ -280,8 +297,8 @@ export function getMonthRange(referenceDateStr: string): {
       dayName,
       dayNumber: d.getUTCDate(),
       isToday: dStr === todayStr,
-      isoStart: `${dStr}T00:00:00.000Z`,
-      isoEnd: `${dStr}T23:59:59.999Z`,
+      isoStart: facilityDayStartToUtcIso(dStr),
+      isoEnd: facilityDayEndToUtcIso(dStr),
     });
 
     current += 24 * 60 * 60 * 1000;
@@ -347,26 +364,27 @@ export function calculateSlotPosition(
     minute: 'numeric',
     hour12: false,
   });
-  const endFormatter = new Intl.DateTimeFormat('en-US', {
-    timeZone: FACILITY_TIMEZONE,
-    hour: 'numeric',
-    minute: 'numeric',
-    hour12: false,
-  });
 
   const startParts = startFormatter.formatToParts(start);
-  const endParts = endFormatter.formatToParts(end);
 
-  const startHour = Number(startParts.find((p) => p.type === 'hour')?.value ?? 8);
+  let startHour = Number(startParts.find((p) => p.type === 'hour')?.value ?? 8);
+  if (startHour === 24) startHour = 0;
   const startMinute = Number(startParts.find((p) => p.type === 'minute')?.value ?? 0);
-  const endHour = Number(endParts.find((p) => p.type === 'hour')?.value ?? 9);
-  const endMinute = Number(endParts.find((p) => p.type === 'minute')?.value ?? 0);
 
   const totalGridMinutes = (gridEndHour - gridStartHour) * 60;
-  const startMinutesFromGridStart = Math.max(0, (startHour - gridStartHour) * 60 + startMinute);
+  const rawStartOffset = (startHour - gridStartHour) * 60 + startMinute;
+  const startMinutesFromGridStart = Math.min(totalGridMinutes, Math.max(0, rawStartOffset));
+
+  // Compute duration from physical timestamp difference to gracefully support midnight-crossing
+  const durationMs = Math.max(0, end.getTime() - start.getTime());
+  const elapsedMinutes = Math.round(durationMs / 60000);
+
+  // If appointment started before grid opening, offset elapsed minutes
+  const visibleElapsedMinutes =
+    rawStartOffset < 0 ? Math.max(0, elapsedMinutes + rawStartOffset) : elapsedMinutes;
   const endMinutesFromGridStart = Math.min(
     totalGridMinutes,
-    (endHour - gridStartHour) * 60 + endMinute,
+    startMinutesFromGridStart + visibleElapsedMinutes,
   );
 
   const durationMinutes = Math.max(15, endMinutesFromGridStart - startMinutesFromGridStart);

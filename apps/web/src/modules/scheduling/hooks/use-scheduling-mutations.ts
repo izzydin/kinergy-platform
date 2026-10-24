@@ -82,6 +82,7 @@ export function useCancelAppointmentMutation() {
       queryClient.setQueryData(schedulingQueryKeys.appointmentDetail(id), cancelledAppt);
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.appointments() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.calendar() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       notification.success('Appointment Cancelled', 'The appointment has been cancelled.');
     },
   });
@@ -160,6 +161,7 @@ export function useMarkNoShowMutation() {
       queryClient.setQueryData(schedulingQueryKeys.appointmentDetail(id), updatedAppt);
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.appointments() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.calendar() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       notification.success('Marked as No-Show', 'The appointment has been marked as a no-show.');
     },
   });
@@ -291,6 +293,7 @@ export function useCreateRecurrenceSeriesMutation() {
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.appointments() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.calendar() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.recurringSeries() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       notification.success(
         'Recurring Series Created',
         `Series scheduled (${data.initialGeneration.generatedCount} appointments generated).`,
@@ -312,6 +315,7 @@ export function useSkipOccurrenceMutation() {
     onSuccess: (_, { seriesId }) => {
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.appointments() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.calendar() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       queryClient.invalidateQueries({
         queryKey: schedulingQueryKeys.recurringSeriesDetail(seriesId),
       });
@@ -335,6 +339,7 @@ export function useEditSingleOccurrenceMutation() {
       queryClient.setQueryData(schedulingQueryKeys.appointmentDetail(appointmentId), detachedAppt);
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.appointments() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.calendar() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       notification.success('Occurrence Updated', 'Appointment detached and rescheduled.');
     },
   });
@@ -354,6 +359,7 @@ export function useEditFutureOccurrencesMutation() {
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.appointments() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.calendar() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.recurringSeries() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       notification.success('Future Series Updated', 'Future occurrences branched successfully.');
     },
   });
@@ -372,6 +378,7 @@ export function useCancelRecurrenceSeriesMutation() {
     onSuccess: (data, { seriesId }) => {
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.appointments() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.calendar() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       queryClient.invalidateQueries({
         queryKey: schedulingQueryKeys.recurringSeriesDetail(seriesId),
       });
