@@ -8,6 +8,7 @@ import '../../modules/settings/routes/settings.router';
 import '../../modules/attendance/routes/attendance.router';
 import '../../modules/gym/routes/gym.router';
 import '../../modules/sales/routes/sales.router';
+import '../../modules/scheduling/routes/scheduling.router';
 
 import { AuthLayout, DashboardLayout } from '../layouts';
 import {

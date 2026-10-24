@@ -1,5 +1,6 @@
 import {
   Boxes,
+  Calendar,
   Dumbbell,
   LayoutDashboard,
   Receipt,
@@ -25,6 +26,15 @@ export const defaultNavigationItems: NavigationItem[] = [
     section: 'overview',
   },
   {
+    id: 'scheduling',
+    label: 'Calendar & Scheduling',
+    path: '/scheduling',
+    icon: Calendar,
+    order: 15,
+    section: 'core',
+    requiredPermissions: ['appointments.read'],
+  },
+  {
     id: 'clients',
     label: 'Client Profiles',
     path: '/clients',
@@ -33,6 +43,7 @@ export const defaultNavigationItems: NavigationItem[] = [
     section: 'core',
     requiredPermissions: ['client:read'],
   },
+
   {
     id: 'gym',
     label: 'Gym Operations',
