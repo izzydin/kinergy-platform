@@ -3,6 +3,8 @@ import {
   calculateSlotPosition,
   formatFacilityDate,
   formatFacilityTime,
+  facilityDateTimeToUtcIso,
+  addMinutesToIso,
   getDayRange,
   getMonthRange,
   getTodayFacilityDate,
@@ -56,6 +58,34 @@ describe('Calendar Date & Facility Timezone Utilities', () => {
 
     it('returns empty string for empty input', () => {
       expect(formatFacilityDate('')).toBe('');
+    });
+  });
+
+  describe('facilityDateTimeToUtcIso and addMinutesToIso', () => {
+    it('converts facility-local date and time to UTC ISO string in EDT (UTC-4)', () => {
+      // 10:00 AM EDT on Oct 24, 2026 is 14:00:00 UTC
+      const utcIso = facilityDateTimeToUtcIso('2026-10-24', '10:00');
+      expect(utcIso).toBe('2026-10-24T14:00:00.000Z');
+      expect(formatFacilityTime(utcIso)).toBe('10:00 AM');
+    });
+
+    it('converts facility-local date and time to UTC ISO string in EST (UTC-5 in January)', () => {
+      // 10:00 AM EST on Jan 15, 2026 is 15:00:00 UTC
+      const utcIso = facilityDateTimeToUtcIso('2026-01-15', '10:00');
+      expect(utcIso).toBe('2026-01-15T15:00:00.000Z');
+      expect(formatFacilityTime(utcIso)).toBe('10:00 AM');
+    });
+
+    it('adds minutes accurately to UTC ISO string', () => {
+      const start = '2026-10-24T14:00:00.000Z';
+      const end = addMinutesToIso(start, 60);
+      expect(end).toBe('2026-10-24T15:00:00.000Z');
+      expect(formatFacilityTime(end)).toBe('11:00 AM');
+    });
+
+    it('handles empty inputs safely', () => {
+      expect(facilityDateTimeToUtcIso('', '')).toBe('');
+      expect(addMinutesToIso('', 60)).toBe('');
     });
   });
 

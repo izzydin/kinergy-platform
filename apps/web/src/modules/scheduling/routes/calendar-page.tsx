@@ -2,8 +2,8 @@ import React, { useState, useMemo } from 'react';
 import { Alert, AlertDescription, AlertTitle, Button } from '@kinergy-platform/ui';
 import { AlertCircle, Calendar, RefreshCw } from 'lucide-react';
 import { useAuth } from '../../../app/providers/auth-provider';
-import { useNotification } from '../../../app/providers/notification-provider';
 import { getDayRange, getMonthRange, getWeekRange } from '../utils/calendar-date.utils';
+
 import { useCalendarUrlState } from '../hooks/use-calendar-url-state';
 import { useAppointmentsList, useRoomsList } from '../hooks/use-scheduling-queries';
 import {
@@ -12,7 +12,9 @@ import {
   DayViewGrid,
   MonthViewGrid,
   AppointmentDetailDrawer,
+  AppointmentBookingWizard,
 } from '../components';
+
 import type { AppointmentModel, CalendarSlotDTO } from '../types/scheduling.types';
 
 export const CalendarPage: React.FC = () => {
@@ -37,9 +39,9 @@ export const CalendarPage: React.FC = () => {
     AppointmentModel | CalendarSlotDTO | null
   >(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
 
   const auth = useAuth();
-  const notification = useNotification();
 
   const canCreateAppointment = auth?.hasPermission
     ? auth.hasPermission('appointments.create')
@@ -112,10 +114,7 @@ export const CalendarPage: React.FC = () => {
   };
 
   const handleStartBooking = () => {
-    notification.info(
-      'Booking Workflow',
-      'The multi-step appointment booking wizard is scheduled for delivery in Milestone 4.4.',
-    );
+    setIsBookingModalOpen(true);
   };
 
   return (
@@ -235,6 +234,15 @@ export const CalendarPage: React.FC = () => {
         isOpen={isDrawerOpen}
         onClose={handleCloseDrawer}
         canManageAppointments={canManageAppointments}
+      />
+
+      {/* Guided Appointment Booking Wizard Modal */}
+      <AppointmentBookingWizard
+        isOpen={isBookingModalOpen}
+        onClose={() => setIsBookingModalOpen(false)}
+        initialDate={date}
+        initialRoomId={roomId}
+        initialTherapistId={therapistId}
       />
     </div>
   );

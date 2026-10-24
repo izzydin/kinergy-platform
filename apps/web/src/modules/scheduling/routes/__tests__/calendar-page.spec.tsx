@@ -114,6 +114,7 @@ describe('CalendarPage Route Integration', () => {
     jest.clearAllMocks();
     mockedSchedulingApi.listAppointments.mockResolvedValue(mockAppointments);
     mockedSchedulingApi.listRooms.mockResolvedValue(mockRooms);
+    mockedSchedulingApi.getServiceTypes.mockResolvedValue([]);
   });
 
   it('renders initial loading state then displays calendar appointments', async () => {
@@ -269,6 +270,29 @@ describe('CalendarPage Route Integration', () => {
       expect(
         screen.getByRole('status', { name: /Schedule conflict detected by system/i }),
       ).toBeInTheDocument();
+    });
+  });
+
+  it('opens appointment booking wizard modal on clicking Book Appointment', async () => {
+    renderCalendarPage();
+
+    await waitFor(() => {
+      expect(screen.getByText('Kinesiology Consultation')).toBeInTheDocument();
+    });
+
+    const bookBtn = screen.getByRole('button', { name: /Book new appointment/i });
+    fireEvent.click(bookBtn);
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog', { name: /Book Appointment/i })).toBeInTheDocument();
+    });
+    expect(screen.getByText('1. Select Client')).toBeInTheDocument();
+
+    // Close booking dialog
+    fireEvent.click(screen.getByRole('button', { name: /Close booking wizard/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /Book Appointment/i })).toBeNull();
     });
   });
 });

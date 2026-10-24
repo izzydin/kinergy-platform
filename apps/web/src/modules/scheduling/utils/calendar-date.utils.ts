@@ -63,6 +63,55 @@ export function formatFacilityDate(
 }
 
 /**
+ * Converts a facility-local Date ("YYYY-MM-DD") and local Time ("HH:mm") into a UTC ISO string.
+ * Anchored to FACILITY_TIMEZONE ("America/New_York") to prevent browser local timezone drift.
+ */
+export function facilityDateTimeToUtcIso(dateStr: string, timeStr: string): string {
+  if (!dateStr || !timeStr) return '';
+  const [year, month, day] = dateStr.split('-').map(Number);
+  const [hour, minute] = timeStr.split(':').map(Number);
+  if (!year || !month || !day || hour === undefined || minute === undefined) return '';
+
+  const targetUtcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: FACILITY_TIMEZONE,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: 'numeric',
+    second: 'numeric',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(targetUtcGuess);
+  const getPart = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const nyYear = getPart('year');
+  const nyMonth = getPart('month');
+  const nyDay = getPart('day');
+  let nyHour = getPart('hour');
+  if (nyHour === 24) nyHour = 0;
+  const nyMinute = getPart('minute');
+
+  const nyDateAsUtc = new Date(Date.UTC(nyYear, nyMonth - 1, nyDay, nyHour, nyMinute, 0));
+  const offsetDiffMs = targetUtcGuess.getTime() - nyDateAsUtc.getTime();
+
+  const correctUtcDate = new Date(targetUtcGuess.getTime() + offsetDiffMs);
+  return correctUtcDate.toISOString();
+}
+
+/**
+ * Adds duration in minutes to a UTC ISO string, returning a new UTC ISO string.
+ */
+export function addMinutesToIso(isoString: string, minutes: number): string {
+  if (!isoString) return '';
+  const date = new Date(isoString);
+  if (isNaN(date.getTime())) return '';
+  return new Date(date.getTime() + minutes * 60 * 1000).toISOString();
+}
+
+/**
  * Parses "YYYY-MM-DD" string into Year, Month (0-indexed), and Day numbers.
  */
 export function parseDateString(dateStr: string): { year: number; month: number; day: number } {
