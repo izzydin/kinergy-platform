@@ -86,3 +86,27 @@ export function useRestoreClientMutation() {
     },
   });
 }
+
+export function useLinkIdentityMutation() {
+  const queryClient = useQueryClient();
+  const notification = useNotification();
+
+  return useMutation<ClientModel, Error, { id: string; identityId: string }>({
+    mutationFn: ({ id, identityId }) => clientApi.linkIdentity(id, { identityId }),
+    onSuccess: (updatedClient, { id }) => {
+      // 1. Reconcile single-client cache with updated identityId and incremented version
+      queryClient.setQueryData(clientQueryKeys.detail(id), updatedClient);
+
+      // 2. Invalidate directory queries
+      queryClient.invalidateQueries({ queryKey: clientQueryKeys.lists() });
+
+      // 3. Invalidate timeline queries to reflect auto-projected IDENTITY_LINKED audit event
+      queryClient.invalidateQueries({ queryKey: clientQueryKeys.timeline(id) });
+
+      notification.success(
+        'Identity Linked',
+        'Client profile has been successfully linked to the user account.',
+      );
+    },
+  });
+}

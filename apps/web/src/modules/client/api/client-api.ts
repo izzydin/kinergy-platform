@@ -136,17 +136,11 @@ export const clientApi = {
   /**
    * Links authenticated user account identity to client profile.
    */
-  async linkIdentity(
-    id: string,
-    payload: LinkIdentityInputDTO,
-  ): Promise<RegisterClientResponseDTO> {
+  async linkIdentity(id: string, payload: LinkIdentityInputDTO): Promise<ClientModel> {
     const encodedId = encodeURIComponent((id || '').trim());
-    return httpClient.post<RegisterClientResponseDTO>(
-      `/api/v1/clients/${encodedId}/link-identity`,
-      {
-        identityId: payload.identityId.trim(),
-      },
-    );
+    return httpClient.post<ClientModel>(`/api/v1/clients/${encodedId}/link-identity`, {
+      identityId: payload.identityId.trim(),
+    });
   },
 
   /**

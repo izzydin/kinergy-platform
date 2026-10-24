@@ -1,6 +1,8 @@
-import React from 'react';
-import { Mail, Phone, User, Calendar, Shield, Clock, Hash, Layers } from 'lucide-react';
-import { Card, CardHeader, CardTitle, CardContent, Badge } from '@kinergy-platform/ui';
+import React, { useState } from 'react';
+import { Mail, Phone, User, Calendar, Shield, Clock, Hash, Layers, Link2 } from 'lucide-react';
+import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@kinergy-platform/ui';
+import { useAuth } from '../../../app/providers/auth-provider';
+import { ClientLinkIdentityDialog } from './client-link-identity-dialog';
 import type { ClientModel } from '../types/client.types';
 
 export interface ClientDetailsCardProps {
@@ -8,6 +10,11 @@ export interface ClientDetailsCardProps {
 }
 
 export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ client }) => {
+  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false);
+  const { hasPermission, hasRole } = useAuth();
+  const canLink = hasPermission('client:write') || hasRole('ADMIN') || hasRole('STAFF');
+  const isArchived = client.status === 'ARCHIVED';
+
   const formatDate = (isoString?: string) => {
     if (!isoString) return '—';
     try {
@@ -98,22 +105,43 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ client }) 
             <dt className="text-xs font-medium text-slate-500 uppercase tracking-wider">
               Identity Account Link
             </dt>
-            <dd className="mt-1 flex items-center gap-2">
+            <dd className="mt-1 flex flex-wrap items-center gap-2">
               <Shield className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
               {client.identityId ? (
-                <Badge
-                  variant="outline"
-                  className="font-mono text-xs text-indigo-700 bg-indigo-50/50"
-                >
-                  {client.identityId}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="font-mono text-xs text-indigo-700 bg-indigo-50/50"
+                    data-testid="client-identity-linked"
+                  >
+                    {client.identityId}
+                  </Badge>
+                  <span className="text-[11px] text-slate-400 italic">
+                    (Permanent link • Unlinking unsupported)
+                  </span>
+                </div>
               ) : (
-                <span
-                  className="text-xs text-slate-500 italic"
-                  data-testid="client-identity-unlinked"
-                >
-                  Not linked to user account
-                </span>
+                <div className="flex items-center gap-3">
+                  <span
+                    className="text-xs text-slate-500 italic"
+                    data-testid="client-identity-unlinked"
+                  >
+                    Not linked to user account
+                  </span>
+                  {canLink && !isArchived && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsLinkDialogOpen(true)}
+                      className="h-6 px-2 text-xs gap-1 text-indigo-600 border-indigo-200 hover:bg-indigo-50"
+                      data-testid="link-identity-trigger-button"
+                      aria-label="Link user account identity"
+                    >
+                      <Link2 className="h-3 w-3" aria-hidden="true" />
+                      Link Identity
+                    </Button>
+                  )}
+                </div>
               )}
             </dd>
           </div>
@@ -182,6 +210,15 @@ export const ClientDetailsCard: React.FC<ClientDetailsCardProps> = ({ client }) 
           </div>
         </CardContent>
       </Card>
+
+      {/* Link Identity Modal Dialog */}
+      {canLink && (
+        <ClientLinkIdentityDialog
+          client={client}
+          open={isLinkDialogOpen}
+          onOpenChange={setIsLinkDialogOpen}
+        />
+      )}
     </div>
   );
 };

@@ -10,3 +10,4 @@ export * from './client-related-features-card';
 export * from './client-edit-dialog';
 export * from './client-archive-dialog';
 export * from './client-restore-dialog';
+export * from './client-link-identity-dialog';
