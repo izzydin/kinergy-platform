@@ -57,8 +57,17 @@ export class NotFoundError extends ApiError {
 
 export class ConflictError extends ApiError {
   readonly isRecoverable = true; // Resource conflict (e.g. duplicate key)
-  constructor(message = 'A resource conflict occurred.', correlationId?: string) {
+  public readonly responseData?: unknown;
+  constructor(
+    message = 'A resource conflict occurred.',
+    correlationId?: string,
+    responseData?: unknown,
+  ) {
     super(message, 409, 'CONFLICT', undefined, correlationId);
+    this.responseData = responseData;
+    if (responseData && typeof responseData === 'object') {
+      Object.assign(this, responseData);
+    }
   }
 }
 
@@ -154,7 +163,7 @@ export function normalizeApiError(error: unknown): ApiError {
       case 404:
         return new NotFoundError(message, correlationId);
       case 409:
-        return new ConflictError(message, correlationId);
+        return new ConflictError(message, correlationId, errObj);
       case 429:
         return new RateLimitError(
           message,

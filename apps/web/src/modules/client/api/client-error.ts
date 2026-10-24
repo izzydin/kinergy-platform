@@ -21,15 +21,25 @@ export function isPotentialDuplicatesWarning(error: unknown): error is Potential
     return false;
   }
 
-  // Check if error itself is the payload or if it's attached to details
+  // Check if error itself is the payload or if it's attached to details or responseData
   const candidate = error as Partial<PotentialMatchesWarningDTO> & {
     details?: unknown;
+    responseData?: unknown;
     statusCode?: number;
   };
 
   if (
     candidate.status === 'POTENTIAL_DUPLICATES_FOUND' &&
     Array.isArray(candidate.potentialMatches)
+  ) {
+    return true;
+  }
+
+  if (
+    candidate.responseData &&
+    typeof candidate.responseData === 'object' &&
+    (candidate.responseData as { status?: string }).status === 'POTENTIAL_DUPLICATES_FOUND' &&
+    Array.isArray((candidate.responseData as { potentialMatches?: unknown }).potentialMatches)
   ) {
     return true;
   }
@@ -44,6 +54,39 @@ export function isPotentialDuplicatesWarning(error: unknown): error is Potential
   }
 
   return false;
+}
+
+/**
+ * Extracts the structured PotentialMatchesWarningDTO from an error if present.
+ */
+export function getPotentialMatchesWarning(error: unknown): PotentialMatchesWarningDTO | null {
+  if (!isPotentialDuplicatesWarning(error)) {
+    return null;
+  }
+
+  const candidate = error as unknown as Record<string, unknown>;
+  if (
+    candidate.status === 'POTENTIAL_DUPLICATES_FOUND' &&
+    Array.isArray(candidate.potentialMatches)
+  ) {
+    return candidate as unknown as PotentialMatchesWarningDTO;
+  }
+  if (
+    candidate.responseData &&
+    typeof candidate.responseData === 'object' &&
+    (candidate.responseData as Record<string, unknown>).status === 'POTENTIAL_DUPLICATES_FOUND'
+  ) {
+    return candidate.responseData as unknown as PotentialMatchesWarningDTO;
+  }
+  if (
+    candidate.details &&
+    typeof candidate.details === 'object' &&
+    (candidate.details as Record<string, unknown>).status === 'POTENTIAL_DUPLICATES_FOUND'
+  ) {
+    return candidate.details as unknown as PotentialMatchesWarningDTO;
+  }
+
+  return null;
 }
 
 /**
