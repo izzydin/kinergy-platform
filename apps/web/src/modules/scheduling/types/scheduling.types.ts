@@ -102,7 +102,7 @@ export interface AddAppointmentNoteInputDTO {
 // 2. Room & Schedulable Resource Models & DTOs
 // -----------------------------------------------------------------------------
 
-export type RoomStatus = 'AVAILABLE' | 'UNAVAILABLE';
+export type RoomStatus = 'AVAILABLE' | 'UNAVAILABLE' | 'MAINTENANCE';
 
 export interface MaintenanceWindowModel {
   readonly id: string;
@@ -119,6 +119,7 @@ export interface RoomModel {
   readonly capacity: number;
   readonly status: RoomStatus;
   readonly features: string[];
+  readonly maintenanceReason?: string;
   readonly maintenanceWindows: MaintenanceWindowModel[];
   readonly version: number;
   readonly createdAt: string;

@@ -7,3 +7,4 @@ export * from './month-view-grid';
 export * from './appointment-detail-drawer';
 export * from './appointment-booking-wizard';
 export * from './recurrence';
+export * from './rooms';

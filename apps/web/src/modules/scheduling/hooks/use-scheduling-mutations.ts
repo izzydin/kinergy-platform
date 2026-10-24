@@ -190,6 +190,7 @@ export function useCreateRoomMutation() {
     mutationFn: (payload) => schedulingApi.createRoom(payload),
     onSuccess: (newRoom) => {
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.rooms() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       queryClient.setQueryData(schedulingQueryKeys.roomDetail(newRoom.id), newRoom);
       notification.success('Room Created', `Room "${newRoom.name}" registered successfully.`);
     },
@@ -205,6 +206,7 @@ export function useEditRoomMutation() {
     onSuccess: (updatedRoom, { id }) => {
       queryClient.setQueryData(schedulingQueryKeys.roomDetail(id), updatedRoom);
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.rooms() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       notification.success('Room Updated', `Room "${updatedRoom.name}" has been updated.`);
     },
   });
@@ -219,6 +221,7 @@ export function useActivateRoomMutation() {
     onSuccess: (updatedRoom, { id }) => {
       queryClient.setQueryData(schedulingQueryKeys.roomDetail(id), updatedRoom);
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.rooms() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       notification.success(
         'Room Activated',
         `Room "${updatedRoom.name}" is now available for bookings.`,
@@ -236,6 +239,7 @@ export function useDeactivateRoomMutation() {
     onSuccess: (updatedRoom, { id }) => {
       queryClient.setQueryData(schedulingQueryKeys.roomDetail(id), updatedRoom);
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.rooms() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       notification.success('Room Deactivated', `Room "${updatedRoom.name}" set to unavailable.`);
     },
   });
@@ -251,6 +255,7 @@ export function useScheduleMaintenanceMutation() {
       queryClient.setQueryData(schedulingQueryKeys.roomDetail(id), updatedRoom);
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.rooms() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.calendar() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       notification.success('Maintenance Scheduled', 'Maintenance window scheduled successfully.');
     },
   });
@@ -266,6 +271,7 @@ export function useCancelMaintenanceMutation() {
       queryClient.setQueryData(schedulingQueryKeys.roomDetail(id), updatedRoom);
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.rooms() });
       queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.calendar() });
+      queryClient.invalidateQueries({ queryKey: schedulingQueryKeys.availability() });
       notification.success('Maintenance Cancelled', 'Maintenance window removed.');
     },
   });

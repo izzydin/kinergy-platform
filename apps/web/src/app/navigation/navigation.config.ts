@@ -1,6 +1,7 @@
 import {
   Boxes,
   Calendar,
+  DoorClosed,
   Dumbbell,
   LayoutDashboard,
   Receipt,
@@ -33,6 +34,15 @@ export const defaultNavigationItems: NavigationItem[] = [
     order: 15,
     section: 'core',
     requiredPermissions: ['appointments.read'],
+  },
+  {
+    id: 'rooms',
+    label: 'Rooms & Facilities',
+    path: '/rooms',
+    icon: DoorClosed,
+    order: 18,
+    section: 'core',
+    requiredPermissions: ['settings.read'],
   },
   {
     id: 'clients',

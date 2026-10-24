@@ -10,6 +10,9 @@ const CalendarPage = lazyWithRetry(() =>
 const BookingPage = lazyWithRetry(() =>
   import('./booking-page').then((m) => ({ default: m.BookingPage })),
 );
+const RoomsPage = lazyWithRetry(() =>
+  import('./rooms-page').then((m) => ({ default: m.RoomsPage })),
+);
 
 export const SchedulingSubRouter: React.FC = () => (
   <Suspense fallback={<SuspenseFallback label="Loading Scheduling Calendar..." />}>
@@ -17,6 +20,7 @@ export const SchedulingSubRouter: React.FC = () => (
       <Route path="/" element={<CalendarPage />} />
       <Route path="book" element={<BookingPage />} />
       <Route path="new" element={<BookingPage />} />
+      <Route path="rooms/*" element={<RoomsPage />} />
       <Route path="*" element={<NotFoundView message="Scheduling view not found." />} />
     </Routes>
   </Suspense>

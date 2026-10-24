@@ -1,10 +1,12 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from '@kinergy-platform/ui';
 import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
   Clock,
+  DoorClosed,
   FilterX,
   Plus,
 } from 'lucide-react';
@@ -151,6 +153,20 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
               Month
             </button>
           </div>
+
+          {/* Rooms Directory Link */}
+          <Link to="/rooms">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="inline-flex items-center gap-1.5 shadow-xs text-xs"
+              aria-label="View room directory"
+            >
+              <DoorClosed className="h-3.5 w-3.5" aria-hidden="true" />
+              <span>Rooms</span>
+            </Button>
+          </Link>
 
           {/* Book Appointment Action */}
           {canCreateAppointment && (

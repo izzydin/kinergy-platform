@@ -9,6 +9,7 @@ import '../../modules/attendance/routes/attendance.router';
 import '../../modules/gym/routes/gym.router';
 import '../../modules/sales/routes/sales.router';
 import '../../modules/scheduling/routes/scheduling.router';
+import '../../modules/scheduling/routes/rooms.router';
 
 import { AuthLayout, DashboardLayout } from '../layouts';
 import {
