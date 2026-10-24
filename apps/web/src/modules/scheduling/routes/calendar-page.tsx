@@ -234,6 +234,7 @@ export const CalendarPage: React.FC = () => {
         isOpen={isDrawerOpen}
         onClose={handleCloseDrawer}
         canManageAppointments={canManageAppointments}
+        rooms={rooms}
       />
 
       {/* Guided Appointment Booking Wizard Modal */}

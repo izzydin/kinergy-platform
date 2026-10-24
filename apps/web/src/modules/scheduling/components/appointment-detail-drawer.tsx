@@ -13,6 +13,8 @@ import {
   X,
   XCircle,
   AlertTriangle,
+  CalendarDays,
+  CalendarRange,
 } from 'lucide-react';
 import {
   formatFacilityDate,
@@ -20,7 +22,7 @@ import {
   FACILITY_TIMEZONE,
 } from '../utils/calendar-date.utils';
 import { CalendarStatusBadge, ConflictBadge } from './calendar-status-badge';
-import type { AppointmentModel, CalendarSlotDTO } from '../types/scheduling.types';
+import type { AppointmentModel, CalendarSlotDTO, RoomModel } from '../types/scheduling.types';
 import {
   useCancelAppointmentMutation,
   useCheckInAppointmentMutation,
@@ -29,12 +31,21 @@ import {
   useMarkNoShowMutation,
   useStartAppointmentMutation,
 } from '../hooks/use-scheduling-mutations';
+import {
+  RecurrenceScopeDialog,
+  EditSingleOccurrenceModal,
+  EditFutureSeriesModal,
+  SkipOccurrenceModal,
+  CancelSeriesModal,
+  type RecurrenceScopeAction,
+} from './recurrence';
 
 export interface AppointmentDetailDrawerProps {
   appointment: AppointmentModel | CalendarSlotDTO | null;
   isOpen: boolean;
   onClose: () => void;
   canManageAppointments?: boolean;
+  rooms?: RoomModel[];
 }
 
 export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = ({
@@ -42,10 +53,18 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
   isOpen,
   onClose,
   canManageAppointments = true,
+  rooms = [],
 }) => {
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
   const [cancelError, setCancelError] = useState('');
+
+  // Scoped Recurrence Modals State
+  const [scopeDialogAction, setScopeDialogAction] = useState<'edit' | 'cancel' | null>(null);
+  const [isEditSingleModalOpen, setIsEditSingleModalOpen] = useState(false);
+  const [isEditFutureModalOpen, setIsEditFutureModalOpen] = useState(false);
+  const [isSkipModalOpen, setIsSkipModalOpen] = useState(false);
+  const [isCancelSeriesModalOpen, setIsCancelSeriesModalOpen] = useState(false);
 
   const confirmMutation = useConfirmAppointmentMutation();
   const checkInMutation = useCheckInAppointmentMutation();
@@ -59,6 +78,11 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
     setShowCancelPrompt(false);
     setCancelReason('');
     setCancelError('');
+    setScopeDialogAction(null);
+    setIsEditSingleModalOpen(false);
+    setIsEditFutureModalOpen(false);
+    setIsSkipModalOpen(false);
+    setIsCancelSeriesModalOpen(false);
   }, [appointment, isOpen]);
 
   // Handle Escape key
@@ -261,22 +285,96 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
             </div>
           </div>
 
-          {/* Series Info if present */}
+          {/* Series Info and Scoped Recurrence Management */}
           {'seriesId' in appointment && appointment.seriesId && (
-            <div className="rounded-lg border border-border p-3 space-y-1.5 bg-muted/10 text-xs">
-              <span className="font-semibold text-foreground flex items-center gap-1.5">
-                <RotateCcw className="h-3.5 w-3.5 text-primary" />
-                <span>Recurring Series Member</span>
-              </span>
-              <p className="text-muted-foreground text-[11px]">
-                Series ID: <code className="bg-muted px-1 rounded">{appointment.seriesId}</code>
+            <div className="rounded-lg border border-border p-3.5 space-y-3 bg-muted/20 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-foreground flex items-center gap-1.5">
+                  <RotateCcw className="h-3.5 w-3.5 text-primary" />
+                  <span>Recurring Series Member</span>
+                </span>
                 {appointment.occurrenceIndex !== undefined && (
-                  <> • Occurrence #{appointment.occurrenceIndex + 1}</>
+                  <span className="bg-primary/10 text-primary font-medium px-2 py-0.5 rounded-full text-[11px]">
+                    Occurrence #{appointment.occurrenceIndex + 1}
+                  </span>
                 )}
-                {appointment.isDetachedFromSeries && (
-                  <span className="ml-1 text-amber-600 font-semibold">(Detached from series)</span>
+              </div>
+
+              <div className="text-muted-foreground text-[11px] space-y-1">
+                <p>
+                  Series ID:{' '}
+                  <code className="bg-muted px-1.5 py-0.5 rounded font-mono text-[10px]">
+                    {appointment.seriesId}
+                  </code>
+                </p>
+                {appointment.isDetachedFromSeries ? (
+                  <div className="mt-2 rounded-md border border-amber-200 dark:border-amber-900 bg-amber-50/70 dark:bg-amber-950/40 p-2 text-amber-900 dark:text-amber-300">
+                    <p className="font-semibold text-xs">Detached from Recurring Series</p>
+                    <p className="text-[11px] mt-0.5 text-amber-800 dark:text-amber-400">
+                      This occurrence was previously modified with custom parameters and detached
+                      from the parent recurrence aggregate. Edits here affect only this single
+                      appointment.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Part of an active series. Changes can target this specific occurrence or fork
+                    future occurrences.
+                  </p>
                 )}
-              </p>
+              </div>
+
+              {canManageAppointments && !appointment.isDetachedFromSeries && (
+                <div className="pt-2 border-t border-border flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsEditSingleModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs h-7 px-2.5"
+                    aria-label="Reschedule Occurrence"
+                  >
+                    <CalendarDays className="h-3 w-3" />
+                    <span>Reschedule Occurrence</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setIsEditFutureModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs h-7 px-2.5"
+                    aria-label="Edit Future Series"
+                  >
+                    <CalendarRange className="h-3 w-3" />
+                    <span>Edit Future Series</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsSkipModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs h-7 px-2.5 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                    aria-label="Skip Slot"
+                  >
+                    <AlertTriangle className="h-3 w-3" />
+                    <span>Skip Slot</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setIsCancelSeriesModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 text-xs h-7 px-2.5 text-destructive hover:bg-destructive/10"
+                    aria-label="Cancel Series"
+                  >
+                    <RotateCcw className="h-3 w-3" />
+                    <span>Cancel Series</span>
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
@@ -367,6 +465,31 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
                   </Button>
                 )}
 
+                {/* Reschedule Button */}
+                {['SCHEDULED', 'CONFIRMED'].includes(appointment.status) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      if (
+                        'seriesId' in appointment &&
+                        appointment.seriesId &&
+                        !appointment.isDetachedFromSeries
+                      ) {
+                        setScopeDialogAction('edit');
+                      } else {
+                        setIsEditSingleModalOpen(true);
+                      }
+                    }}
+                    disabled={isPending}
+                    className="inline-flex items-center gap-1.5"
+                    aria-label="Reschedule appointment"
+                  >
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>Reschedule...</span>
+                  </Button>
+                )}
+
                 {canMarkNoShow && (
                   <Button
                     size="sm"
@@ -385,7 +508,17 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
                   <Button
                     size="sm"
                     variant="destructive"
-                    onClick={() => setShowCancelPrompt(true)}
+                    onClick={() => {
+                      if (
+                        'seriesId' in appointment &&
+                        appointment.seriesId &&
+                        !appointment.isDetachedFromSeries
+                      ) {
+                        setScopeDialogAction('cancel');
+                      } else {
+                        setShowCancelPrompt(true);
+                      }
+                    }}
                     disabled={isPending}
                     className="inline-flex items-center gap-1.5"
                     aria-label="Cancel appointment"
@@ -396,7 +529,7 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
                 )}
               </div>
 
-              {/* Inline Cancellation Prompt */}
+              {/* Inline Cancellation Prompt (For single non-recurring appointments) */}
               {showCancelPrompt && (
                 <div className="p-3 rounded-lg border border-destructive/40 bg-destructive/5 space-y-2 animate-in fade-in">
                   <p className="text-xs font-semibold text-destructive">
@@ -435,6 +568,54 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
           )}
         </div>
       </div>
+
+      {/* Recurrence Scope Selector Dialog */}
+      {scopeDialogAction && (
+        <RecurrenceScopeDialog
+          isOpen={Boolean(scopeDialogAction)}
+          onClose={() => setScopeDialogAction(null)}
+          appointment={appointment}
+          actionType={scopeDialogAction}
+          onSelectScope={(scope: RecurrenceScopeAction) => {
+            setScopeDialogAction(null);
+            if (scope === 'edit-single') setIsEditSingleModalOpen(true);
+            if (scope === 'edit-future') setIsEditFutureModalOpen(true);
+            if (scope === 'skip-single') setIsSkipModalOpen(true);
+            if (scope === 'cancel-series') setIsCancelSeriesModalOpen(true);
+          }}
+        />
+      )}
+
+      {/* Scoped Action Modals */}
+      <EditSingleOccurrenceModal
+        isOpen={isEditSingleModalOpen}
+        onClose={() => setIsEditSingleModalOpen(false)}
+        appointment={appointment}
+        rooms={rooms}
+        onSuccess={() => onClose()}
+      />
+
+      <EditFutureSeriesModal
+        isOpen={isEditFutureModalOpen}
+        onClose={() => setIsEditFutureModalOpen(false)}
+        appointment={appointment}
+        rooms={rooms}
+        onSuccess={() => onClose()}
+      />
+
+      <SkipOccurrenceModal
+        isOpen={isSkipModalOpen}
+        onClose={() => setIsSkipModalOpen(false)}
+        appointment={appointment}
+        onSuccess={() => onClose()}
+      />
+
+      <CancelSeriesModal
+        isOpen={isCancelSeriesModalOpen}
+        onClose={() => setIsCancelSeriesModalOpen(false)}
+        appointment={appointment}
+        onSuccess={() => onClose()}
+      />
     </div>
   );
 };

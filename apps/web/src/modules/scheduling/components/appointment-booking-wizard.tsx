@@ -6,9 +6,11 @@ import {
   ArrowLeft,
   ArrowRight,
   Calendar,
+  CalendarDays,
   CheckCircle2,
   Clock,
   MapPin,
+  RotateCcw,
   Search,
   Stethoscope,
   User,
@@ -21,7 +23,10 @@ import {
   useServiceTypes,
   useLiveConflictCheck,
 } from '../hooks/use-scheduling-queries';
-import { useCreateAppointmentMutation } from '../hooks/use-scheduling-mutations';
+import {
+  useCreateAppointmentMutation,
+  useCreateRecurrenceSeriesMutation,
+} from '../hooks/use-scheduling-mutations';
 import {
   FACILITY_TIMEZONE,
   addMinutesToIso,
@@ -29,9 +34,13 @@ import {
   formatFacilityDate,
   formatFacilityTime,
   getTodayFacilityDate,
+  generateOccurrencePreviewDates,
 } from '../utils/calendar-date.utils';
 import { formatSchedulingErrorMessage } from '../api/scheduling-error';
-import type { AppointmentModel } from '../types/scheduling.types';
+import type {
+  AppointmentModel,
+  CreateRecurrenceSeriesResponseDTO,
+} from '../types/scheduling.types';
 import type { AppointmentBookingFormData } from '../schemas/appointment-booking.schema';
 
 export interface AppointmentBookingWizardProps {
@@ -90,6 +99,9 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
   const [clientSearchQuery, setClientSearchQuery] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
   const [createdAppointment, setCreatedAppointment] = useState<AppointmentModel | null>(null);
+  const [createdSeries, setCreatedSeries] = useState<CreateRecurrenceSeriesResponseDTO | null>(
+    null,
+  );
 
   // Form state preserved across steps and conflict retries
   const [formData, setFormData] = useState<AppointmentBookingFormData>({
@@ -102,6 +114,11 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
     date: initialDate || getTodayFacilityDate(),
     time: '10:00',
     notes: '',
+    isRecurring: false,
+    frequency: 'WEEKLY',
+    recurrenceEndType: 'count',
+    maxOccurrences: 12,
+    recurrenceEndDate: '',
   });
 
   // Queries
@@ -114,6 +131,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
   const { data: rooms = [], isLoading: isRoomsLoading } = useRoomsList();
 
   const createMutation = useCreateAppointmentMutation();
+  const createSeriesMutation = useCreateRecurrenceSeriesMutation();
 
   // Selected Service Type Metadata
   const selectedServiceMeta = useMemo(() => {
@@ -134,6 +152,25 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
     const end = addMinutesToIso(start, formData.durationMinutes || 60);
     return { startTimeIso: start, endTimeIso: end };
   }, [formData.date, formData.time, formData.durationMinutes]);
+
+  // Projected Recurrence Preview Dates
+  const occurrencePreviews = useMemo(() => {
+    if (!formData.isRecurring || !formData.date || !formData.time) return [];
+    return generateOccurrencePreviewDates({
+      startDateStr: formData.date,
+      timeStr: formData.time,
+      frequency: formData.frequency,
+      maxCount: 5,
+      endDateStr: formData.recurrenceEndType === 'date' ? formData.recurrenceEndDate : undefined,
+    });
+  }, [
+    formData.isRecurring,
+    formData.date,
+    formData.time,
+    formData.frequency,
+    formData.recurrenceEndType,
+    formData.recurrenceEndDate,
+  ]);
 
   // Advisory 4D live conflict pre-check
   const { data: conflictCheck } = useLiveConflictCheck(
@@ -203,6 +240,43 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
     if (!canProceedFromCurrentStep) return;
     setServerError(null);
 
+    // If recurring series is selected
+    if (formData.isRecurring) {
+      createSeriesMutation.mutate(
+        {
+          clientId: formData.clientId,
+          therapistId: formData.therapistId.trim(),
+          roomId: formData.roomId,
+          serviceType: formData.serviceType,
+          frequency: formData.frequency,
+          startDate: startTimeIso,
+          endDate:
+            formData.recurrenceEndType === 'date' && formData.recurrenceEndDate
+              ? facilityDateTimeToUtcIso(formData.recurrenceEndDate, formData.time)
+              : undefined,
+          maxOccurrences:
+            formData.recurrenceEndType === 'count' ? formData.maxOccurrences : undefined,
+          localStartTime: formData.time,
+          durationMinutes: formData.durationMinutes,
+          timezone: FACILITY_TIMEZONE,
+        },
+        {
+          onSuccess: (seriesData) => {
+            setCreatedSeries(seriesData);
+          },
+          onError: (err) => {
+            const formatted = formatSchedulingErrorMessage(
+              err,
+              'Unable to complete recurring series creation. One or more occurrences may conflict.',
+            );
+            setServerError(formatted);
+          },
+        },
+      );
+      return;
+    }
+
+    // Single appointment booking
     createMutation.mutate(
       {
         clientId: formData.clientId,
@@ -213,7 +287,6 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
         endTime: endTimeIso,
         notes: formData.notes?.trim() || undefined,
       },
-
       {
         onSuccess: (newAppt) => {
           setCreatedAppointment(newAppt);
@@ -225,7 +298,6 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
             'Unable to complete booking. The selected slot may conflict with an existing appointment or maintenance window.',
           );
           setServerError(formatted);
-          // Stay on review step (or step 5) with all selections preserved so staff can choose another slot
         },
       },
     );
@@ -233,6 +305,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
 
   const handleResetForm = () => {
     setCreatedAppointment(null);
+    setCreatedSeries(null);
     setServerError(null);
     setCurrentStep(1);
     setFormData({
@@ -245,8 +318,15 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
       date: initialDate || getTodayFacilityDate(),
       time: '10:00',
       notes: '',
+      isRecurring: false,
+      frequency: 'WEEKLY',
+      recurrenceEndType: 'count',
+      maxOccurrences: 12,
+      recurrenceEndDate: '',
     });
   };
+
+  const isPending = createMutation.isPending || createSeriesMutation.isPending;
 
   return (
     <div
@@ -279,7 +359,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
         </div>
 
         {/* Step Indicator Navigation */}
-        {!createdAppointment && (
+        {!createdAppointment && !createdSeries && (
           <nav
             aria-label="Booking steps"
             className="flex items-center justify-between border-b border-border px-6 py-2.5 bg-muted/10 overflow-x-auto text-xs"
@@ -343,8 +423,60 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
             </Alert>
           )}
 
-          {/* STEP 7: Created Appointment Result */}
-          {createdAppointment ? (
+          {/* STEP 7A: Created Recurring Series Result */}
+          {createdSeries ? (
+            <div className="space-y-4 py-4 text-center">
+              <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400 mx-auto flex items-center justify-center">
+                <RotateCcw className="h-7 w-7" aria-hidden="true" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold text-foreground">Recurring Series Created!</h3>
+                <p className="text-xs text-muted-foreground">
+                  The recurrence aggregate has been established and initial occurrences
+                  materialized.
+                </p>
+              </div>
+
+              <div className="rounded-lg border border-border bg-muted/20 p-4 max-w-md mx-auto text-left text-xs space-y-2">
+                <div className="flex justify-between border-b border-border pb-1">
+                  <span className="text-muted-foreground">Series ID:</span>
+                  <span className="font-mono font-semibold text-foreground">
+                    {createdSeries.series.id}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-border pb-1">
+                  <span className="text-muted-foreground">Frequency:</span>
+                  <span className="font-semibold text-foreground">
+                    {createdSeries.series.pattern.frequency}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-border pb-1">
+                  <span className="text-muted-foreground">Initial Generation:</span>
+                  <span className="font-semibold text-emerald-600">
+                    {createdSeries.initialGeneration.generatedCount} appointments scheduled
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Facility Timezone:</span>
+                  <span className="font-semibold text-foreground">
+                    {createdSeries.series.pattern.timezone || FACILITY_TIMEZONE}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 pt-3">
+                <Button size="sm" variant="outline" onClick={handleResetForm}>
+                  Book Another Series or Appointment
+                </Button>
+                {onClose && (
+                  <Button size="sm" variant="default" onClick={onClose}>
+                    Done / Return to Calendar
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : createdAppointment ? (
+            /* STEP 7B: Created Single Appointment Result */
             <div className="space-y-4 py-4 text-center">
               <div className="h-12 w-12 rounded-full bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 mx-auto flex items-center justify-center">
                 <CheckCircle2 className="h-7 w-7" aria-hidden="true" />
@@ -359,37 +491,39 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
               <div className="rounded-lg border border-border bg-muted/20 p-4 max-w-md mx-auto text-left text-xs space-y-2">
                 <div className="flex justify-between border-b border-border pb-1">
                   <span className="text-muted-foreground">Appointment ID:</span>
-                  <span className="font-mono font-medium">{createdAppointment.id}</span>
-                </div>
-                <div className="flex justify-between border-b border-border pb-1">
-                  <span className="text-muted-foreground">Service:</span>
-                  <span className="font-semibold">{createdAppointment.type}</span>
-                </div>
-                <div className="flex justify-between border-b border-border pb-1">
-                  <span className="text-muted-foreground">Date & Time:</span>
-                  <span>
-                    {formatFacilityDate(createdAppointment.startTime)} •{' '}
-                    {formatFacilityTime(createdAppointment.startTime)} –{' '}
-                    {formatFacilityTime(createdAppointment.endTime)}
+                  <span className="font-mono font-semibold text-foreground">
+                    {createdAppointment.id}
                   </span>
                 </div>
                 <div className="flex justify-between border-b border-border pb-1">
-                  <span className="text-muted-foreground">Therapist:</span>
-                  <span>{createdAppointment.therapistId}</span>
+                  <span className="text-muted-foreground">Status:</span>
+                  <span className="font-semibold text-emerald-600">
+                    {createdAppointment.status}
+                  </span>
+                </div>
+                <div className="flex justify-between border-b border-border pb-1">
+                  <span className="text-muted-foreground">Scheduled Time:</span>
+                  <span className="font-semibold text-foreground">
+                    {formatFacilityDate(createdAppointment.startTime)} •{' '}
+                    {formatFacilityTime(createdAppointment.startTime)} –{' '}
+                    {formatFacilityTime(createdAppointment.endTime)} ({FACILITY_TIMEZONE})
+                  </span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-muted-foreground">Room:</span>
-                  <span>{createdAppointment.roomId}</span>
+                  <span className="text-muted-foreground">Client:</span>
+                  <span className="font-semibold text-foreground">
+                    {formData.clientName || createdAppointment.clientId}
+                  </span>
                 </div>
               </div>
 
-              <div className="flex items-center justify-center gap-3 pt-4">
-                <Button size="sm" onClick={handleResetForm} variant="outline">
+              <div className="flex items-center justify-center gap-3 pt-3">
+                <Button size="sm" variant="outline" onClick={handleResetForm}>
                   Book Another Appointment
                 </Button>
                 {onClose && (
-                  <Button size="sm" onClick={onClose} variant="default">
-                    Return to Calendar
+                  <Button size="sm" variant="default" onClick={onClose}>
+                    Done / Return to Calendar
                   </Button>
                 )}
               </div>
@@ -402,7 +536,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                   <div>
                     <h3 className="text-sm font-semibold text-foreground">1. Select Client</h3>
                     <p className="text-xs text-muted-foreground">
-                      Search for an active client profile by name, phone, or email.
+                      Search and select the client who will attend this appointment.
                     </p>
                   </div>
 
@@ -410,7 +544,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                     <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                     <input
                       type="text"
-                      placeholder="Search clients by name, email, or phone..."
+                      placeholder="Search clients by name, email, or reference number..."
                       value={clientSearchQuery}
                       onChange={(e) => setClientSearchQuery(e.target.value)}
                       className="w-full pl-9 pr-4 py-2 text-xs rounded-md border border-input bg-background shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
@@ -418,43 +552,16 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                     />
                   </div>
 
-                  {/* Selected Client pill */}
-                  {formData.clientId && (
-                    <div className="p-2.5 rounded-lg border border-primary/40 bg-primary/5 flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-primary" />
-                        <div>
-                          <p className="font-semibold text-foreground">
-                            {formData.clientName || formData.clientId}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            Client ID: {formData.clientId}
-                          </p>
-                        </div>
-                      </div>
-                      <span className="text-xs text-emerald-600 font-semibold">Selected ✓</span>
-                    </div>
+                  {isClientsLoading && (
+                    <p className="text-xs text-muted-foreground p-4 text-center">
+                      Searching client directory...
+                    </p>
                   )}
 
-                  {/* Search Results List */}
-                  <div className="space-y-1.5 max-h-60 overflow-y-auto">
-                    {isClientsLoading && (
-                      <p className="text-xs text-muted-foreground p-3 text-center">
-                        Searching clients...
-                      </p>
-                    )}
-                    {(() => {
-                      const clientList = clientsData?.items ?? [];
-                      if (!isClientsLoading && clientList.length === 0 && clientSearchQuery) {
-                        return (
-                          <p className="text-xs text-muted-foreground p-3 text-center">
-                            No matching clients found for &quot;{clientSearchQuery}&quot;.
-                          </p>
-                        );
-                      }
-                      return clientList.map((client) => {
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {clientsData?.items && clientsData.items.length > 0 ? (
+                      clientsData.items.map((client) => {
                         const isSelected = formData.clientId === client.id;
-                        const fullName = `${client.firstName} ${client.lastName}`;
                         return (
                           <div
                             key={client.id}
@@ -464,7 +571,8 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                               setFormData((prev) => ({
                                 ...prev,
                                 clientId: client.id,
-                                clientName: fullName,
+                                clientName:
+                                  client.fullName || `${client.firstName} ${client.lastName}`,
                               }));
                             }}
                             onKeyDown={(e) => {
@@ -472,34 +580,48 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                                 setFormData((prev) => ({
                                   ...prev,
                                   clientId: client.id,
-                                  clientName: fullName,
+                                  clientName:
+                                    client.fullName || `${client.firstName} ${client.lastName}`,
                                 }));
                               }
                             }}
-                            className={`p-2.5 rounded-md border text-left cursor-pointer transition-colors flex items-center justify-between ${
+                            className={`p-3 rounded-lg border text-left cursor-pointer transition-all ${
                               isSelected
-                                ? 'border-primary bg-primary/10'
-                                : 'border-border hover:bg-muted/30'
+                                ? 'border-primary bg-primary/10 ring-1 ring-primary'
+                                : 'border-border hover:bg-muted/40'
                             }`}
                           >
-                            <div>
-                              <p className="text-xs font-semibold text-foreground">{fullName}</p>
-                              <p className="text-[11px] text-muted-foreground">
-                                {client.email} • {client.phone}
+                            <div className="flex items-center justify-between">
+                              <p className="text-xs font-semibold text-foreground">
+                                {client.fullName || `${client.firstName} ${client.lastName}`}
                               </p>
+                              <div className="flex items-center gap-1.5">
+                                {isSelected && (
+                                  <span className="text-[10px] text-primary font-bold">
+                                    Selected ✓
+                                  </span>
+                                )}
+                                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-mono">
+                                  {client.referenceNumber || client.id.slice(0, 8)}
+                                </span>
+                              </div>
                             </div>
-                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted font-medium">
-                              {client.status}
-                            </span>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              {client.email || 'No email registered'}
+                            </p>
                           </div>
                         );
-                      });
-                    })()}
+                      })
+                    ) : (
+                      <div className="p-4 text-center text-xs text-muted-foreground border border-dashed rounded-lg">
+                        {clientSearchQuery ? 'No matching clients found.' : 'No clients available.'}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
 
-              {/* STEP 2: Service Selection */}
+              {/* STEP 2: Service Type Selection */}
               {currentStep === 2 && (
                 <div className="space-y-4">
                   <div>
@@ -507,13 +629,14 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                       2. Choose Service Type
                     </h3>
                     <p className="text-xs text-muted-foreground">
-                      Select a bookable treatment or consultation type with authoritative duration.
+                      Choose an eligible service type. Duration constraints will be applied
+                      automatically.
                     </p>
                   </div>
 
                   {isServicesLoading && (
                     <p className="text-xs text-muted-foreground p-4 text-center">
-                      Loading service types catalog...
+                      Loading service catalog...
                     </p>
                   )}
 
@@ -544,7 +667,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                           className={`p-3 rounded-lg border text-left cursor-pointer transition-all ${
                             isSelected
                               ? 'border-primary bg-primary/10 ring-1 ring-primary'
-                              : 'border-border hover:bg-muted/30'
+                              : 'border-border hover:bg-muted/40'
                           }`}
                         >
                           <p className="text-xs font-bold text-foreground">{service.label}</p>
@@ -672,11 +795,11 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                 </div>
               )}
 
-              {/* STEP 5: Date & Time Selection */}
+              {/* STEP 5: Date & Time Selection + Recurrence Series Settings */}
               {currentStep === 5 && (
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-sm font-semibold text-foreground">5. Date & Time</h3>
+                    <h3 className="text-sm font-semibold text-foreground">5. Date &amp; Time</h3>
                     <p className="text-xs text-muted-foreground">
                       Pick the appointment date and facility-local operational start time (
                       {FACILITY_TIMEZONE}).
@@ -766,6 +889,183 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                       </div>
                     </div>
                   )}
+
+                  {/* Recurrence Series Toggle & Configuration */}
+                  <div className="rounded-lg border border-border p-3.5 space-y-3 bg-muted/20">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <RotateCcw className="h-4 w-4 text-primary" />
+                        <div>
+                          <label
+                            htmlFor="toggle-recurring"
+                            className="text-xs font-bold text-foreground cursor-pointer"
+                          >
+                            Repeat Appointment (Recurring Series)
+                          </label>
+                          <p className="text-[11px] text-muted-foreground">
+                            Automatically book multiple recurring sessions on a repeating schedule.
+                          </p>
+                        </div>
+                      </div>
+                      <input
+                        id="toggle-recurring"
+                        type="checkbox"
+                        checked={formData.isRecurring}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, isRecurring: e.target.checked }))
+                        }
+                        className="h-4 w-4 rounded border-input text-primary focus:ring-primary cursor-pointer"
+                      />
+                    </div>
+
+                    {formData.isRecurring && (
+                      <div className="pt-2 border-t border-border space-y-3 animate-in fade-in">
+                        {/* Frequency Selection */}
+                        <div className="space-y-1">
+                          <label
+                            htmlFor="recurrence-freq"
+                            className="text-xs font-medium text-foreground"
+                          >
+                            Frequency:
+                          </label>
+                          <select
+                            id="recurrence-freq"
+                            value={formData.frequency}
+                            onChange={(e) =>
+                              setFormData((prev) => ({
+                                ...prev,
+                                frequency: e.target.value as 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY',
+                              }))
+                            }
+                            className="w-full text-xs rounded-md border border-input bg-background px-2.5 py-1.5 shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                          >
+                            <option value="WEEKLY">Weekly</option>
+                            <option value="BIWEEKLY">Every 2 Weeks (Bi-weekly)</option>
+                            <option value="MONTHLY">Monthly</option>
+                          </select>
+                        </div>
+
+                        {/* Recurrence End Condition */}
+                        <div className="space-y-2">
+                          <label className="text-xs font-medium text-foreground">
+                            Series Termination:
+                          </label>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <label className="flex items-center gap-2 p-2 rounded-md border border-input bg-background cursor-pointer">
+                              <input
+                                type="radio"
+                                name="endType"
+                                value="count"
+                                checked={formData.recurrenceEndType === 'count'}
+                                onChange={() =>
+                                  setFormData((prev) => ({ ...prev, recurrenceEndType: 'count' }))
+                                }
+                                className="text-primary focus:ring-primary"
+                              />
+                              <span>After session count</span>
+                            </label>
+
+                            <label className="flex items-center gap-2 p-2 rounded-md border border-input bg-background cursor-pointer">
+                              <input
+                                type="radio"
+                                name="endType"
+                                value="date"
+                                checked={formData.recurrenceEndType === 'date'}
+                                onChange={() =>
+                                  setFormData((prev) => ({ ...prev, recurrenceEndType: 'date' }))
+                                }
+                                className="text-primary focus:ring-primary"
+                              />
+                              <span>On specific date</span>
+                            </label>
+                          </div>
+
+                          {formData.recurrenceEndType === 'count' ? (
+                            <div className="space-y-1">
+                              <label
+                                htmlFor="max-occurrences"
+                                className="text-xs text-muted-foreground"
+                              >
+                                Total sessions (2–52):
+                              </label>
+                              <input
+                                id="max-occurrences"
+                                type="number"
+                                min={2}
+                                max={52}
+                                value={formData.maxOccurrences}
+                                onChange={(e) =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    maxOccurrences: Math.max(
+                                      2,
+                                      Math.min(52, Number(e.target.value)),
+                                    ),
+                                  }))
+                                }
+                                className="w-full text-xs rounded-md border border-input bg-background px-2.5 py-1.5 shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                              />
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              <label
+                                htmlFor="recurrence-end-date"
+                                className="text-xs text-muted-foreground"
+                              >
+                                End Date:
+                              </label>
+                              <input
+                                id="recurrence-end-date"
+                                type="date"
+                                value={formData.recurrenceEndDate || ''}
+                                onChange={(e) =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    recurrenceEndDate: e.target.value,
+                                  }))
+                                }
+                                className="w-full text-xs rounded-md border border-input bg-background px-2.5 py-1.5 shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
+                              />
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Live Occurrence Preview */}
+                        {occurrencePreviews.length > 0 && (
+                          <div className="space-y-1.5 pt-2 border-t border-border">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-semibold text-foreground flex items-center gap-1">
+                                <CalendarDays className="h-3.5 w-3.5 text-primary" />
+                                <span>Projected Occurrences Preview</span>
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                Showing first {occurrencePreviews.length} sessions
+                              </span>
+                            </div>
+                            <div className="space-y-1 bg-background rounded-md border border-border p-2">
+                              {occurrencePreviews.map((p) => (
+                                <div
+                                  key={p.index}
+                                  className="flex justify-between items-center text-[11px]"
+                                >
+                                  <span className="font-medium text-foreground">
+                                    Session #{p.index + 1}:
+                                  </span>
+                                  <span className="text-muted-foreground">
+                                    {p.displayLabel} at {formData.time}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            <p className="text-[10px] text-amber-600 dark:text-amber-400 italic">
+                              * Preview projection — actual appointments are materialized within an
+                              authoritative rolling 60-day horizon subject to conflict validation.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -831,6 +1131,22 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                         {formatFacilityTime(endTimeIso)} ({FACILITY_TIMEZONE})
                       </span>
                     </div>
+
+                    {/* Recurrence Summary if enabled */}
+                    {formData.isRecurring && (
+                      <div className="p-3 flex justify-between items-center bg-purple-500/10">
+                        <span className="text-purple-700 dark:text-purple-300 font-semibold flex items-center gap-1.5">
+                          <RotateCcw className="h-3.5 w-3.5 text-purple-600" />
+                          <span>Recurrence Series:</span>
+                        </span>
+                        <span className="font-bold text-purple-900 dark:text-purple-200">
+                          {formData.frequency} •{' '}
+                          {formData.recurrenceEndType === 'count'
+                            ? `${formData.maxOccurrences} sessions total`
+                            : `Until ${formData.recurrenceEndDate}`}
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Optional Notes */}
@@ -854,7 +1170,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
         </div>
 
         {/* Footer Navigation Buttons */}
-        {!createdAppointment && (
+        {!createdAppointment && !createdSeries && (
           <div className="flex items-center justify-between px-6 py-4 border-t border-border bg-muted/20">
             <div>
               {currentStep > 1 && (
@@ -862,7 +1178,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                   size="sm"
                   variant="outline"
                   onClick={handlePrev}
-                  disabled={createMutation.isPending}
+                  disabled={isPending}
                   className="inline-flex items-center gap-1"
                 >
                   <ArrowLeft className="h-3.5 w-3.5" />
@@ -873,12 +1189,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
 
             <div className="flex items-center gap-2">
               {onClose && (
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={onClose}
-                  disabled={createMutation.isPending}
-                >
+                <Button size="sm" variant="ghost" onClick={onClose} disabled={isPending}>
                   Cancel
                 </Button>
               )}
@@ -899,18 +1210,20 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                   size="sm"
                   variant="default"
                   onClick={handleConfirmBooking}
-                  disabled={!canProceedFromCurrentStep || createMutation.isPending}
+                  disabled={!canProceedFromCurrentStep || isPending}
                   className="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
                 >
-                  {createMutation.isPending ? (
+                  {isPending ? (
                     <>
                       <span className="h-3.5 w-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                      <span>Booking...</span>
+                      <span>{formData.isRecurring ? 'Creating Series...' : 'Booking...'}</span>
                     </>
                   ) : (
                     <>
                       <CheckCircle2 className="h-4 w-4" />
-                      <span>Confirm &amp; Book</span>
+                      <span>
+                        {formData.isRecurring ? 'Confirm & Create Series' : 'Confirm & Book'}
+                      </span>
                     </>
                   )}
                 </Button>

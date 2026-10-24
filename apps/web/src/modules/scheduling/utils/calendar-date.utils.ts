@@ -379,3 +379,86 @@ export function calculateSlotPosition(
     heightPercent: Math.min(100 - topPercent, Math.max(2, heightPercent)),
   };
 }
+
+/**
+ * Parses a "HH:mm" time string into numeric { hour, minute }.
+ */
+export function parseLocalTimeString(timeStr: string): { hour: number; minute: number } {
+  if (!timeStr) return { hour: 9, minute: 0 };
+  const parts = timeStr.split(':');
+  const hour = parseInt(parts[0] || '9', 10);
+  const minute = parseInt(parts[1] || '0', 10);
+  return {
+    hour: isNaN(hour) ? 9 : Math.max(0, Math.min(23, hour)),
+    minute: isNaN(minute) ? 0 : Math.max(0, Math.min(59, minute)),
+  };
+}
+
+/**
+ * Projects recurrence dates for UI preview based on start date, time, and frequency.
+ * All preview dates are modeled consistently with RecurrencePattern in @kinergy-platform/core.
+ */
+export function generateOccurrencePreviewDates(params: {
+  startDateStr: string; // YYYY-MM-DD
+  timeStr: string; // HH:mm
+  frequency: 'WEEKLY' | 'BIWEEKLY' | 'MONTHLY';
+  maxCount?: number;
+  endDateStr?: string; // YYYY-MM-DD
+}): Array<{ index: number; dateStr: string; displayLabel: string }> {
+  const { startDateStr, timeStr, frequency, maxCount = 5, endDateStr } = params;
+  if (!startDateStr || !timeStr) return [];
+
+  const [sYear, sMonth, sDay] = startDateStr.split('-').map(Number);
+  if (!sYear || !sMonth || !sDay) return [];
+
+  const effectiveEndLimit = endDateStr ? new Date(`${endDateStr}T23:59:59Z`) : undefined;
+  const results: Array<{ index: number; dateStr: string; displayLabel: string }> = [];
+
+  let step = 0;
+  while (results.length < maxCount && step < 100) {
+    let candidateDate: Date;
+
+    if (frequency === 'WEEKLY') {
+      const base = new Date(Date.UTC(sYear, sMonth - 1, sDay));
+      candidateDate = new Date(base.getTime() + step * 7 * 24 * 60 * 60 * 1000);
+    } else if (frequency === 'BIWEEKLY') {
+      const base = new Date(Date.UTC(sYear, sMonth - 1, sDay));
+      candidateDate = new Date(base.getTime() + step * 14 * 24 * 60 * 60 * 1000);
+    } else {
+      // MONTHLY with Clamping
+      const totalMonths = sMonth - 1 + step;
+      const targetYear = sYear + Math.floor(totalMonths / 12);
+      const targetMonth = ((totalMonths % 12) + 12) % 12;
+      const maxDaysInTargetMonth = new Date(Date.UTC(targetYear, targetMonth + 1, 0)).getUTCDate();
+      const clampedDay = Math.min(sDay, maxDaysInTargetMonth);
+      candidateDate = new Date(Date.UTC(targetYear, targetMonth, clampedDay));
+    }
+
+    if (effectiveEndLimit && candidateDate.getTime() > effectiveEndLimit.getTime()) {
+      break;
+    }
+
+    const y = candidateDate.getUTCFullYear();
+    const m = String(candidateDate.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(candidateDate.getUTCDate()).padStart(2, '0');
+    const dateStr = `${y}-${m}-${d}`;
+
+    const displayLabel = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'UTC',
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    }).format(candidateDate);
+
+    results.push({
+      index: step,
+      dateStr,
+      displayLabel,
+    });
+
+    step++;
+  }
+
+  return results;
+}

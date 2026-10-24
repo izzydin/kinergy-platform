@@ -12,6 +12,8 @@ import {
   navigatePeriod,
   parseDateString,
   toDateString,
+  parseLocalTimeString,
+  generateOccurrencePreviewDates,
 } from '../calendar-date.utils';
 
 describe('Calendar Date & Facility Timezone Utilities', () => {
@@ -189,6 +191,87 @@ describe('Calendar Date & Facility Timezone Utilities', () => {
       );
 
       expect(topPercent).toBe(0);
+    });
+  });
+
+  describe('parseLocalTimeString', () => {
+    it('parses valid HH:mm into numeric hour and minute', () => {
+      expect(parseLocalTimeString('09:30')).toEqual({ hour: 9, minute: 30 });
+      expect(parseLocalTimeString('14:45')).toEqual({ hour: 14, minute: 45 });
+      expect(parseLocalTimeString('00:00')).toEqual({ hour: 0, minute: 0 });
+    });
+
+    it('handles empty or malformed strings with fallback defaults', () => {
+      expect(parseLocalTimeString('')).toEqual({ hour: 9, minute: 0 });
+      expect(parseLocalTimeString('invalid')).toEqual({ hour: 9, minute: 0 });
+    });
+  });
+
+  describe('generateOccurrencePreviewDates', () => {
+    it('generates weekly occurrences stepping by 7 days', () => {
+      const dates = generateOccurrencePreviewDates({
+        startDateStr: '2026-10-24',
+        timeStr: '10:00',
+        frequency: 'WEEKLY',
+        maxCount: 4,
+      });
+
+      expect(dates).toHaveLength(4);
+      expect(dates.map((d: { dateStr: string }) => d.dateStr)).toEqual([
+        '2026-10-24',
+        '2026-10-31',
+        '2026-11-07',
+        '2026-11-14',
+      ]);
+    });
+
+    it('generates biweekly occurrences stepping by 14 days', () => {
+      const dates = generateOccurrencePreviewDates({
+        startDateStr: '2026-10-24',
+        timeStr: '10:00',
+        frequency: 'BIWEEKLY',
+        maxCount: 3,
+      });
+
+      expect(dates).toHaveLength(3);
+      expect(dates.map((d: { dateStr: string }) => d.dateStr)).toEqual([
+        '2026-10-24',
+        '2026-11-07',
+        '2026-11-21',
+      ]);
+    });
+
+    it('generates monthly occurrences with month clamping', () => {
+      const dates = generateOccurrencePreviewDates({
+        startDateStr: '2026-01-31',
+        timeStr: '10:00',
+        frequency: 'MONTHLY',
+        maxCount: 4,
+      });
+
+      expect(dates).toHaveLength(4);
+      expect(dates.map((d: { dateStr: string }) => d.dateStr)).toEqual([
+        '2026-01-31',
+        '2026-02-28', // Clamped to 28
+        '2026-03-31',
+        '2026-04-30', // Clamped to 30
+      ]);
+    });
+
+    it('respects endDateStr termination limit', () => {
+      const dates = generateOccurrencePreviewDates({
+        startDateStr: '2026-10-24',
+        timeStr: '10:00',
+        frequency: 'WEEKLY',
+        maxCount: 10,
+        endDateStr: '2026-11-05',
+      });
+
+      expect(dates).toHaveLength(2); // 2026-10-24 and 2026-10-31, 2026-11-07 is past limit
+      expect(dates.map((d: { dateStr: string }) => d.dateStr)).toEqual([
+        '2026-10-24',
+        '2026-10-31',
+      ]);
     });
   });
 });
