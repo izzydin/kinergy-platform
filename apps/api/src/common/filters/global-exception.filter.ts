@@ -74,9 +74,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const sanitizedUrl = this.sanitizeUrl(request?.url);
     const sanitizedLogMessage = this.sanitizeMessage(message);
 
+    const rawStack = exception instanceof Error ? exception.stack : undefined;
+    const sanitizedStack = rawStack ? this.sanitizeMessage(rawStack) : undefined;
+
     this.logger.error(
       `${logPrefix}Http Status: ${status} Error Message: ${sanitizedLogMessage} Path: ${sanitizedUrl}`,
-      exception instanceof Error ? exception.stack : undefined,
+      sanitizedStack,
     );
 
     response.status(status).json({
@@ -98,7 +101,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       '$1://[REDACTED_DATABASE_URL]',
     );
     str = str.replace(
-      /(password|secret|access_token|refresh_token)\s*[:=]\s*['"]?[^\s,'"]+['"]?/gi,
+      /(password(?:_hash)?|secret|access_token|refresh_token)\s*[:=]\s*['"]?[^\s,'"]+['"]?/gi,
       '$1: [REDACTED]',
     );
     return str;

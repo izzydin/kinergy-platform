@@ -80,9 +80,10 @@ export class SalesExceptionFilter implements ExceptionFilter {
 
     // 0. Security Configuration Errors (500 Internal Server Error)
     if (exception instanceof SecurityConfigurationException) {
+      const sanitizedStack = exception.stack ? this.sanitizeMessage(exception.stack) : undefined;
       this.logger.error(
         `${logPrefix}${method} ${sanitizedUrl} - Status: ${HttpStatus.INTERNAL_SERVER_ERROR} - Security Configuration Error: ${this.sanitizeMessage(exception.message)}`,
-        exception.stack,
+        sanitizedStack,
       );
 
       response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
@@ -318,9 +319,10 @@ export class SalesExceptionFilter implements ExceptionFilter {
       const resPayload = exception.getResponse();
 
       if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+        const sanitizedStack = exception.stack ? this.sanitizeMessage(exception.stack) : undefined;
         this.logger.error(
           `${logPrefix}${method} ${sanitizedUrl} - Status: ${status} - Server Error: ${this.sanitizeMessage(exception.message)}`,
-          exception.stack,
+          sanitizedStack,
         );
 
         response.status(status).json({
@@ -348,11 +350,12 @@ export class SalesExceptionFilter implements ExceptionFilter {
     // 7. Unexpected Infrastructure & Database Failures (500 Internal Server Error)
     // Never expose stack traces, secrets, SQL errors, or Prisma exceptions in HTTP responses
     const rawErrorMessage = exception instanceof Error ? exception.message : String(exception);
-    const stack = exception instanceof Error ? exception.stack : undefined;
+    const rawStack = exception instanceof Error ? exception.stack : undefined;
+    const sanitizedStack = rawStack ? this.sanitizeMessage(rawStack) : undefined;
 
     this.logger.error(
       `${logPrefix}${method} ${sanitizedUrl} - Status: ${HttpStatus.INTERNAL_SERVER_ERROR} - Infrastructure Error: ${this.sanitizeMessage(rawErrorMessage)}`,
-      stack,
+      sanitizedStack,
     );
 
     response.status(HttpStatus.INTERNAL_SERVER_ERROR).json({
@@ -373,7 +376,7 @@ export class SalesExceptionFilter implements ExceptionFilter {
       '$1://[REDACTED_DATABASE_URL]',
     );
     str = str.replace(
-      /(password|secret|access_token|refresh_token)\s*[:=]\s*['"]?[^\s,'"]+['"]?/gi,
+      /(password(?:_hash)?|secret|access_token|refresh_token)\s*[:=]\s*['"]?[^\s,'"]+['"]?/gi,
       '$1: [REDACTED]',
     );
     return str;
