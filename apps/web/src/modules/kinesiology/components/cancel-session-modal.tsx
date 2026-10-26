@@ -11,11 +11,12 @@ import {
 } from '@kinergy-platform/ui';
 import { cancelSessionSchema, CancelSessionFormData } from '../schemas/cancel-session.schema';
 
-interface CancelSessionModalProps {
+export interface CancelSessionModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirmCancel: (data: CancelSessionFormData) => Promise<void> | void;
   isLoading?: boolean;
+  error?: Error | null;
 }
 
 export const CancelSessionModal: React.FC<CancelSessionModalProps> = ({
@@ -23,6 +24,7 @@ export const CancelSessionModal: React.FC<CancelSessionModalProps> = ({
   onClose,
   onConfirmCancel,
   isLoading = false,
+  error = null,
 }) => {
   const {
     register,
@@ -52,6 +54,19 @@ export const CancelSessionModal: React.FC<CancelSessionModalProps> = ({
             is required for medico-legal audit trails.
           </p>
         </DialogHeader>
+
+        {error && (
+          <div
+            className="rounded-md bg-red-50 border border-red-200 p-3 text-red-800 text-xs"
+            role="alert"
+            data-testid="cancel-error-banner"
+          >
+            <p className="font-semibold">Cancellation Failed</p>
+            <p className="mt-0.5">
+              {error.message || 'An error occurred while cancelling the session.'}
+            </p>
+          </div>
+        )}
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
           <div className="space-y-1">

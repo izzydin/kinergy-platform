@@ -1,7 +1,12 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { kinesiologyApi } from '../api/kinesiology-api';
 import { kinesiologyQueryKeys } from '../api/kinesiology-query-keys';
-import { getKinesiologyErrorMessage } from '../api/kinesiology-error';
+import {
+  getKinesiologyErrorMessage,
+  isStateTransitionConflict,
+  isOptimisticConcurrencyConflict,
+  isClinicalRecordLocked,
+} from '../api/kinesiology-error';
 import { useNotification } from '../../../app/providers/notification-provider';
 import type {
   AssignTherapistPayload,
@@ -14,6 +19,22 @@ import type {
 export function useTreatmentMutations(sessionId?: string) {
   const queryClient = useQueryClient();
   const { success, error } = useNotification();
+
+  const handleConflictReload = (err: unknown) => {
+    if (
+      sessionId &&
+      (isStateTransitionConflict(err) ||
+        isOptimisticConcurrencyConflict(err) ||
+        isClinicalRecordLocked(err))
+    ) {
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.session(sessionId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.sessionContext(sessionId),
+      });
+    }
+  };
 
   const createSessionMutation = useMutation<TreatmentSessionModel, Error, CreateSessionPayload>({
     mutationFn: (payload) => kinesiologyApi.createSession(payload),
@@ -54,9 +75,12 @@ export function useTreatmentMutations(sessionId?: string) {
           queryKey: kinesiologyQueryKeys.history(data.clientId),
         });
       }
+      queryClient.invalidateQueries({ queryKey: ['scheduling'] });
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
     onError: (err) => {
       error(getKinesiologyErrorMessage(err));
+      handleConflictReload(err);
     },
   });
 
@@ -84,6 +108,7 @@ export function useTreatmentMutations(sessionId?: string) {
       },
       onError: (err) => {
         error(getKinesiologyErrorMessage(err));
+        handleConflictReload(err);
       },
     },
   );
@@ -107,6 +132,7 @@ export function useTreatmentMutations(sessionId?: string) {
     },
     onError: (err) => {
       error(getKinesiologyErrorMessage(err));
+      handleConflictReload(err);
     },
   });
 
@@ -133,9 +159,12 @@ export function useTreatmentMutations(sessionId?: string) {
           queryKey: ['timeline', data.clientId],
         });
       }
+      queryClient.invalidateQueries({ queryKey: ['scheduling'] });
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
     onError: (err) => {
       error(getKinesiologyErrorMessage(err));
+      handleConflictReload(err);
     },
   });
 
@@ -159,9 +188,12 @@ export function useTreatmentMutations(sessionId?: string) {
           queryKey: ['timeline', data.clientId],
         });
       }
+      queryClient.invalidateQueries({ queryKey: ['scheduling'] });
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
     onError: (err) => {
       error(getKinesiologyErrorMessage(err));
+      handleConflictReload(err);
     },
   });
 

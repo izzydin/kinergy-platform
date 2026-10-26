@@ -78,8 +78,17 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
     startSession.mutate();
   };
 
-  const handleConfirmComplete = () => {
-    completeSession.mutate();
+  const handleConfirmComplete = async () => {
+    try {
+      if (typeof completeSession.mutateAsync === 'function') {
+        await completeSession.mutateAsync();
+      } else {
+        completeSession.mutate();
+      }
+      setIsCompleteModalOpen(false);
+    } catch {
+      // Error handled by mutation toast/state; clinical form notes preserved
+    }
   };
 
   const handleSaveNotes = async (data: SoapNotesFormData) => {
@@ -94,8 +103,17 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
     assignTherapist.mutate(data);
   };
 
-  const handleCancelSession = (data: CancelSessionFormData) => {
-    cancelSession.mutate(data);
+  const handleCancelSession = async (data: CancelSessionFormData) => {
+    try {
+      if (typeof cancelSession.mutateAsync === 'function') {
+        await cancelSession.mutateAsync(data);
+      } else {
+        cancelSession.mutate(data);
+      }
+      setIsCancelModalOpen(false);
+    } catch {
+      // Error preserved for user feedback
+    }
   };
 
   return (
@@ -173,28 +191,30 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
                     </Button>
                   )}
 
-                  {session.status !== 'COMPLETED' && session.status !== 'CANCELLED' && (
-                    <>
-                      {canAssign && (
-                        <Button
-                          variant="outline"
-                          onClick={() => setIsAssignModalOpen(true)}
-                          disabled={isAnyMutationPending}
-                        >
-                          Change Therapist
-                        </Button>
-                      )}
-                      {session.status === 'SCHEDULED' && canTreat && (
-                        <Button
-                          variant="destructive"
-                          onClick={() => setIsCancelModalOpen(true)}
-                          disabled={isAnyMutationPending}
-                        >
-                          Cancel Session
-                        </Button>
-                      )}
-                    </>
-                  )}
+                  {session.status !== 'COMPLETED' &&
+                    session.status !== 'CANCELLED' &&
+                    session.status !== 'NO_SHOW' && (
+                      <>
+                        {canAssign && (
+                          <Button
+                            variant="outline"
+                            onClick={() => setIsAssignModalOpen(true)}
+                            disabled={isAnyMutationPending}
+                          >
+                            Change Therapist
+                          </Button>
+                        )}
+                        {session.status === 'SCHEDULED' && canTreat && (
+                          <Button
+                            variant="destructive"
+                            onClick={() => setIsCancelModalOpen(true)}
+                            disabled={isAnyMutationPending}
+                          >
+                            Cancel Session
+                          </Button>
+                        )}
+                      </>
+                    )}
                 </div>
               </CardHeader>
 
@@ -359,6 +379,14 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
               onClose={() => setIsCompleteModalOpen(false)}
               onConfirm={handleConfirmComplete}
               isLoading={completeSession.isPending}
+              hasNotes={Boolean(
+                session.notes?.subjective?.trim() ||
+                session.notes?.objective?.trim() ||
+                session.notes?.assessment?.trim() ||
+                session.notes?.plan?.trim() ||
+                session.notes?.rawText?.trim(),
+              )}
+              error={completeSession.error}
             />
 
             <CancelSessionModal
@@ -366,6 +394,7 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
               onClose={() => setIsCancelModalOpen(false)}
               onConfirmCancel={handleCancelSession}
               isLoading={cancelSession.isPending}
+              error={cancelSession.error}
             />
           </div>
         )}
