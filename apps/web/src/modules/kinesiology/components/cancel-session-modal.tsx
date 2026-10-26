@@ -39,9 +39,13 @@ export const CancelSessionModal: React.FC<CancelSessionModalProps> = ({
   });
 
   const onSubmit = async (data: CancelSessionFormData) => {
-    await onConfirmCancel(data);
-    reset();
-    onClose();
+    try {
+      await onConfirmCancel(data);
+      reset();
+      onClose();
+    } catch {
+      // Reason input preserved on failure for retry
+    }
   };
 
   return (
@@ -70,8 +74,11 @@ export const CancelSessionModal: React.FC<CancelSessionModalProps> = ({
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
           <div className="space-y-1">
-            <label className="text-sm font-medium text-slate-700">Cancellation Reason</label>
+            <label htmlFor="cancellation-reason" className="text-sm font-medium text-slate-700">
+              Cancellation Reason
+            </label>
             <textarea
+              id="cancellation-reason"
               {...register('reason')}
               disabled={isLoading}
               rows={3}

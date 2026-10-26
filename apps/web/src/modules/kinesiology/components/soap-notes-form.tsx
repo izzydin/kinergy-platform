@@ -30,6 +30,7 @@ export interface SoapNotesFormProps {
   lastServerUpdatedAt?: string;
   onSave: (data: SoapNotesFormData) => Promise<void> | void;
   onRefresh?: () => void;
+  onDirtyChange?: (isDirty: boolean) => void;
 }
 
 export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
@@ -41,6 +42,7 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
   lastServerUpdatedAt,
   onSave,
   onRefresh,
+  onDirtyChange,
 }) => {
   const isTerminalStatus =
     sessionStatus === 'COMPLETED' || sessionStatus === 'CANCELLED' || sessionStatus === 'NO_SHOW';
@@ -92,6 +94,11 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
       setLastSavedTimestamp(lastServerUpdatedAt);
     }
   }, [lastServerUpdatedAt]);
+
+  // Propagate dirty status to parent container
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   const subjectiveValue = watch('subjective') ?? '';
   const objectiveValue = watch('objective') ?? '';
@@ -219,7 +226,7 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
 
         <CardContent className="space-y-5">
           {/* Failure Alert Banner with In-Place Recovery */}
-          {saveError && !isReadOnly && (
+          {saveError && (
             <Alert
               variant="destructive"
               role="alert"
@@ -228,36 +235,57 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
             >
               <AlertTitle className="flex items-center gap-2 font-semibold">
                 <span>⚠️</span>
-                <span>Failed to Persist Clinical Notes</span>
+                <span>
+                  {isReadOnly
+                    ? 'Clinical Encounter Locked — Notes Cannot Be Saved'
+                    : 'Failed to Persist Clinical Notes'}
+                </span>
               </AlertTitle>
               <AlertDescription className="space-y-2 mt-1">
                 <p className="text-sm">
-                  {saveError.message ||
-                    'An unexpected network or server error occurred. Your clinical inputs have been preserved locally.'}
+                  {isReadOnly
+                    ? 'This clinical encounter is completed or locked. Notes can no longer be updated. Your unsaved inputs have been preserved above for review.'
+                    : saveError.message ||
+                      'An unexpected network or server error occurred. Your clinical inputs have been preserved locally.'}
                 </p>
-                <div className="flex items-center gap-2 pt-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleSubmit(onSubmit)()}
-                    disabled={isSaving}
-                    data-testid="soap-retry-save-btn"
-                  >
-                    {isSaving ? 'Retrying...' : 'Retry Save'}
-                  </Button>
-                  {onRefresh && (
+                {!isReadOnly && (
+                  <div className="flex items-center gap-2 pt-2">
                     <Button
                       type="button"
                       size="sm"
-                      variant="ghost"
+                      variant="outline"
+                      onClick={() => handleSubmit(onSubmit)()}
+                      disabled={isSaving}
+                      data-testid="soap-retry-save-btn"
+                    >
+                      {isSaving ? 'Retrying...' : 'Retry Save'}
+                    </Button>
+                    {onRefresh && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        onClick={onRefresh}
+                        data-testid="soap-refresh-state-btn"
+                      >
+                        Reload Server State
+                      </Button>
+                    )}
+                  </div>
+                )}
+                {isReadOnly && onRefresh && (
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
                       onClick={onRefresh}
                       data-testid="soap-refresh-state-btn"
                     >
                       Reload Server State
                     </Button>
-                  )}
-                </div>
+                  </div>
+                )}
               </AlertDescription>
             </Alert>
           )}

@@ -21,6 +21,7 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
+  const [hasUnsavedNotes, setHasUnsavedNotes] = useState(false);
 
   let canRead = true;
   let canTreat = true;
@@ -372,6 +373,7 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
               lastServerUpdatedAt={session.updatedAt}
               onSave={handleSaveNotes}
               onRefresh={() => refetch()}
+              onDirtyChange={setHasUnsavedNotes}
             />
 
             {/* Modals */}
@@ -403,6 +405,7 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
                 session.notes?.plan?.trim() ||
                 session.notes?.rawText?.trim(),
               )}
+              hasUnsavedNotes={hasUnsavedNotes}
               error={completeSession.error}
             />
 

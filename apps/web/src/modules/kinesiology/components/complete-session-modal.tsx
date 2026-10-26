@@ -14,6 +14,7 @@ export interface CompleteSessionModalProps {
   onConfirm: () => Promise<void> | void;
   isLoading?: boolean;
   hasNotes?: boolean;
+  hasUnsavedNotes?: boolean;
   error?: Error | null;
 }
 
@@ -23,20 +24,30 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
   onConfirm,
   isLoading = false,
   hasNotes = true,
+  hasUnsavedNotes = false,
   error = null,
 }) => {
   const [acknowledgedEmptyNotes, setAcknowledgedEmptyNotes] = useState(false);
+  const [acknowledgedUnsavedNotes, setAcknowledgedUnsavedNotes] = useState(false);
 
   const handleConfirm = async () => {
-    await onConfirm();
+    try {
+      await onConfirm();
+    } catch {
+      // Error handled by caller
+    }
   };
 
   const handleClose = () => {
     setAcknowledgedEmptyNotes(false);
+    setAcknowledgedUnsavedNotes(false);
     onClose();
   };
 
-  const isConfirmDisabled = isLoading || (!hasNotes && !acknowledgedEmptyNotes);
+  const isConfirmDisabled =
+    isLoading ||
+    (!hasNotes && !acknowledgedEmptyNotes) ||
+    (hasUnsavedNotes && !acknowledgedUnsavedNotes);
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
@@ -89,6 +100,35 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
             </div>
           )}
 
+          {/* Unsaved Draft Notes Warning */}
+          {hasUnsavedNotes && (
+            <div
+              className="rounded-md bg-amber-50 border border-amber-200 p-3 text-amber-800 space-y-2"
+              data-testid="unsaved-notes-warning"
+            >
+              <div>
+                <p className="font-semibold">⚠️ Unsaved Note Changes in Editor</p>
+                <p className="mt-0.5">
+                  You have unsaved changes in the clinical SOAP editor. Signing and completing this
+                  session will permanently seal documentation and discard unsaved drafts.
+                </p>
+              </div>
+              <label className="flex items-start space-x-2 pt-1 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  data-testid="confirm-unsaved-notes-checkbox"
+                  className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                  checked={acknowledgedUnsavedNotes}
+                  onChange={(e) => setAcknowledgedUnsavedNotes(e.target.checked)}
+                  disabled={isLoading}
+                />
+                <span className="text-xs text-amber-900 font-medium">
+                  I acknowledge that unsaved edits in the editor will be discarded upon signing.
+                </span>
+              </label>
+            </div>
+          )}
+
           <div className="rounded-md bg-slate-50 border border-slate-200 p-3 text-slate-700 space-y-1">
             <p className="font-semibold text-slate-900">⚠️ Irreversible Medico-Legal Action:</p>
             <p>
@@ -120,6 +160,7 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
             variant="default"
             onClick={handleConfirm}
             disabled={isConfirmDisabled}
+            data-testid="sign-and-complete-btn"
           >
             {isLoading ? 'Signing & Completing...' : 'Sign & Complete'}
           </Button>
