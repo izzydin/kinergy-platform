@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Button, Card, CardHeader, CardContent, StateView } from '@kinergy-platform/ui';
 import { useAuth } from '../../../app/providers/auth-provider';
+import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { useTreatmentSession } from '../hooks/use-treatment-session';
 import { useTreatmentMutations } from '../hooks/use-treatment-mutations';
 import { SessionStatusBadge } from '../components/session-status-badge';
@@ -21,19 +22,50 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false);
 
+  let canRead = true;
   let canTreat = true;
   let canAssign = true;
   try {
     const auth = useAuth();
+    canRead = auth.hasPermission('kinesiology.sessions.read');
     canTreat = auth.hasPermission('kinesiology.sessions.treat');
     canAssign = auth.hasPermission('kinesiology.sessions.assign');
   } catch {
     // In unit test harnesses without AuthProvider, fallback to permissive default
   }
 
-  const { data: session, isLoading, isError, error, refetch } = useTreatmentSession(sessionId);
+  if (!canRead) {
+    return (
+      <ForbiddenView message="Access Denied: Missing required permission 'kinesiology.sessions.read' to access treatment session workspace." />
+    );
+  }
+
+  const {
+    data: session,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useTreatmentSession(sessionId, {
+    enabled: canRead && Boolean(sessionId && sessionId.trim().length > 0),
+  });
   const { startSession, assignTherapist, updateNotes, completeSession, cancelSession } =
     useTreatmentMutations(sessionId);
+
+  const isForbiddenError =
+    (error as { status?: number })?.status === 403 ||
+    (error as { statusCode?: number })?.statusCode === 403 ||
+    (error as { code?: string })?.code === 'FORBIDDEN';
+
+  if (isForbiddenError) {
+    return (
+      <ForbiddenView message="Access Denied: You do not possess the required security permissions to access this treatment session." />
+    );
+  }
+
+  const isNotFoundError =
+    (error as { status?: number })?.status === 404 ||
+    (error as { statusCode?: number })?.statusCode === 404;
 
   const isAnyMutationPending =
     startSession.isPending ||
@@ -66,7 +98,7 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
     <div className="space-y-6 p-6 max-w-6xl mx-auto">
       <StateView
         isLoading={isLoading}
-        isEmpty={!isLoading && !isError && !session}
+        isEmpty={(!isLoading && !isError && !session) || isNotFoundError}
         emptyTitle="Treatment Session Not Found"
         emptyDescription="The requested treatment session does not exist or has been removed."
         emptyAction={
@@ -74,27 +106,32 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
             Go Back
           </Button>
         }
-        isError={isError}
+        isError={isError && !isNotFoundError}
         errorMessage={error?.message || 'Failed to load treatment session workspace.'}
         onRetry={() => refetch()}
       >
         {session && (
           <div className="space-y-6">
             {/* Top Navigation Breadcrumbs */}
-            <div className="flex items-center space-x-2 text-xs text-slate-500">
+            <nav
+              aria-label="Breadcrumb"
+              className="flex items-center space-x-2 text-xs text-slate-500"
+            >
               <Link to="/clients" className="hover:text-indigo-600">
                 Clients
               </Link>
-              <span>/</span>
+              <span aria-hidden="true">/</span>
               <Link
                 to={`/clients/${session.clientId}/treatments`}
                 className="hover:text-indigo-600 font-mono"
               >
                 {session.clientId}
               </Link>
-              <span>/</span>
-              <span className="font-mono text-slate-700">Session {session.id}</span>
-            </div>
+              <span aria-hidden="true">/</span>
+              <span className="font-mono text-slate-700" aria-current="page">
+                Session {session.id}
+              </span>
+            </nav>
 
             {/* Top Header Card */}
             <Card className="shadow-sm border-slate-200">
@@ -157,7 +194,7 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
                 </div>
               </CardHeader>
 
-              <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-100 pt-4 text-sm">
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 border-t border-slate-100 pt-4 text-sm">
                 <div>
                   <span className="text-slate-500 text-xs uppercase tracking-wider font-medium">
                     Client Reference
@@ -195,6 +232,22 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
                       hour: '2-digit',
                       minute: '2-digit',
                     })}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-slate-500 text-xs uppercase tracking-wider font-medium">
+                    Clinical Charting
+                  </span>
+                  <p className="text-slate-800 text-xs mt-0.5 font-medium">
+                    {session.status === 'COMPLETED'
+                      ? 'Finalized (Signed & Sealed)'
+                      : session.notes?.subjective ||
+                          session.notes?.objective ||
+                          session.notes?.assessment ||
+                          session.notes?.plan ||
+                          session.notes?.rawText
+                        ? 'Draft Notes Saved'
+                        : 'No Notes Entered'}
                   </p>
                 </div>
               </CardContent>

@@ -8,7 +8,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@kinergy-platform/ui';
+import { useAuth } from '../../../app/providers/auth-provider';
 import { useTreatmentMutations } from '../hooks/use-treatment-mutations';
+import type { TreatmentSessionModel } from '../types';
 
 export interface AppointmentData {
   id: string;
@@ -20,18 +22,50 @@ export interface AppointmentData {
   treatmentSessionId?: string;
 }
 
-interface StartTreatmentFromAppointmentProps {
+export interface StartTreatmentFromAppointmentProps {
   appointment: AppointmentData;
   className?: string;
+  canTreat?: boolean;
+  canRead?: boolean;
+  onSessionCreated?: (session: TreatmentSessionModel) => void;
 }
 
 export const StartTreatmentFromAppointment: React.FC<StartTreatmentFromAppointmentProps> = ({
   appointment,
   className,
+  canTreat,
+  canRead,
+  onSessionCreated,
 }) => {
-  const navigate = useNavigate();
+  let navigate: ReturnType<typeof useNavigate> | undefined;
+  try {
+    navigate = useNavigate();
+  } catch {
+    navigate = undefined;
+  }
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [initialNotes, setInitialNotes] = useState('');
+
+  let authContext: ReturnType<typeof useAuth> | null;
+  try {
+    authContext = useAuth();
+  } catch {
+    authContext = null;
+  }
+
+  const isReadPermitted =
+    canRead !== undefined
+      ? canRead
+      : authContext
+        ? authContext.hasPermission('kinesiology.sessions.read')
+        : true;
+
+  const isTreatPermitted =
+    canTreat !== undefined
+      ? canTreat
+      : authContext
+        ? authContext.hasPermission('kinesiology.sessions.treat')
+        : true;
 
   const { createSession } = useTreatmentMutations();
 
@@ -42,7 +76,13 @@ export const StartTreatmentFromAppointment: React.FC<StartTreatmentFromAppointme
         variant="outline"
         size="sm"
         className={className}
-        onClick={() => navigate(`/kinesiology/sessions/${appointment.treatmentSessionId}`)}
+        disabled={!isReadPermitted}
+        onClick={() => navigate?.(`/kinesiology/sessions/${appointment.treatmentSessionId}`)}
+        title={
+          !isReadPermitted
+            ? "Requires 'kinesiology.sessions.read' permission to view session."
+            : 'Open associated clinical treatment workspace'
+        }
       >
         Open Treatment Session
       </Button>
@@ -50,7 +90,10 @@ export const StartTreatmentFromAppointment: React.FC<StartTreatmentFromAppointme
   }
 
   // Determine eligibility UX guidance (Backend remains authoritative)
-  const isCancelled = appointment.status === 'CANCELLED' || appointment.status === 'CANCELED';
+  const isCancelled =
+    appointment.status === 'CANCELLED' ||
+    appointment.status === 'CANCELED' ||
+    appointment.status === 'NO_SHOW';
   const isCompleted = appointment.status === 'COMPLETED';
   const isEligible = !isCancelled && !isCompleted;
 
@@ -62,7 +105,8 @@ export const StartTreatmentFromAppointment: React.FC<StartTreatmentFromAppointme
       });
 
       setIsModalOpen(false);
-      navigate(`/kinesiology/sessions/${session.id}`);
+      onSessionCreated?.(session);
+      navigate?.(`/kinesiology/sessions/${session.id}`);
     } catch {
       // Error handled and notified via useNotification in useTreatmentMutations
     }
@@ -74,12 +118,14 @@ export const StartTreatmentFromAppointment: React.FC<StartTreatmentFromAppointme
         variant="default"
         size="sm"
         className={className}
-        disabled={!isEligible || createSession.isPending}
+        disabled={!isEligible || !isTreatPermitted || createSession.isPending}
         onClick={() => setIsModalOpen(true)}
         title={
-          !isEligible
-            ? `Cannot initiate treatment for an appointment in ${appointment.status} status.`
-            : 'Start clinical kinesiology treatment session'
+          !isTreatPermitted
+            ? "Requires 'kinesiology.sessions.treat' permission to initiate treatment."
+            : !isEligible
+              ? `Cannot initiate treatment for an appointment in ${appointment.status} status.`
+              : 'Start clinical kinesiology treatment session'
         }
       >
         {createSession.isPending ? 'Initiating...' : 'Start Treatment'}

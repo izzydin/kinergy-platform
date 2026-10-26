@@ -8,7 +8,14 @@ export { kinesiologyQueryKeys };
 /**
  * Hook to retrieve full clinical TreatmentSession aggregate details by ID.
  */
-export function useTreatmentSession(sessionId: string | undefined) {
+export function useTreatmentSession(
+  sessionId: string | undefined,
+  options?: { enabled?: boolean },
+) {
+  const isEnabled =
+    options?.enabled !== undefined
+      ? options.enabled
+      : Boolean(sessionId && sessionId.trim().length > 0);
   return useQuery<TreatmentSessionModel, Error>({
     queryKey: kinesiologyQueryKeys.session(sessionId ?? ''),
     queryFn: () => {
@@ -17,7 +24,7 @@ export function useTreatmentSession(sessionId: string | undefined) {
       }
       return kinesiologyApi.getSessionById(sessionId);
     },
-    enabled: Boolean(sessionId && sessionId.trim().length > 0),
+    enabled: isEnabled,
     staleTime: 30 * 1000, // 30 seconds
   });
 }

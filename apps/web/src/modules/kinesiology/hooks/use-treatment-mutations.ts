@@ -29,6 +29,8 @@ export function useTreatmentMutations(sessionId?: string) {
           queryKey: ['timeline', data.clientId],
         });
       }
+      queryClient.invalidateQueries({ queryKey: ['scheduling'] });
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
     },
     onError: (err) => {
       error(getKinesiologyErrorMessage(err));

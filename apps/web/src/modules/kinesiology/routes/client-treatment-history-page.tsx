@@ -1,11 +1,27 @@
 import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Card, CardContent } from '@kinergy-platform/ui';
+import { useAuth } from '../../../app/providers/auth-provider';
+import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { TreatmentHistoryList } from '../components/treatment-history-list';
 
 export const ClientTreatmentHistoryPage: React.FC = () => {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
+
+  let canRead = true;
+  try {
+    const auth = useAuth();
+    canRead = auth.hasPermission('kinesiology.sessions.read');
+  } catch {
+    // Permissive fallback in unit test harnesses without AuthProvider
+  }
+
+  if (!canRead) {
+    return (
+      <ForbiddenView message="Access Denied: Missing required permission 'kinesiology.sessions.read' to view client clinical treatment history." />
+    );
+  }
 
   if (!clientId) {
     return (

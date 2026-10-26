@@ -56,6 +56,7 @@ export interface AppointmentModel {
   readonly occurrenceIndex?: number;
   readonly isDetachedFromSeries?: boolean;
   readonly notes?: readonly AppointmentNoteModel[];
+  readonly treatmentSessionId?: string;
   readonly version: number;
   readonly createdAt: string;
   readonly updatedAt: string;
@@ -360,6 +361,7 @@ export interface CalendarSlotDTO {
   readonly hasConflict?: boolean;
   readonly overlapCount?: number;
   readonly operationalStatus?: 'PAST' | 'CURRENT_NOW' | 'UPCOMING';
+  readonly treatmentSessionId?: string;
 }
 
 export interface DailyAgendaDTO {

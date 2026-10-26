@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@kinergy-platform/ui';
+import { useAuth } from '../../../app/providers/auth-provider';
+import { StartTreatmentFromAppointment } from '../../kinesiology/components/start-treatment-from-appointment';
 import {
   Calendar,
   CheckCircle2,
@@ -46,6 +49,8 @@ export interface AppointmentDetailDrawerProps {
   onClose: () => void;
   canManageAppointments?: boolean;
   rooms?: RoomModel[];
+  canReadKinesiology?: boolean;
+  canTreatKinesiology?: boolean;
 }
 
 export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = ({
@@ -54,7 +59,33 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
   onClose,
   canManageAppointments = true,
   rooms = [],
+  canReadKinesiology,
+  canTreatKinesiology,
 }) => {
+  let navigate: ReturnType<typeof useNavigate> | undefined;
+  try {
+    navigate = useNavigate();
+  } catch {
+    navigate = undefined;
+  }
+
+  let authContext: ReturnType<typeof useAuth> | null;
+  try {
+    authContext = useAuth();
+  } catch {
+    authContext = null;
+  }
+
+  const effectiveCanReadKinesiology =
+    canReadKinesiology !== undefined
+      ? canReadKinesiology
+      : (authContext?.hasPermission('kinesiology.sessions.read') ?? false);
+
+  const effectiveCanTreatKinesiology =
+    canTreatKinesiology !== undefined
+      ? canTreatKinesiology
+      : (authContext?.hasPermission('kinesiology.sessions.treat') ?? false);
+
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelPrompt, setShowCancelPrompt] = useState(false);
   const [cancelError, setCancelError] = useState('');
@@ -400,6 +431,87 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
             </div>
           )}
 
+          {/* Clinical Treatment Session Entry Point */}
+          {(effectiveCanReadKinesiology || effectiveCanTreatKinesiology) && (
+            <div
+              className="rounded-lg border border-indigo-200 bg-indigo-50/40 p-3.5 space-y-2.5 text-xs"
+              data-testid="clinical-session-entry-point"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-foreground flex items-center gap-1.5">
+                  <Stethoscope className="h-4 w-4 text-indigo-600" />
+                  <span>Clinical Session Workspace</span>
+                </span>
+                {appointment.treatmentSessionId && (
+                  <span className="bg-indigo-100 text-indigo-700 font-medium px-2 py-0.5 rounded-full text-[11px] font-mono">
+                    Linked
+                  </span>
+                )}
+              </div>
+
+              {appointment.treatmentSessionId ? (
+                <div className="space-y-2">
+                  <p className="text-muted-foreground">
+                    A clinical treatment session is linked to this appointment.
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      onClose();
+                      navigate?.(`/kinesiology/sessions/${appointment.treatmentSessionId}`);
+                    }}
+                    className="w-full inline-flex items-center justify-center gap-1.5 border-indigo-200 text-indigo-700 hover:bg-indigo-50"
+                    aria-label={`Open treatment session ${appointment.treatmentSessionId}`}
+                  >
+                    <Stethoscope className="h-3.5 w-3.5" />
+                    <span>Open Treatment Session</span>
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW' ? (
+                    <p className="text-muted-foreground italic">
+                      Cannot initiate a clinical treatment session for a cancelled or no-show
+                      appointment.
+                    </p>
+                  ) : appointment.status === 'COMPLETED' ? (
+                    <p className="text-muted-foreground italic">
+                      No clinical session was linked to this appointment prior to completion.
+                    </p>
+                  ) : effectiveCanTreatKinesiology ? (
+                    <div className="space-y-2">
+                      <p className="text-muted-foreground">
+                        No clinical session exists for this appointment yet. Authorized
+                        practitioners can initiate one now.
+                      </p>
+                      <StartTreatmentFromAppointment
+                        appointment={{
+                          id: apptId,
+                          clientId: appointment.clientId ?? '',
+                          therapistId: appointment.therapistId,
+                          status: appointment.status,
+                          startTime: appointment.startTime,
+                          endTime: appointment.endTime,
+                          treatmentSessionId: appointment.treatmentSessionId,
+                        }}
+                        canTreat={effectiveCanTreatKinesiology}
+                        canRead={effectiveCanReadKinesiology}
+                        onSessionCreated={() => onClose()}
+                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white"
+                      />
+                    </div>
+                  ) : (
+                    <p className="text-muted-foreground italic">
+                      No treatment session initiated yet. Requires practitioner treatment
+                      permissions to initiate.
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Operational Lifecycle Actions */}
           {canManageAppointments && (
             <div className="pt-2 border-t border-border space-y-2">
@@ -444,10 +556,10 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
                     onClick={handleStart}
                     disabled={isPending}
                     className="inline-flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-700 text-white"
-                    aria-label="Start treatment session"
+                    aria-label="Start appointment"
                   >
                     <Play className="h-3.5 w-3.5" />
-                    <span>Start Session</span>
+                    <span>Start Appointment</span>
                   </Button>
                 )}
 
@@ -461,7 +573,7 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
                     aria-label="Complete appointment"
                   >
                     <CheckCircle2 className="h-3.5 w-3.5" />
-                    <span>Complete Session</span>
+                    <span>Complete Appointment</span>
                   </Button>
                 )}
 
