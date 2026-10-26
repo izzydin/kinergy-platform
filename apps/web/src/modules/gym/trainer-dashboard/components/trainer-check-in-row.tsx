@@ -8,7 +8,7 @@ interface TrainerCheckInRowProps {
 }
 
 export const TrainerCheckInRow: React.FC<TrainerCheckInRowProps> = ({ item, onSelectClient }) => {
-  const getResultBadge = (result: AccessResult) => {
+  const getResultBadge = (result: AccessResult | string) => {
     switch (result) {
       case AccessResult.GRANTED:
         return (

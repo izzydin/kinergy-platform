@@ -5,7 +5,7 @@ import {
   ClientSearchResultDTO,
   MembershipEligibilityDTO,
   MembershipEligibilityOutcome,
-} from '../../../attendance/types';
+} from '../../attendance/types';
 
 export { AccessResult, CheckInMethod, MembershipEligibilityOutcome };
 export type { AttendanceItemDTO, ClientSearchResultDTO, MembershipEligibilityDTO };
@@ -14,12 +14,16 @@ export type { AttendanceItemDTO, ClientSearchResultDTO, MembershipEligibilityDTO
  * Authoritative summary KPIs for Trainer Dashboard (from /summary endpoint).
  */
 export interface TrainerDashboardSummaryVM {
+  readonly trainerId?: string;
   readonly totalAssignedClients: number;
   readonly activeMembershipsCount: number;
   readonly expiringSoonMembershipsCount: number;
+  readonly expiringMembershipsCount?: number;
   readonly frozenMembershipsCount: number;
   readonly todayGrantedCheckInsCount: number;
+  readonly todayCheckInsCount?: number;
   readonly asOfDate: string;
+  readonly asOf?: string;
   readonly horizonDays: number;
 }
 
@@ -47,9 +51,12 @@ export interface AssignedClientMembershipVM {
 export interface PaginatedAssignedClientsVM {
   readonly items: AssignedClientMembershipVM[];
   readonly total: number;
+  readonly totalItems?: number;
   readonly page: number;
   readonly limit: number;
   readonly totalPages: number;
+  readonly hasNextPage?: boolean;
+  readonly hasPreviousPage?: boolean;
 }
 
 /**

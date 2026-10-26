@@ -4,6 +4,8 @@ import { attendanceApi } from '../api/attendance-api';
 import { attendanceQueryKeys } from '../api/attendance-query-keys';
 import {
   AccessResult,
+  AttendanceRangeSummaryVM,
+  AttendanceSummaryFilterParams,
   ClientSearchResultDTO,
   MembershipEligibilityDTO,
   PaginatedAttendanceVM,
@@ -21,6 +23,18 @@ export function useTodayAttendance(params?: TodayAttendanceFilterParams) {
     queryFn: () => attendanceApi.getToday(params),
     staleTime: 15 * 1000,
     refetchInterval: 15 * 1000, // 15s live polling for reception desk
+  });
+}
+
+/**
+ * Hook to evaluate aggregate attendance KPIs and hourly traffic distribution across date range.
+ */
+export function useAttendanceSummary(params: AttendanceSummaryFilterParams) {
+  return useQuery<AttendanceRangeSummaryVM, Error>({
+    queryKey: attendanceQueryKeys.summary(params),
+    queryFn: () => attendanceApi.getSummary(params),
+    enabled: Boolean(params.startDate && params.endDate),
+    staleTime: 60 * 1000,
   });
 }
 
@@ -107,9 +121,14 @@ export function useAttendanceCheckIn() {
       }
 
       // Scoped cache invalidation
+      queryClient.invalidateQueries({ queryKey: attendanceQueryKeys.todays() });
       queryClient.invalidateQueries({ queryKey: attendanceQueryKeys.today() });
+      queryClient.invalidateQueries({ queryKey: attendanceQueryKeys.summaries() });
       queryClient.invalidateQueries({
         queryKey: attendanceQueryKeys.eligibility(input.clientId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: attendanceQueryKeys.clientHistories(input.clientId),
       });
       queryClient.invalidateQueries({
         queryKey: attendanceQueryKeys.clientHistory(input.clientId),

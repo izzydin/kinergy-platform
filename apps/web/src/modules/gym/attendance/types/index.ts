@@ -65,7 +65,7 @@ export interface AttendanceItemVM {
   gymDay: string;
   facilityId: string;
   method: string;
-  result: string;
+  result: AccessResult | string;
   gateId: string | null;
   receptionistId: string | null;
   notes: string | null;
@@ -144,4 +144,40 @@ export interface TodayAttendanceFilterParams {
   method?: string;
   page?: number;
   limit?: number;
+}
+
+export interface HourlyTrafficVM {
+  hour: number;
+  count: number;
+}
+
+export interface DayAttendanceSummaryVM {
+  gymDay: string;
+  facilityId: string;
+  totalCheckIns: number;
+  grantedVisits: number;
+  deniedAttempts: number;
+  uniqueVisitors: number;
+  byMethod?: Record<string, number>;
+  byAccessResult?: Record<string, number>;
+  hourlyDistribution: HourlyTrafficVM[];
+  peakHour: HourlyTrafficVM | null;
+}
+
+export interface AttendanceRangeSummaryVM {
+  startDate: string;
+  endDate: string;
+  facilityId: string;
+  totalDays: number;
+  totalGrantedVisits: number;
+  totalDeniedAttempts: number;
+  totalUniqueVisitors: number;
+  averageDailyVisits: number;
+  dailyBreakdown: DayAttendanceSummaryVM[];
+}
+
+export interface AttendanceSummaryFilterParams {
+  startDate: string;
+  endDate: string;
+  facilityId?: string;
 }

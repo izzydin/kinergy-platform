@@ -29,6 +29,7 @@ import type { AuthUser } from '../../../modules/auth/domain/auth-state.types';
 // Feature routes are code-split; cold dynamic imports in Jest can exceed the default 1s
 // waitFor timeout when the whole suite runs in parallel.
 configure({ asyncUtilTimeout: 5000 });
+jest.setTimeout(15000);
 
 function createTestQueryClient(): QueryClient {
   return new QueryClient({

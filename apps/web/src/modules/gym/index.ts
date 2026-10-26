@@ -1,6 +1,7 @@
 export * from './memberships';
 export * from './plans';
 export * from './attendance';
+export * from './api/gym-error';
 export {
   trainerDashboardApi,
   trainerDashboardQueryKeys,

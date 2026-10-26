@@ -77,3 +77,59 @@ export interface FreezeMembershipInputVM {
 export interface CancelMembershipInputVM {
   reason?: string;
 }
+
+export interface ExpiringMembershipItemVM {
+  membershipId: string;
+  clientId: string;
+  planId: string;
+  planName: string;
+  status: string;
+  startDate: string;
+  endDate: string;
+  daysRemaining: number;
+  isExpiringSoon: boolean;
+  isExpired: boolean;
+}
+
+export interface ExpiringMembershipsResponseVM {
+  items: ExpiringMembershipItemVM[];
+  total: number;
+  horizonDays: number;
+}
+
+export interface ExpiredMembershipDetailVM {
+  membershipId: string;
+  clientId: string;
+  previousStatus: string;
+  expiredAt: string;
+}
+
+export interface FailedMembershipDetailVM {
+  membershipId: string;
+  error: string;
+}
+
+export interface ExpireMembershipsBatchResponseVM {
+  processedCount: number;
+  expiredCount: number;
+  skippedCount: number;
+  failedCount: number;
+  durationMs: number;
+  dryRun: boolean;
+  expired: ExpiredMembershipDetailVM[];
+  errors: FailedMembershipDetailVM[];
+}
+
+export interface ExpireMembershipsBatchInputVM {
+  asOfDate?: string;
+  batchSize?: number;
+  dryRun?: boolean;
+}
+
+export interface MemberLookupResultDTO {
+  readonly id: string;
+  readonly fullName: string;
+  readonly email: string;
+  readonly status: string;
+  readonly phone?: string;
+}

@@ -11,7 +11,10 @@ export const plansApi = {
   /**
    * Retrieves paginated list of membership plans with optional status and search filters.
    */
-  async listPlans(params?: ListMembershipPlansFilterParams): Promise<PaginatedMembershipPlansVM> {
+  async listPlans(
+    params?: ListMembershipPlansFilterParams,
+    options?: { signal?: AbortSignal },
+  ): Promise<PaginatedMembershipPlansVM> {
     return httpClient.get<PaginatedMembershipPlansVM>('/api/v1/gym/membership-plans', {
       params: {
         activeOnly: params?.activeOnly,
@@ -20,23 +23,28 @@ export const plansApi = {
         page: params?.page,
         limit: params?.limit,
       },
+      signal: options?.signal,
     });
   },
 
   /**
    * Retrieves single membership plan by ID.
    */
-  async getPlanById(planId: string): Promise<MembershipPlanVM> {
+  async getPlanById(planId: string, options?: { signal?: AbortSignal }): Promise<MembershipPlanVM> {
     return httpClient.get<MembershipPlanVM>(
       `/api/v1/gym/membership-plans/${encodeURIComponent(planId)}`,
+      options,
     );
   },
 
   /**
    * Creates a new membership plan (starts in DRAFT status).
    */
-  async createPlan(input: CreateMembershipPlanInputVM): Promise<MembershipPlanVM> {
-    return httpClient.post<MembershipPlanVM>('/api/v1/gym/membership-plans', input);
+  async createPlan(
+    input: CreateMembershipPlanInputVM,
+    options?: { signal?: AbortSignal },
+  ): Promise<MembershipPlanVM> {
+    return httpClient.post<MembershipPlanVM>('/api/v1/gym/membership-plans', input, options);
   },
 
   /**
@@ -45,30 +53,34 @@ export const plansApi = {
   async updatePricing(
     planId: string,
     input: UpdateMembershipPlanPricingInputVM,
+    options?: { signal?: AbortSignal },
   ): Promise<MembershipPlanVM> {
     return httpClient.patch<MembershipPlanVM>(
       `/api/v1/gym/membership-plans/${encodeURIComponent(planId)}/pricing`,
       input,
+      options,
     );
   },
 
   /**
    * Publishes a draft plan to ACTIVE status.
    */
-  async publishPlan(planId: string): Promise<MembershipPlanVM> {
+  async publishPlan(planId: string, options?: { signal?: AbortSignal }): Promise<MembershipPlanVM> {
     return httpClient.post<MembershipPlanVM>(
       `/api/v1/gym/membership-plans/${encodeURIComponent(planId)}/publish`,
       {},
+      options,
     );
   },
 
   /**
    * Archives an active plan to prevent future sales.
    */
-  async archivePlan(planId: string): Promise<MembershipPlanVM> {
+  async archivePlan(planId: string, options?: { signal?: AbortSignal }): Promise<MembershipPlanVM> {
     return httpClient.post<MembershipPlanVM>(
       `/api/v1/gym/membership-plans/${encodeURIComponent(planId)}/archive`,
       {},
+      options,
     );
   },
 };

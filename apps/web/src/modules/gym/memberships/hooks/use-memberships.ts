@@ -51,13 +51,29 @@ export function useMembershipEligibility(clientId: string, asOf?: string) {
   });
 }
 
+export function useMemberSearch(query: string) {
+  return useQuery({
+    queryKey: membershipsQueryKeys.clientSearch(query),
+    queryFn: () => membershipsApi.searchClients(query),
+    enabled: Boolean(query && query.trim().length >= 2),
+    staleTime: 30 * 1000,
+  });
+}
+
 export function useMembershipMutations() {
   const queryClient = useQueryClient();
 
   const createMembership = useMutation({
     mutationFn: (input: CreateMembershipInputVM) => membershipsApi.createMembership(input),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: membershipsQueryKeys.all });
+    onSuccess: (created) => {
+      queryClient.invalidateQueries({ queryKey: membershipsQueryKeys.lists() });
+      queryClient.invalidateQueries({
+        queryKey: membershipsQueryKeys.eligibilities(created.clientId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['gym', 'attendance', 'eligibility'],
+      });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'trainer-dashboard'] });
     },
   });
 
@@ -69,11 +85,20 @@ export function useMembershipMutations() {
       membershipId: string;
       input: RenewMembershipInputVM;
     }) => membershipsApi.renewMembership(membershipId, input),
-    onSuccess: (_, variables) => {
+    onSuccess: (renewed, variables) => {
       queryClient.invalidateQueries({
         queryKey: membershipsQueryKeys.detail(variables.membershipId),
       });
       queryClient.invalidateQueries({ queryKey: membershipsQueryKeys.lists() });
+      queryClient.invalidateQueries({ queryKey: membershipsQueryKeys.expirings() });
+      queryClient.invalidateQueries({ queryKey: membershipsQueryKeys.expireds() });
+      queryClient.invalidateQueries({
+        queryKey: membershipsQueryKeys.eligibilities(renewed.clientId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['gym', 'attendance', 'eligibility'],
+      });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'trainer-dashboard'] });
     },
   });
 
@@ -85,19 +110,33 @@ export function useMembershipMutations() {
       membershipId: string;
       input: FreezeMembershipInputVM;
     }) => membershipsApi.freezeMembership(membershipId, input),
-    onSuccess: (_, variables) => {
+    onSuccess: (frozen, variables) => {
       queryClient.invalidateQueries({
         queryKey: membershipsQueryKeys.detail(variables.membershipId),
       });
       queryClient.invalidateQueries({ queryKey: membershipsQueryKeys.lists() });
+      queryClient.invalidateQueries({
+        queryKey: membershipsQueryKeys.eligibilities(frozen.clientId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['gym', 'attendance', 'eligibility'],
+      });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'trainer-dashboard'] });
     },
   });
 
   const unfreezeMembership = useMutation({
     mutationFn: (membershipId: string) => membershipsApi.unfreezeMembership(membershipId),
-    onSuccess: (_, membershipId) => {
+    onSuccess: (unfrozen, membershipId) => {
       queryClient.invalidateQueries({ queryKey: membershipsQueryKeys.detail(membershipId) });
       queryClient.invalidateQueries({ queryKey: membershipsQueryKeys.lists() });
+      queryClient.invalidateQueries({
+        queryKey: membershipsQueryKeys.eligibilities(unfrozen.clientId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['gym', 'attendance', 'eligibility'],
+      });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'trainer-dashboard'] });
     },
   });
 
@@ -109,19 +148,30 @@ export function useMembershipMutations() {
       membershipId: string;
       input: CancelMembershipInputVM;
     }) => membershipsApi.cancelMembership(membershipId, input),
-    onSuccess: (_, variables) => {
+    onSuccess: (cancelled, variables) => {
       queryClient.invalidateQueries({
         queryKey: membershipsQueryKeys.detail(variables.membershipId),
       });
       queryClient.invalidateQueries({ queryKey: membershipsQueryKeys.lists() });
+      queryClient.invalidateQueries({
+        queryKey: membershipsQueryKeys.eligibilities(cancelled.clientId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['gym', 'attendance', 'eligibility'],
+      });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'trainer-dashboard'] });
     },
   });
 
   const expireBatch = useMutation({
     mutationFn: (vars?: { asOfDate?: string; batchSize?: number; dryRun?: boolean }) =>
-      membershipsApi.expireBatch(vars?.asOfDate, vars?.batchSize, vars?.dryRun),
+      membershipsApi.expireBatch(vars),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: membershipsQueryKeys.all });
+      queryClient.invalidateQueries({
+        queryKey: ['gym', 'attendance', 'eligibility'],
+      });
+      queryClient.invalidateQueries({ queryKey: ['gym', 'trainer-dashboard'] });
     },
   });
 

@@ -14,7 +14,10 @@ export const trainerDashboardApi = {
   /**
    * Retrieves authoritative operational summary KPIs for the Trainer Dashboard.
    */
-  async getSummary(params?: TrainerSummaryFilterParams): Promise<TrainerDashboardSummaryVM> {
+  async getSummary(
+    params?: TrainerSummaryFilterParams,
+    options?: { signal?: AbortSignal },
+  ): Promise<TrainerDashboardSummaryVM> {
     return httpClient.get<TrainerDashboardSummaryVM>('/api/v1/gym/trainer-dashboard/summary', {
       params: {
         trainerId: params?.trainerId,
@@ -23,6 +26,7 @@ export const trainerDashboardApi = {
         timezone: params?.timezone,
         facilityId: params?.facilityId,
       },
+      signal: options?.signal,
     });
   },
 
@@ -31,6 +35,7 @@ export const trainerDashboardApi = {
    */
   async getAssignedClients(
     params?: AssignedClientsFilterParams,
+    options?: { signal?: AbortSignal },
   ): Promise<PaginatedAssignedClientsVM> {
     return httpClient.get<PaginatedAssignedClientsVM>('/api/v1/gym/trainer-dashboard/clients', {
       params: {
@@ -43,6 +48,7 @@ export const trainerDashboardApi = {
         sortBy: params?.sortBy,
         sortOrder: params?.sortOrder,
       },
+      signal: options?.signal,
     });
   },
 
@@ -51,6 +57,7 @@ export const trainerDashboardApi = {
    */
   async getExpiringMemberships(
     params?: ExpiringMembershipsFilterParams,
+    options?: { signal?: AbortSignal },
   ): Promise<{ items: ExpiringMembershipItemVM[]; total: number; horizonDays: number }> {
     return httpClient.get<{
       items: ExpiringMembershipItemVM[];
@@ -62,6 +69,7 @@ export const trainerDashboardApi = {
         horizonDays: params?.horizonDays,
         asOfDate: params?.asOfDate,
       },
+      signal: options?.signal,
     });
   },
 
@@ -70,6 +78,7 @@ export const trainerDashboardApi = {
    */
   async getAttendance(
     params?: TrainerAttendanceFilterParams,
+    options?: { signal?: AbortSignal },
   ): Promise<TrainerAttendanceResponseVM> {
     return httpClient.get<TrainerAttendanceResponseVM>('/api/v1/gym/trainer-dashboard/attendance', {
       params: {
@@ -80,6 +89,7 @@ export const trainerDashboardApi = {
         page: params?.page,
         limit: params?.limit,
       },
+      signal: options?.signal,
     });
   },
 };

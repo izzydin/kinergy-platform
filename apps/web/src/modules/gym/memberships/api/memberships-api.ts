@@ -8,13 +8,36 @@ import {
   RenewMembershipInputVM,
   FreezeMembershipInputVM,
   CancelMembershipInputVM,
+  ExpiringMembershipsResponseVM,
+  ExpireMembershipsBatchResponseVM,
+  ExpireMembershipsBatchInputVM,
+  MemberLookupResultDTO,
 } from '../types';
 
 export const membershipsApi = {
   /**
+   * Searches clients by name, email, or client ID for membership enrollment.
+   */
+  async searchClients(
+    query: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<MemberLookupResultDTO[]> {
+    if (!query || query.trim().length === 0) {
+      return [];
+    }
+    return httpClient.get<MemberLookupResultDTO[]>('/api/v1/clients/search', {
+      params: { q: query.trim() },
+      signal: options?.signal,
+    });
+  },
+
+  /**
    * Lists memberships with multi-criteria filtering and server pagination.
    */
-  async listMemberships(params?: ListMembershipsFilterParams): Promise<PaginatedMembershipsVM> {
+  async listMemberships(
+    params?: ListMembershipsFilterParams,
+    options?: { signal?: AbortSignal },
+  ): Promise<PaginatedMembershipsVM> {
     return httpClient.get<PaginatedMembershipsVM>('/api/v1/gym/memberships', {
       params: {
         clientId: params?.clientId,
@@ -27,15 +50,20 @@ export const membershipsApi = {
         page: params?.page,
         limit: params?.limit,
       },
+      signal: options?.signal,
     });
   },
 
   /**
    * Retrieves single membership agreement by ID.
    */
-  async getMembershipById(membershipId: string): Promise<MembershipVM> {
+  async getMembershipById(
+    membershipId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<MembershipVM> {
     return httpClient.get<MembershipVM>(
       `/api/v1/gym/memberships/${encodeURIComponent(membershipId)}`,
+      options,
     );
   },
 
@@ -44,13 +72,12 @@ export const membershipsApi = {
    */
   async getExpiring(
     horizonDays?: number,
-  ): Promise<{ items: MembershipVM[]; total: number; horizonDays: number }> {
-    return httpClient.get<{ items: MembershipVM[]; total: number; horizonDays: number }>(
-      '/api/v1/gym/memberships/expiring',
-      {
-        params: { horizonDays },
-      },
-    );
+    options?: { signal?: AbortSignal },
+  ): Promise<ExpiringMembershipsResponseVM> {
+    return httpClient.get<ExpiringMembershipsResponseVM>('/api/v1/gym/memberships/expiring', {
+      params: { horizonDays },
+      signal: options?.signal,
+    });
   },
 
   /**
@@ -60,26 +87,36 @@ export const membershipsApi = {
     page?: number,
     limit?: number,
     clientId?: string,
+    options?: { signal?: AbortSignal },
   ): Promise<PaginatedMembershipsVM> {
     return httpClient.get<PaginatedMembershipsVM>('/api/v1/gym/memberships/expired', {
       params: { page, limit, clientId },
+      signal: options?.signal,
     });
   },
 
   /**
    * Authoritatively checks check-in admission eligibility for a client.
    */
-  async checkEligibility(clientId: string, asOf?: string): Promise<MembershipEligibilityVM> {
+  async checkEligibility(
+    clientId: string,
+    asOf?: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<MembershipEligibilityVM> {
     return httpClient.get<MembershipEligibilityVM>('/api/v1/gym/memberships/eligibility/check', {
       params: { clientId, asOf },
+      signal: options?.signal,
     });
   },
 
   /**
    * Creates and activates a new membership agreement.
    */
-  async createMembership(input: CreateMembershipInputVM): Promise<MembershipVM> {
-    return httpClient.post<MembershipVM>('/api/v1/gym/memberships', input);
+  async createMembership(
+    input: CreateMembershipInputVM,
+    options?: { signal?: AbortSignal },
+  ): Promise<MembershipVM> {
+    return httpClient.post<MembershipVM>('/api/v1/gym/memberships', input, options);
   },
 
   /**
@@ -88,10 +125,12 @@ export const membershipsApi = {
   async renewMembership(
     membershipId: string,
     input: RenewMembershipInputVM,
+    options?: { signal?: AbortSignal },
   ): Promise<MembershipVM> {
     return httpClient.post<MembershipVM>(
       `/api/v1/gym/memberships/${encodeURIComponent(membershipId)}/renew`,
       input,
+      options,
     );
   },
 
@@ -101,20 +140,26 @@ export const membershipsApi = {
   async freezeMembership(
     membershipId: string,
     input: FreezeMembershipInputVM,
+    options?: { signal?: AbortSignal },
   ): Promise<MembershipVM> {
     return httpClient.post<MembershipVM>(
       `/api/v1/gym/memberships/${encodeURIComponent(membershipId)}/freeze`,
       input,
+      options,
     );
   },
 
   /**
    * Resumes a suspended membership early and adjusts duration.
    */
-  async unfreezeMembership(membershipId: string): Promise<MembershipVM> {
+  async unfreezeMembership(
+    membershipId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<MembershipVM> {
     return httpClient.post<MembershipVM>(
       `/api/v1/gym/memberships/${encodeURIComponent(membershipId)}/unfreeze`,
       {},
+      options,
     );
   },
 
@@ -124,10 +169,12 @@ export const membershipsApi = {
   async cancelMembership(
     membershipId: string,
     input: CancelMembershipInputVM,
+    options?: { signal?: AbortSignal },
   ): Promise<MembershipVM> {
     return httpClient.post<MembershipVM>(
       `/api/v1/gym/memberships/${encodeURIComponent(membershipId)}/cancel`,
       input,
+      options,
     );
   },
 
@@ -135,17 +182,17 @@ export const membershipsApi = {
    * Triggers deterministic expiration sweep.
    */
   async expireBatch(
-    asOfDate?: string,
-    batchSize?: number,
-    dryRun?: boolean,
-  ): Promise<{ expiredCount: number; processedCount: number }> {
-    return httpClient.post<{ expiredCount: number; processedCount: number }>(
+    input?: ExpireMembershipsBatchInputVM,
+    options?: { signal?: AbortSignal },
+  ): Promise<ExpireMembershipsBatchResponseVM> {
+    return httpClient.post<ExpireMembershipsBatchResponseVM>(
       '/api/v1/gym/memberships/expire-batch',
       {
-        asOfDate,
-        batchSize,
-        dryRun,
+        asOfDate: input?.asOfDate,
+        batchSize: input?.batchSize,
+        dryRun: input?.dryRun,
       },
+      options,
     );
   },
 };
