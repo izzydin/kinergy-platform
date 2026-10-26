@@ -157,6 +157,12 @@ describe('Kinesiology Query Keys and Cache Invalidation Spec', () => {
       expect(invalidateSpy).toHaveBeenCalledWith({
         queryKey: kinesiologyQueryKeys.sessions(),
       });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['scheduling'],
+      });
+      expect(invalidateSpy).toHaveBeenCalledWith({
+        queryKey: ['appointments'],
+      });
     });
 
     it('cancelSession invalidates context, session list, client history, and cross-feature timeline', async () => {

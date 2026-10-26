@@ -99,8 +99,17 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
     }
   };
 
-  const handleAssignTherapist = (data: AssignTherapistFormData) => {
-    assignTherapist.mutate(data);
+  const handleAssignTherapist = async (data: AssignTherapistFormData) => {
+    try {
+      if (typeof assignTherapist.mutateAsync === 'function') {
+        await assignTherapist.mutateAsync(data);
+      } else {
+        assignTherapist.mutate(data);
+      }
+      setIsAssignModalOpen(false);
+    } catch {
+      // Retain modal open so the user can inspect the error banner and adjust input
+    }
   };
 
   const handleCancelSession = async (data: CancelSessionFormData) => {
@@ -368,10 +377,18 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
             {/* Modals */}
             <AssignTherapistModal
               isOpen={isAssignModalOpen}
-              onClose={() => setIsAssignModalOpen(false)}
+              onClose={() => {
+                setIsAssignModalOpen(false);
+                if (typeof assignTherapist.reset === 'function') {
+                  assignTherapist.reset();
+                }
+              }}
               onAssign={handleAssignTherapist}
               currentTherapistId={session.therapistId}
+              sessionStatus={session.status}
               isLoading={assignTherapist.isPending}
+              error={assignTherapist.error}
+              onRefresh={() => refetch()}
             />
 
             <CompleteSessionModal
