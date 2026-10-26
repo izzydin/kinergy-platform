@@ -15,7 +15,7 @@ export interface MembershipVM {
   clientId: string;
   planId: string;
   period: MembershipPeriodVM;
-  status: 'ACTIVE' | 'FROZEN' | 'EXPIRED' | 'CANCELLED';
+  status: 'PENDING' | 'ACTIVE' | 'FROZEN' | 'EXPIRED' | 'CANCELLED' | 'TERMINATED';
   assignedTrainerId?: string;
   freezeHistory?: FreezeWindowVM[];
   cancellationReason?: string;

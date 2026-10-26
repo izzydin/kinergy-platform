@@ -17,6 +17,7 @@ import {
   PauseCircle,
   PlayCircle,
   RefreshCw,
+  ShieldCheck,
   Tag,
   User,
 } from 'lucide-react';
@@ -78,6 +79,7 @@ export const MembershipDetailPage: React.FC = () => {
     );
   }
 
+  const isPending = membership.status === 'PENDING';
   const isActive = membership.status === 'ACTIVE';
   const isFrozen = membership.status === 'FROZEN';
   const isExpired = membership.status === 'EXPIRED';
@@ -147,7 +149,7 @@ export const MembershipDetailPage: React.FC = () => {
             </Button>
           )}
 
-          {(isActive || isFrozen) && canManageMemberships && (
+          {(isActive || isFrozen || isPending) && canManageMemberships && (
             <Button
               type="button"
               variant="outline"
@@ -288,6 +290,45 @@ export const MembershipDetailPage: React.FC = () => {
             </div>
             <div>Updated: {new Date(membership.updatedAt).toLocaleString()}</div>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Domain Lifecycle Policies & Safeguards Card */}
+      <Card data-testid="membership-lifecycle-policy-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base font-semibold text-foreground flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-primary" />
+            Membership Lifecycle & Domain Policies
+          </CardTitle>
+          <CardDescription className="text-xs">
+            Governing rules codified in ADR-0055, ADR-0057, and ADR-0061
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <ul className="text-xs space-y-2 text-muted-foreground list-disc list-inside">
+            <li>
+              <strong className="text-foreground">Authoritative Date Derivation:</strong> Start and
+              end dates are computed deterministically by the server based on commercial plan
+              duration. Client-side manual date overrides are strictly prohibited.
+            </li>
+            <li>
+              <strong className="text-foreground">Gapless Renewals:</strong> Renewing an active
+              agreement seamlessly extends from the existing expiration date, preserving 100% of
+              unused subscription days. Renewing an expired agreement initiates from the renewal
+              effective date.
+            </li>
+            <li>
+              <strong className="text-foreground">Suspension & Extension:</strong> Freezing an
+              active agreement immediately suspends facility admission eligibility.
+              Resuming/unfreezing automatically recalculates and extends the final expiration date
+              by the exact duration of the freeze.
+            </li>
+            <li>
+              <strong className="text-foreground">Voluntary Termination:</strong> Cancelling an
+              agreement is an irreversible terminal transition. Historical agreement records and
+              freeze history are retained for audit compliance; no automated refund is issued.
+            </li>
+          </ul>
         </CardContent>
       </Card>
 

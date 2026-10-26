@@ -1,8 +1,9 @@
 import { Badge } from '@kinergy-platform/ui';
-import { AlertCircle, CheckCircle2, PauseCircle, XCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Clock, PauseCircle, XCircle } from 'lucide-react';
 import React from 'react';
 
-export type MembershipStatus = 'ACTIVE' | 'FROZEN' | 'EXPIRED' | 'CANCELLED';
+export type MembershipStatus =
+  'PENDING' | 'ACTIVE' | 'FROZEN' | 'EXPIRED' | 'CANCELLED' | 'TERMINATED';
 
 export interface MembershipStatusBadgeProps {
   readonly status: MembershipStatus | string;
@@ -21,6 +22,17 @@ export const MembershipStatusBadge: React.FC<MembershipStatusBadgeProps> = ({
     <div className="inline-flex items-center gap-1.5" data-testid="membership-status-container">
       {(() => {
         switch (normalized) {
+          case 'PENDING':
+            return (
+              <Badge
+                variant="outline"
+                className={`bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800 ${className ?? ''}`}
+                data-testid="membership-status-badge-pending"
+              >
+                <Clock className="mr-1 h-3 w-3 inline" />
+                Pending
+              </Badge>
+            );
           case 'ACTIVE':
             return (
               <Badge

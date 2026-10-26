@@ -12,6 +12,7 @@ import {
 } from '@kinergy-platform/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
+  AlertOctagon,
   ArrowLeft,
   CheckCircle2,
   Clock,
@@ -20,9 +21,9 @@ import {
   Tag,
   UserCheck,
 } from 'lucide-react';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useNotification } from '../../../../app/providers/notification-provider';
 import {
   ConfirmDiscardDialog,
@@ -42,8 +43,10 @@ import { createMembershipSchema, CreateMembershipFormValues } from '../schemas/m
 
 export const CreateMembershipPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { success, error: notifyError } = useNotification();
   const { createMembership } = useMembershipMutations();
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   // 1. Fetch only selectable/available plans directly from authoritative API
   const { data: plansData, isLoading: isLoadingPlans } = usePlans({
@@ -56,8 +59,8 @@ export const CreateMembershipPage: React.FC = () => {
   const form = useForm<CreateMembershipFormValues>({
     resolver: zodResolver(createMembershipSchema),
     defaultValues: {
-      clientId: '',
-      planId: '',
+      clientId: searchParams.get('clientId') ?? '',
+      planId: searchParams.get('planId') ?? '',
       startDate: undefined,
       assignedTrainerId: '',
     },
@@ -66,12 +69,29 @@ export const CreateMembershipPage: React.FC = () => {
 
   const selectedPlanId = form.watch('planId');
   const watchedClientId = form.watch('clientId');
+  const watchedStartDate = form.watch('startDate');
 
   // Authoritative server commercial info for the selected plan
   const selectedPlan = useMemo(
     () => availablePlans.find((p) => p.id === selectedPlanId),
     [availablePlans, selectedPlanId],
   );
+
+  // Calculate proposed interval preview
+  const proposedStartDate = useMemo(() => {
+    if (watchedStartDate) {
+      const parsed = new Date(watchedStartDate);
+      return isNaN(parsed.getTime()) ? new Date() : parsed;
+    }
+    return new Date();
+  }, [watchedStartDate]);
+
+  const estimatedEndDate = useMemo(() => {
+    if (!selectedPlan) return null;
+    return new Date(
+      proposedStartDate.getTime() + selectedPlan.durationInDays * 24 * 60 * 60 * 1000,
+    );
+  }, [proposedStartDate, selectedPlan]);
 
   // Optional server eligibility preview evaluation
   const { data: eligibilityData } = useMembershipEligibility(watchedClientId?.trim());
@@ -83,11 +103,16 @@ export const CreateMembershipPage: React.FC = () => {
   });
 
   const onSubmit = (values: CreateMembershipFormValues) => {
+    setSubmissionError(null);
     createMembership.mutate(
       {
         clientId: values.clientId.trim(),
         planId: values.planId.trim(),
-        startDate: values.startDate ? new Date(values.startDate).toISOString() : undefined,
+        startDate: values.startDate
+          ? values.startDate.includes('T')
+            ? values.startDate
+            : `${values.startDate}T00:00:00.000Z`
+          : undefined,
         assignedTrainerId: values.assignedTrainerId?.trim() || undefined,
       },
       {
@@ -99,6 +124,8 @@ export const CreateMembershipPage: React.FC = () => {
           navigate(`/gym/memberships/${encodeURIComponent(created.id)}`);
         },
         onError: (err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          setSubmissionError(message);
           notifyError(err, 'Failed to create membership agreement');
         },
       },
@@ -292,7 +319,7 @@ export const CreateMembershipPage: React.FC = () => {
                             value={field.value ? field.value.split('T')[0] : ''}
                             onChange={(e) => {
                               const dateVal = e.target.value
-                                ? new Date(e.target.value).toISOString()
+                                ? `${e.target.value}T00:00:00.000Z`
                                 : undefined;
                               field.onChange(dateVal);
                             }}
@@ -332,6 +359,67 @@ export const CreateMembershipPage: React.FC = () => {
                   />
                 </div>
               </div>
+
+              {/* Step 4: Review Agreement & Proposed Interval */}
+              {selectedPlan && (
+                <div
+                  className="p-4 rounded-lg border bg-muted/20 space-y-3"
+                  data-testid="enrollment-review-summary"
+                >
+                  <h3 className="text-sm font-semibold flex items-center gap-1.5 text-foreground">
+                    <CheckCircle2 className="h-4 w-4 text-primary" />
+                    4. Review Agreement & Proposed Interval
+                  </h3>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    <div className="p-3 bg-card border rounded space-y-1">
+                      <span className="text-muted-foreground font-medium">Selected Client:</span>
+                      <p className="font-mono font-semibold text-foreground truncate">
+                        {watchedClientId || 'No client specified'}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-card border rounded space-y-1">
+                      <span className="text-muted-foreground font-medium">
+                        Commercial Plan & Pricing:
+                      </span>
+                      <p className="font-semibold text-foreground">
+                        {selectedPlan.name} — ${(selectedPlan.priceAmount / 100).toFixed(2)}{' '}
+                        {selectedPlan.priceCurrency}
+                      </p>
+                    </div>
+                    <div className="p-3 bg-card border rounded space-y-1 sm:col-span-2">
+                      <span className="text-muted-foreground font-medium">
+                        Proposed Membership Interval:
+                      </span>
+                      <div className="flex items-center gap-2 font-mono font-semibold text-foreground text-sm">
+                        <span>{proposedStartDate.toLocaleDateString()}</span>
+                        <span className="text-muted-foreground">→</span>
+                        <span>
+                          {estimatedEndDate ? estimatedEndDate.toLocaleDateString() : '—'}
+                        </span>
+                        <span className="text-xs font-normal text-muted-foreground">
+                          ({selectedPlan.durationInDays} days duration)
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-muted-foreground mt-1">
+                        Authoritative start and end dates are calculated deterministically by the
+                        server upon agreement creation, enforcing overlap and eligibility policies.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Inline Submission Error Alert */}
+              {submissionError && (
+                <Alert
+                  className="bg-destructive/10 border-destructive/20 text-destructive dark:border-destructive/30"
+                  data-testid="create-membership-error-alert"
+                >
+                  <AlertOctagon className="h-4 w-4" />
+                  <AlertTitle>Enrollment Rejection</AlertTitle>
+                  <AlertDescription className="text-xs mt-1">{submissionError}</AlertDescription>
+                </Alert>
+              )}
 
               {/* Form Action Controls */}
               <div className="flex items-center justify-end gap-3 pt-4 border-t">

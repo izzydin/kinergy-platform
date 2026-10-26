@@ -12,7 +12,7 @@ import {
   Input,
 } from '@kinergy-platform/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { CheckCircle2, RefreshCw } from 'lucide-react';
+import { AlertOctagon, CheckCircle2, RefreshCw } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNotification } from '../../../../app/providers/notification-provider';
@@ -45,6 +45,7 @@ export const RenewMembershipDialog: React.FC<RenewMembershipDialogProps> = ({
   const { success, error: notifyError } = useNotification();
   const { data: plansData } = usePlans({ activeOnly: true, limit: 50 });
   const [renewedResult, setRenewedResult] = useState<MembershipVM | null>(null);
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const form = useForm<RenewMembershipFormValues>({
     resolver: zodResolver(renewMembershipSchema),
@@ -57,6 +58,7 @@ export const RenewMembershipDialog: React.FC<RenewMembershipDialogProps> = ({
   useEffect(() => {
     if (open) {
       setRenewedResult(null);
+      setSubmissionError(null);
       form.reset({
         newPlanId: '',
         effectiveDate: undefined,
@@ -66,6 +68,7 @@ export const RenewMembershipDialog: React.FC<RenewMembershipDialogProps> = ({
 
   const onSubmit = (values: RenewMembershipFormValues) => {
     if (!membership) return;
+    setSubmissionError(null);
 
     renewMembership.mutate(
       {
@@ -73,7 +76,9 @@ export const RenewMembershipDialog: React.FC<RenewMembershipDialogProps> = ({
         input: {
           newPlanId: values.newPlanId?.trim() || undefined,
           effectiveDate: values.effectiveDate
-            ? new Date(values.effectiveDate).toISOString()
+            ? values.effectiveDate.includes('T')
+              ? values.effectiveDate
+              : `${values.effectiveDate}T00:00:00.000Z`
             : undefined,
         },
       },
@@ -86,6 +91,8 @@ export const RenewMembershipDialog: React.FC<RenewMembershipDialogProps> = ({
           );
         },
         onError: (err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          setSubmissionError(message);
           notifyError(err, 'Failed to renew membership');
         },
       },
@@ -212,8 +219,13 @@ export const RenewMembershipDialog: React.FC<RenewMembershipDialogProps> = ({
                     <FormControl>
                       <Input
                         type="date"
-                        {...field}
-                        value={field.value ?? ''}
+                        value={field.value ? field.value.split('T')[0] : ''}
+                        onChange={(e) => {
+                          const dateVal = e.target.value
+                            ? `${e.target.value}T00:00:00.000Z`
+                            : undefined;
+                          field.onChange(dateVal);
+                        }}
                         data-testid="input-renew-effective-date"
                       />
                     </FormControl>
@@ -224,6 +236,17 @@ export const RenewMembershipDialog: React.FC<RenewMembershipDialogProps> = ({
                   </FormItem>
                 )}
               />
+
+              {submissionError && (
+                <Alert
+                  className="bg-destructive/10 border-destructive/20 text-destructive dark:border-destructive/30"
+                  data-testid="renew-error-alert"
+                >
+                  <AlertOctagon className="h-4 w-4" />
+                  <AlertTitle>Renewal Rejected</AlertTitle>
+                  <AlertDescription className="text-xs mt-1">{submissionError}</AlertDescription>
+                </Alert>
+              )}
 
               <DialogFooter className="pt-2">
                 <Button

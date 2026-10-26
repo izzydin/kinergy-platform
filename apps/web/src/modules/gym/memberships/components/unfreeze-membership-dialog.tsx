@@ -10,8 +10,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@kinergy-platform/ui';
-import { PlayCircle } from 'lucide-react';
-import React from 'react';
+import { AlertOctagon, PlayCircle } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useNotification } from '../../../../app/providers/notification-provider';
 import { useMembershipMutations } from '../hooks/use-memberships';
 import type { MembershipVM } from '../types';
@@ -29,9 +29,17 @@ export const UnfreezeMembershipDialog: React.FC<UnfreezeMembershipDialogProps> =
 }) => {
   const { unfreezeMembership } = useMembershipMutations();
   const { success, error: notifyError } = useNotification();
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      setSubmissionError(null);
+    }
+  }, [open]);
 
   const handleConfirmUnfreeze = () => {
     if (!membership) return;
+    setSubmissionError(null);
 
     unfreezeMembership.mutate(membership.id, {
       onSuccess: (updated) => {
@@ -42,6 +50,8 @@ export const UnfreezeMembershipDialog: React.FC<UnfreezeMembershipDialogProps> =
         onOpenChange(false);
       },
       onError: (err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        setSubmissionError(message);
         notifyError(err, 'Failed to unfreeze membership');
       },
     });
@@ -69,6 +79,17 @@ export const UnfreezeMembershipDialog: React.FC<UnfreezeMembershipDialogProps> =
             expiration date accordingly.
           </AlertDescription>
         </Alert>
+
+        {submissionError && (
+          <Alert
+            className="bg-destructive/10 border-destructive/20 text-destructive dark:border-destructive/30"
+            data-testid="unfreeze-error-alert"
+          >
+            <AlertOctagon className="h-4 w-4" />
+            <AlertTitle>Resume Request Failed</AlertTitle>
+            <AlertDescription className="text-xs mt-1">{submissionError}</AlertDescription>
+          </Alert>
+        )}
 
         <DialogFooter className="pt-2">
           <Button

@@ -12,8 +12,8 @@ import {
   Input,
 } from '@kinergy-platform/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { PauseCircle, Snowflake } from 'lucide-react';
-import React, { useEffect } from 'react';
+import { AlertOctagon, PauseCircle, Snowflake } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNotification } from '../../../../app/providers/notification-provider';
 import {
@@ -43,6 +43,7 @@ export const FreezeMembershipDialog: React.FC<FreezeMembershipDialogProps> = ({
 }) => {
   const { freezeMembership } = useMembershipMutations();
   const { success, error: notifyError } = useNotification();
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const form = useForm<FreezeMembershipFormValues>({
     resolver: zodResolver(freezeMembershipSchema),
@@ -56,6 +57,7 @@ export const FreezeMembershipDialog: React.FC<FreezeMembershipDialogProps> = ({
 
   useEffect(() => {
     if (open) {
+      setSubmissionError(null);
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const twoWeeksLater = new Date();
@@ -71,11 +73,20 @@ export const FreezeMembershipDialog: React.FC<FreezeMembershipDialogProps> = ({
 
   const onSubmit = (values: FreezeMembershipFormValues) => {
     if (!membership) return;
+    setSubmissionError(null);
 
     freezeMembership.mutate(
       {
         membershipId: membership.id,
-        input: values,
+        input: {
+          startDate: values.startDate.includes('T')
+            ? values.startDate
+            : `${values.startDate}T00:00:00.000Z`,
+          endDate: values.endDate.includes('T')
+            ? values.endDate
+            : `${values.endDate}T00:00:00.000Z`,
+          reason: values.reason,
+        },
       },
       {
         onSuccess: (updated) => {
@@ -86,6 +97,8 @@ export const FreezeMembershipDialog: React.FC<FreezeMembershipDialogProps> = ({
           onOpenChange(false);
         },
         onError: (err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          setSubmissionError(message);
           notifyError(err, 'Failed to freeze membership');
         },
       },
@@ -132,9 +145,7 @@ export const FreezeMembershipDialog: React.FC<FreezeMembershipDialogProps> = ({
                         type="date"
                         value={field.value ? field.value.split('T')[0] : ''}
                         onChange={(e) => {
-                          const dateVal = e.target.value
-                            ? new Date(e.target.value).toISOString()
-                            : '';
+                          const dateVal = e.target.value ? `${e.target.value}T00:00:00.000Z` : '';
                           field.onChange(dateVal);
                         }}
                         data-testid="input-freeze-start-date"
@@ -156,9 +167,7 @@ export const FreezeMembershipDialog: React.FC<FreezeMembershipDialogProps> = ({
                         type="date"
                         value={field.value ? field.value.split('T')[0] : ''}
                         onChange={(e) => {
-                          const dateVal = e.target.value
-                            ? new Date(e.target.value).toISOString()
-                            : '';
+                          const dateVal = e.target.value ? `${e.target.value}T00:00:00.000Z` : '';
                           field.onChange(dateVal);
                         }}
                         data-testid="input-freeze-end-date"
@@ -191,6 +200,17 @@ export const FreezeMembershipDialog: React.FC<FreezeMembershipDialogProps> = ({
                 </FormItem>
               )}
             />
+
+            {submissionError && (
+              <Alert
+                className="bg-destructive/10 border-destructive/20 text-destructive dark:border-destructive/30"
+                data-testid="freeze-error-alert"
+              >
+                <AlertOctagon className="h-4 w-4" />
+                <AlertTitle>Freeze Rejected</AlertTitle>
+                <AlertDescription className="text-xs mt-1">{submissionError}</AlertDescription>
+              </Alert>
+            )}
 
             <DialogFooter className="pt-2">
               <Button

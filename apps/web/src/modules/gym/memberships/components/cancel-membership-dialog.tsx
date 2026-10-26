@@ -13,7 +13,7 @@ import {
 } from '@kinergy-platform/ui';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AlertOctagon } from 'lucide-react';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNotification } from '../../../../app/providers/notification-provider';
 import {
@@ -43,6 +43,7 @@ export const CancelMembershipDialog: React.FC<CancelMembershipDialogProps> = ({
 }) => {
   const { cancelMembership } = useMembershipMutations();
   const { success, error: notifyError } = useNotification();
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const form = useForm<CancelMembershipFormValues>({
     resolver: zodResolver(cancelMembershipSchema),
@@ -54,12 +55,14 @@ export const CancelMembershipDialog: React.FC<CancelMembershipDialogProps> = ({
 
   useEffect(() => {
     if (open) {
+      setSubmissionError(null);
       form.reset({ reason: '' });
     }
   }, [open, form]);
 
   const onSubmit = (values: CancelMembershipFormValues) => {
     if (!membership) return;
+    setSubmissionError(null);
 
     cancelMembership.mutate(
       {
@@ -75,6 +78,8 @@ export const CancelMembershipDialog: React.FC<CancelMembershipDialogProps> = ({
           onOpenChange(false);
         },
         onError: (err) => {
+          const message = err instanceof Error ? err.message : String(err);
+          setSubmissionError(message);
           notifyError(err, 'Failed to cancel membership');
         },
       },
@@ -101,7 +106,7 @@ export const CancelMembershipDialog: React.FC<CancelMembershipDialogProps> = ({
           <AlertTitle>Irreversible Termination</AlertTitle>
           <AlertDescription className="text-xs">
             Cancelling a membership immediately revokes facility access and terminates the
-            agreement. This action cannot be undone.
+            agreement. Historical records are retained for auditing; no automated refund is issued.
           </AlertDescription>
         </Alert>
 
@@ -130,6 +135,17 @@ export const CancelMembershipDialog: React.FC<CancelMembershipDialogProps> = ({
                 </FormItem>
               )}
             />
+
+            {submissionError && (
+              <Alert
+                className="bg-destructive/10 border-destructive/20 text-destructive dark:border-destructive/30"
+                data-testid="cancel-error-alert"
+              >
+                <AlertOctagon className="h-4 w-4" />
+                <AlertTitle>Termination Failed</AlertTitle>
+                <AlertDescription className="text-xs mt-1">{submissionError}</AlertDescription>
+              </Alert>
+            )}
 
             <DialogFooter className="pt-2">
               <Button
