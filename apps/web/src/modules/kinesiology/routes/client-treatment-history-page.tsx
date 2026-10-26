@@ -1,8 +1,9 @@
 import React from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Card, CardContent } from '@kinergy-platform/ui';
+import { Card, CardContent, Button } from '@kinergy-platform/ui';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
+import { CrudError } from '../../../shared/crud';
 import { TreatmentHistoryList } from '../components/treatment-history-list';
 
 export const ClientTreatmentHistoryPage: React.FC = () => {
@@ -12,7 +13,9 @@ export const ClientTreatmentHistoryPage: React.FC = () => {
   let canRead = true;
   try {
     const auth = useAuth();
-    canRead = auth.hasPermission('kinesiology.sessions.read');
+    if (typeof auth?.hasPermission === 'function') {
+      canRead = auth.hasPermission('kinesiology.sessions.read');
+    }
   } catch {
     // Permissive fallback in unit test harnesses without AuthProvider
   }
@@ -23,14 +26,24 @@ export const ClientTreatmentHistoryPage: React.FC = () => {
     );
   }
 
-  if (!clientId) {
+  if (!clientId || clientId.trim().length === 0) {
     return (
-      <div className="p-6 text-sm text-slate-500">No client ID provided in route parameters.</div>
+      <div className="p-6 max-w-6xl mx-auto">
+        <CrudError
+          title="Invalid Client Identifier"
+          error="No valid client ID was supplied in the route path."
+          secondaryAction={
+            <Button variant="outline" size="sm" onClick={() => navigate('/clients')}>
+              Back to Directory
+            </Button>
+          }
+        />
+      </div>
     );
   }
 
   const handleSelectSession = (sessionId: string) => {
-    navigate(`/kinesiology/sessions/${sessionId}`);
+    navigate(`/kinesiology/sessions/${encodeURIComponent(sessionId)}`);
   };
 
   return (
