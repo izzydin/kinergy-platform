@@ -82,8 +82,12 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
     completeSession.mutate();
   };
 
-  const handleSaveNotes = (data: SoapNotesFormData) => {
-    updateNotes.mutate(data);
+  const handleSaveNotes = async (data: SoapNotesFormData) => {
+    if (typeof updateNotes.mutateAsync === 'function') {
+      await updateNotes.mutateAsync(data);
+    } else {
+      updateNotes.mutate(data);
+    }
   };
 
   const handleAssignTherapist = (data: AssignTherapistFormData) => {
@@ -333,8 +337,12 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
             <SoapNotesForm
               initialNotes={session.notes}
               sessionStatus={session.status}
-              isLoading={updateNotes.isPending}
+              canEdit={canTreat}
+              isSaving={updateNotes.isPending}
+              saveError={updateNotes.error}
+              lastServerUpdatedAt={session.updatedAt}
               onSave={handleSaveNotes}
+              onRefresh={() => refetch()}
             />
 
             {/* Modals */}
