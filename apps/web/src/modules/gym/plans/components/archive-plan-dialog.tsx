@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from '@kinergy-platform/ui';
 import { AlertTriangle } from 'lucide-react';
-import React from 'react';
+import React, { useState } from 'react';
 import { useNotification } from '../../../../app/providers/notification-provider';
 import { usePlanMutations } from '../hooks/use-plans';
 import type { MembershipPlanVM } from '../types';
@@ -29,9 +29,17 @@ export const ArchivePlanDialog: React.FC<ArchivePlanDialogProps> = ({
 }) => {
   const { archivePlan } = usePlanMutations();
   const { success, error: notifyError } = useNotification();
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (open) {
+      setSubmissionError(null);
+    }
+  }, [open]);
 
   const handleConfirmArchive = () => {
     if (!plan) return;
+    setSubmissionError(null);
 
     archivePlan.mutate(plan.id, {
       onSuccess: (archived) => {
@@ -39,6 +47,8 @@ export const ArchivePlanDialog: React.FC<ArchivePlanDialogProps> = ({
         onOpenChange(false);
       },
       onError: (err) => {
+        const msg = err.message || 'Failed to archive membership plan';
+        setSubmissionError(msg);
         notifyError(err, 'Failed to archive membership plan');
       },
     });
@@ -54,6 +64,15 @@ export const ArchivePlanDialog: React.FC<ArchivePlanDialogProps> = ({
             <span className="font-semibold text-foreground">{plan?.name}</span> ({plan?.code})?
           </DialogDescription>
         </DialogHeader>
+
+        {submissionError && (
+          <div
+            className="p-3 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-xs"
+            data-testid="archive-plan-error-alert"
+          >
+            <strong>Error:</strong> {submissionError}
+          </div>
+        )}
 
         <Alert className="bg-amber-50/70 border-amber-200 text-amber-900 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300">
           <AlertTriangle className="h-4 w-4" />

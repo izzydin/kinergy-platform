@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Input, Button, Badge, Spinner } from '@kinergy-platform/ui';
+import { Input, Button, Badge, Spinner, Alert } from '@kinergy-platform/ui';
 import { useClientSearch } from '../hooks/use-gym-attendance';
-import { ClientSearchResultDTO } from '../types';
+import { ClientSearchResultDTO, CheckInMethod } from '../types';
+import { parseScanPayload } from '../utils/scan-parser';
 
 interface ClientSearchBarProps {
   readonly selectedClient: ClientSearchResultDTO | null;
-  readonly onSelectClient: (client: ClientSearchResultDTO) => void;
+  readonly onSelectClient: (client: ClientSearchResultDTO, method?: CheckInMethod) => void;
   readonly onClearSelection: () => void;
   readonly autoFocus?: boolean;
 }
@@ -19,17 +20,42 @@ export const ClientSearchBar: React.FC<ClientSearchBarProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState<number>(-1);
+  const [scanError, setScanError] = useState<string | null>(null);
 
-  // Debounce search term
+  const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus management
+  useEffect(() => {
+    if (autoFocus && !selectedClient) {
+      inputRef.current?.focus();
+    }
+  }, [autoFocus, selectedClient]);
+
+  // Debounce search query
   useEffect(() => {
     const timer = setTimeout(() => {
-      setDebouncedQuery(searchTerm.trim());
+      // Don't search backend if query looks like raw JSON or URI scheme
+      const trimmed = searchTerm.trim();
+      if (!trimmed.startsWith('{') && !trimmed.startsWith('kinergy://')) {
+        setDebouncedQuery(trimmed);
+      }
     }, 300);
     return () => clearTimeout(timer);
   }, [searchTerm]);
 
-  const { data: searchResults, isLoading, isFetching } = useClientSearch(debouncedQuery);
+  const {
+    data: searchResults,
+    isLoading,
+    isFetching,
+    error: searchError,
+  } = useClientSearch(debouncedQuery);
+
+  // Reset highlighted index when results change
+  useEffect(() => {
+    setHighlightedIndex(-1);
+  }, [searchResults]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -42,23 +68,91 @@ export const ClientSearchBar: React.FC<ClientSearchBarProps> = ({
     return () => document.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
-  const handleSelect = (client: ClientSearchResultDTO) => {
-    onSelectClient(client);
+  const handleSelect = (client: ClientSearchResultDTO, method?: CheckInMethod) => {
+    onSelectClient(client, method);
     setSearchTerm('');
+    setScanError(null);
     setIsOpen(false);
   };
 
-  const handleManualSubmit = (e: React.FormEvent) => {
+  const handleClear = () => {
+    onClearSelection();
+    setSearchTerm('');
+    setScanError(null);
+    setTimeout(() => {
+      inputRef.current?.focus();
+    }, 0);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchTerm.trim().length > 0) {
-      onSelectClient({
-        id: searchTerm.trim(),
-        fullName: `Client (${searchTerm.trim()})`,
-        email: `${searchTerm.trim()}@kinergy.client`,
-        status: 'ACTIVE',
-      });
-      setSearchTerm('');
+    const raw = searchTerm.trim();
+    if (!raw) return;
+
+    // If an item in dropdown is actively highlighted, select it
+    if (
+      isOpen &&
+      searchResults &&
+      highlightedIndex >= 0 &&
+      highlightedIndex < searchResults.length
+    ) {
+      const selected = searchResults[highlightedIndex];
+      if (selected) {
+        handleSelect(selected);
+        return;
+      }
+    }
+
+    // Evaluate through scan-parser for barcode, QR code, or manual ID
+    const parsed = parseScanPayload(raw);
+
+    if (!parsed.isValid) {
+      setScanError(parsed.error ?? 'Invalid barcode or QR payload.');
+      return;
+    }
+
+    setScanError(null);
+
+    // If candidate matches an item currently in searchResults, use the enriched entity
+    const existingMatch = searchResults?.find(
+      (c) =>
+        c.id.toLowerCase() === parsed.clientId?.toLowerCase() ||
+        c.fullName.toLowerCase() === parsed.clientId?.toLowerCase(),
+    );
+
+    if (existingMatch) {
+      handleSelect(existingMatch, parsed.method);
+    } else {
+      // Ad-hoc client identification from authoritative scanner / manual ID
+      handleSelect(
+        {
+          id: parsed.clientId!,
+          fullName: `Client (${parsed.clientId})`,
+          email: `${parsed.clientId}@kinergy.client`,
+          status: 'ACTIVE',
+        },
+        parsed.method,
+      );
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
       setIsOpen(false);
+      setScanError(null);
+      return;
+    }
+
+    if (!isOpen || !searchResults || searchResults.length === 0) {
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev < searchResults.length - 1 ? prev + 1 : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : searchResults.length - 1));
     }
   };
 
@@ -90,7 +184,7 @@ export const ClientSearchBar: React.FC<ClientSearchBarProps> = ({
         <Button
           variant="outline"
           size="sm"
-          onClick={onClearSelection}
+          onClick={handleClear}
           className="text-xs h-7 px-2.5 hover:bg-destructive/10 hover:text-destructive hover:border-destructive/30"
           data-testid="clear-client-selection-btn"
         >
@@ -101,39 +195,72 @@ export const ClientSearchBar: React.FC<ClientSearchBarProps> = ({
   }
 
   return (
-    <div ref={containerRef} className="relative w-full" data-testid="client-search-container">
-      <form onSubmit={handleManualSubmit} className="relative">
+    <div
+      ref={containerRef}
+      className="relative w-full space-y-2"
+      data-testid="client-search-container"
+    >
+      <form onSubmit={handleSubmit} className="relative">
         <Input
+          ref={inputRef}
           type="text"
-          placeholder="Type Client Name, ID, or Email..."
+          placeholder="Scan barcode / QR badge or type name / ID..."
           value={searchTerm}
           onChange={(e) => {
             setSearchTerm(e.target.value);
+            setScanError(null);
             setIsOpen(true);
           }}
           onFocus={() => setIsOpen(true)}
+          onKeyDown={handleKeyDown}
           autoFocus={autoFocus}
-          className="pr-10 text-xs sm:text-sm h-10 w-full"
+          className="pr-20 text-xs sm:text-sm h-10 w-full"
           data-testid="client-search-input"
           aria-expanded={isOpen}
           aria-haspopup="listbox"
+          aria-autocomplete="list"
           role="combobox"
         />
 
-        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center space-x-1">
+        <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center space-x-1.5">
           {(isLoading || isFetching) && <Spinner size="sm" />}
           {searchTerm && (
             <button
               type="button"
-              onClick={() => setSearchTerm('')}
+              onClick={() => {
+                setSearchTerm('');
+                setScanError(null);
+                inputRef.current?.focus();
+              }}
               className="text-muted-foreground hover:text-foreground text-xs p-1"
               aria-label="Clear search input"
             >
               ✕
             </button>
           )}
+          <Badge
+            variant="outline"
+            className="text-[10px] hidden sm:inline-flex bg-muted/40 font-mono text-muted-foreground border-border/60"
+            title="Hardware barcode/RFID wedge scanners automatically enter code and submit"
+          >
+            Scanner Ready
+          </Badge>
         </div>
       </form>
+
+      {/* Scanner Parse Error Alert */}
+      {scanError && (
+        <Alert variant="destructive" className="py-2 text-xs" data-testid="scan-error-alert">
+          {scanError}
+        </Alert>
+      )}
+
+      {/* Search API Failure Alert */}
+      {searchError && (
+        <Alert variant="destructive" className="py-2 text-xs" data-testid="search-error-alert">
+          Failed to search members: {searchError.message}
+        </Alert>
+      )}
 
       {/* Autocomplete Dropdown List */}
       {isOpen && debouncedQuery.length >= 2 && (
@@ -149,27 +276,34 @@ export const ClientSearchBar: React.FC<ClientSearchBarProps> = ({
             </div>
           ) : searchResults && searchResults.length > 0 ? (
             <div className="py-1 divide-y divide-border/40">
-              {searchResults.map((client) => (
-                <button
-                  key={client.id}
-                  type="button"
-                  onClick={() => handleSelect(client)}
-                  className="w-full text-left px-3 py-2 text-xs hover:bg-accent hover:text-accent-foreground transition-colors flex items-center justify-between"
-                  data-testid={`client-search-item-${client.id}`}
-                  role="option"
-                  aria-selected={false}
-                >
-                  <div>
-                    <div className="font-medium text-foreground">{client.fullName}</div>
-                    <div className="text-[11px] font-mono text-muted-foreground">
-                      {client.id} &bull; {client.email}
+              {searchResults.map((client, idx) => {
+                const isHighlighted = idx === highlightedIndex;
+                return (
+                  <button
+                    key={client.id}
+                    type="button"
+                    onClick={() => handleSelect(client)}
+                    className={`w-full text-left px-3 py-2 text-xs transition-colors flex items-center justify-between ${
+                      isHighlighted
+                        ? 'bg-accent text-accent-foreground font-medium'
+                        : 'hover:bg-accent hover:text-accent-foreground'
+                    }`}
+                    data-testid={`client-search-item-${client.id}`}
+                    role="option"
+                    aria-selected={isHighlighted}
+                  >
+                    <div>
+                      <div className="font-medium text-foreground">{client.fullName}</div>
+                      <div className="text-[11px] font-mono text-muted-foreground">
+                        {client.id} &bull; {client.email}
+                      </div>
                     </div>
-                  </div>
-                  <Badge variant="outline" size="sm" className="text-[10px]">
-                    {client.status}
-                  </Badge>
-                </button>
-              ))}
+                    <Badge variant="outline" size="sm" className="text-[10px]">
+                      {client.status}
+                    </Badge>
+                  </button>
+                );
+              })}
             </div>
           ) : (
             <div className="p-3 text-center text-xs text-muted-foreground">
@@ -178,14 +312,12 @@ export const ClientSearchBar: React.FC<ClientSearchBarProps> = ({
                 <button
                   type="button"
                   onClick={() => {
-                    onSelectClient({
+                    handleSelect({
                       id: debouncedQuery,
                       fullName: `Client (${debouncedQuery})`,
                       email: `${debouncedQuery}@kinergy.client`,
                       status: 'ACTIVE',
                     });
-                    setSearchTerm('');
-                    setIsOpen(false);
                   }}
                   className="text-primary hover:underline font-semibold"
                 >

@@ -38,6 +38,7 @@ export const PlanDetailPage: React.FC = () => {
 
   const [isPricingOpen, setIsPricingOpen] = useState(false);
   const [isArchiveOpen, setIsArchiveOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const { data: plan, isLoading, isError, error, refetch } = usePlanDetail(planId);
   const { publishPlan } = usePlanMutations();
@@ -71,11 +72,14 @@ export const PlanDetailPage: React.FC = () => {
   const isArchived = plan.status === 'ARCHIVED';
 
   const handlePublish = () => {
+    setActionError(null);
     publishPlan.mutate(plan.id, {
       onSuccess: (published) => {
         success('Plan Published', `Plan "${published.name}" is now ACTIVE for commercial sale.`);
       },
       onError: (err) => {
+        const msg = err.message || 'Failed to publish plan';
+        setActionError(msg);
         notifyError(err, 'Failed to publish plan');
       },
     });
@@ -141,6 +145,18 @@ export const PlanDetailPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Action Error Alert */}
+      {actionError && (
+        <Alert
+          variant="destructive"
+          className="py-2.5 text-xs"
+          data-testid="plan-action-error-alert"
+        >
+          <AlertTitle>Action Failed</AlertTitle>
+          <AlertDescription>{actionError}</AlertDescription>
+        </Alert>
+      )}
 
       {/* Plan Header Card */}
       <Card>
@@ -225,6 +241,39 @@ export const PlanDetailPage: React.FC = () => {
               </AlertDescription>
             </Alert>
           )}
+
+          {/* Enrollment & Lifecycle Invariants Section */}
+          <div
+            className="rounded-lg border p-4 bg-muted/20 space-y-2 text-xs"
+            data-testid="enrollment-invariants-card"
+          >
+            <div className="font-semibold text-foreground flex items-center gap-1.5">
+              <Info className="h-4 w-4 text-primary" />
+              <span>Enrollment &amp; Membership Lifecycle Invariants</span>
+            </div>
+            <ul className="list-disc pl-5 space-y-1 text-muted-foreground">
+              <li>
+                <strong>Enrollment Eligibility:</strong>{' '}
+                {isActive
+                  ? 'Active and available for new member enrollments and renewals.'
+                  : isDraft
+                    ? 'Cannot enroll clients while in DRAFT status. Must be published first.'
+                    : 'Archived plans cannot be assigned to new client agreements.'}
+              </li>
+              <li>
+                <strong>Existing Memberships:</strong> Active client agreements under this plan
+                remain fully valid and enforceable until their agreed end date.
+              </li>
+              <li>
+                <strong>Price Decoupling:</strong> Modifying commercial price applies only to
+                subsequent sales; existing memberships preserve their initial agreement price.
+              </li>
+              <li>
+                <strong>Duration Invariant:</strong> The duration of {plan.durationInDays} days is
+                immutable once published to prevent altering contract terms.
+              </li>
+            </ul>
+          </div>
 
           {/* Audit Metadata */}
           <div className="pt-4 border-t text-xs text-muted-foreground flex flex-col sm:flex-row justify-between gap-2">

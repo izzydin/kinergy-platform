@@ -7,7 +7,7 @@ import {
   TodayAttendanceTable,
   ClientAttendanceHistoryDialog,
 } from '../components';
-import { ClientSearchResultDTO, RecordCheckInResponseVM } from '../types';
+import { ClientSearchResultDTO, RecordCheckInResponseVM, CheckInMethod } from '../types';
 import { useClientEligibility } from '../hooks/use-gym-attendance';
 import { useAttendanceFilters } from '../hooks/use-attendance-filters';
 
@@ -15,6 +15,7 @@ export const AttendancePage: React.FC = () => {
   const { clientId, historyClientId, setClientId, setHistoryClientId } = useAttendanceFilters();
 
   const [selectedClient, setSelectedClient] = useState<ClientSearchResultDTO | null>(null);
+  const [selectedMethod, setSelectedMethod] = useState<CheckInMethod | undefined>(undefined);
 
   // Synchronize URL clientId with selectedClient state on direct URL mount/change
   useEffect(() => {
@@ -27,18 +28,32 @@ export const AttendancePage: React.FC = () => {
       });
     } else if (!clientId && selectedClient) {
       setSelectedClient(null);
+      setSelectedMethod(undefined);
     }
   }, [clientId, selectedClient]);
 
+  // Global desk keyboard shortcut: Escape clears selection and resets desk
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !historyClientId && selectedClient) {
+        handleClearSelection();
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [historyClientId, selectedClient]);
+
   const { data: eligibility } = useClientEligibility(selectedClient?.id);
 
-  const handleSelectClient = (client: ClientSearchResultDTO) => {
+  const handleSelectClient = (client: ClientSearchResultDTO, method?: CheckInMethod) => {
     setSelectedClient(client);
+    setSelectedMethod(method);
     setClientId(client.id);
   };
 
   const handleClearSelection = () => {
     setSelectedClient(null);
+    setSelectedMethod(undefined);
     setClientId(undefined);
   };
 
@@ -97,7 +112,9 @@ export const AttendancePage: React.FC = () => {
                 <CheckInActionPanel
                   clientId={selectedClient.id}
                   isEligible={Boolean(eligibility?.isEligible)}
+                  initialMethod={selectedMethod}
                   onCheckInSuccess={handleCheckInSuccess}
+                  onResetDesk={handleClearSelection}
                 />
               </div>
             </div>

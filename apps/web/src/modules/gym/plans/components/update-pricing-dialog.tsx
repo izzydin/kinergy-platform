@@ -42,6 +42,7 @@ export const UpdatePricingDialog: React.FC<UpdatePricingDialogProps> = ({
   const { updatePricing } = usePlanMutations();
   const { success, error: notifyError } = useNotification();
   const [dollarPrice, setDollarPrice] = useState<string>('0.00');
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const form = useForm<UpdatePricingFormValues>({
     resolver: zodResolver(updatePricingSchema),
@@ -54,6 +55,7 @@ export const UpdatePricingDialog: React.FC<UpdatePricingDialogProps> = ({
 
   useEffect(() => {
     if (plan && open) {
+      setSubmissionError(null);
       const dollars = (plan.priceAmount / 100).toFixed(2);
       setDollarPrice(dollars);
       form.reset({
@@ -73,6 +75,7 @@ export const UpdatePricingDialog: React.FC<UpdatePricingDialogProps> = ({
 
   const onSubmit = (values: UpdatePricingFormValues) => {
     if (!plan) return;
+    setSubmissionError(null);
 
     updatePricing.mutate(
       {
@@ -88,6 +91,8 @@ export const UpdatePricingDialog: React.FC<UpdatePricingDialogProps> = ({
           onOpenChange(false);
         },
         onError: (err) => {
+          const msg = err.message || 'Failed to update plan pricing';
+          setSubmissionError(msg);
           notifyError(err, 'Failed to update plan pricing');
         },
       },
@@ -104,6 +109,15 @@ export const UpdatePricingDialog: React.FC<UpdatePricingDialogProps> = ({
             <span className="font-semibold text-foreground">{plan?.name}</span> ({plan?.code}).
           </DialogDescription>
         </DialogHeader>
+
+        {submissionError && (
+          <div
+            className="p-3 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-xs"
+            data-testid="update-pricing-error-alert"
+          >
+            <strong>Error:</strong> {submissionError}
+          </div>
+        )}
 
         <Alert className="bg-blue-50/70 border-blue-200 text-blue-800 dark:bg-blue-950/20 dark:border-blue-800 dark:text-blue-300">
           <Info className="h-4 w-4" />

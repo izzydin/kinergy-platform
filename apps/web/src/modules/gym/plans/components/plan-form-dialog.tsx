@@ -39,6 +39,7 @@ export const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
   const { createPlan } = usePlanMutations();
   const { success, error: notifyError } = useNotification();
   const [dollarPrice, setDollarPrice] = useState<string>('49.99');
+  const [submissionError, setSubmissionError] = useState<string | null>(null);
 
   const form = useForm<CreatePlanFormValues>({
     resolver: zodResolver(createPlanSchema),
@@ -56,6 +57,7 @@ export const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
 
   useEffect(() => {
     if (open) {
+      setSubmissionError(null);
       form.reset({
         code: '',
         name: '',
@@ -78,6 +80,7 @@ export const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
   };
 
   const onSubmit = (values: CreatePlanFormValues) => {
+    setSubmissionError(null);
     createPlan.mutate(values, {
       onSuccess: (newPlan) => {
         success('Plan Created', `Membership plan "${newPlan.name}" (${newPlan.code}) created.`);
@@ -85,6 +88,8 @@ export const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
         onPlanCreated?.(newPlan.id);
       },
       onError: (err) => {
+        const msg = err.message || 'Failed to create membership plan';
+        setSubmissionError(msg);
         notifyError(err, 'Failed to create membership plan');
       },
     });
@@ -103,6 +108,15 @@ export const PlanFormDialog: React.FC<PlanFormDialogProps> = ({
             DRAFT status.
           </DialogDescription>
         </DialogHeader>
+
+        {submissionError && (
+          <div
+            className="p-3 rounded-md bg-destructive/10 border border-destructive/30 text-destructive text-xs"
+            data-testid="plan-form-error-alert"
+          >
+            <strong>Error:</strong> {submissionError}
+          </div>
+        )}
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-2">
