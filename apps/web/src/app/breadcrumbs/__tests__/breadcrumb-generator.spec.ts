@@ -69,13 +69,13 @@ describe('BreadcrumbGenerator', () => {
       );
     });
 
-    it('generates breadcrumbs for /attendance using registered navigation metadata', () => {
+    it('generates breadcrumbs for /gym/attendance using registered navigation metadata', () => {
       const breadcrumbs = BreadcrumbGenerator.generate({
-        pathname: '/attendance',
+        pathname: '/gym/attendance',
         navigationItems: defaultNavigationItems,
       });
 
-      expect(breadcrumbs).toHaveLength(2);
+      expect(breadcrumbs).toHaveLength(3);
       expect(breadcrumbs[0]).toEqual(
         expect.objectContaining({
           label: 'Dashboard',
@@ -85,8 +85,15 @@ describe('BreadcrumbGenerator', () => {
       );
       expect(breadcrumbs[1]).toEqual(
         expect.objectContaining({
+          label: 'Gym Operations',
+          path: '/gym',
+          isCurrent: false,
+        }),
+      );
+      expect(breadcrumbs[2]).toEqual(
+        expect.objectContaining({
           label: 'Attendance & Check-In',
-          path: '/attendance',
+          path: '/gym/attendance',
           isCurrent: true,
         }),
       );

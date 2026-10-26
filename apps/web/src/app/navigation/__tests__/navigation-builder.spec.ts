@@ -12,7 +12,7 @@ describe('NavigationBuilder & Authoritative Navigation Registry', () => {
       expect(paths).toContain('/dashboard');
       expect(paths).toContain('/clients');
       expect(paths).toContain('/gym');
-      expect(paths).toContain('/attendance');
+      expect(paths).toContain('/gym/attendance');
       expect(paths).toContain('/sales');
       expect(paths).toContain('/resources/overview');
       expect(paths).toContain('/admin/users');
@@ -63,7 +63,7 @@ describe('NavigationBuilder & Authoritative Navigation Registry', () => {
 
       // Restricted items must be hidden
       expect(paths).not.toContain('/gym');
-      expect(paths).not.toContain('/attendance');
+      expect(paths).not.toContain('/gym/attendance');
       expect(paths).not.toContain('/sales');
       expect(paths).not.toContain('/clients');
       expect(paths).not.toContain('/resources/overview');
@@ -83,7 +83,7 @@ describe('NavigationBuilder & Authoritative Navigation Registry', () => {
 
       expect(paths).toContain('/dashboard');
       expect(paths).toContain('/gym');
-      expect(paths).toContain('/attendance');
+      expect(paths).toContain('/gym/attendance');
       expect(paths).toContain('/settings');
 
       expect(paths).not.toContain('/sales');

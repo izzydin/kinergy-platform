@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '../../../app/providers/auth-provider';
-import { attendanceApi } from '../../attendance/api/attendance-api';
+import { attendanceApi } from '../../gym/attendance/api/attendance-api';
 import { inventoryApi } from '../../resources/inventory/api/inventory-api';
 import type { InventoryProductVM } from '../../resources/inventory/types';
 

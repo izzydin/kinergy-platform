@@ -99,7 +99,7 @@ export const GymCheckInsCard: React.FC<GymCheckInsCardProps> = ({ onRetry, force
           <p className="text-xs text-muted-foreground">0 admissions recorded today</p>
           <div className="pt-1">
             <Link
-              to="/attendance"
+              to="/gym/attendance"
               className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
               aria-label="View attendance log for gym check-ins"
             >
@@ -133,7 +133,7 @@ export const GymCheckInsCard: React.FC<GymCheckInsCardProps> = ({ onRetry, force
         </p>
         <div className="pt-1">
           <Link
-            to="/attendance"
+            to="/gym/attendance"
             className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
             aria-label="View attendance log for gym check-ins"
           >

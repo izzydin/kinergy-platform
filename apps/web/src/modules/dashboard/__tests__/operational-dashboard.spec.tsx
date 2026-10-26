@@ -26,7 +26,7 @@ import { NavigationProvider } from '../../../app/navigation';
 import { BreadcrumbProvider } from '../../../app/breadcrumbs';
 import { SlotProvider } from '../../../shared/ui/slots/SlotProvider';
 
-import { attendanceApi } from '../../attendance/api/attendance-api';
+import { attendanceApi } from '../../gym/attendance/api/attendance-api';
 import { inventoryApi } from '../../resources/inventory/api/inventory-api';
 import { DashboardMetricsSection } from '../components/dashboard-metrics-section';
 import {
@@ -36,7 +36,7 @@ import {
   DailySalesTotalCard,
 } from '../components/operational-metric-cards';
 import type { AuthUser } from '../../auth/domain/auth-state.types';
-import type { PaginatedAttendanceResultDTO } from '../../attendance/types';
+import type { PaginatedAttendanceResultDTO } from '../../gym/attendance/types';
 import { InventoryCategory, InventoryItemStatus } from '../../resources/inventory/types';
 import type { InventoryProductVM } from '../../resources/inventory/types';
 
@@ -267,7 +267,7 @@ describe('Antigravity Prompt 5 — Operational Dashboard Acceptance Suite', () =
       expect(screen.getByText(/12 unique clients \(16 total attempts\)/i)).toBeInTheDocument();
 
       const link = screen.getByRole('link', { name: /view attendance log/i });
-      expect(link).toHaveAttribute('href', '/attendance');
+      expect(link).toHaveAttribute('href', '/gym/attendance');
     });
 
     it('STATE 3: Empty (Valid Zero) — displays legitimate zero with Quiet badge and /attendance destination', async () => {
@@ -284,7 +284,7 @@ describe('Antigravity Prompt 5 — Operational Dashboard Acceptance Suite', () =
       expect(screen.getByText('0 admissions recorded today')).toBeInTheDocument();
 
       const link = screen.getByRole('link', { name: /view attendance log/i });
-      expect(link).toHaveAttribute('href', '/attendance');
+      expect(link).toHaveAttribute('href', '/gym/attendance');
     });
 
     it('STATE 4: Error — displays error message and working retry action', async () => {

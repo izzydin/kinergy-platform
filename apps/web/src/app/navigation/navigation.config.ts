@@ -66,7 +66,7 @@ export const defaultNavigationItems: NavigationItem[] = [
   {
     id: 'attendance',
     label: 'Attendance & Check-In',
-    path: '/attendance',
+    path: '/gym/attendance',
     icon: UserCheck,
     order: 24,
     section: 'core',

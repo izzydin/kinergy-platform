@@ -298,7 +298,7 @@ describe('Track B — Step B3.4: Routing Architecture Integration', () => {
       expect(paths).toContain('/dashboard');
       expect(paths).toContain('/clients');
       expect(paths).toContain('/gym');
-      expect(paths).toContain('/attendance');
+      expect(paths).toContain('/gym/attendance');
       expect(paths).toContain('/sales');
       expect(paths).toContain('/resources/overview');
       expect(paths).toContain('/admin/users');
@@ -370,8 +370,18 @@ describe('Track B — Step B3.4: Routing Architecture Integration', () => {
       });
     });
 
-    it('renders AttendanceReceptionPage for authorized user navigating to /attendance', async () => {
+    it('redirects /attendance to /gym/attendance and renders AttendancePage for authorized user', async () => {
       renderAppWithRouter('/attendance', AUTHENTICATED_GYM_STAFF_USER);
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('heading', { name: /Gym Admission & Reception/i }),
+        ).toBeInTheDocument();
+      });
+    });
+
+    it('renders AttendancePage for authorized user navigating directly to /gym/attendance', async () => {
+      renderAppWithRouter('/gym/attendance', AUTHENTICATED_GYM_STAFF_USER);
 
       await waitFor(() => {
         expect(

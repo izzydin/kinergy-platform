@@ -42,17 +42,19 @@ export interface ClientSearchResultDTO {
   readonly phone?: string;
 }
 
+export interface MembershipEligibilityPeriodDTO {
+  readonly startDate: string;
+  readonly endDate: string;
+  readonly durationDays?: number;
+}
+
 export interface MembershipEligibilityDTO {
   readonly clientId: string;
   readonly isEligible: boolean;
   readonly outcome: string;
   readonly membershipId?: string | null;
   readonly planId?: string | null;
-  readonly period?: {
-    readonly startDate: string;
-    readonly endDate: string;
-    readonly durationDays?: number;
-  } | null;
+  readonly period?: MembershipEligibilityPeriodDTO | null;
   readonly evaluatedAt: string;
   readonly reason?: string | null;
 }
@@ -80,6 +82,8 @@ export interface AttendanceDailyKPIsVM {
   uniqueClientsCount: number;
 }
 
+export type AttendanceDailyKPIsDTO = AttendanceDailyKPIsVM;
+
 export interface ClientAttendanceStatsVM {
   totalVisits: number;
   firstVisitAt: string | null;
@@ -94,6 +98,8 @@ export interface PaginationMetadataVM {
   hasNextPage: boolean;
   hasPreviousPage: boolean;
 }
+
+export type PaginationMetadataDTO = PaginationMetadataVM;
 
 export interface PaginatedAttendanceVM {
   items: AttendanceItemVM[];

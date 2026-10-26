@@ -69,6 +69,16 @@ export const attendanceApi = {
   },
 
   /**
+   * Alias for getToday for backward compatibility across modules.
+   */
+  async getTodayAttendance(
+    params?: TodayAttendanceFilterParams,
+    options?: { signal?: AbortSignal },
+  ): Promise<PaginatedAttendanceVM> {
+    return this.getToday(params, options);
+  },
+
+  /**
    * Retrieves aggregate attendance KPIs and hourly traffic distribution across date range.
    */
   async getSummary(

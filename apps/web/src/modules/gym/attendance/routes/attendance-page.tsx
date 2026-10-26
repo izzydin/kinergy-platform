@@ -52,7 +52,7 @@ export const AttendancePage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-2 pb-4 border-b border-border/40">
         <div>
           <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground">
-            Gym Attendance &amp; Ingress Control
+            Gym Admission &amp; Reception
           </h1>
           <p className="text-xs md:text-sm text-muted-foreground mt-0.5">
             Identify members, verify live authoritative membership eligibility, and record
@@ -134,3 +134,5 @@ export const AttendancePage: React.FC = () => {
     </div>
   );
 };
+
+export { AttendancePage as AttendanceReceptionPage };

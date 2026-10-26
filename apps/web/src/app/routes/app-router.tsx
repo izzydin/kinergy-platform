@@ -5,7 +5,6 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import '../../modules/dashboard';
 import '../../modules/identity/user-management/routes/user-management-router';
 import '../../modules/settings/routes/settings.router';
-import '../../modules/attendance/routes/attendance.router';
 import '../../modules/gym/routes/gym.router';
 import '../../modules/sales/routes/sales.router';
 import '../../modules/scheduling/routes/scheduling.router';
@@ -360,6 +359,24 @@ export const AppRouter: React.FC = () => {
           <Route element={<DashboardLayout />}>
             {/* Overview / Home Dashboard View */}
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
+
+            {/* Compatibility Redirect: Legacy /attendance -> Canonical /gym/attendance */}
+            <Route
+              path="attendance"
+              element={
+                <RequirePermission permissions={['gym.attendance.read']}>
+                  <Navigate to="/gym/attendance" replace />
+                </RequirePermission>
+              }
+            />
+            <Route
+              path="attendance/*"
+              element={
+                <RequirePermission permissions={['gym.attendance.read']}>
+                  <Navigate to="/gym/attendance" replace />
+                </RequirePermission>
+              }
+            />
 
             {/* Dynamic Protected Domain Feature Routes */}
             {protectedModules.map((module) => {

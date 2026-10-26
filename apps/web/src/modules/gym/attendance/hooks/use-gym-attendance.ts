@@ -145,3 +145,8 @@ export function useAttendanceCheckIn() {
     },
   });
 }
+
+/**
+ * Backward compatibility alias for useAttendanceCheckIn
+ */
+export const useRecordCheckInMutation = useAttendanceCheckIn;
