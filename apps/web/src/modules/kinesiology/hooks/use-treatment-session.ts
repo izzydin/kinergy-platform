@@ -1,16 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { kinesiologyApi } from '../api/kinesiology-api';
-import { TreatmentSessionModel } from '../types';
+import { kinesiologyQueryKeys } from '../api/kinesiology-query-keys';
+import type { TreatmentSessionModel, SoapNotesData } from '../types';
 
-export const kinesiologyQueryKeys = {
-  all: ['kinesiology'] as const,
-  sessions: () => [...kinesiologyQueryKeys.all, 'sessions'] as const,
-  session: (id: string) => [...kinesiologyQueryKeys.sessions(), id] as const,
-  histories: () => [...kinesiologyQueryKeys.all, 'history'] as const,
-  history: (clientId: string, filters?: Record<string, unknown>) =>
-    [...kinesiologyQueryKeys.histories(), clientId, filters] as const,
-};
+export { kinesiologyQueryKeys };
 
+/**
+ * Hook to retrieve full clinical TreatmentSession aggregate details by ID.
+ */
 export function useTreatmentSession(sessionId: string | undefined) {
   return useQuery<TreatmentSessionModel, Error>({
     queryKey: kinesiologyQueryKeys.session(sessionId ?? ''),
@@ -22,5 +19,72 @@ export function useTreatmentSession(sessionId: string | undefined) {
     },
     enabled: Boolean(sessionId && sessionId.trim().length > 0),
     staleTime: 30 * 1000, // 30 seconds
+  });
+}
+
+/**
+ * Scoped hook retrieving clinical progress notes for a treatment session.
+ */
+export function useSessionNotes(sessionId: string | undefined) {
+  return useQuery<TreatmentSessionModel, Error, SoapNotesData>({
+    queryKey: kinesiologyQueryKeys.sessionNotes(sessionId ?? ''),
+    queryFn: () => {
+      if (!sessionId) {
+        throw new Error('Session ID is required');
+      }
+      return kinesiologyApi.getSessionById(sessionId);
+    },
+    select: (session) => session.notes,
+    enabled: Boolean(sessionId && sessionId.trim().length > 0),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Scoped hook retrieving client and appointment correlation context for a session.
+ */
+export function useSessionContext(sessionId: string | undefined) {
+  return useQuery({
+    queryKey: kinesiologyQueryKeys.sessionContext(sessionId ?? ''),
+    queryFn: () => {
+      if (!sessionId) {
+        throw new Error('Session ID is required');
+      }
+      return kinesiologyApi.getSessionById(sessionId);
+    },
+    select: (session) => ({
+      sessionId: session.id,
+      clientId: session.clientId,
+      therapistId: session.therapistId,
+      appointmentId: session.appointmentId,
+      status: session.status,
+      version: session.version,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+    }),
+    enabled: Boolean(sessionId && sessionId.trim().length > 0),
+    staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Scoped hook retrieving therapist assignment context for a session.
+ */
+export function useSessionTherapist(sessionId: string | undefined) {
+  return useQuery({
+    queryKey: kinesiologyQueryKeys.sessionTherapist(sessionId ?? ''),
+    queryFn: () => {
+      if (!sessionId) {
+        throw new Error('Session ID is required');
+      }
+      return kinesiologyApi.getSessionById(sessionId);
+    },
+    select: (session) => ({
+      sessionId: session.id,
+      therapistId: session.therapistId,
+      status: session.status,
+    }),
+    enabled: Boolean(sessionId && sessionId.trim().length > 0),
+    staleTime: 30 * 1000,
   });
 }

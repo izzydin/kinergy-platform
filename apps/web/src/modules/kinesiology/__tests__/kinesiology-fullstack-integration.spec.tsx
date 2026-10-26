@@ -6,6 +6,7 @@ import { useTreatmentMutations } from '../hooks/use-treatment-mutations';
 import { useTreatmentSession, kinesiologyQueryKeys } from '../hooks/use-treatment-session';
 import { kinesiologyApi } from '../api/kinesiology-api';
 import { NotificationProvider } from '../../../app/providers/notification-provider';
+import { SessionStatus } from '../types';
 
 jest.mock('../api/kinesiology-api');
 
@@ -39,7 +40,7 @@ describe('Kinesiology Full-Stack Integration Spec', () => {
       clientId: 'client_alpha',
       appointmentId: 'appt_1',
       therapistId: 'therapist_1',
-      status: 'SCHEDULED' as const,
+      status: SessionStatus.SCHEDULED,
       notes: {},
       version: 1,
       createdAt: '2026-08-17T10:00:00.000Z',
@@ -69,7 +70,7 @@ describe('Kinesiology Full-Stack Integration Spec', () => {
       clientId: 'client_alpha',
       appointmentId: 'appt_2',
       therapistId: 'therapist_1',
-      status: 'SCHEDULED' as const,
+      status: SessionStatus.SCHEDULED,
       notes: {},
       version: 1,
       createdAt: '2026-08-17T10:00:00.000Z',
@@ -78,7 +79,7 @@ describe('Kinesiology Full-Stack Integration Spec', () => {
 
     const updatedSession = {
       ...initialSession,
-      status: 'IN_PROGRESS' as const,
+      status: SessionStatus.IN_PROGRESS,
       version: 2,
       updatedAt: '2026-08-17T10:05:00.000Z',
     };
@@ -107,7 +108,7 @@ describe('Kinesiology Full-Stack Integration Spec', () => {
       clientId: 'client_gamma',
       appointmentId: 'appt_3',
       therapistId: 'therapist_1',
-      status: 'COMPLETED' as const,
+      status: SessionStatus.COMPLETED,
       notes: { subjective: 'Resolved' },
       version: 3,
       createdAt: '2026-08-17T10:00:00.000Z',

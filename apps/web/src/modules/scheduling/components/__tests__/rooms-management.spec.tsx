@@ -38,8 +38,8 @@ const mockRooms: RoomModel[] = [
       {
         id: 'mw_1',
         roomId: 'room_hydro_1',
-        startTime: '2026-10-25T14:00:00.000Z',
-        endTime: '2026-10-25T16:00:00.000Z',
+        startTime: '2026-10-28T14:00:00.000Z',
+        endTime: '2026-10-28T16:00:00.000Z',
         reason: 'Water filtration system maintenance',
         createdAt: '2026-10-24T00:00:00.000Z',
       },

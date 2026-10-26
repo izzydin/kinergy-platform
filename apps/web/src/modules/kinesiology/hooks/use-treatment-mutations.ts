@@ -1,8 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { kinesiologyApi } from '../api/kinesiology-api';
+import { kinesiologyQueryKeys } from '../api/kinesiology-query-keys';
+import { getKinesiologyErrorMessage } from '../api/kinesiology-error';
 import { useNotification } from '../../../app/providers/notification-provider';
-import { kinesiologyQueryKeys } from './use-treatment-session';
-import {
+import type {
   AssignTherapistPayload,
   CancelSessionPayload,
   CreateSessionPayload,
@@ -18,6 +19,7 @@ export function useTreatmentMutations(sessionId?: string) {
     mutationFn: (payload) => kinesiologyApi.createSession(payload),
     onSuccess: (data) => {
       success('Treatment session created successfully');
+      queryClient.setQueryData(kinesiologyQueryKeys.session(data.id), data);
       queryClient.invalidateQueries({ queryKey: kinesiologyQueryKeys.sessions() });
       if (data.clientId) {
         queryClient.invalidateQueries({
@@ -29,7 +31,7 @@ export function useTreatmentMutations(sessionId?: string) {
       }
     },
     onError: (err) => {
-      error(err);
+      error(getKinesiologyErrorMessage(err));
     },
   });
 
@@ -41,6 +43,9 @@ export function useTreatmentMutations(sessionId?: string) {
     onSuccess: (data) => {
       success('Treatment session started');
       queryClient.setQueryData(kinesiologyQueryKeys.session(sessionId!), data);
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.sessionContext(sessionId!),
+      });
       queryClient.invalidateQueries({ queryKey: kinesiologyQueryKeys.sessions() });
       if (data.clientId) {
         queryClient.invalidateQueries({
@@ -49,7 +54,7 @@ export function useTreatmentMutations(sessionId?: string) {
       }
     },
     onError: (err) => {
-      error(err);
+      error(getKinesiologyErrorMessage(err));
     },
   });
 
@@ -62,6 +67,12 @@ export function useTreatmentMutations(sessionId?: string) {
       onSuccess: (data) => {
         success('Therapist assigned successfully');
         queryClient.setQueryData(kinesiologyQueryKeys.session(sessionId!), data);
+        queryClient.invalidateQueries({
+          queryKey: kinesiologyQueryKeys.sessionTherapist(sessionId!),
+        });
+        queryClient.invalidateQueries({
+          queryKey: kinesiologyQueryKeys.sessionContext(sessionId!),
+        });
         queryClient.invalidateQueries({ queryKey: kinesiologyQueryKeys.sessions() });
         if (data.clientId) {
           queryClient.invalidateQueries({
@@ -70,7 +81,7 @@ export function useTreatmentMutations(sessionId?: string) {
         }
       },
       onError: (err) => {
-        error(err);
+        error(getKinesiologyErrorMessage(err));
       },
     },
   );
@@ -83,6 +94,9 @@ export function useTreatmentMutations(sessionId?: string) {
     onSuccess: (data) => {
       success('Clinical notes saved successfully');
       queryClient.setQueryData(kinesiologyQueryKeys.session(sessionId!), data);
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.sessionNotes(sessionId!),
+      });
       if (data.clientId) {
         queryClient.invalidateQueries({
           queryKey: kinesiologyQueryKeys.history(data.clientId),
@@ -90,7 +104,7 @@ export function useTreatmentMutations(sessionId?: string) {
       }
     },
     onError: (err) => {
-      error(err);
+      error(getKinesiologyErrorMessage(err));
     },
   });
 
@@ -102,6 +116,12 @@ export function useTreatmentMutations(sessionId?: string) {
     onSuccess: (data) => {
       success('Treatment session signed & completed');
       queryClient.setQueryData(kinesiologyQueryKeys.session(sessionId!), data);
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.sessionNotes(sessionId!),
+      });
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.sessionContext(sessionId!),
+      });
       queryClient.invalidateQueries({ queryKey: kinesiologyQueryKeys.sessions() });
       if (data.clientId) {
         queryClient.invalidateQueries({
@@ -113,7 +133,7 @@ export function useTreatmentMutations(sessionId?: string) {
       }
     },
     onError: (err) => {
-      error(err);
+      error(getKinesiologyErrorMessage(err));
     },
   });
 
@@ -125,6 +145,9 @@ export function useTreatmentMutations(sessionId?: string) {
     onSuccess: (data) => {
       success('Treatment session cancelled');
       queryClient.setQueryData(kinesiologyQueryKeys.session(sessionId!), data);
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.sessionContext(sessionId!),
+      });
       queryClient.invalidateQueries({ queryKey: kinesiologyQueryKeys.sessions() });
       if (data.clientId) {
         queryClient.invalidateQueries({
@@ -136,7 +159,7 @@ export function useTreatmentMutations(sessionId?: string) {
       }
     },
     onError: (err) => {
-      error(err);
+      error(getKinesiologyErrorMessage(err));
     },
   });
 
