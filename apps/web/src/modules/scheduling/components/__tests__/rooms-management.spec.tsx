@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import React from 'react';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import { RoomsPage } from '../../routes/rooms-page';
@@ -72,7 +72,15 @@ const createTestWrapper = () => {
 
   return ({ children }: { children: React.ReactNode }) => (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={['/rooms']}>{children}</MemoryRouter>
+      <MemoryRouter
+        initialEntries={['/rooms']}
+        future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+        }}
+      >
+        {children}
+      </MemoryRouter>
     </QueryClientProvider>
   );
 };
@@ -144,6 +152,114 @@ describe('Room & Resource Management Directory and Availability (Milestone 4.5)'
       expect(screen.getByText('Available')).toBeInTheDocument();
       expect(screen.getByText('Unavailable')).toBeInTheDocument();
       expect(screen.getByText('1 maintenance')).toBeInTheDocument();
+    });
+
+    it('renders "In Maintenance" badge and maintenance count when maintenance is active right now', async () => {
+      const now = new Date();
+      const activeWindow = {
+        id: 'mw_active',
+        roomId: 'room_active_maint',
+        startTime: new Date(now.getTime() - 3600000).toISOString(), // 1 hr ago
+        endTime: new Date(now.getTime() + 3600000).toISOString(), // 1 hr from now
+        reason: 'Emergency water valve repair',
+        createdAt: new Date(now.getTime() - 7200000).toISOString(),
+      };
+
+      const activeRoom: RoomModel = {
+        id: 'room_active_maint',
+        name: 'Sauna Recovery Room',
+        capacity: 4,
+        status: 'AVAILABLE',
+        features: ['infrared_sauna'],
+        maintenanceWindows: [activeWindow],
+        version: 2,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+      };
+
+      mockedSchedulingApi.listRooms.mockResolvedValueOnce([activeRoom]);
+
+      render(<RoomsPage />, { wrapper: createTestWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText('Sauna Recovery Room')).toBeInTheDocument();
+      });
+
+      const card = screen.getByTestId('room-card-room_active_maint');
+      expect(
+        within(card).getByRole('status', { name: /Room status: In Maintenance/i }),
+      ).toBeInTheDocument();
+      expect(within(card).getByText('1 maintenance')).toBeInTheDocument();
+    });
+
+    it('renders plural maintenance count when multiple maintenance windows are scheduled', async () => {
+      const multiWindowRoom: RoomModel = {
+        id: 'room_multi',
+        name: 'Multi-Maintenance Suite',
+        capacity: 2,
+        status: 'AVAILABLE',
+        features: ['cryo_pod'],
+        maintenanceWindows: [
+          {
+            id: 'mw_1',
+            roomId: 'room_multi',
+            startTime: '2026-11-01T10:00:00.000Z',
+            endTime: '2026-11-01T12:00:00.000Z',
+            reason: 'Routine calibration',
+            createdAt: '2026-10-24T00:00:00.000Z',
+          },
+          {
+            id: 'mw_2',
+            roomId: 'room_multi',
+            startTime: '2026-11-15T14:00:00.000Z',
+            endTime: '2026-11-15T16:00:00.000Z',
+            reason: 'Filter replacement',
+            createdAt: '2026-10-24T00:00:00.000Z',
+          },
+        ],
+        version: 1,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+      };
+
+      mockedSchedulingApi.listRooms.mockResolvedValueOnce([multiWindowRoom]);
+
+      render(<RoomsPage />, { wrapper: createTestWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText('Multi-Maintenance Suite')).toBeInTheDocument();
+      });
+
+      const card = screen.getByTestId('room-card-room_multi');
+      expect(within(card).getByText('2 maintenance')).toBeInTheDocument();
+    });
+
+    it('does not render maintenance indicator when room has no maintenance windows', async () => {
+      const cleanRoom: RoomModel = {
+        id: 'room_clean',
+        name: 'Clean Treatment Room',
+        capacity: 1,
+        status: 'AVAILABLE',
+        features: ['soundproof'],
+        maintenanceWindows: [],
+        version: 1,
+        createdAt: '2026-08-01T00:00:00.000Z',
+        updatedAt: '2026-08-01T00:00:00.000Z',
+      };
+
+      mockedSchedulingApi.listRooms.mockResolvedValueOnce([cleanRoom]);
+
+      render(<RoomsPage />, { wrapper: createTestWrapper() });
+
+      await waitFor(() => {
+        expect(screen.getByText('Clean Treatment Room')).toBeInTheDocument();
+      });
+
+      const card = screen.getByTestId('room-card-room_clean');
+      expect(
+        within(card).getByRole('status', { name: /Room status: Available/i }),
+      ).toBeInTheDocument();
+      expect(within(card).queryByText(/maintenance/i)).not.toBeInTheDocument();
     });
   });
 

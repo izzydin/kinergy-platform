@@ -25,12 +25,17 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   const activateMutation = useActivateRoomMutation();
 
   const nowIso = new Date().toISOString();
-  const hasActiveMaintenance =
+  const hasActiveMaintenance = Boolean(
     room.maintenanceWindows &&
-    room.maintenanceWindows.some((mw) => mw.startTime <= nowIso && mw.endTime >= nowIso);
+    room.maintenanceWindows.some((mw) => {
+      const start = new Date(mw.startTime).getTime();
+      const end = new Date(mw.endTime).getTime();
+      const current = new Date(nowIso).getTime();
+      return !isNaN(start) && !isNaN(end) && start <= current && end >= current;
+    }),
+  );
 
-  const upcomingMaintenanceCount =
-    room.maintenanceWindows?.filter((mw) => mw.endTime >= nowIso).length || 0;
+  const maintenanceCount = room.maintenanceWindows?.length || 0;
 
   const handleActivate = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -73,13 +78,13 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             </span>
           </div>
 
-          {upcomingMaintenanceCount > 0 && (
+          {maintenanceCount > 0 && (
             <div
               className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-400 font-medium"
-              title={`${upcomingMaintenanceCount} scheduled maintenance block(s)`}
+              title={`${maintenanceCount} scheduled maintenance block(s)`}
             >
               <Wrench className="h-3 w-3" />
-              <span>{upcomingMaintenanceCount} maintenance</span>
+              <span>{maintenanceCount} maintenance</span>
             </div>
           )}
 
