@@ -188,6 +188,17 @@ export const ReceiptViewPage: React.FC = () => {
           >
             {receipt.receiptNumber}
           </CardTitle>
+          {receipt.reprintCount && receipt.reprintCount > 0 ? (
+            <div
+              className="border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-mono text-xs px-3 py-1.5 rounded uppercase font-bold text-center tracking-wider"
+              data-testid="receipt-duplicate-watermark"
+            >
+              COPY / DUPLICATE VOUCHER — REPRINT #{receipt.reprintCount}
+              {receipt.lastReprintedAt
+                ? ` (Last: ${new Date(receipt.lastReprintedAt).toLocaleString()})`
+                : ''}
+            </div>
+          ) : null}
           <div className="text-xs text-muted-foreground space-y-0.5 font-mono">
             <div>Order Reference: {receipt.saleReference}</div>
             <div>Issued: {new Date(receipt.issuedAt).toLocaleString()}</div>

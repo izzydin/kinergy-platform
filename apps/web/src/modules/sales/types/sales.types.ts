@@ -213,3 +213,26 @@ export interface CreateSaleInputDTO {
 export interface CancelSaleInputDTO {
   readonly reason: string;
 }
+
+/**
+ * Request payload for assigning or updating commercial origin source reference (AssignSaleSourceRequestDto)
+ */
+export interface AssignSaleSourceInputDTO {
+  readonly sourceReference?: {
+    readonly type: string;
+    readonly referenceId: string;
+    readonly referenceCode?: string | null;
+  };
+  readonly source?: {
+    readonly sourceType: string;
+    readonly sourceId: string;
+    readonly sourceCode?: string | null;
+  };
+}
+
+/**
+ * Request payload for coordinating payment settlement against a sale (CoordinateSalePaymentRequestDto)
+ */
+export interface CoordinateSalePaymentInputDTO {
+  readonly paymentId: string;
+}

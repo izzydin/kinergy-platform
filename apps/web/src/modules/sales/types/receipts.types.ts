@@ -71,3 +71,11 @@ export interface ReceiptDTO {
 export interface IssueReceiptInputDTO {
   readonly saleId?: string;
 }
+
+/**
+ * Receipt reprint input
+ */
+export interface ReprintReceiptInputDTO {
+  readonly receiptId?: string;
+  readonly saleId?: string;
+}

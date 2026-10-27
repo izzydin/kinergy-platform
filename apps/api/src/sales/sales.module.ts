@@ -34,6 +34,7 @@ import {
   IssueReceiptHandler,
   GetReceiptHandler,
   GetReceiptBySaleHandler,
+  ReprintReceiptHandler,
   SaleRepositoryPort,
   PaymentRepositoryPort,
   ReceiptRepositoryPort,
@@ -288,6 +289,12 @@ import {
         new GetReceiptBySaleHandler(receiptRepo, saleRepo),
       inject: [RECEIPT_REPOSITORY_TOKEN, SALE_REPOSITORY_TOKEN],
     },
+    {
+      provide: ReprintReceiptHandler,
+      useFactory: (receiptRepo: ReceiptRepositoryPort, auditPublisher: SalesAuditEventPublisher) =>
+        new ReprintReceiptHandler(receiptRepo, undefined, auditPublisher),
+      inject: [RECEIPT_REPOSITORY_TOKEN, SalesAuditEventPublisher],
+    },
   ],
   exports: [
     UNIT_OF_WORK_TOKEN,
@@ -326,6 +333,7 @@ import {
     IssueReceiptHandler,
     GetReceiptHandler,
     GetReceiptBySaleHandler,
+    ReprintReceiptHandler,
   ],
 })
 export class SalesModule {}

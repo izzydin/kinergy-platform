@@ -21,7 +21,9 @@ import {
   IssueReceiptHandler,
   GetReceiptHandler,
   GetReceiptBySaleHandler,
+  ReprintReceiptHandler,
   IssueReceiptCommand,
+  ReprintReceiptCommand,
   GetReceiptQuery,
   GetReceiptByIdQuery,
   GetReceiptBySaleQuery,
@@ -52,6 +54,7 @@ export class ReceiptsController {
   private readonly _issueReceiptHandler: IssueReceiptHandler;
   private readonly _getReceiptHandler: GetReceiptHandler;
   private readonly _getReceiptBySaleHandler: GetReceiptBySaleHandler;
+  private readonly _reprintReceiptHandler: ReprintReceiptHandler;
 
   constructor(
     @Inject(RECEIPT_REPOSITORY_TOKEN)
@@ -69,6 +72,9 @@ export class ReceiptsController {
     @Optional()
     @Inject(GetReceiptBySaleHandler)
     getReceiptBySaleHandler?: GetReceiptBySaleHandler,
+    @Optional()
+    @Inject(ReprintReceiptHandler)
+    reprintReceiptHandler?: ReprintReceiptHandler,
   ) {
     this._issueReceiptHandler =
       issueReceiptHandler ??
@@ -76,6 +82,8 @@ export class ReceiptsController {
     this._getReceiptHandler = getReceiptHandler ?? new GetReceiptHandler(receiptRepository);
     this._getReceiptBySaleHandler =
       getReceiptBySaleHandler ?? new GetReceiptBySaleHandler(receiptRepository, saleRepository);
+    this._reprintReceiptHandler =
+      reprintReceiptHandler ?? new ReprintReceiptHandler(receiptRepository);
   }
 
   @Post('sales/:saleId/receipt')
@@ -334,6 +342,81 @@ export class ReceiptsController {
           });
 
       const result = await this._getReceiptHandler.execute(query);
+      const receiptDto = this.handleResult(result);
+      return ReceiptResponseDto.fromDTO(receiptDto);
+    };
+
+    return userContext ? RequestContext.run(userContext, executeAction) : executeAction();
+  }
+
+  @Post(['receipts/:receiptId/reprint', 'sales/:saleId/receipt/reprint'])
+  @HttpCode(HttpStatus.OK)
+  @Roles(
+    'Owner',
+    'Gym Owner',
+    'Manager',
+    'Gym Manager',
+    'Platform Admin',
+    'Receptionist',
+    'Kitchen Staff',
+  )
+  @Permissions('receipts.manage')
+  @ApiOperation({
+    summary: 'Record official duplicate reprint of customer receipt voucher',
+    description:
+      'Increments the operational reprintCount and records lastReprintedAt timestamp while maintaining immutable proof-of-purchase financial totals.',
+  })
+  @ApiParam({
+    name: 'receiptId',
+    required: false,
+    description: 'Target Receipt UUID identifier',
+  })
+  @ApiParam({
+    name: 'saleId',
+    required: false,
+    description: 'Target Sale UUID identifier',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    type: ReceiptResponseDto,
+    description: 'Receipt reprint recorded successfully with incremented reprintCount',
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Target receipt or sale does not exist',
+  })
+  public async reprintReceipt(
+    @Param('receiptId') receiptId?: string,
+    @Param('saleId') saleId?: string,
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ): Promise<ReceiptResponseDto> {
+    const targetReceiptId = receiptId?.trim();
+    const targetSaleId = saleId?.trim();
+
+    if (!targetReceiptId && !targetSaleId) {
+      throw new BadRequestException('Either receiptId or saleId must be provided.');
+    }
+
+    const userContext = user
+      ? new AuthenticatedUserContext({
+          userId: user.id,
+          email: user.email,
+          status: user.status ?? 'ACTIVE',
+          roles: user.roles ?? [],
+          permissions: user.permissions ?? [],
+          tenantId: user.tenantId ?? null,
+        })
+      : null;
+
+    const executeAction = async (): Promise<ReceiptResponseDto> => {
+      const command = new ReprintReceiptCommand({
+        receiptId: targetReceiptId,
+        saleId: targetSaleId,
+        tenantId: user?.tenantId ?? undefined,
+        currentUser: this.mapCurrentUser(user),
+      });
+
+      const result = await this._reprintReceiptHandler.execute(command);
       const receiptDto = this.handleResult(result);
       return ReceiptResponseDto.fromDTO(receiptDto);
     };

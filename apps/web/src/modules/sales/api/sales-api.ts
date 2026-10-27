@@ -2,8 +2,10 @@ import { httpClient } from '../../../shared/api/http-client';
 import type {
   AddSaleItemInputDTO,
   ApplyDiscountInputDTO,
+  AssignSaleSourceInputDTO,
   CancelPaymentInputDTO,
   CancelSaleInputDTO,
+  CoordinateSalePaymentInputDTO,
   CreateSaleInputDTO,
   IssueReceiptInputDTO,
   ListPaymentsQueryParams,
@@ -80,6 +82,13 @@ export const salesApi = {
   },
 
   /**
+   * Assigns or updates commercial origin source reference for a draft sale
+   */
+  async assignSaleSource(saleId: string, input: AssignSaleSourceInputDTO): Promise<SaleDTO> {
+    return httpClient.post<SaleDTO>(`/api/v1/sales/${encodeURIComponent(saleId)}/source`, input);
+  },
+
+  /**
    * Appends line item to an active DRAFT sale order
    */
   async addSaleItem(saleId: string, item: AddSaleItemInputDTO): Promise<SaleDTO> {
@@ -124,6 +133,19 @@ export const salesApi = {
    */
   async cancelSale(saleId: string, input: CancelSaleInputDTO): Promise<SaleDTO> {
     return httpClient.post<SaleDTO>(`/api/v1/sales/${encodeURIComponent(saleId)}/cancel`, input);
+  },
+
+  /**
+   * Coordinates verified payment settlement against the sale
+   */
+  async coordinateSalePayment(
+    saleId: string,
+    input: CoordinateSalePaymentInputDTO,
+  ): Promise<SaleDTO> {
+    return httpClient.post<SaleDTO>(
+      `/api/v1/sales/${encodeURIComponent(saleId)}/coordinate-payment`,
+      input,
+    );
   },
 
   // ============================================================================
@@ -228,6 +250,16 @@ export const salesApi = {
     return httpClient.post<ReceiptDTO>(
       `/api/v1/sales/${encodeURIComponent(saleId)}/receipt`,
       input ?? {},
+    );
+  },
+
+  /**
+   * Records official duplicate reprint of customer receipt voucher
+   */
+  async reprintReceipt(receiptId: string): Promise<ReceiptDTO> {
+    return httpClient.post<ReceiptDTO>(
+      `/api/v1/receipts/${encodeURIComponent(receiptId)}/reprint`,
+      {},
     );
   },
 };

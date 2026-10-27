@@ -1039,5 +1039,32 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
       expect(issued.payments[0]?.reference).toBe('REG-DRAWER-01');
       expect(issued.payments[0]?.method).toBe(PaymentMethod.CASH);
     });
+
+    it('records official duplicate reprint, increments reprintCount, and records timestamp', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 120.0, 'USD', clientUser.id);
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+      expect(issued.reprintCount).toBe(0);
+      expect(issued.lastReprintedAt).toBeNull();
+
+      const reprinted = await controller.reprintReceipt(issued.id, undefined, receptionistUser);
+      expect(reprinted.id).toBe(issued.id);
+      expect(reprinted.reprintCount).toBe(1);
+      expect(reprinted.lastReprintedAt).toBeTruthy();
+    });
+
+    it('forbids Trainer lacking receipts.manage from reprinting receipts', async () => {
+      const { sale } = createSettledSale(primaryTenantId, 120.0, 'USD');
+      const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
+
+      await expect(controller.reprintReceipt(issued.id, undefined, trainerUser)).rejects.toThrow(
+        ReceiptUnauthorizedException,
+      );
+    });
+
+    it('rejects reprint request when both receiptId and saleId are missing', async () => {
+      await expect(
+        controller.reprintReceipt(undefined, undefined, receptionistUser),
+      ).rejects.toThrow(BadRequestException);
+    });
   });
 });

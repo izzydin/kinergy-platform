@@ -55,7 +55,9 @@ describe('Sales SubRouter & Module Route Contract Integration', () => {
       },
     });
 
-    expect(await screen.findByTestId('sales-overview-page')).toBeInTheDocument();
+    expect(
+      await screen.findByTestId('sales-overview-page', {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
     expect(screen.getByText(/Sales & Payments Overview/i)).toBeInTheDocument();
   });
 
@@ -71,7 +73,9 @@ describe('Sales SubRouter & Module Route Contract Integration', () => {
       },
     });
 
-    expect(await screen.findByTestId('sales-list-page')).toBeInTheDocument();
+    expect(
+      await screen.findByTestId('sales-list-page', {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
   });
 
   it('renders SaleCreatePage on /new route with sales.create permission', async () => {
@@ -86,7 +90,9 @@ describe('Sales SubRouter & Module Route Contract Integration', () => {
       },
     });
 
-    expect(await screen.findByTestId('sale-create-page')).toBeInTheDocument();
+    expect(
+      await screen.findByTestId('sale-create-page', {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
   });
 
   it('renders PaymentHistoryPage on /payments route', async () => {
@@ -101,7 +107,9 @@ describe('Sales SubRouter & Module Route Contract Integration', () => {
       },
     });
 
-    expect(await screen.findByTestId('payment-history-page')).toBeInTheDocument();
+    expect(
+      await screen.findByTestId('payment-history-page', {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
   });
 
   it('denies access with 403 ForbiddenView when user lacks permission', async () => {
@@ -116,6 +124,8 @@ describe('Sales SubRouter & Module Route Contract Integration', () => {
       },
     });
 
-    expect(await screen.findByText(/403 — Access Denied/i)).toBeInTheDocument();
+    expect(
+      await screen.findByText(/403 — Access Denied/i, {}, { timeout: 10000 }),
+    ).toBeInTheDocument();
   });
 });

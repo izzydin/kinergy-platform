@@ -4,8 +4,10 @@ import { salesApi, salesQueryKeys } from '../api';
 import type {
   AddSaleItemInputDTO,
   ApplyDiscountInputDTO,
+  AssignSaleSourceInputDTO,
   CancelPaymentInputDTO,
   CancelSaleInputDTO,
+  CoordinateSalePaymentInputDTO,
   CreateSaleInputDTO,
   IssueReceiptInputDTO,
   RecordPaymentInputDTO,
@@ -33,6 +35,27 @@ export function useCreateSale() {
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to initialize sale');
+    },
+  });
+}
+
+/**
+ * Hook to assign or update commercial origin source reference
+ */
+export function useAssignSaleSource() {
+  const queryClient = useQueryClient();
+  const notification = useNotification();
+
+  return useMutation({
+    mutationFn: ({ saleId, input }: { saleId: string; input: AssignSaleSourceInputDTO }) =>
+      salesApi.assignSaleSource(saleId, input),
+    onSuccess: (updatedSale) => {
+      notification.success('Sale origin reference assigned successfully');
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(updatedSale.id) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
+    },
+    onError: (error: Error) => {
+      notification.error(error.message || 'Failed to assign sale source reference');
     },
   });
 }
@@ -162,6 +185,29 @@ export function useCancelSale() {
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to cancel sale order');
+    },
+  });
+}
+
+/**
+ * Hook to coordinate verified payment settlement against a sale
+ */
+export function useCoordinateSalePayment() {
+  const queryClient = useQueryClient();
+  const notification = useNotification();
+
+  return useMutation({
+    mutationFn: ({ saleId, input }: { saleId: string; input: CoordinateSalePaymentInputDTO }) =>
+      salesApi.coordinateSalePayment(saleId, input),
+    onSuccess: (updatedSale) => {
+      notification.success('Payment settlement coordinated successfully');
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(updatedSale.id) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.paymentsBySale(updatedSale.id) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.receiptBySale(updatedSale.id) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
+    },
+    onError: (error: Error) => {
+      notification.error(error.message || 'Failed to coordinate payment settlement');
     },
   });
 }
@@ -306,6 +352,29 @@ export function useIssueReceipt() {
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to issue receipt voucher');
+    },
+  });
+}
+
+/**
+ * Hook to record official duplicate reprint of customer receipt voucher
+ */
+export function useReprintReceipt() {
+  const queryClient = useQueryClient();
+  const notification = useNotification();
+
+  return useMutation({
+    mutationFn: ({ receiptId }: { receiptId: string }) => salesApi.reprintReceipt(receiptId),
+    onSuccess: (receipt) => {
+      notification.success(
+        `Duplicate receipt voucher reprint #${receipt.reprintCount ?? 1} recorded`,
+      );
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.receiptById(receipt.id) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.receiptBySale(receipt.saleId) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.receipts() });
+    },
+    onError: (error: Error) => {
+      notification.error(error.message || 'Failed to record receipt reprint');
     },
   });
 }

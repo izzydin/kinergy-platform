@@ -7,6 +7,9 @@ import {
   useCreateSale,
   useFinalizeSale,
   useRecordPayment,
+  useAssignSaleSource,
+  useCoordinateSalePayment,
+  useReprintReceipt,
 } from '../hooks';
 import { salesApi } from '../api';
 import { NotificationProvider } from '../../../app/providers/notification-provider';
@@ -19,6 +22,9 @@ jest.mock('../api/sales-api', () => ({
     createSale: jest.fn(),
     finalizeSale: jest.fn(),
     recordPayment: jest.fn(),
+    assignSaleSource: jest.fn(),
+    coordinateSalePayment: jest.fn(),
+    reprintReceipt: jest.fn(),
   },
 }));
 
@@ -147,5 +153,139 @@ describe('Sales Queries & Mutations Hooks', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: ['sales', 'detail', 'sale_target'],
     });
+  });
+
+  it('useAssignSaleSource updates sale origin reference and invalidates caches', async () => {
+    (salesApi.assignSaleSource as jest.Mock).mockResolvedValueOnce({
+      id: 'sale_target',
+      status: 'DRAFT',
+      sourceReference: {
+        type: 'KINESIOLOGY_SESSION',
+        referenceId: 'sess_1',
+      },
+    });
+
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useAssignSaleSource(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        saleId: 'sale_target',
+        input: {
+          sourceReference: {
+            type: 'KINESIOLOGY_SESSION',
+            referenceId: 'sess_1',
+          },
+        },
+      });
+    });
+
+    expect(salesApi.assignSaleSource).toHaveBeenCalledWith('sale_target', {
+      sourceReference: {
+        type: 'KINESIOLOGY_SESSION',
+        referenceId: 'sess_1',
+      },
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['sales', 'detail', 'sale_target'],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['sales', 'list'],
+    });
+  });
+
+  it('useCoordinateSalePayment synchronizes payment and invalidates detail, payments, and receipts', async () => {
+    (salesApi.coordinateSalePayment as jest.Mock).mockResolvedValueOnce({
+      id: 'sale_target',
+      status: 'PAID',
+    });
+
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useCoordinateSalePayment(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        saleId: 'sale_target',
+        input: { paymentId: 'pay_123' },
+      });
+    });
+
+    expect(salesApi.coordinateSalePayment).toHaveBeenCalledWith('sale_target', {
+      paymentId: 'pay_123',
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['sales', 'detail', 'sale_target'],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['sales', 'detail', 'sale_target', 'payments'],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['receipts', 'sale', 'sale_target'],
+    });
+  });
+
+  it('useReprintReceipt increments reprint count and invalidates receipt caches', async () => {
+    (salesApi.reprintReceipt as jest.Mock).mockResolvedValueOnce({
+      id: 'rec_100',
+      saleId: 'sale_target',
+      receiptNumber: 'REC-2026-000100',
+      reprintCount: 1,
+      lastReprintedAt: '2026-10-27T12:00:00.000Z',
+    });
+
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useReprintReceipt(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({ receiptId: 'rec_100' });
+    });
+
+    expect(salesApi.reprintReceipt).toHaveBeenCalledWith('rec_100');
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['receipts', 'id', 'rec_100'],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['receipts', 'sale', 'sale_target'],
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['receipts'],
+    });
+  });
+
+  it('useAssignSaleSource handles rejection gracefully without invalidation', async () => {
+    (salesApi.assignSaleSource as jest.Mock).mockRejectedValueOnce(
+      new Error('Origin already assigned to finalized sale'),
+    );
+
+    const { wrapper, queryClient } = createWrapper();
+    const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useAssignSaleSource(), { wrapper });
+
+    await act(async () => {
+      try {
+        await result.current.mutateAsync({
+          saleId: 'sale_conflict',
+          input: {
+            sourceReference: {
+              type: 'KINESIOLOGY_SESSION',
+              referenceId: 'sess_already_assigned',
+            },
+          },
+        });
+      } catch {
+        // Expected error
+      }
+    });
+
+    expect(result.current.isError).toBe(true);
+    expect(result.current.error?.message).toBe('Origin already assigned to finalized sale');
+    expect(invalidateSpy).not.toHaveBeenCalled();
   });
 });

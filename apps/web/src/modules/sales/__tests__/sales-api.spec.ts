@@ -228,5 +228,45 @@ describe('salesApi Transport Layer', () => {
 
       expect(httpClient.post).toHaveBeenCalledWith('/api/v1/sales/sale_1/receipt', {});
     });
+
+    it('reprintReceipt invokes POST /api/v1/receipts/:id/reprint', async () => {
+      (httpClient.post as jest.Mock).mockResolvedValueOnce({
+        id: 'rec_1',
+        receiptNumber: 'REC-001',
+        reprintCount: 1,
+      });
+
+      await salesApi.reprintReceipt('rec_1');
+
+      expect(httpClient.post).toHaveBeenCalledWith('/api/v1/receipts/rec_1/reprint', {});
+    });
+  });
+
+  describe('Sales Origin & Settlement Coordination Endpoints', () => {
+    it('assignSaleSource invokes POST /api/v1/sales/:id/source', async () => {
+      (httpClient.post as jest.Mock).mockResolvedValueOnce({ id: 'sale_1' });
+
+      const input = {
+        sourceReference: {
+          type: 'KINESIOLOGY_SESSION',
+          referenceId: 'sess_123',
+          referenceCode: 'CLN-001',
+        },
+      };
+
+      await salesApi.assignSaleSource('sale_1', input);
+
+      expect(httpClient.post).toHaveBeenCalledWith('/api/v1/sales/sale_1/source', input);
+    });
+
+    it('coordinateSalePayment invokes POST /api/v1/sales/:id/coordinate-payment', async () => {
+      (httpClient.post as jest.Mock).mockResolvedValueOnce({ id: 'sale_1', status: 'PAID' });
+
+      await salesApi.coordinateSalePayment('sale_1', { paymentId: 'pay_999' });
+
+      expect(httpClient.post).toHaveBeenCalledWith('/api/v1/sales/sale_1/coordinate-payment', {
+        paymentId: 'pay_999',
+      });
+    });
   });
 });
