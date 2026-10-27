@@ -675,6 +675,7 @@ export const AssetDetailPage: React.FC = () => {
               setTransferDialogOpen(open);
               if (!open) clearActionParam();
             }}
+            onSuccess={() => refetch()}
           />
           <ChangeAssetStatusDialog
             asset={asset ?? null}
@@ -683,6 +684,7 @@ export const AssetDetailPage: React.FC = () => {
               setStatusDialogOpen(open);
               if (!open) clearActionParam();
             }}
+            onSuccess={() => refetch()}
           />
           <UpdateAssetConditionDialog
             asset={asset ?? null}
@@ -691,6 +693,7 @@ export const AssetDetailPage: React.FC = () => {
               setConditionDialogOpen(open);
               if (!open) clearActionParam();
             }}
+            onSuccess={() => refetch()}
           />
           <RecordAssetMaintenanceDialog
             asset={asset ?? null}
@@ -699,6 +702,7 @@ export const AssetDetailPage: React.FC = () => {
               setMaintenanceDialogOpen(open);
               if (!open) clearActionParam();
             }}
+            onSuccess={() => refetch()}
           />
         </>
       )}
@@ -711,6 +715,7 @@ export const AssetDetailPage: React.FC = () => {
             setValuationDialogOpen(open);
             if (!open) clearActionParam();
           }}
+          onSuccess={() => refetch()}
         />
       )}
     </div>
