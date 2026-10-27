@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { Button, Badge, Card, CardHeader, CardTitle, CardContent } from '@kinergy-platform/ui';
 import { useAuth } from '../../../../app/providers/auth-provider';
 import {
@@ -239,6 +240,14 @@ export const TrainerDashboardPage: React.FC = () => {
                   <Badge variant="secondary" size="sm">
                     {selectedClient.status}
                   </Badge>
+                </div>
+                <div className="pt-2">
+                  <Link
+                    to={`/clients/${selectedClient.id}`}
+                    className="inline-flex items-center text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                  >
+                    View Full Client Profile →
+                  </Link>
                 </div>
               </CardContent>
             </Card>

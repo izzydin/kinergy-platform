@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import {
   Card,
   CardHeader,
@@ -79,9 +80,12 @@ export const ExpiringMembershipsSection: React.FC<ExpiringMembershipsSectionProp
               >
                 <div className="min-w-0 pr-3">
                   <div className="flex items-center space-x-2">
-                    <span className="font-semibold text-sm text-slate-900 dark:text-white truncate">
+                    <Link
+                      to={`/clients/${item.clientId}`}
+                      className="font-semibold text-sm text-slate-900 dark:text-white hover:underline focus:outline-none focus:ring-1 focus:ring-amber-500 rounded truncate"
+                    >
                       Client ID: {item.clientId}
-                    </span>
+                    </Link>
                     <Badge variant="outline" size="sm">
                       {item.daysRemaining === 0
                         ? 'Expires Today'
@@ -93,6 +97,13 @@ export const ExpiringMembershipsSection: React.FC<ExpiringMembershipsSectionProp
                     <span className="font-medium text-slate-800 dark:text-slate-200">
                       {item.planName}
                     </span>{' '}
+                    •{' '}
+                    <Link
+                      to={`/gym/memberships/${item.membershipId}`}
+                      className="hover:underline text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                    >
+                      Mem: {item.membershipId}
+                    </Link>{' '}
                     • Ends: {new Date(item.endDate).toLocaleDateString()}
                   </p>
                 </div>

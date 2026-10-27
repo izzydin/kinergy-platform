@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Card,
   CardHeader,
@@ -241,9 +242,22 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
                     className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
                   >
                     <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
-                      <div>{item.clientId}</div>
+                      <div>
+                        <Link
+                          to={`/clients/${item.clientId}`}
+                          className="hover:underline text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded"
+                        >
+                          {item.clientId}
+                        </Link>
+                      </div>
                       <span className="text-[10px] text-slate-400 font-normal">
-                        Mem: {item.membershipId}
+                        Mem:{' '}
+                        <Link
+                          to={`/gym/memberships/${item.membershipId}`}
+                          className="hover:underline text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded"
+                        >
+                          {item.membershipId}
+                        </Link>
                       </span>
                     </td>
                     <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-medium">
@@ -258,16 +272,25 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
                     </td>
                     <td className="px-4 py-3">{getDaysRemainingBadge(item)}</td>
                     <td className="px-4 py-3 text-right">
-                      {onSelectClient && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800"
-                          onClick={() => onSelectClient(item.clientId)}
+                      <div className="flex items-center justify-end space-x-1">
+                        <Link
+                          to={`/clients/${item.clientId}`}
+                          className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          title="View Client Profile"
                         >
-                          Details
-                        </Button>
-                      )}
+                          Profile
+                        </Link>
+                        {onSelectClient && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800"
+                            onClick={() => onSelectClient(item.clientId)}
+                          >
+                            Details
+                          </Button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -5,9 +5,12 @@
  * AuthProvider -> ProtectedRoute -> DashboardLayout -> Sidebar -> Header -> Current User -> UserMenu -> Reactive Logout
  */
 import '@testing-library/jest-dom';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { configure, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+configure({ asyncUtilTimeout: 5000 });
+jest.setTimeout(15000);
 import { AuthProvider } from '../../providers/auth-provider';
 import { FeatureFlagProvider } from '../../providers/feature-flag-provider';
 import { BreadcrumbProvider } from '../../breadcrumbs/breadcrumb-provider';

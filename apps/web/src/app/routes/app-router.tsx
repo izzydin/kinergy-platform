@@ -5,6 +5,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import '../../modules/dashboard';
 import '../../modules/identity/user-management/routes/user-management-router';
 import '../../modules/settings/routes/settings.router';
+import '../../modules/gym/trainer-dashboard/routes/trainer-dashboard.router';
 import '../../modules/gym/routes/gym.router';
 import '../../modules/sales/routes/sales.router';
 import '../../modules/scheduling/routes/scheduling.router';

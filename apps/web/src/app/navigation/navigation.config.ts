@@ -1,6 +1,7 @@
 import {
   Boxes,
   Calendar,
+  ClipboardList,
   DoorClosed,
   Dumbbell,
   LayoutDashboard,
@@ -62,6 +63,15 @@ export const defaultNavigationItems: NavigationItem[] = [
     order: 22,
     section: 'core',
     requiredPermissions: ['memberships.read'],
+  },
+  {
+    id: 'trainer-dashboard',
+    label: 'Trainer Dashboard',
+    path: '/gym/trainer-dashboard',
+    icon: ClipboardList,
+    order: 23,
+    section: 'core',
+    requiredPermissions: ['clients.read'],
   },
   {
     id: 'attendance',

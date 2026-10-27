@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import {
   Card,
   CardHeader,
@@ -102,15 +103,30 @@ export const TrainerAttendanceFeed: React.FC<TrainerAttendanceFeedProps> = ({
                     </span>
                     <div className="min-w-0">
                       <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                        <Link
+                          to={`/clients/${item.clientId}`}
+                          className="text-xs font-bold text-slate-900 dark:text-white hover:underline focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded truncate"
+                        >
                           Client: {item.clientId}
-                        </span>
+                        </Link>
                         <Badge variant={isGranted ? 'default' : 'destructive'} size="sm">
                           {item.result}
                         </Badge>
                       </div>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {formattedTime} via {item.method} {item.gateId ? `(${item.gateId})` : ''}
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5 truncate">
+                        {formattedTime} via {item.method}{' '}
+                        {item.membershipId ? (
+                          <>
+                            •{' '}
+                            <Link
+                              to={`/gym/memberships/${item.membershipId}`}
+                              className="hover:underline text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                            >
+                              Mem: {item.membershipId}
+                            </Link>
+                          </>
+                        ) : null}{' '}
+                        {item.gateId ? `(${item.gateId})` : ''}
                       </p>
                     </div>
                   </div>
