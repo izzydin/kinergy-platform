@@ -30,9 +30,13 @@ export const GymManagementSubRouter: React.FC = () => (
     <Routes>
       <Route index element={<Navigate to="memberships" replace />} />
       <Route path="/" element={<Navigate to="memberships" replace />} />
+      <Route path="memberships" element={<MembershipsSubRouter />} />
       <Route path="memberships/*" element={<MembershipsSubRouter />} />
+      <Route path="plans" element={<PlansSubRouter />} />
       <Route path="plans/*" element={<PlansSubRouter />} />
+      <Route path="attendance" element={<GymAttendanceSubRouter />} />
       <Route path="attendance/*" element={<GymAttendanceSubRouter />} />
+      <Route path="trainer-dashboard" element={<TrainerDashboardSubRouter />} />
       <Route path="trainer-dashboard/*" element={<TrainerDashboardSubRouter />} />
       <Route path="*" element={<NotFoundView message="Gym module view not found." />} />
     </Routes>

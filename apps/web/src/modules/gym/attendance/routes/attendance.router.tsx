@@ -10,6 +10,7 @@ const AttendancePage = lazyWithRetry(() =>
 export const GymAttendanceSubRouter: React.FC = () => (
   <Suspense fallback={<SuspenseFallback label="Loading Gym Attendance..." />}>
     <Routes>
+      <Route index element={<AttendancePage />} />
       <Route path="/" element={<AttendancePage />} />
       <Route path="*" element={<NotFoundView message="Attendance view not found." />} />
     </Routes>

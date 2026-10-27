@@ -15,6 +15,14 @@ export const TrainerDashboardSubRouter: React.FC = () => (
   <Suspense fallback={<SuspenseFallback label="Loading Trainer Dashboard..." />}>
     <Routes>
       <Route
+        index
+        element={
+          <RequirePermission permissions={['clients.read']}>
+            <TrainerDashboardPage />
+          </RequirePermission>
+        }
+      />
+      <Route
         path="/"
         element={
           <RequirePermission permissions={['clients.read']}>

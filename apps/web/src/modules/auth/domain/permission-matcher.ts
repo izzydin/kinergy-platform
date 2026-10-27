@@ -91,6 +91,21 @@ export function matchPermission(
     return true;
   }
 
+  // 7. Gym attendance permission backward compatibility (attendance.* <-> gym.attendance.*)
+  if (
+    (normUserPerms.includes('attendance.read') && normRequired === 'gym.attendance.read') ||
+    (normUserPerms.includes('gym.attendance.read') && normRequired === 'attendance.read')
+  ) {
+    return true;
+  }
+
+  if (
+    (normUserPerms.includes('attendance.create') && normRequired === 'gym.attendance.create') ||
+    (normUserPerms.includes('gym.attendance.create') && normRequired === 'attendance.create')
+  ) {
+    return true;
+  }
+
   return false;
 }
 

@@ -36,6 +36,7 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
   const [lastResult, setLastResult] = useState<RecordCheckInResponseVM | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [activeIdempotencyKey, setActiveIdempotencyKey] = useState<string | null>(null);
 
   // Sync initialMethod if provided/changed
   useEffect(() => {
@@ -49,12 +50,13 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
     setLastResult(null);
     setSubmissionError(null);
     setIsSubmitting(false);
+    setActiveIdempotencyKey(null);
   }, [clientId]);
 
   const { mutate: recordCheckIn, isPending } = useAttendanceCheckIn();
   const isActionDisabled = isPending || isSubmitting;
 
-  const handleCheckIn = () => {
+  const handleCheckIn = (isRetry = false) => {
     if (isActionDisabled) {
       return;
     }
@@ -62,12 +64,19 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
     setIsSubmitting(true);
     setSubmissionError(null);
 
-    // Cryptographically resilient unique idempotency nonce
-    const nonce =
-      typeof crypto !== 'undefined' && crypto.randomUUID
-        ? crypto.randomUUID()
-        : `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-    const idempotencyKey = `web_desk_${clientId}_${nonce}`;
+    // Reuse existing idempotencyKey when retrying an ambiguous / timed-out attempt,
+    // ensuring the backend safely replays cached confirmation without false anti-passback rejection.
+    let idempotencyKey: string;
+    if (isRetry && activeIdempotencyKey) {
+      idempotencyKey = activeIdempotencyKey;
+    } else {
+      const nonce =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      idempotencyKey = `web_desk_${clientId}_${nonce}`;
+      setActiveIdempotencyKey(idempotencyKey);
+    }
 
     recordCheckIn(
       {
@@ -80,6 +89,7 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
       {
         onSuccess: (result) => {
           setIsSubmitting(false);
+          setActiveIdempotencyKey(null);
           setLastResult(result);
           if (result.isGranted && onCheckInSuccess) {
             onCheckInSuccess(result);
@@ -194,7 +204,7 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
 
         {/* Primary Action Button */}
         <Button
-          onClick={handleCheckIn}
+          onClick={() => handleCheckIn(false)}
           disabled={isActionDisabled}
           className={`w-full py-2 font-medium text-sm transition-all ${
             isEligible
@@ -221,7 +231,7 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
               <Button
                 size="sm"
                 variant="outline"
-                onClick={handleCheckIn}
+                onClick={() => handleCheckIn(true)}
                 className="h-6 text-[10px] ml-2"
                 data-testid="retry-check-in-btn"
               >

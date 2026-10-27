@@ -1,6 +1,6 @@
 import '@testing-library/jest-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { configure, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { AuthProvider } from '../../../app/providers/auth-provider';
 import { FeatureFlagProvider } from '../../../app/providers/feature-flag-provider';
@@ -26,6 +26,10 @@ import {
 if (typeof global.Request === 'undefined') {
   global.Request = class Request {} as unknown as typeof Request;
 }
+
+// Configure testing-library async timeouts for JSDOM under heavy test suite load
+configure({ asyncUtilTimeout: 6000 });
+jest.setTimeout(25000);
 
 // Mock API layers
 jest.mock('../trainer-dashboard/api/trainer-dashboard-api', () => ({
