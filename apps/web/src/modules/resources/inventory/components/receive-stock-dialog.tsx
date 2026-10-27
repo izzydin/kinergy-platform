@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   Dialog,
   DialogContent,
@@ -29,13 +30,15 @@ import {
 } from '../../../../shared/forms';
 import { receiveStockSchema, type ReceiveStockFormData } from '../schemas';
 import { useReceiveStock } from '../hooks';
-import type { InventoryProductVM } from '../types';
+import { inventoryQueryKeys } from '../api';
+import { formatStockOperationError } from '../utils';
+import type { InventoryProductVM, StockMutationResultVM } from '../types';
 
 export interface ReceiveStockDialogProps {
   readonly product: InventoryProductVM | null;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-  readonly onSuccess?: () => void;
+  readonly onSuccess?: (result?: StockMutationResultVM) => void;
   readonly triggerRef?: React.RefObject<HTMLElement | null>;
 }
 
@@ -46,6 +49,7 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
   onSuccess,
   triggerRef,
 }) => {
+  const queryClient = useQueryClient();
   const { mutate: receiveStock, isPending } = useReceiveStock();
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
   const initialInputRef = useRef<HTMLInputElement>(null);
@@ -63,10 +67,21 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
   const {
     handleSubmit,
     control,
+    watch,
     reset,
     setFocus,
     formState: { isDirty, isSubmitSuccessful, errors, isSubmitted },
   } = form;
+
+  const watchedQuantity = watch('quantity');
+  const watchedUnitCost = watch('unitCost');
+  const currentStock = product?.currentStock ?? 0;
+  const numQuantity = Number.isFinite(watchedQuantity) ? Number(watchedQuantity) : 0;
+  const projectedBalance = Number((currentStock + numQuantity).toFixed(2));
+  const totalBatchValue =
+    watchedUnitCost !== undefined && Number.isFinite(watchedUnitCost) && numQuantity > 0
+      ? Number((numQuantity * Number(watchedUnitCost)).toFixed(2))
+      : null;
 
   const { guardedOnOpenChange, isConfirmOpen, confirmDiscard, cancelDiscard } = useDirtyDialogGuard(
     {
@@ -81,7 +96,7 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
       setServerErrorMessage(null);
       reset({
         quantity: 1,
-        unitCost: product.unitCost.amount,
+        unitCost: product.unitCost?.amount,
         referenceNumber: '',
         notes: '',
       });
@@ -89,7 +104,7 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
   }, [open, product, reset]);
 
   const onSubmit = (values: ReceiveStockFormData) => {
-    if (!product) return;
+    if (!product || isPending) return;
     setServerErrorMessage(null);
 
     receiveStock(
@@ -103,19 +118,25 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           reset();
           onOpenChange(false);
-          onSuccess?.();
+          onSuccess?.(result);
         },
         onError: (err) => {
-          setServerErrorMessage(err.message || 'Failed to record inbound supply receipt');
+          const msg = formatStockOperationError(err, 'Failed to record inbound supply receipt');
+          setServerErrorMessage(msg);
+          if (
+            err.message?.toLowerCase().includes('conflict') ||
+            err.message?.toLowerCase().includes('insufficient')
+          ) {
+            queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.detail(product.id) });
+            queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.stock(product.id) });
+          }
         },
       },
     );
   };
-
-  const currentStock = product?.currentStock ?? 0;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (isPending) return;
@@ -166,12 +187,28 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
             </DialogDescription>
           </DialogHeader>
 
-          {/* Current Available Stock Notice */}
-          <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/60 border text-xs">
-            <span className="text-muted-foreground">Available on hand:</span>
-            <span className="font-mono font-bold text-foreground">
-              {currentStock} {product?.unitOfMeasure}
-            </span>
+          {/* Current vs Projected Balance Summary */}
+          <div
+            className="flex items-center justify-between p-2.5 rounded-md bg-muted/60 border text-xs"
+            data-testid="receive-stock-balance-summary"
+          >
+            <div>
+              <span className="text-muted-foreground block">Available on hand:</span>
+              <span className="font-mono font-bold text-foreground">
+                {currentStock} {product?.unitOfMeasure}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-muted-foreground block">Projected Balance:</span>
+              <span className="font-mono font-bold text-foreground">
+                {projectedBalance} {product?.unitOfMeasure}
+              </span>
+              {totalBatchValue !== null && (
+                <span className="text-[10px] text-muted-foreground block mt-0.5">
+                  Batch Total: ${totalBatchValue.toFixed(2)}
+                </span>
+              )}
+            </div>
           </div>
 
           {/* In-Modal Server Rejection Alert */}
@@ -200,8 +237,8 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
                       <FormControl>
                         <Input
                           type="number"
-                          min="1"
-                          step="1"
+                          min="0.01"
+                          step="any"
                           placeholder="10"
                           data-testid="receive-stock-quantity-input"
                           {...field}
@@ -211,7 +248,10 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
                               initialInputRef as React.MutableRefObject<HTMLInputElement | null>
                             ).current = el;
                           }}
-                          onChange={(e) => field.onChange(parseInt(e.target.value, 10) || '')}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            field.onChange(val === '' ? '' : Number(val));
+                          }}
                         />
                       </FormControl>
                       <FormMessage />
@@ -290,7 +330,7 @@ export const ReceiveStockDialog: React.FC<ReceiveStockDialogProps> = ({
                 </Button>
                 <Button
                   type="submit"
-                  disabled={isPending}
+                  disabled={isPending || numQuantity <= 0}
                   className="gap-1.5"
                   data-testid="receive-stock-submit-btn"
                 >

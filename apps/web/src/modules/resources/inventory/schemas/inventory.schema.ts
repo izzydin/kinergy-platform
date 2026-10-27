@@ -98,14 +98,18 @@ export const updateProductSchema = z.object({
 
 export type UpdateProductFormData = z.infer<typeof updateProductSchema>;
 
+function hasAtMostTwoDecimals(val: number): boolean {
+  return Number.isFinite(val) && Number(val.toFixed(2)) === val;
+}
+
 /**
  * Purchase / Stock Receipt Modal Form Schema
  */
 export const receiveStockSchema = z.object({
   quantity: z
     .number({ invalid_type_error: 'Received quantity is required' })
-    .int('Quantity must be a whole number')
-    .positive('Quantity received must be greater than 0'),
+    .positive('Quantity received must be greater than 0')
+    .refine(hasAtMostTwoDecimals, 'Quantity cannot exceed 2 decimal places of precision'),
   unitCost: z.number().min(0, 'Unit acquisition cost must be at least $0.00').optional(),
   referenceNumber: z
     .string()
@@ -123,8 +127,8 @@ export type ReceiveStockFormData = z.infer<typeof receiveStockSchema>;
 export const sellStockSchema = z.object({
   quantity: z
     .number({ invalid_type_error: 'Sold quantity is required' })
-    .int('Quantity must be a whole number')
-    .positive('Quantity sold must be greater than 0'),
+    .positive('Quantity sold must be greater than 0')
+    .refine(hasAtMostTwoDecimals, 'Quantity cannot exceed 2 decimal places of precision'),
   unitPrice: z.number().min(0, 'Selling price must be at least $0.00').optional(),
   referenceId: z.string().trim().max(100, 'Reference ID cannot exceed 100 characters').optional(),
   notes: z.string().trim().max(255, 'Notes cannot exceed 255 characters').optional(),
@@ -138,8 +142,8 @@ export type SellStockFormData = z.infer<typeof sellStockSchema>;
 export const consumeStockSchema = z.object({
   quantity: z
     .number({ invalid_type_error: 'Consumed quantity is required' })
-    .int('Quantity must be a whole number')
-    .positive('Quantity consumed must be greater than 0'),
+    .positive('Quantity consumed must be greater than 0')
+    .refine(hasAtMostTwoDecimals, 'Quantity cannot exceed 2 decimal places of precision'),
   treatmentSessionId: z
     .string()
     .trim()
@@ -156,8 +160,8 @@ export type ConsumeStockFormData = z.infer<typeof consumeStockSchema>;
 export const scrapStockSchema = z.object({
   quantity: z
     .number({ invalid_type_error: 'Scrap quantity is required' })
-    .int('Quantity must be a whole number')
-    .positive('Quantity scrapped must be greater than 0'),
+    .positive('Quantity scrapped must be greater than 0')
+    .refine(hasAtMostTwoDecimals, 'Quantity cannot exceed 2 decimal places of precision'),
   reason: z
     .string()
     .trim()
@@ -173,8 +177,8 @@ export type ScrapStockFormData = z.infer<typeof scrapStockSchema>;
 export const adjustStockSchema = z.object({
   deltaQuantity: z
     .number({ invalid_type_error: 'Adjustment delta is required' })
-    .int('Delta quantity must be a whole number')
-    .refine((val) => val !== 0, 'Adjustment delta cannot be 0 (must be positive or negative)'),
+    .refine((val) => val !== 0, 'Adjustment delta cannot be 0 (must be positive or negative)')
+    .refine(hasAtMostTwoDecimals, 'Adjustment delta cannot exceed 2 decimal places of precision'),
   reason: z
     .string()
     .trim()

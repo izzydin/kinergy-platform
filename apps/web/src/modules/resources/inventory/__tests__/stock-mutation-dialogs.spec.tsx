@@ -230,11 +230,17 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
   describe('3. ScrapStockDialog (Damaged / Expired Disposal)', () => {
     it('enforces mandatory audit reason and submits disposal', async () => {
       mockScrapMutate.mockImplementation((_payload, options) => {
-        options?.onSuccess?.();
+        options?.onSuccess?.({ balanceAfter: 19, movementId: 'mov-scrap-1' });
       });
+      const onSuccess = jest.fn();
 
       renderWithQuery(
-        <ScrapStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+        <ScrapStockDialog
+          product={MOCK_PRODUCT}
+          open={true}
+          onOpenChange={jest.fn()}
+          onSuccess={onSuccess}
+        />,
       );
 
       fireEvent.change(screen.getByLabelText(/units disposed/i), { target: { value: '1' } });
@@ -255,6 +261,60 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
           },
           expect.any(Object),
         );
+        expect(onSuccess).toHaveBeenCalledWith({ balanceAfter: 19, movementId: 'mov-scrap-1' });
+      });
+    });
+
+    it('blocks overdraft when disposal quantity exceeds available stock', () => {
+      renderWithQuery(
+        <ScrapStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      // Available stock is 20; input 25 units
+      fireEvent.change(screen.getByLabelText(/units disposed/i), { target: { value: '25' } });
+      fireEvent.change(screen.getByLabelText(/disposal reason/i), {
+        target: { value: 'Bulk damage during storage flooding' },
+      });
+
+      // Overdraft alert is displayed and submit button is disabled
+      expect(screen.getByTestId('scrap-overdraft-alert')).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /record disposal/i })).toBeDisabled();
+    });
+
+    it('disables submit button and shows pending feedback while transaction is in flight', () => {
+      (inventoryMutations.useScrapStock as jest.Mock).mockReturnValue({
+        mutate: mockScrapMutate,
+        isPending: true,
+      });
+
+      renderWithQuery(
+        <ScrapStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      const submitBtn = screen.getByRole('button', { name: /scrapping.../i });
+      expect(submitBtn).toBeDisabled();
+      expect(screen.getByTestId('scrap-cancel-btn')).toBeDisabled();
+    });
+
+    it('reconciles query cache on server rejection', async () => {
+      mockScrapMutate.mockImplementation((_payload, options) => {
+        options?.onError?.(new Error('Insufficient stock on hand to fulfill requested operation'));
+      });
+      const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+
+      renderWithQuery(
+        <ScrapStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/units disposed/i), { target: { value: '5' } });
+      fireEvent.change(screen.getByLabelText(/disposal reason/i), {
+        target: { value: 'Expired packaging damaged' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /record disposal/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('scrap-stock-error-alert')).toBeInTheDocument();
+        expect(invalidateSpy).toHaveBeenCalled();
       });
     });
   });
@@ -277,6 +337,51 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
       expect(screen.getByText(/-5\s+UNITS/i)).toBeInTheDocument();
       // Button disabled
       expect(screen.getByRole('button', { name: /record adjustment/i })).toBeDisabled();
+    });
+
+    it('disables submit when delta quantity is zero', () => {
+      renderWithQuery(
+        <AdjustStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/delta units/i), { target: { value: '0' } });
+      fireEvent.change(screen.getByLabelText(/audit reason/i), {
+        target: { value: 'Physical count verified match' },
+      });
+
+      expect(screen.getByRole('button', { name: /record adjustment/i })).toBeDisabled();
+    });
+
+    it('supports fractional decimal adjustments for continuous units', async () => {
+      mockAdjustMutate.mockImplementation((_payload, options) => {
+        options?.onSuccess?.({ balanceAfter: 22.5, movementId: 'mov-adj-1' });
+      });
+
+      renderWithQuery(
+        <AdjustStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/delta units/i), { target: { value: '2.5' } });
+      fireEvent.change(screen.getByLabelText(/audit reason/i), {
+        target: { value: 'Found surplus partial container' },
+      });
+
+      expect(screen.getByText(/22.5\s+UNITS/i)).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole('button', { name: /record adjustment/i }));
+
+      await waitFor(() => {
+        expect(mockAdjustMutate).toHaveBeenCalledWith(
+          {
+            id: 'prod-456',
+            payload: {
+              deltaQuantity: 2.5,
+              reason: 'Found surplus partial container',
+            },
+          },
+          expect.any(Object),
+        );
+      });
     });
 
     it('supports explicit direction toggle for Adjustment Out (-)', async () => {
@@ -342,23 +447,57 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
         );
       });
     });
+
+    it('reconciles query cache on concurrency conflict rejection', async () => {
+      mockAdjustMutate.mockImplementation((_payload, options) => {
+        options?.onError?.(new Error('State conflict: Item was modified concurrently'));
+      });
+      const invalidateSpy = jest.spyOn(queryClient, 'invalidateQueries');
+
+      renderWithQuery(
+        <AdjustStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/delta units/i), { target: { value: '1' } });
+      fireEvent.change(screen.getByLabelText(/audit reason/i), {
+        target: { value: 'Cycle count verification discrepancy' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /record adjustment/i }));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('adjust-stock-error-alert')).toBeInTheDocument();
+        expect(invalidateSpy).toHaveBeenCalled();
+      });
+    });
   });
 
   describe('5. ReceiveStockDialog (Inbound Supply Receipt)', () => {
-    it('submits delivery receipt with supplier reference and batch unit cost', async () => {
+    it('submits delivery receipt with supplier reference, batch unit cost, and live review summary', async () => {
       mockReceiveMutate.mockImplementation((_payload, options) => {
-        options?.onSuccess?.();
+        options?.onSuccess?.({ balanceAfter: 70, movementId: 'mov-recv-1' });
       });
+      const onSuccess = jest.fn();
 
       renderWithQuery(
-        <ReceiveStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+        <ReceiveStockDialog
+          product={MOCK_PRODUCT}
+          open={true}
+          onOpenChange={jest.fn()}
+          onSuccess={onSuccess}
+        />,
       );
 
+      // Verify live review summary computes projected balance (20 + 50 = 70) and batch total (50 * 14.50 = 725.00)
       fireEvent.change(screen.getByLabelText(/quantity received/i), { target: { value: '50' } });
       fireEvent.change(screen.getByLabelText(/batch unit cost/i), { target: { value: '14.50' } });
       fireEvent.change(screen.getByLabelText(/po \/ invoice reference/i), {
         target: { value: 'PO-2026-9902' },
       });
+
+      expect(screen.getByTestId('receive-stock-balance-summary')).toHaveTextContent(/70 UNITS/i);
+      expect(screen.getByTestId('receive-stock-balance-summary')).toHaveTextContent(
+        /Batch Total: \$725\.00/i,
+      );
 
       fireEvent.click(screen.getByRole('button', { name: /record receipt/i }));
 
@@ -370,6 +509,39 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
               quantity: 50,
               unitCost: 14.5,
               referenceNumber: 'PO-2026-9902',
+              notes: undefined,
+            },
+          },
+          expect.any(Object),
+        );
+        expect(onSuccess).toHaveBeenCalledWith({ balanceAfter: 70, movementId: 'mov-recv-1' });
+      });
+    });
+
+    it('supports fractional decimal quantity for continuous measures', async () => {
+      mockReceiveMutate.mockImplementation((_payload, options) => {
+        options?.onSuccess?.();
+      });
+
+      renderWithQuery(
+        <ReceiveStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      fireEvent.change(screen.getByLabelText(/quantity received/i), { target: { value: '12.5' } });
+      fireEvent.change(screen.getByLabelText(/po \/ invoice reference/i), {
+        target: { value: 'PO-2026-DECIMAL' },
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: /record receipt/i }));
+
+      await waitFor(() => {
+        expect(mockReceiveMutate).toHaveBeenCalledWith(
+          {
+            id: 'prod-456',
+            payload: {
+              quantity: 12.5,
+              unitCost: 15,
+              referenceNumber: 'PO-2026-DECIMAL',
               notes: undefined,
             },
           },
@@ -401,6 +573,20 @@ describe('Stock Mutation Transactional Dialogs & Interaction Architecture', () =
 
       // Preserves inputs for correction
       expect(screen.getByDisplayValue('PO-2026-DUPLICATE')).toBeInTheDocument();
+    });
+
+    it('disables submit button and shows pending state during transaction execution', () => {
+      (inventoryMutations.useReceiveStock as jest.Mock).mockReturnValue({
+        mutate: mockReceiveMutate,
+        isPending: true,
+      });
+
+      renderWithQuery(
+        <ReceiveStockDialog product={MOCK_PRODUCT} open={true} onOpenChange={jest.fn()} />,
+      );
+
+      const submitBtn = screen.getByRole('button', { name: /recording.../i });
+      expect(submitBtn).toBeDisabled();
     });
   });
 });

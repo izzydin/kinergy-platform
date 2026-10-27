@@ -31,13 +31,14 @@ import {
 import { adjustStockSchema, type AdjustStockFormData } from '../schemas';
 import { useAdjustStock } from '../hooks';
 import { inventoryQueryKeys } from '../api';
-import type { InventoryProductVM } from '../types';
+import { formatStockOperationError } from '../utils';
+import type { InventoryProductVM, StockMutationResultVM } from '../types';
 
 export interface AdjustStockDialogProps {
   readonly product: InventoryProductVM | null;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-  readonly onSuccess?: () => void;
+  readonly onSuccess?: (result?: StockMutationResultVM) => void;
 }
 
 export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
@@ -80,7 +81,8 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
 
   const currentDelta = watch('deltaQuantity') || 0;
   const currentStock = product?.currentStock ?? 0;
-  const projectedStock = currentStock + (Number.isFinite(currentDelta) ? currentDelta : 0);
+  const numDelta = Number.isFinite(currentDelta) ? Number(currentDelta) : 0;
+  const projectedStock = Number((currentStock + numDelta).toFixed(2));
 
   React.useEffect(() => {
     if (open) {
@@ -104,7 +106,7 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
   };
 
   const onSubmit = (values: AdjustStockFormData) => {
-    if (!product) return;
+    if (!product || isPending) return;
     setServerErrorMessage(null);
 
     adjustStock(
@@ -116,17 +118,17 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           reset();
           onOpenChange(false);
-          onSuccess?.();
+          onSuccess?.(result);
         },
         onError: (err) => {
-          const msg = err.message || 'Failed to record audit adjustment';
+          const msg = formatStockOperationError(err, 'Failed to record audit adjustment');
           setServerErrorMessage(msg);
           if (
-            msg.toLowerCase().includes('insufficient stock') ||
-            msg.toLowerCase().includes('conflict')
+            err.message?.toLowerCase().includes('insufficient') ||
+            err.message?.toLowerCase().includes('conflict')
           ) {
             queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.detail(product.id) });
             queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.stock(product.id) });
@@ -282,7 +284,7 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
                     <FormControl>
                       <Input
                         type="number"
-                        step="1"
+                        step="any"
                         placeholder="e.g. -2 or +5"
                         data-testid="adjust-stock-delta-input"
                         {...field}
@@ -293,23 +295,27 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
                           ).current = el;
                         }}
                         onChange={(e) => {
-                          const raw = parseInt(e.target.value, 10);
-                          if (Number.isNaN(raw)) {
+                          const val = e.target.value;
+                          if (val === '' || val === '-') {
                             field.onChange('');
+                            if (val === '-') setDirection('OUT');
                           } else {
-                            // Automatically synchronize direction if operator enters explicit minus
-                            if (raw < 0 && direction === 'IN') {
-                              setDirection('OUT');
-                            } else if (raw > 0 && direction === 'OUT') {
-                              setDirection('IN');
+                            const raw = Number(val);
+                            if (!Number.isNaN(raw)) {
+                              // Automatically synchronize direction if operator enters explicit minus
+                              if (raw < 0 && direction === 'IN') {
+                                setDirection('OUT');
+                              } else if (raw > 0 && direction === 'OUT') {
+                                setDirection('IN');
+                              }
+                              field.onChange(raw);
                             }
-                            field.onChange(raw);
                           }
                         }}
                       />
                     </FormControl>
                     <FormDescription className="text-xs">
-                      Positive integer to increment stock on hand; negative integer to decrement.
+                      Enter the positive or negative count variance (delta), not the final balance.
                     </FormDescription>
                     <FormMessage />
                   </FormItem>
@@ -347,7 +353,7 @@ export const AdjustStockDialog: React.FC<AdjustStockDialogProps> = ({
                 </Button>
                 <Button
                   type="submit"
-                  disabled={isPending || projectedStock < 0}
+                  disabled={isPending || projectedStock < 0 || numDelta === 0}
                   className="gap-1.5"
                   data-testid="adjust-stock-submit-btn"
                 >

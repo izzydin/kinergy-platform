@@ -31,13 +31,14 @@ import {
 import { scrapStockSchema, type ScrapStockFormData } from '../schemas';
 import { useScrapStock } from '../hooks';
 import { inventoryQueryKeys } from '../api';
-import type { InventoryProductVM } from '../types';
+import { formatStockOperationError } from '../utils';
+import type { InventoryProductVM, StockMutationResultVM } from '../types';
 
 export interface ScrapStockDialogProps {
   readonly product: InventoryProductVM | null;
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
-  readonly onSuccess?: () => void;
+  readonly onSuccess?: (result?: StockMutationResultVM) => void;
 }
 
 export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
@@ -62,10 +63,17 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
   const {
     handleSubmit,
     control,
+    watch,
     reset,
     setFocus,
     formState: { isDirty, isSubmitSuccessful, errors, isSubmitted },
   } = form;
+
+  const watchedQuantity = watch('quantity');
+  const currentStock = product?.currentStock ?? 0;
+  const numQuantity = Number.isFinite(watchedQuantity) ? Number(watchedQuantity) : 0;
+  const isOverdraft = numQuantity > currentStock;
+  const projectedStock = Number(Math.max(0, currentStock - numQuantity).toFixed(2));
 
   const { guardedOnOpenChange, isConfirmOpen, confirmDiscard, cancelDiscard } = useDirtyDialogGuard(
     {
@@ -86,7 +94,7 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
   }, [open, product, reset]);
 
   const onSubmit = (values: ScrapStockFormData) => {
-    if (!product) return;
+    if (!product || isPending) return;
     setServerErrorMessage(null);
 
     scrapStock(
@@ -98,17 +106,17 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
         },
       },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           reset();
           onOpenChange(false);
-          onSuccess?.();
+          onSuccess?.(result);
         },
         onError: (err) => {
-          const msg = err.message || 'Failed to record inventory disposal';
+          const msg = formatStockOperationError(err, 'Failed to record inventory disposal');
           setServerErrorMessage(msg);
           if (
-            msg.toLowerCase().includes('insufficient stock') ||
-            msg.toLowerCase().includes('conflict')
+            err.message?.toLowerCase().includes('insufficient') ||
+            err.message?.toLowerCase().includes('conflict')
           ) {
             queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.detail(product.id) });
             queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.stock(product.id) });
@@ -122,8 +130,6 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
     if (isPending) return;
     guardedOnOpenChange(nextOpen);
   };
-
-  const currentStock = product?.currentStock ?? 0;
 
   return (
     <>
@@ -164,13 +170,44 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
             </DialogDescription>
           </DialogHeader>
 
-          {/* Current Available Stock Notice */}
-          <div className="flex items-center justify-between p-2.5 rounded-md bg-muted/60 border text-xs">
-            <span className="text-muted-foreground">Available on hand:</span>
-            <span className="font-mono font-bold text-foreground">
-              {currentStock} {product?.unitOfMeasure}
-            </span>
+          {/* Balance and Write-Off Impact Summary */}
+          <div
+            className="flex items-center justify-between p-2.5 rounded-md bg-muted/60 border text-xs"
+            data-testid="scrap-stock-balance-summary"
+          >
+            <div>
+              <span className="text-muted-foreground block">Available on hand:</span>
+              <span className="font-mono font-bold text-foreground">
+                {currentStock} {product?.unitOfMeasure}
+              </span>
+            </div>
+            <div className="text-right">
+              <span className="text-muted-foreground block">Projected Balance:</span>
+              <span
+                className={`font-mono font-bold ${
+                  isOverdraft ? 'text-destructive' : 'text-foreground'
+                }`}
+              >
+                {projectedStock} {product?.unitOfMeasure}
+              </span>
+            </div>
           </div>
+
+          {/* Overdraft client-side protection alert */}
+          {isOverdraft && (
+            <Alert
+              variant="destructive"
+              className="py-2 text-xs"
+              data-testid="scrap-overdraft-alert"
+            >
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle className="font-semibold text-xs">Exceeds Available Inventory</AlertTitle>
+              <AlertDescription className="text-[11px]">
+                Disposal quantity ({numQuantity}) exceeds available stock ({currentStock}{' '}
+                {product?.unitOfMeasure}). You cannot write off more units than exist on hand.
+              </AlertDescription>
+            </Alert>
+          )}
 
           {/* Irreversible Write-Off Ledger Alert */}
           <Alert className="bg-amber-50/70 border-amber-200 text-amber-900 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-300 py-2.5">
@@ -209,11 +246,15 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
                     <FormControl>
                       <Input
                         type="number"
-                        min="1"
-                        step="1"
+                        min="0.01"
+                        step="any"
                         placeholder="1"
+                        data-testid="scrap-stock-quantity-input"
                         {...field}
-                        onChange={(e) => field.onChange(parseInt(e.target.value, 10) || '')}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          field.onChange(val === '' ? '' : Number(val));
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -256,7 +297,7 @@ export const ScrapStockDialog: React.FC<ScrapStockDialogProps> = ({
                 <Button
                   type="submit"
                   variant="destructive"
-                  disabled={isPending}
+                  disabled={isPending || numQuantity <= 0 || isOverdraft}
                   className="gap-1.5"
                   data-testid="scrap-confirm-btn"
                 >
