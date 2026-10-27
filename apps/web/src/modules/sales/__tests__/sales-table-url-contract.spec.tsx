@@ -299,6 +299,32 @@ describe('Sales URL-driven DataTable State Contract Tests', () => {
       });
       // Should fall back to default sort without throwing
       expect(result.current.sortState).toEqual([{ id: 'createdAt', desc: true }]);
+      expect(result.current.params.sortField).toBe('createdAt');
+      expect(result.current.params.sortDirection).toBe('desc');
+    });
+
+    it('safely falls back to default createdAt.desc when sort field is unsupported (protects backend contract)', () => {
+      const { result } = renderHook(() => useSalesFilters(), {
+        wrapper: createWrapper('/sales?sort=maliciousColumn.asc'),
+      });
+      expect(result.current.sortState).toEqual([{ id: 'createdAt', desc: true }]);
+      expect(result.current.params.sort).toBe('createdAt.desc');
+      expect(result.current.params.sortField).toBe('createdAt');
+      expect(result.current.params.sortDirection).toBe('desc');
+    });
+
+    it('filters out unsupported or malformed sourceType values', () => {
+      const { result } = renderHook(() => useSalesFilters(), {
+        wrapper: createWrapper('/sales?sourceType=INVALID_UNKNOWN_CATALOG'),
+      });
+      expect(result.current.filters.sourceType).toBeUndefined();
+      expect(result.current.params.sourceType).toBeUndefined();
+
+      const validRender = renderHook(() => useSalesFilters(), {
+        wrapper: createWrapper('/sales?sourceType=treatment_session'),
+      });
+      expect(validRender.result.current.filters.sourceType).toBe('TREATMENT_SESSION');
+      expect(validRender.result.current.params.sourceType).toBe('TREATMENT_SESSION');
     });
   });
 });

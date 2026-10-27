@@ -387,6 +387,9 @@ describe('Screen 4 & Screen 5: Sale Detail & Payment Detail Contracts', () => {
 
       // Receipt button is NOT present for un-settled DRAFT sale (receipt distinctness guarantee)
       expect(screen.queryByTestId('view-receipt-btn')).not.toBeInTheDocument();
+      expect(screen.getByTestId('receipt-eligibility-indicator')).toHaveTextContent(
+        /Receipt eligible after settlement/i,
+      );
     });
 
     it('supports finalizing draft sale and invalidates queries without stale state', async () => {
@@ -527,6 +530,41 @@ describe('Screen 4 & Screen 5: Sale Detail & Payment Detail Contracts', () => {
       });
 
       expect(screen.getByTestId('record-payment-btn')).toBeInTheDocument();
+      expect(screen.queryByTestId('cancel-sale-btn')).not.toBeInTheDocument();
+    });
+
+    it('renders CANCELLED sale with cancellation banner, audit reason, and receipt-ineligible badge', async () => {
+      const mockCancelledSale: SaleDTO = {
+        ...mockPendingSale,
+        id: 'sale_01jcancelled1234567890sale',
+        status: 'CANCELLED',
+        cancellationReason: 'Customer requested cancellation prior to tender',
+        cancelledAt: '2026-09-22T14:30:00.000Z',
+      };
+
+      (useParams as jest.Mock).mockReturnValue({ saleId: mockCancelledSale.id });
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue(mockCancelledSale);
+      (salesApi.getSalePaymentHistory as jest.Mock).mockResolvedValue([]);
+
+      renderWithProviders(<SaleDetailPage />, {
+        queryClient,
+        initialRoute: `/sales/${mockCancelledSale.id}`,
+        initialSessionOverride: mockManagerUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sale-id')).toHaveTextContent(mockCancelledSale.id);
+      });
+
+      expect(screen.getByTestId('cancellation-notice')).toBeInTheDocument();
+      expect(
+        screen.getByText('Customer requested cancellation prior to tender'),
+      ).toBeInTheDocument();
+      expect(screen.queryByTestId('view-receipt-btn')).not.toBeInTheDocument();
+      expect(screen.getByTestId('receipt-ineligible-cancelled')).toHaveTextContent(
+        /Receipt ineligible \(cancelled\)/i,
+      );
+      expect(screen.queryByTestId('record-payment-btn')).not.toBeInTheDocument();
       expect(screen.queryByTestId('cancel-sale-btn')).not.toBeInTheDocument();
     });
 

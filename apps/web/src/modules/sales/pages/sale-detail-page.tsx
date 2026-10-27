@@ -262,6 +262,29 @@ export const SaleDetailPage: React.FC = () => {
             </HasPermission>
           )}
 
+          {/* Receipt Eligibility Indicators for Unsettled / Cancelled Orders */}
+          {!isSettled && !isCancelled && (
+            <Badge
+              variant="outline"
+              className="text-xs text-muted-foreground border-dashed"
+              data-testid="receipt-eligibility-indicator"
+            >
+              <Receipt className="h-3 w-3 mr-1" />
+              Receipt eligible after settlement
+            </Badge>
+          )}
+
+          {isCancelled && (
+            <Badge
+              variant="outline"
+              className="text-xs text-destructive/80 border-destructive/30"
+              data-testid="receipt-ineligible-cancelled"
+            >
+              <XCircle className="h-3 w-3 mr-1" />
+              Receipt ineligible (cancelled)
+            </Badge>
+          )}
+
           {/* Cancel Order Button */}
           {(isDraft || isPending) && (
             <HasPermission name="sales.cancel">
@@ -312,7 +335,7 @@ export const SaleDetailPage: React.FC = () => {
               <MoneyDisplay value={sale.subtotal} />
             </div>
             <p className="text-[11px] text-muted-foreground mt-1">
-              Sum of {sale.itemCount} line item{sale.itemCount === 1 ? '' : 's'}
+              Sum of {sale.itemCount ?? 0} line item{(sale.itemCount ?? 0) === 1 ? '' : 's'}
             </p>
           </CardContent>
         </Card>
@@ -528,7 +551,9 @@ export const SaleDetailPage: React.FC = () => {
       {/* 5. Authoritative Line Items Table */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Order Line Items ({sale.itemCount})</CardTitle>
+          <CardTitle className="text-base">
+            Order Line Items ({sale.itemCount ?? sale.items?.length ?? 0})
+          </CardTitle>
           <CardDescription className="text-xs">
             Line item subtotals and discounts authoritatively evaluated by the sales domain
           </CardDescription>
@@ -566,7 +591,7 @@ export const SaleDetailPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {sale.items.length === 0 ? (
+                {!sale.items || sale.items.length === 0 ? (
                   <tr>
                     <td
                       colSpan={7}
@@ -577,7 +602,7 @@ export const SaleDetailPage: React.FC = () => {
                     </td>
                   </tr>
                 ) : (
-                  sale.items.map((item, idx) => (
+                  (sale.items ?? []).map((item, idx) => (
                     <tr
                       key={item.id}
                       className="hover:bg-muted/20"

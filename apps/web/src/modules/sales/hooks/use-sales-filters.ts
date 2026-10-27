@@ -8,10 +8,22 @@ import {
   type UseSalesFiltersReturn,
   VALID_SALE_STATUSES,
 } from '../types/sales-query.types';
+import { VALID_SALE_SOURCE_TYPES, type SaleSourceType } from '../types/sales.types';
 
 const ALLOWED_LIMITS = [10, 20, 50, 100] as const;
 const DEFAULT_LIMIT = 20;
 const DEFAULT_SORT = 'createdAt.desc';
+
+const VALID_SORT_FIELDS: readonly SaleSortField[] = [
+  'createdAt',
+  'total',
+  'totalAmount',
+  'status',
+] as const;
+
+function isAllowedSortField(field: string): field is SaleSortField {
+  return VALID_SORT_FIELDS.includes(field as SaleSortField);
+}
 
 /**
  * Custom Hook: URL-driven Filter, Search, Sorting, and Pagination State for Sales
@@ -41,7 +53,11 @@ export function useSalesFilters(): UseSalesFiltersReturn {
         return VALID_SALE_STATUSES.includes(normalized) ? normalized : undefined;
       },
       clientId: (val) => (val && val.trim().length > 0 ? val.trim() : undefined),
-      sourceType: (val) => (val && val.trim().length > 0 ? val.trim().toUpperCase() : undefined),
+      sourceType: (val) => {
+        if (!val || val.trim().length === 0) return undefined;
+        const normalized = val.trim().toUpperCase() as SaleSourceType;
+        return VALID_SALE_SOURCE_TYPES.includes(normalized) ? normalized : undefined;
+      },
       sourceReferenceId: (val) => (val && val.trim().length > 0 ? val.trim() : undefined),
       fromDate: (val) => (val && val.trim().length > 0 ? val.trim() : undefined),
       toDate: (val) => (val && val.trim().length > 0 ? val.trim() : undefined),
@@ -57,21 +73,34 @@ export function useSalesFilters(): UseSalesFiltersReturn {
   });
 
   const sortState = useMemo(() => {
-    if (!state.sortState) {
+    if (!state.sortState || !isAllowedSortField(state.sortState.id)) {
       return [{ id: 'createdAt', desc: true }];
     }
     return [{ id: state.sortState.id, desc: state.sortState.desc }];
   }, [state.sortState]);
 
   const params: ListSalesQueryParams = useMemo(() => {
+    const isSortValid = state.sortState && isAllowedSortField(state.sortState.id);
+    const resolvedSortField: SaleSortField = isSortValid
+      ? (state.sortState!.id as SaleSortField)
+      : 'createdAt';
+    const resolvedSortDir: 'asc' | 'desc' = isSortValid
+      ? state.sortState!.desc
+        ? 'desc'
+        : 'asc'
+      : 'desc';
+    const resolvedSort: string = isSortValid
+      ? `${resolvedSortField}.${resolvedSortDir}`
+      : DEFAULT_SORT;
+
     return {
       q: state.q || undefined,
       search: state.q || undefined,
       page: state.page,
       limit: state.limit,
-      sort: state.sort ?? DEFAULT_SORT,
-      sortField: (state.sortState?.id as SaleSortField) ?? 'createdAt',
-      sortDirection: state.sortState ? (state.sortState.desc ? 'desc' : 'asc') : 'desc',
+      sort: resolvedSort,
+      sortField: resolvedSortField,
+      sortDirection: resolvedSortDir,
       clientId: state.filters.clientId,
       status: state.filters.status,
       sourceType: state.filters.sourceType,
@@ -83,7 +112,6 @@ export function useSalesFilters(): UseSalesFiltersReturn {
     state.q,
     state.page,
     state.limit,
-    state.sort,
     state.sortState,
     state.filters.clientId,
     state.filters.status,
