@@ -1,16 +1,20 @@
 import { KinesiologySourceValidatorAdapter } from '../kinesiology-source-validator.adapter';
 import { GymSourceValidatorAdapter } from '../gym-source-validator.adapter';
 import { ResourcesSourceValidatorAdapter } from '../resources-source-validator.adapter';
+import { SchedulingRoomSourceValidatorAdapter } from '../scheduling-room-source-validator.adapter';
 import { CompositeSaleSourceValidatorAdapter } from '../composite-sale-source-validator.adapter';
 import {
   GetTreatmentSessionByIdHandler,
   GetMembershipPlanByIdHandler,
   GetInventoryItemByIdHandler,
+  GetRoomHandler,
   SessionStatus,
   SaleSourceType,
+  RoomStatus,
   TreatmentSessionDTO,
   MembershipPlanDTO,
   InventoryItemDTO,
+  RoomDTO,
 } from '@kinergy-platform/core';
 
 function successResult<T, R = unknown>(value: T): R {
@@ -367,10 +371,128 @@ describe('Source Validation Hexagonal Adapters (ADR-0139)', () => {
     });
   });
 
-  describe('4. CompositeSaleSourceValidatorAdapter', () => {
+  describe('4. SchedulingRoomSourceValidatorAdapter', () => {
+    let mockGetRoomHandler: jest.Mocked<GetRoomHandler>;
+    let adapter: SchedulingRoomSourceValidatorAdapter;
+
+    const baseRoom: RoomDTO = {
+      id: 'room_101',
+      name: 'Studio A - Movement Lab',
+      capacity: 15,
+      status: RoomStatus.AVAILABLE,
+      resourceType: 'ROOM',
+      features: ['mirrors', 'sound_system'],
+      maintenanceWindows: [],
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    beforeEach(() => {
+      mockGetRoomHandler = {
+        execute: jest.fn(),
+      } as unknown as jest.Mocked<GetRoomHandler>;
+
+      adapter = new SchedulingRoomSourceValidatorAdapter(mockGetRoomHandler);
+    });
+
+    it('should successfully validate an AVAILABLE room and map authoritative details', async () => {
+      mockGetRoomHandler.execute.mockResolvedValueOnce(successResult(baseRoom));
+
+      const result = await adapter.validate({
+        sourceType: SaleSourceType.ROOM_RENTAL,
+        sourceId: 'room_101',
+      });
+
+      expect(result.isValid).toBe(true);
+      expect(result.exists).toBe(true);
+      expect(result.belongsToContext).toBe(true);
+      expect(result.actualContext).toBe('scheduling');
+      expect(result.commercialDetails).toEqual({
+        unitPriceCents: 6000,
+        currency: 'USD',
+        description: 'Room Rental - Studio A - Movement Lab (Capacity: 15)',
+        skuOrCode: 'room_101',
+        version: 1,
+      });
+    });
+
+    it('should reject a room that is currently in MAINTENANCE status', async () => {
+      const maintenanceRoom: RoomDTO = {
+        ...baseRoom,
+        status: RoomStatus.MAINTENANCE,
+        maintenanceReason: 'HVAC repair',
+      };
+      mockGetRoomHandler.execute.mockResolvedValueOnce(successResult(maintenanceRoom));
+
+      const result = await adapter.validate({
+        sourceType: SaleSourceType.ROOM_RENTAL,
+        sourceId: 'room_101',
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.exists).toBe(true);
+      expect(result.errorMessage).toContain('currently under maintenance and cannot be rented');
+    });
+
+    it('should reject a room that is UNAVAILABLE', async () => {
+      const unavailableRoom: RoomDTO = {
+        ...baseRoom,
+        status: RoomStatus.UNAVAILABLE,
+      };
+      mockGetRoomHandler.execute.mockResolvedValueOnce(successResult(unavailableRoom));
+
+      const result = await adapter.validate({
+        sourceType: SaleSourceType.ROOM_RENTAL,
+        sourceId: 'room_101',
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.exists).toBe(true);
+      expect(result.errorMessage).toContain('cannot be rented');
+    });
+
+    it('should return not found when room does not exist', async () => {
+      mockGetRoomHandler.execute.mockResolvedValueOnce(
+        failureResult("Room with id 'non_existent_room' not found."),
+      );
+
+      const result = await adapter.validate({
+        sourceType: SaleSourceType.ROOM_RENTAL,
+        sourceId: 'non_existent_room',
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.exists).toBe(false);
+      expect(result.errorMessage).toContain('not found');
+    });
+
+    it('should reject empty room ID', async () => {
+      const result = await adapter.validate({
+        sourceType: SaleSourceType.ROOM_RENTAL,
+        sourceId: '   ',
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.errorMessage).toContain('cannot be empty');
+    });
+
+    it('should reject unmanaged source types', async () => {
+      const result = await adapter.validate({
+        sourceType: SaleSourceType.FOOD,
+        sourceId: 'room_1',
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.errorMessage).toContain('not managed by Scheduling');
+    });
+  });
+
+  describe('5. CompositeSaleSourceValidatorAdapter', () => {
     let kinesiologyAdapter: KinesiologySourceValidatorAdapter;
     let gymAdapter: GymSourceValidatorAdapter;
     let resourcesAdapter: ResourcesSourceValidatorAdapter;
+    let schedulingRoomAdapter: SchedulingRoomSourceValidatorAdapter;
     let composite: CompositeSaleSourceValidatorAdapter;
 
     beforeEach(() => {
@@ -386,10 +508,26 @@ describe('Source Validation Hexagonal Adapters (ADR-0139)', () => {
         validate: jest.fn().mockResolvedValue({ isValid: true, exists: true }),
       } as unknown as ResourcesSourceValidatorAdapter;
 
+      schedulingRoomAdapter = {
+        validate: jest.fn().mockResolvedValue({
+          isValid: true,
+          exists: true,
+          belongsToContext: true,
+          actualContext: 'scheduling',
+          commercialDetails: {
+            unitPriceCents: 6000,
+            currency: 'USD',
+            description: 'Room Rental - Studio A',
+            skuOrCode: 'room_1',
+          },
+        }),
+      } as unknown as SchedulingRoomSourceValidatorAdapter;
+
       composite = new CompositeSaleSourceValidatorAdapter(
         kinesiologyAdapter,
         gymAdapter,
         resourcesAdapter,
+        schedulingRoomAdapter,
       );
     });
 
@@ -404,6 +542,7 @@ describe('Source Validation Hexagonal Adapters (ADR-0139)', () => {
       );
       expect(gymAdapter.validate).not.toHaveBeenCalled();
       expect(resourcesAdapter.validate).not.toHaveBeenCalled();
+      expect(schedulingRoomAdapter.validate).not.toHaveBeenCalled();
     });
 
     it('should route GYM_MEMBERSHIP to gymAdapter', async () => {
@@ -431,15 +570,20 @@ describe('Source Validation Hexagonal Adapters (ADR-0139)', () => {
       expect(resourcesAdapter.validate).toHaveBeenCalledTimes(2);
     });
 
-    it('should preserve ROOM_RENTAL compatibility', async () => {
+    it('should route ROOM_RENTAL to schedulingRoomAdapter', async () => {
       const result = await composite.validateSource({
         sourceType: SaleSourceType.ROOM_RENTAL,
         sourceId: 'room_studio_a',
       });
 
+      expect(schedulingRoomAdapter.validate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          sourceType: SaleSourceType.ROOM_RENTAL,
+          sourceId: 'room_studio_a',
+        }),
+      );
       expect(result.isValid).toBe(true);
-      expect(result.exists).toBe(true);
-      expect(result.commercialDetails?.skuOrCode).toBe('room_studio_a');
+      expect(result.commercialDetails?.unitPriceCents).toBe(6000);
     });
 
     it('should reject unsupported source types', async () => {
@@ -476,6 +620,15 @@ describe('Source Validation Hexagonal Adapters (ADR-0139)', () => {
       });
       expect(resResult.isValid).toBe(false);
       expect(resResult.errorMessage).toContain('Resources validator adapter is not configured');
+
+      const roomResult = await emptyComposite.validateSource({
+        sourceType: SaleSourceType.ROOM_RENTAL,
+        sourceId: 'room_1',
+      });
+      expect(roomResult.isValid).toBe(false);
+      expect(roomResult.errorMessage).toContain(
+        'Scheduling room validator adapter is not configured',
+      );
     });
 
     it('should reject invalid input without sourceId or sourceType', async () => {

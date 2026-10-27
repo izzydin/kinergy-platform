@@ -9,6 +9,7 @@ import {
 import { KinesiologySourceValidatorAdapter } from './kinesiology-source-validator.adapter';
 import { GymSourceValidatorAdapter } from './gym-source-validator.adapter';
 import { ResourcesSourceValidatorAdapter } from './resources-source-validator.adapter';
+import { SchedulingRoomSourceValidatorAdapter } from './scheduling-room-source-validator.adapter';
 
 /**
  * Composite Adapter implementing SaleSourceValidatorPort.
@@ -24,6 +25,8 @@ export class CompositeSaleSourceValidatorAdapter implements SaleSourceValidatorP
     private readonly gymAdapter?: GymSourceValidatorAdapter,
     @Optional()
     private readonly resourcesAdapter?: ResourcesSourceValidatorAdapter,
+    @Optional()
+    private readonly schedulingRoomAdapter?: SchedulingRoomSourceValidatorAdapter,
   ) {}
 
   public async validateSource(input: ValidateSourceInput): Promise<SaleSourceValidationResult> {
@@ -90,28 +93,16 @@ export class CompositeSaleSourceValidatorAdapter implements SaleSourceValidatorP
       return this.resourcesAdapter.validate(input);
     }
 
-    // 4. Room Rental Context (Compatibility Preservation)
+    // 4. Room Rental Context (Scheduling Domain)
     if (rawType === SaleSourceType.ROOM_RENTAL || rawType === 'ROOM_RENTAL') {
-      const roomId = input.sourceId.trim();
-      if (!roomId) {
+      if (!this.schedulingRoomAdapter) {
         return {
           isValid: false,
           exists: false,
-          errorMessage: 'Room rental reference ID cannot be empty.',
+          errorMessage: 'Scheduling room validator adapter is not configured.',
         };
       }
-      return {
-        isValid: true,
-        exists: true,
-        belongsToContext: true,
-        actualContext: 'scheduling',
-        commercialDetails: {
-          unitPriceCents: 5000,
-          currency: 'USD',
-          description: `Room Rental - Space ${roomId}`,
-          skuOrCode: roomId,
-        },
-      };
+      return this.schedulingRoomAdapter.validate(input);
     }
 
     // 5. Unsupported Source Type

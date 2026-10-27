@@ -55,6 +55,7 @@ import {
   KinesiologySourceValidatorAdapter,
   GymSourceValidatorAdapter,
   ResourcesSourceValidatorAdapter,
+  SchedulingRoomSourceValidatorAdapter,
   CompositeSaleSourceValidatorAdapter,
 } from './infrastructure/adapters';
 
@@ -66,6 +67,7 @@ import {
     KinesiologySourceValidatorAdapter,
     GymSourceValidatorAdapter,
     ResourcesSourceValidatorAdapter,
+    SchedulingRoomSourceValidatorAdapter,
     CompositeSaleSourceValidatorAdapter,
     {
       provide: SALE_SOURCE_VALIDATOR_TOKEN,
@@ -306,6 +308,7 @@ import {
     KinesiologySourceValidatorAdapter,
     GymSourceValidatorAdapter,
     ResourcesSourceValidatorAdapter,
+    SchedulingRoomSourceValidatorAdapter,
     SalesAuditEventPublisher,
     CreateSaleHandler,
     AssignSaleSourceHandler,

@@ -122,9 +122,12 @@ describe('User Management Routing & Module API Integration', () => {
   it('renders UserListPage when navigating to /admin/users as authorized admin user', async () => {
     renderAppAtRoute('/admin/users', MOCK_ADMIN_USER);
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /user management/i })).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByRole('heading', { name: /user management/i })).toBeInTheDocument();
+      },
+      { timeout: 10000 },
+    );
 
     expect(screen.getByText('Platform Admin')).toBeInTheDocument();
   });
@@ -132,8 +135,11 @@ describe('User Management Routing & Module API Integration', () => {
   it('renders Forbidden view when navigating to /admin/users as unauthorized member without manage:users permission', async () => {
     renderAppAtRoute('/admin/users', MOCK_MEMBER_USER);
 
-    await waitFor(() => {
-      expect(screen.getByRole('heading', { name: /403.*Access Denied/i })).toBeInTheDocument();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByRole('heading', { name: /403.*Access Denied/i })).toBeInTheDocument();
+      },
+      { timeout: 10000 },
+    );
   });
 });

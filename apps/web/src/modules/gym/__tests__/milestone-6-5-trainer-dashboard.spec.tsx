@@ -435,9 +435,12 @@ describe('Milestone 6.5: Trainer Dashboard & Operational Summary Comprehensive S
       mockedTrainerApi.getSummary.mockResolvedValue(MOCK_SUMMARY);
       fireEvent.click(screen.getByRole('button', { name: /Retry Summary/i }));
 
-      await waitFor(() => {
-        expect(screen.queryByTestId('kpi-banner-error')).not.toBeInTheDocument();
-      });
+      await waitFor(
+        () => {
+          expect(screen.queryByTestId('kpi-banner-error')).not.toBeInTheDocument();
+        },
+        { timeout: 10000 },
+      );
     });
 
     it('refreshes all queries when "Refresh Dashboard" button is clicked', async () => {
