@@ -50,6 +50,7 @@ export function useUpdateAssetDetails() {
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.historyLists(id) });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to update asset details');
@@ -74,6 +75,7 @@ export function useTransferAssetLocation() {
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.detail(id) });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: assetsQueryKeys.historyLists(id) });
+      queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Failed to transfer asset location');

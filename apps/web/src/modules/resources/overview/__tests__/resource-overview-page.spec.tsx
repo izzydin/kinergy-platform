@@ -457,4 +457,73 @@ describe('ResourceOverviewPage & Architecture (Milestone 6.14)', () => {
       expect(screen.getByText('Decommissioned')).toBeInTheDocument();
     });
   });
+
+  describe('6. Operational Attention & Immediate Action Telemetry', () => {
+    it('renders immediate operational attention banner with reorder and repair queues when counts > 0', () => {
+      (overviewHooks.useResourceOverview as jest.Mock).mockReturnValue({
+        data: mockPopulatedOverview,
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      renderComponent();
+
+      expect(screen.getByTestId('operational-attention-banner')).toBeInTheDocument();
+      expect(screen.getByText('Immediate Operational Attention Required')).toBeInTheDocument();
+
+      // Item 1: Low stock supplies (3 items)
+      const lowStockItem = screen.getByTestId('attention-item-low-stock');
+      expect(lowStockItem).toHaveTextContent('3 Reorder');
+      expect(within(lowStockItem).getByRole('link', { name: /Review/i })).toHaveAttribute(
+        'href',
+        '/resources/inventory/low-stock',
+      );
+
+      // Item 2: Damaged equipment (1 asset)
+      const damagedItem = screen.getByTestId('attention-item-damaged');
+      expect(damagedItem).toHaveTextContent('1 Damaged');
+      expect(within(damagedItem).getByRole('link', { name: /Inspect/i })).toHaveAttribute(
+        'href',
+        '/resources/assets?status=DAMAGED',
+      );
+
+      // Item 3: Assets under maintenance (2 assets)
+      const maintenanceItem = screen.getByTestId('attention-item-maintenance');
+      expect(maintenanceItem).toHaveTextContent('2 Servicing');
+      expect(within(maintenanceItem).getByRole('link', { name: /Track/i })).toHaveAttribute(
+        'href',
+        '/resources/assets?status=UNDER_MAINTENANCE',
+      );
+    });
+
+    it('renders affirmative operational health card when all stock and asset systems are healthy', () => {
+      (overviewHooks.useResourceOverview as jest.Mock).mockReturnValue({
+        data: {
+          ...mockPopulatedOverview,
+          consumableInventory: {
+            ...mockPopulatedOverview.consumableInventory,
+            lowStockItemCount: 0,
+          },
+          fixedAssets: {
+            ...mockPopulatedOverview.fixedAssets,
+            damagedAssetCount: 0,
+            underMaintenanceAssetCount: 0,
+          },
+        },
+        isLoading: false,
+        isError: false,
+        error: null,
+        refetch: jest.fn(),
+      });
+
+      renderComponent();
+
+      expect(screen.getByTestId('operational-health-healthy')).toBeInTheDocument();
+      expect(screen.getByText('Operational Health: All Systems Healthy')).toBeInTheDocument();
+      expect(screen.getByText('Fully Operational')).toBeInTheDocument();
+      expect(screen.queryByTestId('operational-attention-banner')).not.toBeInTheDocument();
+    });
+  });
 });

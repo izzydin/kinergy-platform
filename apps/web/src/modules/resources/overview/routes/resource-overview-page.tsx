@@ -17,6 +17,7 @@ import {
   OverallResourceValueCard,
   ConsumableInventorySection,
   FixedAssetsSection,
+  OperationalAttentionBanner,
 } from '../components';
 
 export const ResourceOverviewPage: React.FC = () => {
@@ -306,6 +307,9 @@ export const ResourceOverviewPage: React.FC = () => {
         <div
           className={`space-y-8 transition-opacity duration-150 ${isFetching ? 'opacity-70' : ''}`}
         >
+          {/* Operational Health & Immediate Attention Queue */}
+          <OperationalAttentionBanner overview={overview} />
+
           {/* Conceptual Area 1: Overall Resource Value */}
           <OverallResourceValueCard overview={overview} />
 
