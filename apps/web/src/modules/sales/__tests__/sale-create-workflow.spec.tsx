@@ -126,6 +126,26 @@ describe('SaleCreatePage Workflow & Contract Verification', () => {
       expect(
         within(typeSelect).getByRole('option', { name: /MEMBERSHIP PLAN/i }),
       ).toBeInTheDocument();
+      expect(within(typeSelect).getByRole('option', { name: /ROOM RENTAL/i })).toBeInTheDocument();
+      expect(within(typeSelect).getByRole('option', { name: /FOOD/i })).toBeInTheDocument();
+      expect(within(typeSelect).getByRole('option', { name: /DRINK/i })).toBeInTheDocument();
+
+      // Test contextual domain eligibility guidance for supported sources
+      fireEvent.change(typeSelect, { target: { value: 'TREATMENT_SESSION' } });
+      expect(screen.getByTestId('source-eligibility-hint')).toHaveTextContent(
+        /Kinesiology Session Rule/i,
+      );
+
+      fireEvent.change(typeSelect, { target: { value: 'MEMBERSHIP_PLAN' } });
+      expect(screen.getByTestId('source-eligibility-hint')).toHaveTextContent(
+        /Gym Membership Rule/i,
+      );
+
+      fireEvent.change(typeSelect, { target: { value: 'ROOM_RENTAL' } });
+      expect(screen.getByTestId('source-eligibility-hint')).toHaveTextContent(/Room Rental Rule/i);
+
+      fireEvent.change(typeSelect, { target: { value: 'FOOD' } });
+      expect(screen.getByTestId('source-eligibility-hint')).toHaveTextContent(/Food & Drink Rule/i);
     });
   });
 

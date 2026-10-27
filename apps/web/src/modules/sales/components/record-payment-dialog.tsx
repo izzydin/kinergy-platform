@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import {
   Dialog,
@@ -37,12 +37,16 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
   const [submissionError, setSubmissionError] = React.useState<{
     message: string;
     isAmbiguous?: boolean;
+    isConflict?: boolean;
   } | null>(null);
+
+  const [cashTendered, setCashTendered] = useState<string>('');
 
   const {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors, isDirty, isSubmitSuccessful },
   } = useForm<RecordPaymentFormData>({
     resolver: zodResolver(recordPaymentSchema),
@@ -53,12 +57,40 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
     },
   });
 
+  const watchedMethod = useWatch({ control, name: 'method' });
+  const watchedAmount = useWatch({ control, name: 'amount' });
+
+  const isCash = watchedMethod === 'CASH';
+  const isQr = watchedMethod === 'QR';
+
+  const paymentCents = useMemo(() => {
+    const val = Number(watchedAmount);
+    return !isNaN(val) && val > 0 ? Math.round(val * 100) : 0;
+  }, [watchedAmount]);
+
+  const tenderedCents = useMemo(() => {
+    if (!cashTendered || cashTendered.trim() === '') return null;
+    const val = Number(cashTendered);
+    return !isNaN(val) && val >= 0 ? Math.round(val * 100) : null;
+  }, [cashTendered]);
+
+  const changeCents = useMemo(() => {
+    if (tenderedCents === null) return 0;
+    return Math.max(0, tenderedCents - paymentCents);
+  }, [tenderedCents, paymentCents]);
+
+  const changeDue = changeCents / 100;
+  const isShortTendered =
+    tenderedCents !== null && tenderedCents > 0 && tenderedCents < paymentCents;
+  const shortAmount = isShortTendered ? (paymentCents - (tenderedCents ?? 0)) / 100 : 0;
+
   const { guardedOnOpenChange, isConfirmOpen, confirmDiscard, cancelDiscard } = useDirtyDialogGuard(
     {
       isDirty,
       isSubmitSuccessful,
       onClose: () => {
         setSubmissionError(null);
+        setCashTendered('');
         reset({
           method: 'CASH',
           amount: defaultAmount,
@@ -72,6 +104,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
   useEffect(() => {
     if (open) {
       setSubmissionError(null);
+      setCashTendered('');
       reset({
         method: 'CASH',
         amount: defaultAmount,
@@ -86,6 +119,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
 
     try {
       await onConfirm(data);
+      setCashTendered('');
       reset({
         method: 'CASH',
         amount: defaultAmount,
@@ -105,6 +139,13 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
         'Failed to record payment tender.';
       const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : String(rawMessage);
 
+      const isConflict =
+        status === 409 ||
+        message.toLowerCase().includes('duplicate') ||
+        message.toLowerCase().includes('conflict') ||
+        message.toLowerCase().includes('already settled') ||
+        message.toLowerCase().includes('concurrent');
+
       const isAmbiguous =
         !status ||
         status === 0 ||
@@ -112,7 +153,7 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
         message.toLowerCase().includes('timeout') ||
         message.toLowerCase().includes('fetch');
 
-      setSubmissionError({ message, isAmbiguous });
+      setSubmissionError({ message, isAmbiguous, isConflict });
     }
   };
 
@@ -160,15 +201,23 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
           {submissionError && (
             <div
               className={`p-3 rounded-md text-xs border space-y-1 ${
-                submissionError.isAmbiguous
-                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                  : 'border-destructive/30 bg-destructive/10 text-destructive'
+                submissionError.isConflict
+                  ? 'border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300'
+                  : submissionError.isAmbiguous
+                    ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                    : 'border-destructive/30 bg-destructive/10 text-destructive'
               }`}
               data-testid="record-payment-error"
               role="alert"
             >
               <p className="font-semibold">{submissionError.message}</p>
-              {submissionError.isAmbiguous && (
+              {submissionError.isConflict && (
+                <p className="text-[11px] text-muted-foreground">
+                  A concurrency conflict occurred. The target sale agreement or payment state may
+                  have already been updated. Please refresh the sale details.
+                </p>
+              )}
+              {submissionError.isAmbiguous && !submissionError.isConflict && (
                 <p className="text-[11px] text-muted-foreground">
                   A network interruption occurred while recording this tender. Please check the
                   sale's payment history to confirm whether the tender was recorded before
@@ -205,6 +254,21 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
               )}
             </div>
 
+            {/* QR Payment Lifecycle Guidance */}
+            {isQr && (
+              <div
+                className="p-3 rounded-lg border border-primary/30 bg-primary/5 text-xs text-foreground space-y-1"
+                data-testid="qr-tender-notice"
+              >
+                <span className="font-semibold text-primary block">QR Payment Rail:</span>
+                <span className="text-muted-foreground block text-[11px]">
+                  Tender will be recorded in <strong>PENDING</strong> status. Direct customer to
+                  scan the terminal QR code. Settlement can be confirmed from the payment detail
+                  screen once funds clear.
+                </span>
+              </div>
+            )}
+
             <div className="space-y-1.5">
               <label htmlFor="tender-amount" className="text-sm font-medium">
                 Amount ({currency}) <span className="text-destructive">*</span>
@@ -228,6 +292,60 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
                 </p>
               )}
             </div>
+
+            {/* Cash Tendered & Change Calculator */}
+            {isCash && (
+              <div
+                className="p-3 rounded-lg border border-border bg-muted/20 space-y-2.5"
+                data-testid="cash-tender-calculator"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="cash-tendered" className="text-xs font-medium">
+                      Cash Tendered by Customer ({currency})
+                    </label>
+                    {paymentCents > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setCashTendered((paymentCents / 100).toFixed(2))}
+                        className="text-[11px] text-primary hover:underline font-medium"
+                        data-testid="cash-tender-exact-btn"
+                      >
+                        Exact Amount ({currency} {(paymentCents / 100).toFixed(2)})
+                      </button>
+                    )}
+                  </div>
+                  <Input
+                    id="cash-tendered"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="0.00"
+                    value={cashTendered}
+                    onChange={(e) => setCashTendered(e.target.value)}
+                    disabled={isSubmitting}
+                    className="h-8 text-xs font-mono"
+                    data-testid="cash-tendered-input"
+                  />
+                </div>
+
+                {tenderedCents !== null && (
+                  <div
+                    className={`p-2 rounded text-xs flex justify-between items-center ${
+                      isShortTendered
+                        ? 'bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-400'
+                        : 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 font-semibold'
+                    }`}
+                    data-testid="cash-change-due"
+                  >
+                    <span>{isShortTendered ? 'Short Tender (Remaining Due):' : 'Change Due:'}</span>
+                    <span className="font-mono text-sm">
+                      {currency} {(isShortTendered ? shortAmount : changeDue).toFixed(2)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label htmlFor="tender-reference" className="text-sm font-medium">

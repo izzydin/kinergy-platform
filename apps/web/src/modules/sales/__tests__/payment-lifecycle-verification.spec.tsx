@@ -183,6 +183,47 @@ describe('Payment Lifecycle & Cash/QR Workflows Verification (Phase 7.24)', () =
       expect(handleOpenChange).toHaveBeenCalledWith(false);
     });
 
+    it('calculates cash change due in exact integer cents and supports exact amount helper', async () => {
+      const handleConfirm = jest.fn().mockResolvedValue(undefined);
+      const handleOpenChange = jest.fn();
+
+      renderWithProviders(
+        <RecordPaymentDialog
+          open={true}
+          onOpenChange={handleOpenChange}
+          saleId="sale_payable_100"
+          defaultAmount={45.5}
+          currency="USD"
+          onConfirm={handleConfirm}
+        />,
+        { queryClient, initialSessionOverride: mockOwnerUser },
+      );
+
+      const cashTenderedInput = screen.getByTestId('cash-tendered-input');
+      expect(cashTenderedInput).toBeInTheDocument();
+
+      // Enter customer tendered $50.00 for $45.50 payment
+      fireEvent.change(cashTenderedInput, { target: { value: '50.00' } });
+
+      const changeDisplay = screen.getByTestId('cash-change-due');
+      expect(changeDisplay).toHaveTextContent('Change Due:');
+      expect(changeDisplay).toHaveTextContent('USD 4.50');
+
+      // Test short tender (customer tendered $40.00)
+      fireEvent.change(cashTenderedInput, { target: { value: '40.00' } });
+      expect(screen.getByTestId('cash-change-due')).toHaveTextContent(
+        'Short Tender (Remaining Due):',
+      );
+      expect(screen.getByTestId('cash-change-due')).toHaveTextContent('USD 5.50');
+
+      // Click exact amount button
+      const exactBtn = screen.getByTestId('cash-tender-exact-btn');
+      fireEvent.click(exactBtn);
+      expect(cashTenderedInput).toHaveValue(45.5);
+      expect(screen.getByTestId('cash-change-due')).toHaveTextContent('Change Due:');
+      expect(screen.getByTestId('cash-change-due')).toHaveTextContent('USD 0.00');
+    });
+
     it('displays settled COMPLETED state with paidAt and hides settle/cancel buttons', async () => {
       (useParams as jest.Mock).mockReturnValue({ paymentId: 'pay_cash_settled_001' });
       (salesApi.getPaymentById as jest.Mock).mockResolvedValue(mockCashPaymentCompleted);
@@ -238,6 +279,10 @@ describe('Payment Lifecycle & Cash/QR Workflows Verification (Phase 7.24)', () =
       // Change tender method to QR
       const methodSelect = screen.getByLabelText(/Tender Method/i);
       fireEvent.change(methodSelect, { target: { value: 'QR' } });
+
+      // QR tender notice is presented
+      expect(screen.getByTestId('qr-tender-notice')).toBeInTheDocument();
+      expect(screen.getByTestId('qr-tender-notice')).toHaveTextContent(/PENDING/i);
 
       const refInput = screen.getByLabelText(/Drawer Tag \/ Trace Reference/i);
       fireEvent.change(refInput, { target: { value: 'QR-COUNTER-REF' } });
@@ -364,6 +409,38 @@ describe('Payment Lifecycle & Cash/QR Workflows Verification (Phase 7.24)', () =
         screen.getByText(/Payment amount exceeds remaining unpaid balance/i),
       ).toBeInTheDocument();
       // Dialog remains open so user can correct the input
+      expect(handleOpenChange).not.toHaveBeenCalledWith(false);
+    });
+
+    it('surfaces 409 conflict error when sale is concurrently settled or updated', async () => {
+      const conflictErr = new Error('Conflict: Sale already updated or settled concurrently.');
+      (conflictErr as unknown as { status: number }).status = 409;
+      const handleConfirm = jest.fn().mockRejectedValueOnce(conflictErr);
+      const handleOpenChange = jest.fn();
+
+      renderWithProviders(
+        <RecordPaymentDialog
+          open={true}
+          onOpenChange={handleOpenChange}
+          saleId="sale_payable_100"
+          defaultAmount={100}
+          currency="USD"
+          onConfirm={handleConfirm}
+        />,
+        { queryClient, initialSessionOverride: mockOwnerUser },
+      );
+
+      const submitBtn = screen.getByTestId('confirm-record-payment-btn');
+      fireEvent.click(submitBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('record-payment-error')).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByText(/Conflict: Sale already updated or settled concurrently/i),
+      ).toBeInTheDocument();
+      expect(screen.getByText(/A concurrency conflict occurred/i)).toBeInTheDocument();
       expect(handleOpenChange).not.toHaveBeenCalledWith(false);
     });
 

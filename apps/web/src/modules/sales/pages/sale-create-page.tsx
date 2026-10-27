@@ -32,6 +32,18 @@ import { SALES_ROUTES } from '../routes/sales-routes';
 import { useDirtyGuard, ConfirmDiscardDialog, useApplyServerErrors } from '../../../shared/forms';
 import { ValidationError } from '../../../shared/query';
 
+export const SOURCE_TYPE_LABELS: Record<string, string> = {
+  TREATMENT_SESSION: 'TREATMENT SESSION (Kinesiology Therapy)',
+  MEMBERSHIP_PLAN: 'MEMBERSHIP PLAN (Gym Subscription)',
+  FOOD: 'FOOD (Kitchen / Cafe)',
+  DRINK: 'DRINK (Beverage / Bar)',
+  ROOM_RENTAL: 'ROOM RENTAL (Facility Booking)',
+  INVENTORY_ITEM: 'INVENTORY ITEM (Retail Goods)',
+  CUSTOM_SERVICE: 'CUSTOM SERVICE',
+  POINT_OF_SALE: 'POINT OF SALE',
+  ECOMMERCE: 'ECOMMERCE',
+};
+
 export const SaleCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const auth = useAuth();
@@ -118,6 +130,7 @@ export const SaleCreatePage: React.FC = () => {
   const watchedItems = useWatch({ control, name: 'items' }) || [];
   const watchedOrderDiscount = useWatch({ control, name: 'orderDiscount' });
   const watchedCurrency = useWatch({ control, name: 'currency' }) || 'USD';
+  const watchedSourceType = useWatch({ control, name: 'sourceReference.type' });
 
   // Client preview calculation (Explicitly non-authoritative)
   const previewTotals = useMemo(() => {
@@ -465,7 +478,7 @@ export const SaleCreatePage: React.FC = () => {
                   >
                     {VALID_SALE_SOURCE_TYPES.map((type) => (
                       <option key={type} value={type}>
-                        {type.replace(/_/g, ' ')}
+                        {SOURCE_TYPE_LABELS[type] || type.replace(/_/g, ' ')}
                       </option>
                     ))}
                   </select>
@@ -509,6 +522,33 @@ export const SaleCreatePage: React.FC = () => {
                     className="h-8 text-xs"
                     data-testid="source-reference-code-input"
                   />
+                </div>
+
+                <div className="col-span-1 sm:col-span-3 pt-1 text-[11px] text-muted-foreground">
+                  {watchedSourceType === 'TREATMENT_SESSION' && (
+                    <p data-testid="source-eligibility-hint">
+                      <strong>Kinesiology Session Rule:</strong> Target session must be completed
+                      and unbilled. Reference ID should match the session identifier.
+                    </p>
+                  )}
+                  {watchedSourceType === 'MEMBERSHIP_PLAN' && (
+                    <p data-testid="source-eligibility-hint">
+                      <strong>Gym Membership Rule:</strong> Membership plan must be active in
+                      catalog. Reference ID should match the plan or subscription identifier.
+                    </p>
+                  )}
+                  {watchedSourceType === 'ROOM_RENTAL' && (
+                    <p data-testid="source-eligibility-hint">
+                      <strong>Room Rental Rule:</strong> Room booking reservation must be confirmed
+                      in scheduling. Reference ID should match the booking identifier.
+                    </p>
+                  )}
+                  {(watchedSourceType === 'FOOD' || watchedSourceType === 'DRINK') && (
+                    <p data-testid="source-eligibility-hint">
+                      <strong>Food & Drink Rule:</strong> Item must have available stock in
+                      food/beverage inventory. Reference ID should match the inventory SKU.
+                    </p>
+                  )}
                 </div>
               </div>
             )}
@@ -634,7 +674,7 @@ export const SaleCreatePage: React.FC = () => {
                     >
                       {VALID_SALE_SOURCE_TYPES.map((type) => (
                         <option key={type} value={type}>
-                          {type.replace(/_/g, ' ')}
+                          {SOURCE_TYPE_LABELS[type] || type.replace(/_/g, ' ')}
                         </option>
                       ))}
                     </select>
