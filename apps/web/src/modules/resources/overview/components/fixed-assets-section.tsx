@@ -236,7 +236,7 @@ export const FixedAssetsSection: React.FC<FixedAssetsSectionProps> = ({
           }
           footer={
             <Link
-              to="/resources/assets?status=DECOMMISSIONED"
+              to="/resources/assets?includeDecommissioned=true"
               className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground"
             >
               View archives <ArrowRight className="h-3 w-3" />

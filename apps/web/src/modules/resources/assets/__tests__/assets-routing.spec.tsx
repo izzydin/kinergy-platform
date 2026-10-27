@@ -77,7 +77,7 @@ describe('Fixed Assets Routing & Permission Integration', () => {
     it('allows access to assets list catalog route', async () => {
       renderWithRoute('/resources/assets', READONLY_ASSET_OPERATOR);
       expect(await screen.findByTestId('assets-list-page')).toBeInTheDocument();
-      expect(screen.getByText('Fixed Assets')).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: 'Fixed Assets' })).toBeInTheDocument();
       // Should NOT render commission button because assets.write is missing
       expect(screen.queryByText('Commission New Asset')).not.toBeInTheDocument();
     });

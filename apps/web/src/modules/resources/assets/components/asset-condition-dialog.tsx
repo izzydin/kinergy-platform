@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AssetStatus, AssetCondition, ASSET_CONDITION_REGISTRY } from '@kinergy-platform/core';
+import { AssetStatus, AssetCondition, ASSET_CONDITION_REGISTRY } from '../types';
 import {
   Dialog,
   DialogContent,

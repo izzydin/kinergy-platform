@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { InventoryCategory, UnitOfMeasure } from '@kinergy-platform/core';
+import { InventoryCategory, UnitOfMeasure } from '../types';
 
 /**
  * Product Registration Form Schema

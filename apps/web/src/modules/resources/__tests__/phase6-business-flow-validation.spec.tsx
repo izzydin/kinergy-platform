@@ -10,10 +10,8 @@ import {
   InventoryItemStatus,
   StockMovementType,
   UnitOfMeasure,
-  AssetCategory,
-  AssetStatus,
-  AssetCondition,
-} from '@kinergy-platform/core';
+} from '../inventory/types';
+import { AssetCategory, AssetStatus, AssetCondition } from '../assets/types';
 import type {
   InventoryProductVM,
   StockMovementVM,

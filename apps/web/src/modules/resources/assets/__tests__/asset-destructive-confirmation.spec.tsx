@@ -2,7 +2,7 @@ import React from 'react';
 import '@testing-library/jest-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AssetStatus, AssetCondition, AssetCategory } from '@kinergy-platform/core';
+import { AssetStatus, AssetCondition, AssetCategory } from '../types';
 import { ChangeAssetStatusDialog } from '../components/asset-status-dialog';
 import { RetireAssetDialog } from '../components/retire-asset-dialog';
 import { assetsApi } from '../api/assets-api';

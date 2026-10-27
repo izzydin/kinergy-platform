@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InventoryEditPage } from '../routes/inventory-edit-page';
 import * as inventoryQueries from '../hooks/use-inventory-queries';
 import * as inventoryMutations from '../hooks/use-inventory-mutations';
-import { InventoryCategory, InventoryItemStatus, UnitOfMeasure } from '@kinergy-platform/core';
+import { InventoryCategory, InventoryItemStatus, UnitOfMeasure } from '../types';
 import type { InventoryProductVM } from '../types';
 
 // Polyfill Request if undefined in jsdom for React Router Data Router

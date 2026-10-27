@@ -31,7 +31,7 @@ import {
   FileText,
   ShieldCheck,
 } from 'lucide-react';
-import { AssetStatus, ASSET_CONDITION_REGISTRY } from '@kinergy-platform/core';
+import { AssetStatus, ASSET_CONDITION_REGISTRY } from '../types';
 import { useAuth } from '../../../../app/providers/auth-provider';
 import { useAsset, useAssetValuation } from '../hooks';
 import {

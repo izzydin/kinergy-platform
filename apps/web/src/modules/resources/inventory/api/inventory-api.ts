@@ -68,6 +68,111 @@ interface RawLowStockItemResponse {
   updatedAt?: string;
 }
 
+interface RawStockMutationResponse {
+  success?: boolean;
+  item?: RawLowStockItemResponse;
+  movement?: RawStockMovementResponse;
+  movementId?: string;
+  balanceAfter?: number;
+  occurredAt?: string;
+}
+
+function mapRawInventoryItem(item: RawLowStockItemResponse): InventoryProductVM {
+  const currentStock =
+    typeof item.quantityOnHand === 'number'
+      ? item.quantityOnHand
+      : typeof item.currentStock === 'number'
+        ? item.currentStock
+        : 0;
+  const reorderThreshold =
+    typeof item.minimumStock === 'number'
+      ? item.minimumStock
+      : typeof item.reorderThreshold === 'number'
+        ? item.reorderThreshold
+        : 0;
+  const isLowStock = currentStock <= reorderThreshold;
+  const isOutOfStock = currentStock === 0;
+
+  return {
+    id: item.id,
+    sku: item.sku,
+    name: item.name,
+    description: item.description ?? null,
+    category: item.category as InventoryCategory,
+    unitCost: item.unitCost || {
+      amount: item.purchaseCostAmount ?? 0,
+      currency: item.purchaseCostCurrency ?? 'USD',
+    },
+    sellingPrice: item.sellingPrice || {
+      amount: item.sellingPriceAmount ?? 0,
+      currency: item.sellingPriceCurrency ?? 'USD',
+    },
+    currentStock,
+    reorderThreshold,
+    unitOfMeasure: item.unitOfMeasure || item.unit || 'unit',
+    status: (item.status as InventoryItemStatus) || InventoryItemStatus.ACTIVE,
+    isLowStock,
+    isOutOfStock,
+    createdAt: item.createdAt || new Date().toISOString(),
+    updatedAt: item.updatedAt || new Date().toISOString(),
+  };
+}
+
+function mapRawStockMovement(dto: RawStockMovementResponse, fallbackItemId = ''): StockMovementVM {
+  const type = (dto.movementType || dto.type || StockMovementType.PURCHASE) as StockMovementType;
+  const quantityDelta =
+    typeof dto.quantityDelta === 'number' ? dto.quantityDelta : dto.quantity || 0;
+  const newBalance = typeof dto.balanceAfter === 'number' ? dto.balanceAfter : dto.newBalance || 0;
+  const previousBalance =
+    typeof dto.previousBalance === 'number' ? dto.previousBalance : newBalance - quantityDelta;
+
+  return {
+    id: dto.id,
+    itemId: dto.inventoryItemId || dto.itemId || fallbackItemId,
+    type,
+    quantity: Math.abs(quantityDelta),
+    previousBalance,
+    newBalance,
+    unitCost: dto.unitCostAmount
+      ? { amount: dto.unitCostAmount, currency: dto.unitCostCurrency || 'USD' }
+      : dto.unitCost || null,
+    sellingPrice: dto.sellingPrice || null,
+    referenceNumber: dto.referenceId || dto.referenceNumber || null,
+    reason: dto.reason || '',
+    actorId: dto.recordedByUserId || dto.actorId || 'system',
+    occurredAt: dto.recordedAt || dto.occurredAt || new Date().toISOString(),
+  };
+}
+
+function mapStockMutationResult(
+  response: RawStockMutationResponse,
+  fallbackItemId = '',
+): StockMutationResultVM {
+  const movement = response.movement;
+  const item = response.item;
+  const balanceAfter =
+    typeof response.balanceAfter === 'number'
+      ? response.balanceAfter
+      : typeof movement?.balanceAfter === 'number'
+        ? movement.balanceAfter
+        : typeof item?.quantityOnHand === 'number'
+          ? item.quantityOnHand
+          : 0;
+
+  const movementId = response.movementId || movement?.id || '';
+  const occurredAt =
+    response.occurredAt || movement?.recordedAt || movement?.occurredAt || new Date().toISOString();
+
+  return {
+    success: response.success ?? true,
+    movementId,
+    balanceAfter,
+    occurredAt,
+    item: item ? mapRawInventoryItem(item) : undefined,
+    movement: movement ? mapRawStockMovement(movement, fallbackItemId) : undefined,
+  };
+}
+
 export const inventoryApi = {
   /**
    * Retrieves static category taxonomy metadata
@@ -279,49 +384,54 @@ export const inventoryApi = {
    * Records receipt of purchased stock
    */
   async receiveStock(id: string, payload: ReceiveStockInputVM): Promise<StockMutationResultVM> {
-    return httpClient.post<StockMutationResultVM>(
+    const raw = await httpClient.post<RawStockMutationResponse>(
       `/api/v1/resources/inventory/${encodeURIComponent(id)}/receive`,
       payload,
     );
+    return mapStockMutationResult(raw, id);
   },
 
   /**
    * Records retail sale of stock
    */
   async sellStock(id: string, payload: SellStockInputVM): Promise<StockMutationResultVM> {
-    return httpClient.post<StockMutationResultVM>(
+    const raw = await httpClient.post<RawStockMutationResponse>(
       `/api/v1/resources/inventory/${encodeURIComponent(id)}/sell`,
       payload,
     );
+    return mapStockMutationResult(raw, id);
   },
 
   /**
    * Records consumption of stock in clinical or gym treatment
    */
   async consumeStock(id: string, payload: ConsumeStockInputVM): Promise<StockMutationResultVM> {
-    return httpClient.post<StockMutationResultVM>(
+    const raw = await httpClient.post<RawStockMutationResponse>(
       `/api/v1/resources/inventory/${encodeURIComponent(id)}/consume`,
       payload,
     );
+    return mapStockMutationResult(raw, id);
   },
 
   /**
    * Records disposal of damaged or expired stock
    */
   async scrapStock(id: string, payload: ScrapStockInputVM): Promise<StockMutationResultVM> {
-    return httpClient.post<StockMutationResultVM>(
+    const raw = await httpClient.post<RawStockMutationResponse>(
       `/api/v1/resources/inventory/${encodeURIComponent(id)}/scrap`,
       payload,
     );
+    return mapStockMutationResult(raw, id);
   },
 
   /**
    * Records physical inventory count audit adjustment
    */
   async adjustStock(id: string, payload: AdjustStockInputVM): Promise<StockMutationResultVM> {
-    return httpClient.post<StockMutationResultVM>(
+    const raw = await httpClient.post<RawStockMutationResponse>(
       `/api/v1/resources/inventory/${encodeURIComponent(id)}/adjust`,
       payload,
     );
+    return mapStockMutationResult(raw, id);
   },
 };

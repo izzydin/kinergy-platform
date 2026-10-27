@@ -1,7 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { AssetStatus, AssetCondition, AssetLifecycleStateMachine } from '@kinergy-platform/core';
+import { AssetStatus, AssetCondition, CLIENT_ASSET_TRANSITIONS } from '../types';
 import {
   Dialog,
   DialogContent,
@@ -125,7 +125,7 @@ export const ChangeAssetStatusDialog: React.FC<ChangeAssetStatusDialogProps> = (
   // Direct change to 'SOLD' is prohibited by domain rules (requires liquidation method)
   const allowedTransitions: StatusOptionMeta[] = React.useMemo(() => {
     if (!asset || isTerminalCurrent) return [];
-    const domainAllowed = AssetLifecycleStateMachine.getAllowedTransitions(currentStatus);
+    const domainAllowed = CLIENT_ASSET_TRANSITIONS[currentStatus] ?? [];
     return domainAllowed
       .filter(
         (target): target is AllowedTargetStatus =>

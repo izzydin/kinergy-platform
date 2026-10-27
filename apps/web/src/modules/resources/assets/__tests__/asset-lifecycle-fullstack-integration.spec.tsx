@@ -13,7 +13,7 @@ import {
 } from '../hooks/use-assets-mutations';
 import { assetsApi, assetsQueryKeys } from '../api';
 import { NotificationProvider } from '../../../../app/providers/notification-provider';
-import { AssetCategory, AssetStatus, AssetCondition } from '@kinergy-platform/core';
+import { AssetCategory, AssetStatus, AssetCondition } from '../types';
 import type { FixedAssetVM } from '../types';
 
 jest.mock('../api/assets-api');

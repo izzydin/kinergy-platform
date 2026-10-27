@@ -6,12 +6,7 @@ import { InventoryDetailPage } from '../routes/inventory-detail-page';
 import * as inventoryQueries from '../hooks/use-inventory-queries';
 import * as inventoryMutations from '../hooks/use-inventory-mutations';
 import * as authProvider from '../../../../app/providers/auth-provider';
-import {
-  InventoryCategory,
-  InventoryItemStatus,
-  StockMovementType,
-  UnitOfMeasure,
-} from '@kinergy-platform/core';
+import { InventoryCategory, InventoryItemStatus, StockMovementType, UnitOfMeasure } from '../types';
 import type { InventoryProductVM, PaginatedStockMovementsVM } from '../types';
 
 // Polyfill Request if undefined in jsdom for React Router Data Router

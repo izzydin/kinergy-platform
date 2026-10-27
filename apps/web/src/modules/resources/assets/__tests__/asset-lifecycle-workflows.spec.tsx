@@ -7,7 +7,7 @@ import { UpdateAssetValuationDialog } from '../components/asset-valuation-dialog
 import { assetsApi } from '../api/assets-api';
 import { NotificationProvider } from '../../../../app/providers/notification-provider';
 import { AuthProvider } from '../../../../app/providers/auth-provider';
-import { AssetStatus, AssetCondition, AssetCategory } from '@kinergy-platform/core';
+import { AssetStatus, AssetCondition, AssetCategory } from '../types';
 import type { FixedAssetVM } from '../types';
 
 jest.mock('../api/assets-api');

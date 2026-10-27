@@ -2,14 +2,8 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  InventoryItemStatus,
-  InventoryCategory,
-  UnitOfMeasure,
-  AssetStatus,
-  AssetCondition,
-  AssetCategory,
-} from '@kinergy-platform/core';
+import { InventoryItemStatus, InventoryCategory, UnitOfMeasure } from '../inventory/types';
+import { AssetStatus, AssetCondition, AssetCategory } from '../assets/types';
 
 // Dialog Components
 import { AdjustStockDialog } from '../inventory/components/adjust-stock-dialog';

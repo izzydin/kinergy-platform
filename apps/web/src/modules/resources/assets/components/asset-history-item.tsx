@@ -11,12 +11,7 @@ import {
   Wrench,
   FileText,
 } from 'lucide-react';
-import {
-  AssetHistoryEventType,
-  AssetStatus,
-  AssetCondition,
-  AssetCategory,
-} from '@kinergy-platform/core';
+import { AssetHistoryEventType, AssetStatus, AssetCondition, AssetCategory } from '../types';
 import type { AssetHistoryEventVM } from '../types';
 import { AssetStatusBadge } from './asset-status-badge';
 import { AssetConditionBadge } from './asset-condition-badge';

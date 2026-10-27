@@ -2,12 +2,8 @@ import '@testing-library/jest-dom';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import {
-  InventoryItemStatus,
-  InventoryCategory,
-  AssetStatus,
-  AssetCondition,
-} from '@kinergy-platform/core';
+import { InventoryItemStatus, InventoryCategory } from '../inventory/types';
+import { AssetStatus, AssetCondition } from '../assets/types';
 
 // Auth module mock
 import * as authModule from '../../../app/providers/auth-provider';

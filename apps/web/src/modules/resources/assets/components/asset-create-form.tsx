@@ -7,7 +7,7 @@ import {
   AssetCondition,
   ASSET_CATEGORY_REGISTRY,
   ASSET_CONDITION_REGISTRY,
-} from '@kinergy-platform/core';
+} from '../types';
 import { Input, Card, CardContent } from '@kinergy-platform/ui';
 import {
   Form,

@@ -37,7 +37,7 @@ import {
   INVENTORY_CATEGORY_REGISTRY,
   UNIT_OF_MEASURE_REGISTRY,
   InventoryItemStatus,
-} from '@kinergy-platform/core';
+} from '../types';
 import { useAuth } from '../../../../app/providers/auth-provider';
 import { useInventoryProduct } from '../hooks';
 import { InventoryStatusBadge } from '../components/inventory-status-badge';

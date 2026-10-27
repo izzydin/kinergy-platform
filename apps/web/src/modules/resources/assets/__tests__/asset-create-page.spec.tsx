@@ -4,7 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AssetCreatePage } from '../routes/asset-create-page';
 import * as assetMutations from '../hooks/use-assets-mutations';
-import { AssetCategory, AssetStatus, AssetCondition } from '@kinergy-platform/core';
+import { AssetCategory, AssetStatus, AssetCondition } from '../types';
 import { ValidationError } from '../../../../shared/query';
 
 // Polyfill Request if undefined in jsdom for React Router Data Router

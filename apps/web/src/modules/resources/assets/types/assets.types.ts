@@ -1,14 +1,180 @@
-import {
-  AssetCategory,
-  AssetStatus,
-  AssetCondition,
-  AssetHistoryEventType,
-} from '@kinergy-platform/core';
+/**
+ * Authoritative client-safe Fixed Asset Enums
+ * Decoupled from @kinergy-platform/core to prevent server domain leakage into client bundle
+ */
+export enum AssetCategory {
+  GYM_EQUIPMENT = 'GYM_EQUIPMENT',
+  THERAPY_EQUIPMENT = 'THERAPY_EQUIPMENT',
+  KITCHEN_EQUIPMENT = 'KITCHEN_EQUIPMENT',
+  OFFICE_FURNITURE = 'OFFICE_FURNITURE',
+  ELECTRONICS = 'ELECTRONICS',
+  CLEANING_EQUIPMENT = 'CLEANING_EQUIPMENT',
+}
+
+export enum AssetStatus {
+  ACTIVE = 'ACTIVE',
+  UNDER_MAINTENANCE = 'UNDER_MAINTENANCE',
+  DAMAGED = 'DAMAGED',
+  RETIRED = 'RETIRED',
+  SOLD = 'SOLD',
+}
+
+export enum AssetCondition {
+  EXCELLENT = 'EXCELLENT',
+  GOOD = 'GOOD',
+  FAIR = 'FAIR',
+  NEEDS_REPAIR = 'NEEDS_REPAIR',
+  OUT_OF_SERVICE = 'OUT_OF_SERVICE',
+}
+
+export enum AssetHistoryEventType {
+  CREATED = 'CREATED',
+  UPDATED = 'UPDATED',
+  TRANSFERRED = 'TRANSFERRED',
+  STATUS_CHANGED = 'STATUS_CHANGED',
+  CONDITION_CHANGED = 'CONDITION_CHANGED',
+  VALUE_UPDATED = 'VALUE_UPDATED',
+  MAINTENANCE_RECORDED = 'MAINTENANCE_RECORDED',
+  RETIRED = 'RETIRED',
+  SOLD = 'SOLD',
+}
+
+export interface AssetCategoryDescriptor {
+  readonly code: AssetCategory;
+  readonly displayName: string;
+  readonly description: string;
+  readonly requiresMaintenance: boolean;
+  readonly defaultInspectionIntervalDays?: number;
+}
+
+export const ASSET_CATEGORY_REGISTRY: Record<AssetCategory, AssetCategoryDescriptor> = {
+  [AssetCategory.GYM_EQUIPMENT]: {
+    code: AssetCategory.GYM_EQUIPMENT,
+    displayName: 'Gym Equipment',
+    description:
+      'Heavy machinery, cardio machines, free weights, and functional training stations.',
+    requiresMaintenance: true,
+    defaultInspectionIntervalDays: 90,
+  },
+  [AssetCategory.THERAPY_EQUIPMENT]: {
+    code: AssetCategory.THERAPY_EQUIPMENT,
+    displayName: 'Therapy Equipment',
+    description: 'Clinical lasers, ultrasound machines, shockwave units, and treatment tables.',
+    requiresMaintenance: true,
+    defaultInspectionIntervalDays: 60,
+  },
+  [AssetCategory.KITCHEN_EQUIPMENT]: {
+    code: AssetCategory.KITCHEN_EQUIPMENT,
+    displayName: 'Kitchen Equipment',
+    description: 'Commercial blenders, refrigeration, shake station appliances, and ice machines.',
+    requiresMaintenance: true,
+    defaultInspectionIntervalDays: 180,
+  },
+  [AssetCategory.OFFICE_FURNITURE]: {
+    code: AssetCategory.OFFICE_FURNITURE,
+    displayName: 'Office Furniture',
+    description: 'Desks, consultation chairs, reception counters, and filing cabinets.',
+    requiresMaintenance: false,
+  },
+  [AssetCategory.ELECTRONICS]: {
+    code: AssetCategory.ELECTRONICS,
+    displayName: 'Electronics',
+    description: 'POS terminals, sound systems, computers, tablets, and network infrastructure.',
+    requiresMaintenance: true,
+    defaultInspectionIntervalDays: 180,
+  },
+  [AssetCategory.CLEANING_EQUIPMENT]: {
+    code: AssetCategory.CLEANING_EQUIPMENT,
+    displayName: 'Cleaning Equipment',
+    description: 'Industrial floor scrubbers, sanitization foggers, and wet-dry vacuums.',
+    requiresMaintenance: true,
+    defaultInspectionIntervalDays: 90,
+  },
+};
+
+export interface AssetConditionDescriptor {
+  readonly code: AssetCondition;
+  readonly displayName: string;
+  readonly description: string;
+  readonly severityRank: number; // 1 (Best) to 5 (Worst)
+  readonly isServiceable: boolean;
+  readonly requiresTechnicianAttention: boolean;
+}
+
+export const ASSET_CONDITION_REGISTRY: Record<AssetCondition, AssetConditionDescriptor> = {
+  [AssetCondition.EXCELLENT]: {
+    code: AssetCondition.EXCELLENT,
+    displayName: 'Excellent',
+    description:
+      'Like-new or newly commissioned condition with zero mechanical or aesthetic degradation.',
+    severityRank: 1,
+    isServiceable: true,
+    requiresTechnicianAttention: false,
+  },
+  [AssetCondition.GOOD]: {
+    code: AssetCondition.GOOD,
+    displayName: 'Good',
+    description:
+      'Normal operational condition with minimal superficial wear and flawless performance.',
+    severityRank: 2,
+    isServiceable: true,
+    requiresTechnicianAttention: false,
+  },
+  [AssetCondition.FAIR]: {
+    code: AssetCondition.FAIR,
+    displayName: 'Fair',
+    description:
+      'Noticeable wear or minor cosmetic degradation; fully functional but nearing scheduled servicing.',
+    severityRank: 3,
+    isServiceable: true,
+    requiresTechnicianAttention: false,
+  },
+  [AssetCondition.NEEDS_REPAIR]: {
+    code: AssetCondition.NEEDS_REPAIR,
+    displayName: 'Needs Repair',
+    description:
+      'Mechanical faults, calibration drift, or component wear requiring prompt technician intervention.',
+    severityRank: 4,
+    isServiceable: false,
+    requiresTechnicianAttention: true,
+  },
+  [AssetCondition.OUT_OF_SERVICE]: {
+    code: AssetCondition.OUT_OF_SERVICE,
+    displayName: 'Out of Service',
+    description:
+      'Complete breakdown, structural failure, or safety hazard prohibiting any operation.',
+    severityRank: 5,
+    isServiceable: false,
+    requiresTechnicianAttention: true,
+  },
+};
 
 /**
- * Re-export authoritative core enums for clean module-level consumption
+ * Client-safe state machine allowed transitions lookup table
+ * Matches domain AssetLifecycleStateMachine adjacency graph
  */
-export { AssetCategory, AssetStatus, AssetCondition, AssetHistoryEventType };
+export const CLIENT_ASSET_TRANSITIONS: Record<AssetStatus, readonly AssetStatus[]> = {
+  [AssetStatus.ACTIVE]: [
+    AssetStatus.UNDER_MAINTENANCE,
+    AssetStatus.DAMAGED,
+    AssetStatus.RETIRED,
+    AssetStatus.SOLD,
+  ],
+  [AssetStatus.UNDER_MAINTENANCE]: [
+    AssetStatus.ACTIVE,
+    AssetStatus.DAMAGED,
+    AssetStatus.RETIRED,
+    AssetStatus.SOLD,
+  ],
+  [AssetStatus.DAMAGED]: [
+    AssetStatus.UNDER_MAINTENANCE,
+    AssetStatus.ACTIVE,
+    AssetStatus.RETIRED,
+    AssetStatus.SOLD,
+  ],
+  [AssetStatus.RETIRED]: [AssetStatus.SOLD],
+  [AssetStatus.SOLD]: [],
+};
 
 /**
  * Physical Location Representation View Model

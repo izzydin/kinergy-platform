@@ -8,7 +8,7 @@ import {
   INVENTORY_CATEGORY_REGISTRY,
   UNIT_OF_MEASURE_REGISTRY,
   InventoryItemStatus,
-} from '@kinergy-platform/core';
+} from '../types';
 import {
   Input,
   Card,

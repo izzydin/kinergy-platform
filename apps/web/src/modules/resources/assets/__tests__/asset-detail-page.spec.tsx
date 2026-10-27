@@ -7,12 +7,7 @@ import { assetsApi } from '../api/assets-api';
 import { AuthProvider } from '../../../../app/providers/auth-provider';
 import { NotificationProvider } from '../../../../app/providers/notification-provider';
 import type { AuthUser } from '../../../auth/domain/auth-state.types';
-import {
-  AssetStatus,
-  AssetCondition,
-  AssetCategory,
-  AssetHistoryEventType,
-} from '@kinergy-platform/core';
+import { AssetStatus, AssetCondition, AssetCategory, AssetHistoryEventType } from '../types';
 import type { FixedAssetVM, PaginatedAssetHistoryVM, PaginatedMaintenanceVM } from '../types';
 
 jest.mock('../api/assets-api');

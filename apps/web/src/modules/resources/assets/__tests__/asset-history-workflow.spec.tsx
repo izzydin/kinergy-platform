@@ -5,12 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '../../../../app/providers/auth-provider';
 import { NotificationProvider } from '../../../../app/providers/notification-provider';
 import type { AuthUser } from '../../../auth/domain/auth-state.types';
-import {
-  AssetCategory,
-  AssetStatus,
-  AssetCondition,
-  AssetHistoryEventType,
-} from '@kinergy-platform/core';
+import { AssetCategory, AssetStatus, AssetCondition, AssetHistoryEventType } from '../types';
 import type { FixedAssetVM, PaginatedAssetHistoryVM, AssetHistoryEventVM } from '../types';
 import { assetsApi } from '../api/assets-api';
 import { AssetHistoryPage } from '../routes/asset-history-page';

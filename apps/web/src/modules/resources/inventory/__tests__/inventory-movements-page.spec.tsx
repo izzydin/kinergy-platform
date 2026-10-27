@@ -4,12 +4,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InventoryMovementsPage } from '../routes/inventory-movements-page';
 import * as inventoryQueries from '../hooks/use-inventory-queries';
-import {
-  InventoryCategory,
-  InventoryItemStatus,
-  StockMovementType,
-  UnitOfMeasure,
-} from '@kinergy-platform/core';
+import { InventoryCategory, InventoryItemStatus, StockMovementType, UnitOfMeasure } from '../types';
 import type { InventoryProductVM, PaginatedStockMovementsVM } from '../types';
 
 if (typeof global.Request === 'undefined') {

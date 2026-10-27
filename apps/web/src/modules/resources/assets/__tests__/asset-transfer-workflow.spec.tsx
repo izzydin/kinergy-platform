@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { TransferAssetLocationDialog } from '../components/asset-transfer-dialog';
 import { assetsApi } from '../api/assets-api';
 import { NotificationProvider } from '../../../../app/providers/notification-provider';
-import { AssetStatus, AssetCondition, AssetCategory } from '@kinergy-platform/core';
+import { AssetStatus, AssetCondition, AssetCategory } from '../types';
 import type { FixedAssetVM } from '../types';
 
 jest.mock('../api/assets-api');

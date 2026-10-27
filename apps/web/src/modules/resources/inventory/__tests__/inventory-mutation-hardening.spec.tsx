@@ -10,7 +10,7 @@ import {
 } from '../hooks/use-inventory-mutations';
 import { inventoryApi, inventoryQueryKeys } from '../api';
 import { resourceOverviewQueryKeys } from '../../overview/api';
-import { InventoryCategory, InventoryItemStatus, UnitOfMeasure } from '@kinergy-platform/core';
+import { InventoryCategory, InventoryItemStatus, UnitOfMeasure } from '../types';
 import type { InventoryProductVM, StockMutationResultVM } from '../types';
 
 // Mock the API and Notifications

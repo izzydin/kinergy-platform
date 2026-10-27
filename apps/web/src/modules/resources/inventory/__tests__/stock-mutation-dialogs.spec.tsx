@@ -9,7 +9,7 @@ import {
   ScrapStockDialog,
 } from '../components';
 import * as inventoryMutations from '../hooks/use-inventory-mutations';
-import { InventoryCategory, InventoryItemStatus, UnitOfMeasure } from '@kinergy-platform/core';
+import { InventoryCategory, InventoryItemStatus, UnitOfMeasure } from '../types';
 import type { InventoryProductVM } from '../types';
 
 jest.mock('../hooks/use-inventory-mutations', () => ({

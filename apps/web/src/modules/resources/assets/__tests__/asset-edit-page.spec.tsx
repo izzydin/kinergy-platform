@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AssetEditPage } from '../routes/asset-edit-page';
 import * as assetQueries from '../hooks/use-assets-queries';
 import * as assetMutations from '../hooks/use-assets-mutations';
-import { AssetCategory, AssetStatus, AssetCondition } from '@kinergy-platform/core';
+import { AssetCategory, AssetStatus, AssetCondition } from '../types';
 import type { FixedAssetVM } from '../types';
 import { ValidationError } from '../../../../shared/query';
 

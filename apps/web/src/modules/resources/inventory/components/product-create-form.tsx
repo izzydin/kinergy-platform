@@ -6,7 +6,7 @@ import {
   UnitOfMeasure,
   INVENTORY_CATEGORY_REGISTRY,
   UNIT_OF_MEASURE_REGISTRY,
-} from '@kinergy-platform/core';
+} from '../types';
 import { Input, Card, CardContent } from '@kinergy-platform/ui';
 import {
   Form,

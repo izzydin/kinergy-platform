@@ -11,7 +11,7 @@ import {
   AssetEditForm,
 } from '../components';
 import * as assetMutations from '../hooks/use-assets-mutations';
-import { AssetStatus, AssetCondition, AssetCategory } from '@kinergy-platform/core';
+import { AssetStatus, AssetCondition, AssetCategory } from '../types';
 import type { FixedAssetVM } from '../types';
 
 jest.mock('../hooks/use-assets-mutations', () => ({

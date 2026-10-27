@@ -23,7 +23,7 @@ import {
   ShieldCheck,
   Info,
 } from 'lucide-react';
-import { AssetHistoryEventType } from '@kinergy-platform/core';
+import { AssetHistoryEventType } from '../types';
 import { useAuth } from '../../../../app/providers/auth-provider';
 import { useAsset, useAssetHistory, useAssetHistoryFilters } from '../hooks';
 import {

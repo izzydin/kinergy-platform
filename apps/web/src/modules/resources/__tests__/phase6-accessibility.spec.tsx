@@ -8,11 +8,9 @@ import {
   InventoryItemStatus,
   InventoryCategory,
   UnitOfMeasure,
-  AssetStatus,
-  AssetCondition,
-  AssetCategory,
   StockMovementType,
-} from '@kinergy-platform/core';
+} from '../inventory/types';
+import { AssetStatus, AssetCondition, AssetCategory } from '../assets/types';
 
 // Auth module mock
 import * as authModule from '../../../app/providers/auth-provider';
