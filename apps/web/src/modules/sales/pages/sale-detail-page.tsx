@@ -18,6 +18,7 @@ import {
   Tag,
   User,
   RefreshCw,
+  AlertCircle,
 } from 'lucide-react';
 import { useSaleDetail, useSalePayments, useReceiptBySale } from '../hooks/use-sales-queries';
 import { useFinalizeSale, useCancelSale, useRecordPayment } from '../hooks/use-sales-mutations';
@@ -28,6 +29,7 @@ import { MoneyDisplay } from '../components/money-display';
 import { CancelSaleDialog } from '../components/cancel-sale-dialog';
 import { RecordPaymentDialog } from '../components/record-payment-dialog';
 import { evaluateSaleBalances, centsToDecimal } from '../utils/financial-math';
+import { translateSalesError } from '../utils/sales-error-translator';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
@@ -48,9 +50,19 @@ export const SaleDetailPage: React.FC = () => {
       : auth.currentUser?.permissions?.includes('sales.read'),
   );
 
-  const { data: sale, isLoading, isError, error, refetch } = useSaleDetail(saleId);
+  const {
+    data: sale,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useSaleDetail(saleId, {
+    enabled: canRead,
+  });
   const { data: payments } = useSalePayments(saleId);
-  const { data: receipt } = useReceiptBySale(saleId);
+  const { data: receipt } = useReceiptBySale(saleId, {
+    enabled: canRead,
+  });
 
   const finalizeMutation = useFinalizeSale();
   const cancelMutation = useCancelSale();
@@ -58,6 +70,30 @@ export const SaleDetailPage: React.FC = () => {
 
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [isRecordPaymentDialogOpen, setIsRecordPaymentDialogOpen] = useState(false);
+  const [actionError, setActionError] = useState<{
+    title: string;
+    message: string;
+    category?: string;
+  } | null>(null);
+
+  // Granular capability permissions
+  const canCreate = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('sales.create')
+      : auth.currentUser?.permissions?.includes('sales.create'),
+  );
+
+  const canCancel = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('sales.cancel')
+      : auth.currentUser?.permissions?.includes('sales.cancel'),
+  );
+
+  const canRecordPayment = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('payments.create')
+      : auth.currentUser?.permissions?.includes('payments.create'),
+  );
 
   if (!canRead) {
     return (
@@ -135,10 +171,35 @@ export const SaleDetailPage: React.FC = () => {
 
   const handleFinalize = async () => {
     if (finalizeMutation.isPending) return;
-    await finalizeMutation.mutateAsync(sale.id);
+    if (!canCreate) {
+      setActionError({
+        title: 'Action Prohibited',
+        message: 'Missing required permission "sales.create" to finalize commercial agreements.',
+      });
+      return;
+    }
+    setActionError(null);
+    try {
+      await finalizeMutation.mutateAsync(sale.id);
+    } catch (err: unknown) {
+      const translated = translateSalesError(err);
+      setActionError({
+        title: translated.title,
+        message: translated.message,
+        category: translated.category,
+      });
+    }
   };
 
   const handleConfirmCancel = async (reason: string) => {
+    if (!canCancel) {
+      setActionError({
+        title: 'Action Prohibited',
+        message: 'Missing required permission "sales.cancel" to cancel commercial agreements.',
+      });
+      return;
+    }
+    setActionError(null);
     await cancelMutation.mutateAsync({
       saleId: sale.id,
       input: { reason },
@@ -150,6 +211,14 @@ export const SaleDetailPage: React.FC = () => {
     amount: number;
     reference?: string;
   }) => {
+    if (!canRecordPayment) {
+      setActionError({
+        title: 'Action Prohibited',
+        message: 'Missing required permission "payments.create" to record payment tenders.',
+      });
+      return;
+    }
+    setActionError(null);
     await recordPaymentMutation.mutateAsync({
       saleId: sale.id,
       input: {
@@ -314,6 +383,22 @@ export const SaleDetailPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Action / Mutation Error Feedback */}
+      {actionError && (
+        <div
+          className="flex items-start gap-3 p-4 rounded-lg border border-destructive/30 bg-destructive/10 text-destructive text-sm"
+          role="alert"
+          aria-live="assertive"
+          data-testid="sale-action-error"
+        >
+          <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
+          <div className="space-y-0.5">
+            <p className="font-semibold">{actionError.title}</p>
+            <p className="text-xs">{actionError.message}</p>
+          </div>
+        </div>
+      )}
 
       {/* 2. Cancellation Notice Banner if Cancelled */}
       {isCancelled && (

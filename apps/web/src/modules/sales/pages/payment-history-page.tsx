@@ -45,7 +45,9 @@ export const PaymentHistoryPage: React.FC = () => {
     resetFilters,
   } = usePaymentFilters();
 
-  const { data, isLoading, isError, error, refetch } = usePaymentsList(params);
+  const { data, isLoading, isError, error, refetch } = usePaymentsList(params, {
+    enabled: canRead,
+  });
 
   // Clamp pagination when filter changes make current page exceed totalPages
   useEffect(() => {
@@ -116,6 +118,8 @@ export const PaymentHistoryPage: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">Status:</span>
             <select
+              id="payment-status-filter"
+              aria-label="Filter by payment status"
               value={status || 'ALL'}
               onChange={(e) => setStatus(e.target.value as PaymentStatus | 'ALL')}
               className="h-8 rounded-md border border-input bg-background px-2.5 py-1 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -134,6 +138,8 @@ export const PaymentHistoryPage: React.FC = () => {
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-medium text-muted-foreground">Method:</span>
             <select
+              id="payment-method-filter"
+              aria-label="Filter by payment tender method"
               value={method || 'ALL'}
               onChange={(e) => setMethod(e.target.value as PaymentMethod | 'ALL')}
               className="h-8 rounded-md border border-input bg-background px-2.5 py-1 text-xs ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
@@ -155,6 +161,8 @@ export const PaymentHistoryPage: React.FC = () => {
             <Hash className="h-3.5 w-3.5 text-muted-foreground" />
             <Input
               type="text"
+              id="payment-sale-id-filter"
+              aria-label="Filter by Sale ID"
               placeholder="Filter by Sale ID..."
               value={saleId || ''}
               onChange={(e) => setSaleId(e.target.value || undefined)}
@@ -171,6 +179,8 @@ export const PaymentHistoryPage: React.FC = () => {
             <span className="text-xs text-muted-foreground">From:</span>
             <Input
               type="date"
+              id="payment-from-date-filter"
+              aria-label="Filter from date"
               value={fromDate ? fromDate.slice(0, 10) : ''}
               onChange={(e) => {
                 const val = e.target.value ? new Date(e.target.value).toISOString() : undefined;
@@ -186,6 +196,8 @@ export const PaymentHistoryPage: React.FC = () => {
             <span className="text-xs text-muted-foreground">To:</span>
             <Input
               type="date"
+              id="payment-to-date-filter"
+              aria-label="Filter to date"
               value={toDate ? toDate.slice(0, 10) : ''}
               onChange={(e) => {
                 const val = e.target.value

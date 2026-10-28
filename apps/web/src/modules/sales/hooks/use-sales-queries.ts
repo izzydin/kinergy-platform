@@ -6,23 +6,24 @@ import type { ListPaymentsQueryParams } from '../types/payments.types';
 /**
  * Retrieves paginated sales orders with multi-criteria URL state filtering
  */
-export function useSalesList(params?: ListSalesQueryParams) {
+export function useSalesList(params?: ListSalesQueryParams, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: salesQueryKeys.list(params),
     queryFn: () => salesApi.listSales(params),
     staleTime: 30 * 1000, // 30 seconds
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   });
 }
 
 /**
  * Retrieves a single commercial sale aggregate by ID
  */
-export function useSaleDetail(saleId: string | undefined) {
+export function useSaleDetail(saleId: string | undefined, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: salesQueryKeys.detail(saleId ?? ''),
     queryFn: () => salesApi.getSaleById(saleId!),
-    enabled: Boolean(saleId),
+    enabled: Boolean(saleId) && (options?.enabled ?? true),
     staleTime: 15 * 1000,
   });
 }
@@ -54,23 +55,24 @@ export function useSalePayments(saleId: string | undefined) {
 /**
  * Retrieves paginated payment transactions log
  */
-export function usePaymentsList(params?: ListPaymentsQueryParams) {
+export function usePaymentsList(params?: ListPaymentsQueryParams, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: salesQueryKeys.payments.list(params),
     queryFn: () => salesApi.listPayments(params),
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,
+    enabled: options?.enabled ?? true,
   });
 }
 
 /**
  * Retrieves single payment transaction details
  */
-export function usePaymentDetail(paymentId: string | undefined) {
+export function usePaymentDetail(paymentId: string | undefined, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: salesQueryKeys.payments.detail(paymentId ?? ''),
     queryFn: () => salesApi.getPaymentById(paymentId!),
-    enabled: Boolean(paymentId),
+    enabled: Boolean(paymentId) && (options?.enabled ?? true),
     staleTime: 15 * 1000,
   });
 }
@@ -78,11 +80,11 @@ export function usePaymentDetail(paymentId: string | undefined) {
 /**
  * Retrieves canonical receipt document for a settled sale order
  */
-export function useReceiptBySale(saleId: string | undefined) {
+export function useReceiptBySale(saleId: string | undefined, options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: salesQueryKeys.receiptBySale(saleId ?? ''),
     queryFn: () => salesApi.getReceiptBySale(saleId!),
-    enabled: Boolean(saleId),
+    enabled: Boolean(saleId) && (options?.enabled ?? true),
     staleTime: 60 * 1000,
     retry: false, // 404 indicates receipt not issued yet; do not retry unnecessarily
   });

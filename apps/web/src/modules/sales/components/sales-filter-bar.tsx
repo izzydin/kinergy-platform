@@ -147,9 +147,13 @@ export const SalesFilterBar: React.FC<SalesFilterBarProps> = ({
           {/* Client ID Filter */}
           <div className="flex items-center gap-1.5">
             <User className="h-3.5 w-3.5 text-muted-foreground" />
-            <span className="font-medium text-muted-foreground">Client ID:</span>
+            <label htmlFor="sales-client-id-input" className="font-medium text-muted-foreground">
+              Client ID:
+            </label>
             <Input
               type="text"
+              id="sales-client-id-input"
+              aria-label="Filter by client identifier"
               placeholder="e.g. client_123"
               value={clientId || ''}
               onChange={(e) => onClientIdChange(e.target.value || undefined)}
@@ -162,9 +166,13 @@ export const SalesFilterBar: React.FC<SalesFilterBarProps> = ({
 
           {/* From Date Filter */}
           <div className="flex items-center gap-1.5">
-            <span className="font-medium text-muted-foreground">From:</span>
+            <label htmlFor="sales-from-date-input" className="font-medium text-muted-foreground">
+              From:
+            </label>
             <Input
               type="date"
+              id="sales-from-date-input"
+              aria-label="Filter from date"
               value={fromDate ? fromDate.slice(0, 10) : ''}
               onChange={(e) => {
                 const val = e.target.value ? new Date(e.target.value).toISOString() : undefined;
@@ -177,9 +185,13 @@ export const SalesFilterBar: React.FC<SalesFilterBarProps> = ({
 
           {/* To Date Filter */}
           <div className="flex items-center gap-1.5">
-            <span className="font-medium text-muted-foreground">To:</span>
+            <label htmlFor="sales-to-date-input" className="font-medium text-muted-foreground">
+              To:
+            </label>
             <Input
               type="date"
+              id="sales-to-date-input"
+              aria-label="Filter to date"
               value={toDate ? toDate.slice(0, 10) : ''}
               onChange={(e) => {
                 const val = e.target.value

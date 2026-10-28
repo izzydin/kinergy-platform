@@ -40,7 +40,9 @@ export const SalesListPage: React.FC = () => {
     resetFilters,
   } = useSalesFilters();
 
-  const { data, isLoading, isFetching, isError, error, refetch } = useSalesList(params);
+  const { data, isLoading, isFetching, isError, error, refetch } = useSalesList(params, {
+    enabled: canRead,
+  });
 
   // Requirement 4: Reset or adjust pagination when filter changes make current page invalid
   useEffect(() => {

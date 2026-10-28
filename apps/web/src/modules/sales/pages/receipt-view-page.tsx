@@ -25,14 +25,28 @@ export const ReceiptViewPage: React.FC = () => {
     (location.state as { from?: string } | null)?.from ||
     (saleId ? SALES_ROUTES.detail(saleId) : SALES_ROUTES.list());
 
-  // Permission verification: receipts.read
+  // Permission verification: receipts.read & receipts.manage
   const canRead = Boolean(
     typeof auth.hasPermission === 'function'
       ? auth.hasPermission('receipts.read')
       : auth.currentUser?.permissions?.includes('receipts.read'),
   );
 
-  const { data: receipt, isLoading, isError, error, refetch } = useReceiptBySale(saleId);
+  const canManageReceipts = Boolean(
+    typeof auth.hasPermission === 'function'
+      ? auth.hasPermission('receipts.manage')
+      : auth.currentUser?.permissions?.includes('receipts.manage'),
+  );
+
+  const {
+    data: receipt,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useReceiptBySale(saleId, {
+    enabled: canRead,
+  });
   const { data: relatedSale } = useSaleDetail(saleId);
   const issueReceiptMutation = useIssueReceipt();
   const reprintMutation = useReprintReceipt();
@@ -44,7 +58,7 @@ export const ReceiptViewPage: React.FC = () => {
   }
 
   const handleIssueReceipt = async () => {
-    if (!saleId || issueReceiptMutation.isPending) return;
+    if (!canManageReceipts || !saleId || issueReceiptMutation.isPending) return;
     setIssueError(null);
     try {
       await issueReceiptMutation.mutateAsync({ saleId });
@@ -62,7 +76,7 @@ export const ReceiptViewPage: React.FC = () => {
   };
 
   const handleReprint = async () => {
-    if (!receipt?.id || reprintMutation.isPending) return;
+    if (!canManageReceipts || !receipt?.id || reprintMutation.isPending) return;
     try {
       await reprintMutation.mutateAsync({ receiptId: receipt.id });
     } catch {

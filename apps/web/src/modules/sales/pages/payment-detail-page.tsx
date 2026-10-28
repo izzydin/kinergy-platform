@@ -51,7 +51,15 @@ export const PaymentDetailPage: React.FC = () => {
       : auth.currentUser?.permissions?.includes('payments.read'),
   );
 
-  const { data: payment, isLoading, isError, error, refetch } = usePaymentDetail(paymentId);
+  const {
+    data: payment,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = usePaymentDetail(paymentId, {
+    enabled: canRead,
+  });
   const { data: relatedSale, isLoading: isSaleLoading } = useSaleDetail(payment?.saleId);
   const { data: relatedPayments, isLoading: isPaymentsLoading } = useSalePayments(payment?.saleId);
 
@@ -146,6 +154,7 @@ export const PaymentDetailPage: React.FC = () => {
   const settlementSummary = evaluateSettlementConfirmation(payment, relatedSale, relatedPayments);
 
   const handleConfirmSettle = async (input?: SettlePaymentInputDTO) => {
+    if (!canSettle) return;
     await settleMutation.mutateAsync({
       paymentId: payment.id,
       input,
@@ -153,6 +162,7 @@ export const PaymentDetailPage: React.FC = () => {
   };
 
   const handleConfirmCancel = async (reason: string) => {
+    if (!canCancel) return;
     await cancelMutation.mutateAsync({
       paymentId: payment.id,
       input: { reason },
