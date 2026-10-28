@@ -153,6 +153,22 @@ describe('Phase 7 Frontend Permission Security Suite (IAM & AuthZ)', () => {
       expect(matchRole(undefined, 'Admin')).toBe(false);
     });
 
+    it('performs exact membership checks without implicit role inheritance', () => {
+      // Privileged roles never satisfy a different role requirement
+      expect(matchRole(['ADMIN'], 'SUPERADMIN')).toBe(false);
+      expect(matchRole(['ADMIN'], 'SUPER_ADMIN')).toBe(false);
+      expect(matchRole(['OPERATOR', 'ADMIN'], 'SUPERADMIN')).toBe(false);
+      expect(matchRole(['OWNER'], 'ADMIN')).toBe(false);
+      expect(matchRole(['SUPER_ADMIN'], 'OWNER')).toBe(false);
+
+      // Unknown roles never grant anything, even to privileged principals
+      expect(matchRole(['ADMIN'], 'UNKNOWN_ROLE')).toBe(false);
+
+      // Held roles are still recognized among several
+      expect(matchRole(['OPERATOR', 'ADMIN'], 'ADMIN')).toBe(true);
+      expect(matchRole(['OPERATOR', 'ADMIN'], 'operator')).toBe(true);
+    });
+
     it('integrates with useAuth hook exposing hasPermission and hasRole in React tree', () => {
       const managerUser: AuthUser = {
         id: 'usr-mgr-test',

@@ -224,10 +224,5 @@ export function matchRole(
   }
 
   const targetRole = requiredRole.trim().toLowerCase();
-  const normalizedTarget = targetRole.replace(/[-_]/g, '');
-
-  return userRoles.some((r) => {
-    const norm = r.trim().toLowerCase();
-    return norm === targetRole || norm.replace(/[-_]/g, '') === normalizedTarget;
-  });
+  return userRoles.some((r) => r.trim().toLowerCase() === targetRole);
 }
