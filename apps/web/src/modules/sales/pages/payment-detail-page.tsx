@@ -17,6 +17,7 @@ import {
   Receipt,
   Clock,
   ShieldCheck,
+  RefreshCw,
 } from 'lucide-react';
 import { usePaymentDetail, useSaleDetail, useSalePayments } from '../hooks/use-sales-queries';
 import { useSettlePayment, useCancelPayment } from '../hooks/use-sales-mutations';
@@ -183,6 +184,17 @@ export const PaymentDetailPage: React.FC = () => {
 
         {/* Action Triggers (Only supported lifecycle transitions) */}
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => refetch()}
+            disabled={isLoading}
+            className="gap-1.5 h-8 text-xs"
+            data-testid="refresh-payment-btn"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} /> Refresh
+          </Button>
+
           {isPending && (
             <div className="flex items-center gap-2">
               {canSettle && (

@@ -58,6 +58,7 @@ export const SettlePaymentDialog: React.FC<SettlePaymentDialogProps> = ({
   const [submissionError, setSubmissionError] = useState<{
     message: string;
     isAmbiguous?: boolean;
+    isConflict?: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -92,6 +93,13 @@ export const SettlePaymentDialog: React.FC<SettlePaymentDialogProps> = ({
         'Failed to settle payment tender.';
       const message = Array.isArray(rawMessage) ? rawMessage.join(', ') : String(rawMessage);
 
+      const isConflict =
+        status === 409 ||
+        message.toLowerCase().includes('duplicate') ||
+        message.toLowerCase().includes('conflict') ||
+        message.toLowerCase().includes('already settled') ||
+        message.toLowerCase().includes('concurrent');
+
       const isAmbiguous =
         !status ||
         status === 0 ||
@@ -99,7 +107,7 @@ export const SettlePaymentDialog: React.FC<SettlePaymentDialogProps> = ({
         message.toLowerCase().includes('timeout') ||
         message.toLowerCase().includes('fetch');
 
-      setSubmissionError({ message, isAmbiguous });
+      setSubmissionError({ message, isAmbiguous, isConflict });
     }
   };
 
@@ -170,21 +178,32 @@ export const SettlePaymentDialog: React.FC<SettlePaymentDialogProps> = ({
         {submissionError && (
           <div
             className={`p-3 rounded-lg text-xs border space-y-1 ${
-              submissionError.isAmbiguous
-                ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                : 'border-destructive/30 bg-destructive/10 text-destructive'
+              submissionError.isConflict
+                ? 'border-amber-500/50 bg-amber-500/10 text-amber-800 dark:text-amber-300'
+                : submissionError.isAmbiguous
+                  ? 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                  : 'border-destructive/30 bg-destructive/10 text-destructive'
             }`}
             data-testid="settle-submission-error"
             role="alert"
           >
             <div className="flex items-center gap-1.5 font-semibold">
               <ShieldAlert className="h-4 w-4 shrink-0" />
-              {submissionError.isAmbiguous
-                ? 'Ambiguous Network Outcome'
-                : 'Settlement Request Rejected'}
+              {submissionError.isConflict
+                ? 'Concurrency Conflict'
+                : submissionError.isAmbiguous
+                  ? 'Ambiguous Network Outcome'
+                  : 'Settlement Request Rejected'}
             </div>
             <p>{submissionError.message}</p>
-            {submissionError.isAmbiguous && (
+            {submissionError.isConflict && (
+              <p className="text-[11px] opacity-90">
+                A concurrency conflict occurred. This payment tender or sale agreement may have
+                already been modified or settled concurrently. Please inspect the Payments Log
+                before retrying.
+              </p>
+            )}
+            {submissionError.isAmbiguous && !submissionError.isConflict && (
               <p className="text-[11px] opacity-90">
                 A network interruption occurred while settling this tender. Because the server may
                 have already committed this transaction, please inspect the Payments Log before

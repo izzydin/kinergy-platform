@@ -3,6 +3,7 @@ import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient } from '@tanstack/react-query';
 import { PaymentDetailPage } from '../pages/payment-detail-page';
 import { PaymentHistoryPage } from '../pages/payment-history-page';
+import { SaleDetailPage } from '../pages/sale-detail-page';
 import { RecordPaymentDialog } from '../components/record-payment-dialog';
 import { SettlePaymentDialog } from '../components/settle-payment-dialog';
 import { salesApi } from '../api';
@@ -21,6 +22,8 @@ jest.mock('../api/sales-api', () => ({
     getSaleById: jest.fn(),
     getSalePaymentHistory: jest.fn(),
     getReceiptBySale: jest.fn(),
+    finalizeSale: jest.fn(),
+    cancelSale: jest.fn(),
   },
 }));
 
@@ -31,6 +34,7 @@ jest.mock('react-router-dom', () => {
     ...actual,
     useNavigate: () => mockNavigate,
     useParams: jest.fn(),
+    useLocation: () => ({ pathname: '/sales/payments', search: '' }),
   };
 });
 
@@ -51,6 +55,24 @@ const mockOwnerUser: AuthUser = {
     'payments.manage',
     'receipts.read',
   ],
+  tenantId: 'tenant_main',
+};
+
+const mockReadOnlyUser: AuthUser = {
+  id: 'usr_auditor_002',
+  email: 'auditor@kinergy.test',
+  name: 'Auditor',
+  roles: ['Auditor'],
+  permissions: ['payments.read', 'sales.read'],
+  tenantId: 'tenant_main',
+};
+
+const mockNoAccessUser: AuthUser = {
+  id: 'usr_guest_003',
+  email: 'guest@kinergy.test',
+  name: 'Guest User',
+  roles: ['Guest'],
+  permissions: [],
   tenantId: 'tenant_main',
 };
 
@@ -122,6 +144,25 @@ const mockQrPaymentPending: PaymentDetailDTO = {
   paidAt: null,
   createdAt: '2026-10-19T10:12:00.000Z',
   version: 1,
+};
+
+const mockFailedPayment: PaymentDetailDTO = {
+  id: 'pay_qr_failed_003',
+  saleId: 'sale_payable_100',
+  method: 'QR',
+  amount: { amount: 100, currency: 'USD' },
+  amountValue: 100,
+  status: 'FAILED',
+  reference: 'QR-EXPIRED-REF',
+  paidAt: null,
+  createdAt: '2026-10-19T10:14:00.000Z',
+  version: 2,
+};
+
+const mockSettledSale: SaleDTO = {
+  ...mockPayableSale,
+  status: 'PAID',
+  completedAt: '2026-10-19T10:15:00.000Z',
 };
 
 describe('Payment Lifecycle & Cash/QR Workflows Verification (Phase 7.24)', () => {
@@ -346,6 +387,57 @@ describe('Payment Lifecycle & Cash/QR Workflows Verification (Phase 7.24)', () =
         });
       });
     });
+
+    it('handles QR payment failure display, preserves failed record in history, and does not allow settlement', async () => {
+      (useParams as jest.Mock).mockReturnValue({ paymentId: 'pay_qr_failed_003' });
+      (salesApi.getPaymentById as jest.Mock).mockResolvedValue(mockFailedPayment);
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue(mockPayableSale);
+      (salesApi.getSalePaymentHistory as jest.Mock).mockResolvedValue([mockFailedPayment]);
+
+      renderWithProviders(<PaymentDetailPage />, {
+        queryClient,
+        initialRoute: '/sales/payments/pay_qr_failed_003',
+        initialSessionOverride: mockOwnerUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-id')).toHaveTextContent('pay_qr_failed_003');
+      });
+
+      // Status badge and failed banner
+      expect(screen.getByTestId('payment-status-banner-failed')).toBeInTheDocument();
+      expect(screen.getByText(/payment attempt failed/i)).toBeInTheDocument();
+
+      // Settle and cancel controls must NOT be offered for terminal FAILED state
+      expect(screen.queryByTestId('settle-payment-btn')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('cancel-payment-btn')).not.toBeInTheDocument();
+    });
+
+    it('allows manual refresh of pending payment status without full page reload', async () => {
+      (useParams as jest.Mock).mockReturnValue({ paymentId: 'pay_qr_pending_002' });
+      (salesApi.getPaymentById as jest.Mock).mockResolvedValue(mockQrPaymentPending);
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue(mockPayableSale);
+      (salesApi.getSalePaymentHistory as jest.Mock).mockResolvedValue([mockQrPaymentPending]);
+
+      renderWithProviders(<PaymentDetailPage />, {
+        queryClient,
+        initialRoute: '/sales/payments/pay_qr_pending_002',
+        initialSessionOverride: mockOwnerUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-id')).toHaveTextContent('pay_qr_pending_002');
+      });
+
+      const refreshBtn = screen.getByTestId('refresh-payment-btn');
+      expect(refreshBtn).toBeInTheDocument();
+
+      fireEvent.click(refreshBtn);
+
+      await waitFor(() => {
+        expect(salesApi.getPaymentById).toHaveBeenCalledTimes(2);
+      });
+    });
   });
 
   describe('3. Financial Validation & State Machine Invariant Rejections', () => {
@@ -476,6 +568,70 @@ describe('Payment Lifecycle & Cash/QR Workflows Verification (Phase 7.24)', () =
       ).toBeInTheDocument();
       expect(handleOpenChange).not.toHaveBeenCalledWith(false);
     });
+
+    it('detects ambiguous network outcome during tender settlement and warns against immediate resubmission', async () => {
+      const networkErr = new Error('Network timeout during settlement communication');
+      (networkErr as unknown as { status: number }).status = 0;
+      const handleConfirm = jest.fn().mockRejectedValueOnce(networkErr);
+      const handleOpenChange = jest.fn();
+
+      renderWithProviders(
+        <SettlePaymentDialog
+          open={true}
+          onOpenChange={handleOpenChange}
+          payment={mockQrPaymentPending}
+          sale={mockPayableSale}
+          salePayments={[mockQrPaymentPending]}
+          onConfirm={handleConfirm}
+        />,
+        { queryClient, initialSessionOverride: mockOwnerUser },
+      );
+
+      const confirmBtn = screen.getByTestId('confirm-settle-payment-btn');
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('settle-submission-error')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/Ambiguous Network Outcome/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Because the server may have already committed this transaction/i),
+      ).toBeInTheDocument();
+      expect(handleOpenChange).not.toHaveBeenCalledWith(false);
+    });
+
+    it('surfaces 409 concurrency conflict during tender settlement in SettlePaymentDialog', async () => {
+      const conflictErr = new Error('Conflict: Tender has already been settled or cancelled');
+      (conflictErr as unknown as { status: number }).status = 409;
+      const handleConfirm = jest.fn().mockRejectedValueOnce(conflictErr);
+      const handleOpenChange = jest.fn();
+
+      renderWithProviders(
+        <SettlePaymentDialog
+          open={true}
+          onOpenChange={handleOpenChange}
+          payment={mockQrPaymentPending}
+          sale={mockPayableSale}
+          salePayments={[mockQrPaymentPending]}
+          onConfirm={handleConfirm}
+        />,
+        { queryClient, initialSessionOverride: mockOwnerUser },
+      );
+
+      const confirmBtn = screen.getByTestId('confirm-settle-payment-btn');
+      fireEvent.click(confirmBtn);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('settle-submission-error')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Concurrency Conflict')).toBeInTheDocument();
+      expect(
+        screen.getByText(/This payment tender or sale agreement may have already been modified/i),
+      ).toBeInTheDocument();
+      expect(handleOpenChange).not.toHaveBeenCalledWith(false);
+    });
   });
 
   describe('4. Payment History Auditability & Filter Verification', () => {
@@ -531,6 +687,96 @@ describe('Payment Lifecycle & Cash/QR Workflows Verification (Phase 7.24)', () =
       expect(screen.getByText('QR')).toBeInTheDocument();
       expect(screen.getByText('Completed')).toBeInTheDocument();
       expect(screen.getByText('Pending')).toBeInTheDocument();
+    });
+  });
+
+  describe('5. Authorization Boundaries, Audit Independence & Receipt Invariants', () => {
+    it('enforces permission checks: hides settlement button for read-only users and blocks unauthorized access', async () => {
+      (useParams as jest.Mock).mockReturnValue({ paymentId: 'pay_qr_pending_002' });
+      (salesApi.getPaymentById as jest.Mock).mockResolvedValue(mockQrPaymentPending);
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue(mockPayableSale);
+      (salesApi.getSalePaymentHistory as jest.Mock).mockResolvedValue([mockQrPaymentPending]);
+
+      renderWithProviders(<PaymentDetailPage />, {
+        queryClient,
+        initialRoute: '/sales/payments/pay_qr_pending_002',
+        initialSessionOverride: mockReadOnlyUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('payment-id')).toHaveTextContent('pay_qr_pending_002');
+      });
+
+      // User has payments.read, so details render
+      expect(screen.getByTestId('payment-detail-page')).toBeInTheDocument();
+
+      // Read-only user lacks payments.manage / payments.create, so Settle and Cancel buttons are NOT rendered
+      expect(screen.queryByTestId('settle-payment-btn')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('cancel-payment-btn')).not.toBeInTheDocument();
+    });
+
+    it('blocks access with ForbiddenView when user lacks payments.read permission', async () => {
+      (useParams as jest.Mock).mockReturnValue({ paymentId: 'pay_qr_pending_002' });
+
+      renderWithProviders(<PaymentDetailPage />, {
+        queryClient,
+        initialRoute: '/sales/payments/pay_qr_pending_002',
+        initialSessionOverride: mockNoAccessUser,
+      });
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Missing required permission 'payments.read'/i),
+        ).toBeInTheDocument();
+      });
+
+      expect(screen.queryByTestId('payment-detail-page')).not.toBeInTheDocument();
+    });
+
+    it('demonstrates sale and payment status independence and receipt eligibility strictly after full settlement', async () => {
+      // 1. Initial State: Sale is PENDING_PAYMENT ($100 due), QR payment is PENDING
+      (useParams as jest.Mock).mockReturnValue({ saleId: 'sale_payable_100' });
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue(mockPayableSale);
+      (salesApi.getSalePaymentHistory as jest.Mock).mockResolvedValue([mockQrPaymentPending]);
+
+      const { unmount } = renderWithProviders(<SaleDetailPage />, {
+        queryClient,
+        initialRoute: '/sales/sale_payable_100',
+        initialSessionOverride: mockOwnerUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sale-id')).toHaveTextContent('sale_payable_100');
+      });
+
+      // In PENDING_PAYMENT, Record Payment is offered, but receipt button is strictly absent
+      expect(screen.getByTestId('record-payment-btn')).toBeInTheDocument();
+      expect(screen.queryByTestId('view-receipt-btn')).not.toBeInTheDocument();
+
+      unmount();
+      queryClient.clear();
+
+      // 2. Fully Settled State: Sale is PAID, payment is COMPLETED
+      (useParams as jest.Mock).mockReturnValue({ saleId: 'sale_settled_200' });
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue({
+        ...mockSettledSale,
+        id: 'sale_settled_200',
+      });
+      (salesApi.getSalePaymentHistory as jest.Mock).mockResolvedValue([mockCashPaymentCompleted]);
+
+      renderWithProviders(<SaleDetailPage />, {
+        queryClient,
+        initialRoute: '/sales/sale_settled_200',
+        initialSessionOverride: mockOwnerUser,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('sale-id')).toHaveTextContent('sale_settled_200');
+      });
+
+      // Once fully settled, Record Payment is no longer offered, but Receipt button is available
+      expect(screen.queryByTestId('record-payment-btn')).not.toBeInTheDocument();
+      expect(screen.getByTestId('view-receipt-btn')).toBeInTheDocument();
     });
   });
 });

@@ -156,6 +156,7 @@ export const SaleDetailPage: React.FC = () => {
         method: data.method,
         amount: data.amount,
         reference: data.reference,
+        status: data.method === 'QR' ? 'PENDING' : 'COMPLETED',
       },
     });
   };

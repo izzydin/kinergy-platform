@@ -184,6 +184,20 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
             </DialogDescription>
           </DialogHeader>
 
+          {/* Authoritative Amount Due Summary */}
+          <div
+            className="p-2.5 rounded-lg border border-border bg-muted/40 flex justify-between items-center text-xs"
+            data-testid="authoritative-balance-summary"
+          >
+            <span className="text-muted-foreground font-medium">Authoritative Amount Due:</span>
+            <span
+              className="font-mono font-bold text-sm text-foreground"
+              data-testid="authoritative-amount-due"
+            >
+              {currency} {defaultAmount.toFixed(2)}
+            </span>
+          </div>
+
           {/* Tender lifecycle disclaimer */}
           <div
             className="p-2.5 rounded-md bg-muted/50 border text-[11px] text-muted-foreground space-y-0.5"
@@ -289,6 +303,16 @@ export const RecordPaymentDialog: React.FC<RecordPaymentDialogProps> = ({
               {errors.amount && (
                 <p id="tender-amount-error" role="alert" className="text-xs text-destructive">
                   {errors.amount.message}
+                </p>
+              )}
+              {paymentCents > Math.round(defaultAmount * 100) && defaultAmount > 0 && (
+                <p
+                  className="text-xs text-amber-600 dark:text-amber-400 font-medium"
+                  role="alert"
+                  data-testid="overpayment-warning"
+                >
+                  Notice: Tender amount ({currency} {(paymentCents / 100).toFixed(2)}) exceeds
+                  authoritative remaining balance ({currency} {defaultAmount.toFixed(2)}).
                 </p>
               )}
             </div>
