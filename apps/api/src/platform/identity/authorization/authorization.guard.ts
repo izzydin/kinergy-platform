@@ -4,12 +4,15 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Optional,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { AuthenticatedUserContext } from '../context/authenticated-user-context';
 import { RequestContext } from '../request-context';
+import { ACCESS_TOKEN_SERVICE, IAccessTokenService } from '../tokens/access-token.service';
+import { IUserRepository, USER_REPOSITORY, UserStatus } from '../domain';
 import {
   AUTHORIZATION_EVALUATOR,
   IAuthorizationEvaluator,
@@ -30,6 +33,12 @@ export class AuthorizationGuard implements CanActivate {
     private readonly reflector: Reflector,
     @Inject(AUTHORIZATION_EVALUATOR)
     private readonly evaluator: IAuthorizationEvaluator,
+    @Optional()
+    @Inject(ACCESS_TOKEN_SERVICE)
+    private readonly accessTokenService?: IAccessTokenService,
+    @Optional()
+    @Inject(USER_REPOSITORY)
+    private readonly userRepository?: IUserRepository,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -76,6 +85,38 @@ export class AuthorizationGuard implements CanActivate {
       }
     } else {
       userContext = RequestContext.currentContext();
+    }
+
+    if (!userContext && this.accessTokenService && this.userRepository) {
+      const authHeader = request.headers?.authorization;
+      if (authHeader) {
+        const [type, token] = authHeader.split(' ');
+        if (type === 'Bearer' && token) {
+          const payload = await this.accessTokenService.validateToken(token);
+          if (!payload || !payload.sub) {
+            throw new UnauthorizedException('Invalid or expired authentication token.');
+          }
+          const user = await this.userRepository.findById(payload.sub);
+          if (!user) {
+            throw new UnauthorizedException('Authenticated user not found.');
+          }
+          if (user.status !== UserStatus.ACTIVE) {
+            throw new UnauthorizedException('User account is inactive or disabled.');
+          }
+          if (payload.tokenVersion !== undefined && payload.tokenVersion !== user.tokenVersion) {
+            throw new UnauthorizedException('Session token has been invalidated.');
+          }
+          userContext = new AuthenticatedUserContext({
+            userId: user.id,
+            email: user.email,
+            status: user.status,
+            roles: user.roles,
+            permissions: user.permissions,
+            tenantId: user.tenantId,
+          });
+          (request as unknown as { user: unknown }).user = userContext;
+        }
+      }
     }
 
     if (!userContext || !userContext.userId || userContext.userId.trim() === '') {

@@ -77,10 +77,18 @@ export class CreateAppointmentHandler implements CommandHandler<
       }
 
       // 4. Validate Booking Window Lead Time
-      if (!this.bookingWindowPolicy.validateBookingWindow(start, this.clock)) {
-        return ApplicationResult.fail(
-          'Booking window violation: Start time fails lead time or maximum horizon rules.',
-        );
+      const bookingWindowCheck = this.bookingWindowPolicy.validateBookingWindow(
+        start,
+        this.clock,
+      ) as boolean | { isValid: boolean; reason?: string };
+      const isBookingWindowValid =
+        typeof bookingWindowCheck === 'boolean' ? bookingWindowCheck : bookingWindowCheck.isValid;
+      if (!isBookingWindowValid) {
+        const windowReason =
+          typeof bookingWindowCheck === 'object' && bookingWindowCheck.reason
+            ? `Booking window violation: ${bookingWindowCheck.reason}`
+            : 'Booking window violation: Start time fails lead time or maximum horizon rules.';
+        return ApplicationResult.fail(windowReason);
       }
 
       // 5. Detect Multi-Aggregate Conflicts with Turnaround Buffer

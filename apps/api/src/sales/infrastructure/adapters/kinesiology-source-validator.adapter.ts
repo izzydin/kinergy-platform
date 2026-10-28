@@ -1,4 +1,4 @@
-import { Injectable, Optional } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import {
   GetTreatmentSessionByIdHandler,
   GetTreatmentSessionByIdQuery,
@@ -12,6 +12,7 @@ import {
   SourceCommercialDetails,
 } from '@kinergy-platform/core';
 import { ISchedulingAppointmentLookupPort } from '@kinergy-platform/core';
+import { SCHEDULING_APPOINTMENT_LOOKUP_PORT_TOKEN } from '../../../kinesiology/kinesiology.tokens';
 
 export interface KinesiologyFeeScheduleResolver {
   getServiceFeeCents(appointmentType?: string): number;
@@ -47,6 +48,7 @@ export class KinesiologySourceValidatorAdapter {
     @Optional()
     private readonly getSessionByIdHandler?: GetTreatmentSessionByIdHandler,
     @Optional()
+    @Inject(SCHEDULING_APPOINTMENT_LOOKUP_PORT_TOKEN)
     private readonly appointmentLookupPort?: ISchedulingAppointmentLookupPort,
     @Optional()
     feeResolver?: KinesiologyFeeScheduleResolver,
@@ -128,7 +130,7 @@ export class KinesiologySourceValidatorAdapter {
             session.appointmentId,
           );
           if (apptRef) {
-            feeCents = this.feeResolver.getServiceFeeCents('TREATMENT');
+            feeCents = this.feeResolver.getServiceFeeCents(apptRef.serviceType ?? 'TREATMENT');
           }
         } catch {
           // Fall back gracefully to standard clinical session rate without dropping checkout

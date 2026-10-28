@@ -37,11 +37,21 @@ export class SchedulingExceptionFilter implements ExceptionFilter {
       exception instanceof ClientUnavailableException
     ) {
       const conflictEx = exception as SchedulingDomainException;
+      const conflicts =
+        exception instanceof AppointmentConflictException
+          ? exception.conflicts.map((c) => ({
+              conflictType: c.conflictType,
+              category: c.conflictType,
+              conflictingEntityId: c.conflictingEntityId,
+              reason: c.reason,
+            }))
+          : undefined;
       response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,
         error: 'Conflict',
         code: conflictEx.code,
         message: conflictEx.message,
+        ...(conflicts ? { conflicts } : {}),
       });
       return;
     }

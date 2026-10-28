@@ -175,6 +175,35 @@ export function matchPermission(
       'membership_plans.create',
       'membership_plans.update',
       'manage.users',
+      'kinesiology.sessions.read',
+      'kinesiology.sessions.treat',
+      'kinesiology.sessions.assign',
+    ].includes(normRequired)
+  ) {
+    return true;
+  }
+
+  // 10. Kinesiology clinical session permission alignment (ADR-0083 / ADR-0115)
+  if (normUserPerms.includes('appointments.read') && normRequired === 'kinesiology.sessions.read') {
+    return true;
+  }
+
+  if (
+    normUserPerms.includes('appointments.update') &&
+    normUserPerms.includes('clients.write') &&
+    normUserPerms.includes('reports.read') &&
+    ['kinesiology.sessions.read', 'kinesiology.sessions.treat'].includes(normRequired)
+  ) {
+    return true;
+  }
+
+  if (
+    normUserPerms.includes('appointments.update') &&
+    normUserPerms.includes('users.read') &&
+    [
+      'kinesiology.sessions.read',
+      'kinesiology.sessions.treat',
+      'kinesiology.sessions.assign',
     ].includes(normRequired)
   ) {
     return true;
@@ -195,5 +224,30 @@ export function matchRole(
   }
 
   const targetRole = requiredRole.trim().toLowerCase();
-  return userRoles.some((r) => r.trim().toLowerCase() === targetRole);
+  const normUserRoles = userRoles.map((r) => r.trim().toLowerCase());
+
+  if (
+    normUserRoles.includes(targetRole) ||
+    normUserRoles.includes('admin') ||
+    normUserRoles.includes('super_admin') ||
+    normUserRoles.includes('owner')
+  ) {
+    return true;
+  }
+
+  if (
+    ['therapist', 'trainer', 'practitioner'].includes(targetRole) &&
+    normUserRoles.some((r) => ['therapist', 'trainer', 'practitioner'].includes(r))
+  ) {
+    return true;
+  }
+
+  if (
+    ['receptionist', 'front_desk'].includes(targetRole) &&
+    normUserRoles.some((r) => ['receptionist', 'front_desk', 'manager'].includes(r))
+  ) {
+    return true;
+  }
+
+  return false;
 }

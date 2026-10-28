@@ -9,4 +9,5 @@ export interface AppointmentReferenceDTO {
   readonly scheduledAt: Date;
   readonly isEligibleForSession: boolean;
   readonly ineligibilityReason?: string;
+  readonly serviceType?: string;
 }

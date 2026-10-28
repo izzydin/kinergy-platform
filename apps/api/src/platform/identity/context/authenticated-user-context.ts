@@ -56,7 +56,34 @@ export class AuthenticatedUserContext {
   }
 
   public hasRole(role: string): boolean {
-    return this.roles.includes(role) || this.roles.includes('ADMIN');
+    const targetUpper = role.toUpperCase();
+    const userRolesUpper = this.roles.map((r) => r.toUpperCase());
+
+    if (
+      this.roles.includes(role) ||
+      userRolesUpper.includes(targetUpper) ||
+      userRolesUpper.includes('ADMIN') ||
+      userRolesUpper.includes('SUPER_ADMIN') ||
+      userRolesUpper.includes('OWNER')
+    ) {
+      return true;
+    }
+
+    if (
+      ['THERAPIST', 'TRAINER', 'PRACTITIONER'].includes(targetUpper) &&
+      userRolesUpper.some((r) => ['THERAPIST', 'TRAINER', 'PRACTITIONER'].includes(r))
+    ) {
+      return true;
+    }
+
+    if (
+      ['RECEPTIONIST', 'FRONT_DESK'].includes(targetUpper) &&
+      userRolesUpper.some((r) => ['RECEPTIONIST', 'FRONT_DESK', 'MANAGER'].includes(r))
+    ) {
+      return true;
+    }
+
+    return false;
   }
 
   public hasAnyRole(roles: string[]): boolean {

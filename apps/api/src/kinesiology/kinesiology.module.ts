@@ -111,6 +111,7 @@ import { SchedulingModule } from '../scheduling';
     CreateTreatmentSessionFromAppointmentHandler,
     GetClientTreatmentHistoryHandler,
     TREATMENT_SESSION_REPOSITORY_TOKEN,
+    SCHEDULING_APPOINTMENT_LOOKUP_PORT_TOKEN,
     PrismaTreatmentSessionRepository,
   ],
 })

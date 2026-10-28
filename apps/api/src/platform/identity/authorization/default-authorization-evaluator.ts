@@ -209,6 +209,35 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
       return true;
     }
 
+    // Kinesiology clinical session permission alignment (ADR-0083 / ADR-0115):
+    if (
+      normResolved.includes('appointments.read') &&
+      normRequired === 'kinesiology.sessions.read'
+    ) {
+      return true;
+    }
+
+    if (
+      normResolved.includes('appointments.update') &&
+      normResolved.includes('clients.write') &&
+      normResolved.includes('reports.read') &&
+      ['kinesiology.sessions.read', 'kinesiology.sessions.treat'].includes(normRequired)
+    ) {
+      return true;
+    }
+
+    if (
+      ((normResolved.includes('appointments.update') && normResolved.includes('users.read')) ||
+        (normResolved.includes('settings.write') && normResolved.includes('users.write'))) &&
+      [
+        'kinesiology.sessions.read',
+        'kinesiology.sessions.treat',
+        'kinesiology.sessions.assign',
+      ].includes(normRequired)
+    ) {
+      return true;
+    }
+
     return normResolved.some((perm) => {
       if (perm.endsWith('.*')) {
         const prefix = perm.slice(0, -2);

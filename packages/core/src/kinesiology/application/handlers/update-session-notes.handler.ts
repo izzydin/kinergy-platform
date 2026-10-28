@@ -37,8 +37,23 @@ export class UpdateSessionNotesHandler implements CommandHandler<
         return ApplicationResult.fail(`TreatmentSession with ID '${sessionId}' not found.`);
       }
 
+      // Merge with existing notes on partial object updates so previously saved sections are preserved
+      const existingNotes = session.notes.getValue();
+      const mergedInput =
+        typeof notes === 'string'
+          ? { ...existingNotes, rawText: notes }
+          : {
+              subjective:
+                notes.subjective !== undefined ? notes.subjective : existingNotes.subjective,
+              objective: notes.objective !== undefined ? notes.objective : existingNotes.objective,
+              assessment:
+                notes.assessment !== undefined ? notes.assessment : existingNotes.assessment,
+              plan: notes.plan !== undefined ? notes.plan : existingNotes.plan,
+              rawText: notes.rawText !== undefined ? notes.rawText : existingNotes.rawText,
+            };
+
       // Convert input to SessionNotes domain Value Object
-      const sessionNotes = SessionNotes.create(notes);
+      const sessionNotes = SessionNotes.create(mergedInput);
 
       // Invoke aggregate method (enforces lifecycle invariants)
       session.updateNotes(sessionNotes, this.clock);

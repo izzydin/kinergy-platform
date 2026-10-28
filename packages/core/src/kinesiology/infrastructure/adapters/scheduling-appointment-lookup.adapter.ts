@@ -58,7 +58,7 @@ export class SchedulingAppointmentLookupAdapter implements ISchedulingAppointmen
         ineligibilityReason = `Cannot create session: Appointment is in '${appt.status}' status.`;
       }
 
-      return {
+      const ref: AppointmentReferenceDTO = {
         appointmentId: appt.id,
         clientId: appt.clientId,
         therapistId: appt.therapistId,
@@ -66,6 +66,15 @@ export class SchedulingAppointmentLookupAdapter implements ISchedulingAppointmen
         isEligibleForSession: isEligible,
         ineligibilityReason,
       };
+
+      Object.defineProperty(ref, 'serviceType', {
+        value: appt.type,
+        enumerable: false,
+        writable: true,
+        configurable: true,
+      });
+
+      return ref;
     } catch {
       return null;
     }

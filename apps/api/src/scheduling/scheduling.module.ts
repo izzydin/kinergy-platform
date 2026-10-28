@@ -7,6 +7,25 @@ import {
 } from '@kinergy-platform/core/server';
 import {
   ConflictDetectionService,
+  SlotFinderEngine,
+  BookingWindowPolicy,
+  DefaultAppointmentDurationPolicy,
+  BookingIdempotencyPolicy,
+  CancellationPolicy,
+  ReschedulePolicy,
+  CreateAppointmentHandler,
+  UpdateAppointmentHandler,
+  RescheduleAppointmentHandler,
+  CancelAppointmentHandler,
+  ConfirmAppointmentHandler,
+  CheckInAppointmentHandler,
+  CompleteAppointmentHandler,
+  MarkNoShowHandler,
+  AddAppointmentNoteHandler,
+  GetAppointmentByIdHandler,
+  FindAppointmentsByRangeHandler,
+  GetDailyAgendaHandler,
+  GetWeeklyAgendaHandler,
   CreateRecurrenceSeriesHandler,
   GenerateRecurringOccurrencesHandler,
   SkipRecurrenceOccurrenceHandler,
@@ -15,6 +34,10 @@ import {
   CancelRecurrenceSeriesHandler,
   BusinessCalendarService,
   TherapistScheduleRepository,
+  TherapistSchedule,
+  WorkingHours,
+  Clock,
+  SystemClock,
   CreateRoomHandler,
   EditRoomHandler,
   ActivateRoomHandler,
@@ -25,18 +48,73 @@ import {
   ListRoomsHandler,
   CheckRoomAvailabilityHandler,
 } from '@kinergy-platform/core';
-import { RecurringAppointmentsController, RoomsController } from './controllers';
+import {
+  AppointmentsController,
+  RecurringAppointmentsController,
+  RoomsController,
+  SCHEDULING_CLOCK_TOKEN,
+} from './controllers';
 
-class InMemoryTherapistScheduleRepository implements TherapistScheduleRepository {
-  async findByTherapistId() {
-    return null;
+export const THERAPIST_SCHEDULE_REPOSITORY_TOKEN = 'THERAPIST_SCHEDULE_REPOSITORY_TOKEN';
+
+export class DefaultTherapistScheduleRepository implements TherapistScheduleRepository {
+  private readonly schedules = new Map<string, TherapistSchedule>();
+
+  async findByTherapistId(therapistId: string): Promise<TherapistSchedule | null> {
+    const existing = this.schedules.get(therapistId);
+    if (existing) {
+      return existing;
+    }
+
+    // Default active schedule across all days of the week so standard therapists are bookable
+    // unless blocked by explicit schedule overrides, vacations, breaks, or overlapping appointments.
+    return TherapistSchedule.create({
+      therapistId,
+      workingHours: [0, 1, 2, 3, 4, 5, 6].map((day) => WorkingHours.create(day, 0, 1440)),
+      timezone: 'UTC',
+    });
   }
-  async save() {}
+
+  async save(schedule: TherapistSchedule): Promise<void> {
+    this.schedules.set(schedule.therapistId, schedule);
+  }
 }
 
 @Module({
-  controllers: [RecurringAppointmentsController, RoomsController],
+  controllers: [AppointmentsController, RecurringAppointmentsController, RoomsController],
   providers: [
+    {
+      provide: SCHEDULING_CLOCK_TOKEN,
+      useFactory: () => new SystemClock(),
+    },
+    {
+      provide: BusinessCalendarService,
+      useFactory: () => new BusinessCalendarService(),
+    },
+    {
+      provide: THERAPIST_SCHEDULE_REPOSITORY_TOKEN,
+      useFactory: () => new DefaultTherapistScheduleRepository(),
+    },
+    {
+      provide: BookingWindowPolicy,
+      useFactory: () => new BookingWindowPolicy(),
+    },
+    {
+      provide: DefaultAppointmentDurationPolicy,
+      useFactory: () => new DefaultAppointmentDurationPolicy(),
+    },
+    {
+      provide: BookingIdempotencyPolicy,
+      useFactory: () => new BookingIdempotencyPolicy(),
+    },
+    {
+      provide: CancellationPolicy,
+      useFactory: () => new CancellationPolicy(),
+    },
+    {
+      provide: ReschedulePolicy,
+      useFactory: () => new ReschedulePolicy(),
+    },
     {
       provide: PrismaAppointmentRepository,
       useFactory: (prisma: PrismaService) => new PrismaAppointmentRepository(prisma),
@@ -54,14 +132,138 @@ class InMemoryTherapistScheduleRepository implements TherapistScheduleRepository
     },
     {
       provide: ConflictDetectionService,
-      useFactory: (apptRepo: PrismaAppointmentRepository, roomRepo: PrismaRoomRepository) =>
-        new ConflictDetectionService(
-          new BusinessCalendarService(),
+      useFactory: (
+        calendarService: BusinessCalendarService,
+        apptRepo: PrismaAppointmentRepository,
+        scheduleRepo: TherapistScheduleRepository,
+        roomRepo: PrismaRoomRepository,
+      ) => new ConflictDetectionService(calendarService, apptRepo, scheduleRepo, roomRepo),
+      inject: [
+        BusinessCalendarService,
+        PrismaAppointmentRepository,
+        THERAPIST_SCHEDULE_REPOSITORY_TOKEN,
+        PrismaRoomRepository,
+      ],
+    },
+    {
+      provide: SlotFinderEngine,
+      useFactory: (conflictService: ConflictDetectionService, roomRepo: PrismaRoomRepository) =>
+        new SlotFinderEngine(conflictService, roomRepo),
+      inject: [ConflictDetectionService, PrismaRoomRepository],
+    },
+    {
+      provide: CreateAppointmentHandler,
+      useFactory: (
+        apptRepo: PrismaAppointmentRepository,
+        conflictService: ConflictDetectionService,
+        windowPolicy: BookingWindowPolicy,
+        durationPolicy: DefaultAppointmentDurationPolicy,
+        idempotencyPolicy: BookingIdempotencyPolicy,
+        clock: Clock,
+      ) =>
+        new CreateAppointmentHandler(
           apptRepo,
-          new InMemoryTherapistScheduleRepository(),
-          roomRepo,
+          conflictService,
+          windowPolicy,
+          durationPolicy,
+          idempotencyPolicy,
+          clock,
         ),
-      inject: [PrismaAppointmentRepository, PrismaRoomRepository],
+      inject: [
+        PrismaAppointmentRepository,
+        ConflictDetectionService,
+        BookingWindowPolicy,
+        DefaultAppointmentDurationPolicy,
+        BookingIdempotencyPolicy,
+        SCHEDULING_CLOCK_TOKEN,
+      ],
+    },
+    {
+      provide: UpdateAppointmentHandler,
+      useFactory: (
+        apptRepo: PrismaAppointmentRepository,
+        conflictService: ConflictDetectionService,
+        clock: Clock,
+      ) => new UpdateAppointmentHandler(apptRepo, conflictService, clock),
+      inject: [PrismaAppointmentRepository, ConflictDetectionService, SCHEDULING_CLOCK_TOKEN],
+    },
+    {
+      provide: RescheduleAppointmentHandler,
+      useFactory: (
+        apptRepo: PrismaAppointmentRepository,
+        conflictService: ConflictDetectionService,
+        reschedulePolicy: ReschedulePolicy,
+        clock: Clock,
+      ) => new RescheduleAppointmentHandler(apptRepo, conflictService, reschedulePolicy, clock),
+      inject: [
+        PrismaAppointmentRepository,
+        ConflictDetectionService,
+        ReschedulePolicy,
+        SCHEDULING_CLOCK_TOKEN,
+      ],
+    },
+    {
+      provide: CancelAppointmentHandler,
+      useFactory: (
+        apptRepo: PrismaAppointmentRepository,
+        cancellationPolicy: CancellationPolicy,
+        clock: Clock,
+      ) => new CancelAppointmentHandler(apptRepo, cancellationPolicy, clock),
+      inject: [PrismaAppointmentRepository, CancellationPolicy, SCHEDULING_CLOCK_TOKEN],
+    },
+    {
+      provide: ConfirmAppointmentHandler,
+      useFactory: (apptRepo: PrismaAppointmentRepository, clock: Clock) =>
+        new ConfirmAppointmentHandler(apptRepo, clock),
+      inject: [PrismaAppointmentRepository, SCHEDULING_CLOCK_TOKEN],
+    },
+    {
+      provide: CheckInAppointmentHandler,
+      useFactory: (apptRepo: PrismaAppointmentRepository, clock: Clock) =>
+        new CheckInAppointmentHandler(apptRepo, clock),
+      inject: [PrismaAppointmentRepository, SCHEDULING_CLOCK_TOKEN],
+    },
+    {
+      provide: CompleteAppointmentHandler,
+      useFactory: (apptRepo: PrismaAppointmentRepository, clock: Clock) =>
+        new CompleteAppointmentHandler(apptRepo, clock),
+      inject: [PrismaAppointmentRepository, SCHEDULING_CLOCK_TOKEN],
+    },
+    {
+      provide: MarkNoShowHandler,
+      useFactory: (apptRepo: PrismaAppointmentRepository, clock: Clock) =>
+        new MarkNoShowHandler(apptRepo, clock),
+      inject: [PrismaAppointmentRepository, SCHEDULING_CLOCK_TOKEN],
+    },
+    {
+      provide: AddAppointmentNoteHandler,
+      useFactory: (apptRepo: PrismaAppointmentRepository, clock: Clock) =>
+        new AddAppointmentNoteHandler(apptRepo, clock),
+      inject: [PrismaAppointmentRepository, SCHEDULING_CLOCK_TOKEN],
+    },
+    {
+      provide: GetAppointmentByIdHandler,
+      useFactory: (apptRepo: PrismaAppointmentRepository) =>
+        new GetAppointmentByIdHandler(apptRepo),
+      inject: [PrismaAppointmentRepository],
+    },
+    {
+      provide: FindAppointmentsByRangeHandler,
+      useFactory: (apptRepo: PrismaAppointmentRepository) =>
+        new FindAppointmentsByRangeHandler(apptRepo),
+      inject: [PrismaAppointmentRepository],
+    },
+    {
+      provide: GetDailyAgendaHandler,
+      useFactory: (apptRepo: PrismaAppointmentRepository, clock: Clock) =>
+        new GetDailyAgendaHandler(undefined, apptRepo, clock),
+      inject: [PrismaAppointmentRepository, SCHEDULING_CLOCK_TOKEN],
+    },
+    {
+      provide: GetWeeklyAgendaHandler,
+      useFactory: (apptRepo: PrismaAppointmentRepository, clock: Clock) =>
+        new GetWeeklyAgendaHandler(undefined, apptRepo, clock),
+      inject: [PrismaAppointmentRepository, SCHEDULING_CLOCK_TOKEN],
     },
     {
       provide: GenerateRecurringOccurrencesHandler,
@@ -174,9 +376,26 @@ class InMemoryTherapistScheduleRepository implements TherapistScheduleRepository
     },
   ],
   exports: [
+    SCHEDULING_CLOCK_TOKEN,
+    THERAPIST_SCHEDULE_REPOSITORY_TOKEN,
     PrismaAppointmentRepository,
     PrismaRecurrenceSeriesRepository,
     PrismaRoomRepository,
+    ConflictDetectionService,
+    SlotFinderEngine,
+    CreateAppointmentHandler,
+    UpdateAppointmentHandler,
+    RescheduleAppointmentHandler,
+    CancelAppointmentHandler,
+    ConfirmAppointmentHandler,
+    CheckInAppointmentHandler,
+    CompleteAppointmentHandler,
+    MarkNoShowHandler,
+    AddAppointmentNoteHandler,
+    GetAppointmentByIdHandler,
+    FindAppointmentsByRangeHandler,
+    GetDailyAgendaHandler,
+    GetWeeklyAgendaHandler,
     CreateRecurrenceSeriesHandler,
     GenerateRecurringOccurrencesHandler,
     SkipRecurrenceOccurrenceHandler,
@@ -195,3 +414,4 @@ class InMemoryTherapistScheduleRepository implements TherapistScheduleRepository
   ],
 })
 export class SchedulingModule {}
+export { SCHEDULING_CLOCK_TOKEN };
