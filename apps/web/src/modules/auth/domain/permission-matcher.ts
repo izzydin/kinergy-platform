@@ -224,30 +224,10 @@ export function matchRole(
   }
 
   const targetRole = requiredRole.trim().toLowerCase();
-  const normUserRoles = userRoles.map((r) => r.trim().toLowerCase());
+  const normalizedTarget = targetRole.replace(/[-_]/g, '');
 
-  if (
-    normUserRoles.includes(targetRole) ||
-    normUserRoles.includes('admin') ||
-    normUserRoles.includes('super_admin') ||
-    normUserRoles.includes('owner')
-  ) {
-    return true;
-  }
-
-  if (
-    ['therapist', 'trainer', 'practitioner'].includes(targetRole) &&
-    normUserRoles.some((r) => ['therapist', 'trainer', 'practitioner'].includes(r))
-  ) {
-    return true;
-  }
-
-  if (
-    ['receptionist', 'front_desk'].includes(targetRole) &&
-    normUserRoles.some((r) => ['receptionist', 'front_desk', 'manager'].includes(r))
-  ) {
-    return true;
-  }
-
-  return false;
+  return userRoles.some((r) => {
+    const norm = r.trim().toLowerCase();
+    return norm === targetRole || norm.replace(/[-_]/g, '') === normalizedTarget;
+  });
 }
