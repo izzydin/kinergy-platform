@@ -106,6 +106,80 @@ export function matchPermission(
     return true;
   }
 
+  // 8. Client & Gym Plan permission notation alignment (canonical backend plural -> frontend singular)
+  if (
+    (normUserPerms.includes('clients.read') && normRequired === 'client.read') ||
+    (normUserPerms.includes('clients.write') && normRequired === 'client.write')
+  ) {
+    return true;
+  }
+
+  if (
+    (normUserPerms.includes('plans.create') && normRequired === 'membership_plans.create') ||
+    (normUserPerms.includes('membership_plans.create') && normRequired === 'plans.create') ||
+    (normUserPerms.includes('plans.update') && normRequired === 'membership_plans.update') ||
+    (normUserPerms.includes('membership_plans.update') && normRequired === 'plans.update')
+  ) {
+    return true;
+  }
+
+  if (
+    normUserPerms.includes('memberships.manage') &&
+    ['memberships.read', 'memberships.create', 'memberships.update'].includes(normRequired)
+  ) {
+    return true;
+  }
+
+  // 9. Canonical Backend System Role Permission Bundle Alignment (ADR-0025 / ADR-0080)
+  if (
+    normUserPerms.includes('clients.read') &&
+    normUserPerms.includes('appointments.read') &&
+    [
+      'memberships.read',
+      'plans.read',
+      'membership_plans.read',
+      'attendance.read',
+      'gym.attendance.read',
+    ].includes(normRequired)
+  ) {
+    return true;
+  }
+
+  if (
+    normUserPerms.includes('clients.write') &&
+    normUserPerms.includes('appointments.create') &&
+    [
+      'memberships.create',
+      'memberships.update',
+      'attendance.create',
+      'gym.attendance.create',
+    ].includes(normRequired)
+  ) {
+    return true;
+  }
+
+  if (
+    normUserPerms.includes('clients.read') &&
+    normUserPerms.includes('appointments.create') &&
+    ['attendance.create', 'gym.attendance.create'].includes(normRequired)
+  ) {
+    return true;
+  }
+
+  if (
+    normUserPerms.includes('users.write') &&
+    normUserPerms.includes('settings.write') &&
+    [
+      'plans.create',
+      'plans.update',
+      'membership_plans.create',
+      'membership_plans.update',
+      'manage.users',
+    ].includes(normRequired)
+  ) {
+    return true;
+  }
+
   return false;
 }
 

@@ -10,7 +10,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import { SourceReferenceInputDto } from './source-reference.dto';
 import { ItemDiscountInputDto, ItemSourceInputDto } from './sales-input.dto';
 
@@ -55,13 +55,45 @@ export class AddSaleItemRequestDto {
       'Agreed gross unit price in major currency units. Scale: 2 decimal places, non-negative.',
     example: 24.5,
   })
+  @Transform(({ value, obj }) => {
+    const raw = value !== undefined ? value : obj?.unitPrice;
+    return raw !== undefined && raw !== null ? Number(raw) : raw;
+  })
   @IsNumber(
     { maxDecimalPlaces: 2 },
     { message: 'unitPriceAmount must be a valid number with at most 2 decimal places.' },
   )
   @Min(0, { message: 'unitPriceAmount cannot be negative.' })
-  @Type(() => Number)
   unitPriceAmount!: number;
+
+  @ApiPropertyOptional({
+    description: 'Legacy alias for unitPriceAmount',
+    example: 24.5,
+  })
+  @IsOptional()
+  @IsNumber(
+    { maxDecimalPlaces: 2 },
+    { message: 'unitPrice must be a valid number with at most 2 decimal places.' },
+  )
+  @Min(0, { message: 'unitPrice cannot be negative.' })
+  @Type(() => Number)
+  unitPrice?: number;
+
+  @ApiPropertyOptional({
+    description: 'Optional catalog origin category alias',
+    example: 'INVENTORY_ITEM',
+  })
+  @IsOptional()
+  @IsString()
+  sourceType?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional catalog origin entity identifier alias',
+    example: 'inv_123',
+  })
+  @IsOptional()
+  @IsString()
+  sourceId?: string;
 
   @ApiPropertyOptional({
     description: 'SKU or plan code snapshot',

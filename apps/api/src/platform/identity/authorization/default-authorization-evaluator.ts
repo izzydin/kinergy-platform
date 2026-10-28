@@ -140,6 +140,75 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
       return true;
     }
 
+    // Client & Gym domain permission alignment (ADR-0025 / ADR-0080):
+    if (
+      (normResolved.includes('clients.read') &&
+        [
+          'client.read',
+          'read.clients',
+          'memberships.read',
+          'plans.read',
+          'attendance.read',
+          'gym.attendance.read',
+        ].includes(normRequired)) ||
+      (normResolved.includes('client.read') && normRequired === 'clients.read')
+    ) {
+      return true;
+    }
+
+    if (
+      normResolved.includes('clients.write') &&
+      [
+        'client.write',
+        'manage.clients',
+        'memberships.create',
+        'memberships.update',
+        'attendance.create',
+        'gym.attendance.create',
+      ].includes(normRequired)
+    ) {
+      return true;
+    }
+
+    if (
+      normResolved.includes('clients.read') &&
+      normResolved.includes('appointments.create') &&
+      ['attendance.create', 'gym.attendance.create'].includes(normRequired)
+    ) {
+      return true;
+    }
+
+    if (
+      normResolved.includes('settings.write') &&
+      normResolved.includes('users.write') &&
+      [
+        'plans.create',
+        'plans.update',
+        'membership_plans.create',
+        'membership_plans.update',
+      ].includes(normRequired)
+    ) {
+      return true;
+    }
+
+    if (
+      (normResolved.includes('attendance.read') && normRequired === 'gym.attendance.read') ||
+      (normResolved.includes('gym.attendance.read') && normRequired === 'attendance.read') ||
+      (normResolved.includes('attendance.create') && normRequired === 'gym.attendance.create') ||
+      (normResolved.includes('gym.attendance.create') && normRequired === 'attendance.create')
+    ) {
+      return true;
+    }
+
+    if (
+      (normResolved.includes('plans.create') && normRequired === 'membership_plans.create') ||
+      (normResolved.includes('membership_plans.create') && normRequired === 'plans.create') ||
+      (normResolved.includes('plans.update') && normRequired === 'membership_plans.update') ||
+      (normResolved.includes('membership_plans.update') && normRequired === 'plans.update')
+    ) {
+      return true;
+    }
+
     return normResolved.some((perm) => {
       if (perm.endsWith('.*')) {
         const prefix = perm.slice(0, -2);

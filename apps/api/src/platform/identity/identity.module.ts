@@ -99,6 +99,10 @@ import {
       provide: ACCESS_TOKEN_SERVICE,
       useClass: AccessTokenService,
     },
+    {
+      provide: 'ACCESS_TOKEN_SERVICE',
+      useExisting: ACCESS_TOKEN_SERVICE,
+    },
     RefreshTokenService,
     {
       provide: REFRESH_TOKEN_SERVICE,
@@ -119,6 +123,10 @@ import {
       provide: USER_REPOSITORY,
       useClass: PrismaUserRepository,
     },
+    {
+      provide: 'USER_REPOSITORY',
+      useExisting: USER_REPOSITORY,
+    },
     PrismaRefreshTokenRepository,
     {
       provide: REFRESH_TOKEN_REPOSITORY,
@@ -134,6 +142,10 @@ import {
     {
       provide: PERMISSION_RESOLVER,
       useClass: DefaultPermissionResolver,
+    },
+    {
+      provide: 'PERMISSION_RESOLVER',
+      useExisting: PERMISSION_RESOLVER,
     },
     DefaultAuthorizationEvaluator,
     {
@@ -266,6 +278,7 @@ import {
     TOKEN_FACTORY,
     AccessTokenService,
     ACCESS_TOKEN_SERVICE,
+    'ACCESS_TOKEN_SERVICE',
     RefreshTokenService,
     REFRESH_TOKEN_SERVICE,
     Sha256TokenHasher,
@@ -274,6 +287,7 @@ import {
     SECURITY_EVENT_PUBLISHER,
     PrismaUserRepository,
     USER_REPOSITORY,
+    'USER_REPOSITORY',
     PrismaRefreshTokenRepository,
     REFRESH_TOKEN_REPOSITORY,
     SystemClock,
@@ -281,6 +295,7 @@ import {
     AuthenticationGuard,
     DefaultPermissionResolver,
     PERMISSION_RESOLVER,
+    'PERMISSION_RESOLVER',
     DefaultAuthorizationEvaluator,
     AUTHORIZATION_EVALUATOR,
     DefaultAuthorizationService,

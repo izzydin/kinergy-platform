@@ -39,7 +39,12 @@ import {
   PaymentRepositoryPort,
   ReceiptRepositoryPort,
   SaleSourceValidatorPort,
+  ClientFacadePort,
 } from '@kinergy-platform/core';
+import { GymModule } from '../gym/gym.module';
+import { KinesiologyModule } from '../kinesiology/kinesiology.module';
+import { ResourcesModule } from '../resources/resources.module';
+import { SchedulingModule } from '../scheduling/scheduling.module';
 import { SalesController } from './controllers/sales.controller';
 import { PaymentsController } from './controllers/payments.controller';
 import { ReceiptsController } from './controllers/receipts.controller';
@@ -60,7 +65,7 @@ import {
 } from './infrastructure/adapters';
 
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, GymModule, KinesiologyModule, ResourcesModule, SchedulingModule],
   controllers: [SalesController, PaymentsController, ReceiptsController],
   providers: [
     SalesAuditEventPublisher,
@@ -95,9 +100,16 @@ import {
     },
     {
       provide: CreateSaleHandler,
-      useFactory: (repo: SaleRepositoryPort, validator: SaleSourceValidatorPort) =>
-        new CreateSaleHandler(repo, undefined, undefined, validator),
-      inject: [SALE_REPOSITORY_TOKEN, SALE_SOURCE_VALIDATOR_TOKEN],
+      useFactory: (
+        repo: SaleRepositoryPort,
+        validator: SaleSourceValidatorPort,
+        clientFacade?: ClientFacadePort,
+      ) => new CreateSaleHandler(repo, undefined, undefined, validator, clientFacade),
+      inject: [
+        SALE_REPOSITORY_TOKEN,
+        SALE_SOURCE_VALIDATOR_TOKEN,
+        { token: 'IClientFacade', optional: true },
+      ],
     },
     {
       provide: AssignSaleSourceHandler,
@@ -264,12 +276,13 @@ import {
         saleRepo: SaleRepositoryPort,
         paymentRepo: PaymentRepositoryPort,
         auditPublisher: SalesAuditEventPublisher,
+        clientFacade?: ClientFacadePort,
       ) =>
         new IssueReceiptHandler(
           receiptRepo,
           saleRepo,
           paymentRepo,
-          undefined,
+          clientFacade,
           undefined,
           auditPublisher,
         ),
@@ -278,6 +291,7 @@ import {
         SALE_REPOSITORY_TOKEN,
         PAYMENT_REPOSITORY_TOKEN,
         SalesAuditEventPublisher,
+        { token: 'IClientFacade', optional: true },
       ],
     },
     {

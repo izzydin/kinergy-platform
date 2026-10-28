@@ -92,6 +92,13 @@ export class RecordPaymentRequestDto {
       'Reference contains prohibited characters. Only alphanumeric characters and safe punctuation (#, -, _, /, ., :, space) are permitted.',
   })
   reference?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional idempotency key to prevent duplicate payment processing.',
+  })
+  @IsString({ message: 'idempotencyKey must be a string.' })
+  @IsOptional()
+  idempotencyKey?: string;
 }
 
 /**

@@ -39,7 +39,10 @@ export class ClientFacade implements IClientFacade {
       const query = new GetClientProfileQuery({ clientId });
       return await this.getClientProfileUseCase.execute(query);
     } catch (err) {
-      if (err instanceof ClientNotFoundException) {
+      if (
+        err instanceof ClientNotFoundException ||
+        (err instanceof Error && err.message.startsWith('Invalid ClientId:'))
+      ) {
         return null;
       }
       throw err;

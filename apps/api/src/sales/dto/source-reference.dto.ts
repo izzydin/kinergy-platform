@@ -26,6 +26,12 @@ export class SourceReferenceInputDto {
     description: 'Commercial origin source type (ADR-0121)',
     example: SaleSourceType.FOOD,
   })
+  @Transform(({ value }) => {
+    if (value === 'MEMBERSHIP_PLAN') return SaleSourceType.GYM_MEMBERSHIP;
+    if (value === 'TREATMENT_SESSION') return SaleSourceType.KINESIOLOGY_SESSION;
+    if (value === 'INVENTORY_ITEM') return SaleSourceType.FOOD;
+    return value;
+  })
   @IsEnum(SaleSourceType, {
     message: `type must be a valid SaleSourceType (${Object.values(SaleSourceType).join(', ')})`,
   })

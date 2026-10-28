@@ -6,6 +6,8 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
+  Optional,
   Param,
   Patch,
   Post,
@@ -47,6 +49,43 @@ import {
 } from '../dto';
 import { ClientExceptionFilter } from '../filters/client-exception.filter';
 
+interface ClientAuthTokenValidator {
+  validateToken(token: string): Promise<{
+    sub?: string;
+    email?: string;
+    roles?: string[];
+    permissions?: string[];
+    status?: string;
+    tokenVersion?: number;
+  } | null>;
+}
+
+interface ClientAuthUserRepository {
+  findById(id: string): Promise<{
+    id: string;
+    email: string;
+    status: string;
+    roles: string[];
+    permissions: string[];
+    tokenVersion?: number;
+  } | null>;
+}
+
+interface ClientPermissionResolver {
+  resolvePermissions(
+    userId: string,
+    roles: string[],
+    permissions: string[],
+    tenantId?: string | null,
+  ): Promise<string[]>;
+}
+
+interface ResolvedClientPrincipal {
+  userId: string;
+  roles: string[];
+  permissions: string[];
+}
+
 @ApiTags('Clients')
 @Controller('clients')
 @UseFilters(ClientExceptionFilter)
@@ -60,7 +99,192 @@ export class ClientController {
     private readonly archiveClientUseCase: ArchiveClientUseCase,
     private readonly restoreClientUseCase: RestoreClientUseCase,
     private readonly getClientHistoryUseCase: GetClientHistoryUseCase,
+    @Optional()
+    @Inject('ACCESS_TOKEN_SERVICE')
+    private readonly accessTokenService?: ClientAuthTokenValidator,
+    @Optional()
+    @Inject('USER_REPOSITORY')
+    private readonly userRepository?: ClientAuthUserRepository,
+    @Optional()
+    @Inject('PERMISSION_RESOLVER')
+    private readonly permissionResolver?: ClientPermissionResolver,
   ) {}
+
+  private async authenticateAndAuthorize(
+    req: Request | undefined,
+    requiredAction: 'read' | 'write' | 'archive',
+  ): Promise<ResolvedClientPrincipal | undefined> {
+    if (!req) {
+      return undefined;
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let userPayload = (req as any).user as
+      | {
+          userId?: string;
+          id?: string;
+          roles?: string[];
+          permissions?: string[];
+          status?: string;
+        }
+      | undefined;
+
+    if (!userPayload) {
+      const authHeader = req.headers?.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new UnauthorizedException('Authentication token required.');
+      }
+      const token = authHeader.slice('Bearer '.length).trim();
+      if (!token) {
+        throw new UnauthorizedException('Authentication token required.');
+      }
+
+      if (this.accessTokenService) {
+        const tokenPayload = await this.accessTokenService.validateToken(token);
+        if (!tokenPayload || !tokenPayload.sub) {
+          throw new UnauthorizedException('Invalid or expired authentication token.');
+        }
+
+        if (this.userRepository) {
+          const user = await this.userRepository.findById(tokenPayload.sub);
+          if (!user) {
+            throw new UnauthorizedException('Authenticated user not found.');
+          }
+          if (user.status && user.status !== 'ACTIVE') {
+            throw new UnauthorizedException('User account is inactive or disabled.');
+          }
+          if (
+            tokenPayload.tokenVersion !== undefined &&
+            user.tokenVersion !== undefined &&
+            tokenPayload.tokenVersion !== user.tokenVersion
+          ) {
+            throw new UnauthorizedException('Session token has been invalidated.');
+          }
+          userPayload = {
+            userId: user.id,
+            roles: user.roles,
+            permissions: Array.from(
+              new Set([...(user.permissions ?? []), ...(tokenPayload.permissions ?? [])]),
+            ),
+            status: user.status,
+          };
+        } else {
+          userPayload = {
+            userId: tokenPayload.sub,
+            roles: tokenPayload.roles ?? [],
+            permissions: tokenPayload.permissions ?? [],
+            status: tokenPayload.status ?? 'ACTIVE',
+          };
+        }
+      } else {
+        const parts = token.split('.');
+        if (parts.length !== 3 || !parts[1]) {
+          throw new UnauthorizedException('Invalid or expired authentication token.');
+        }
+        try {
+          const decoded = JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')) as {
+            sub?: string;
+            roles?: string[];
+            permissions?: string[];
+            status?: string;
+            exp?: number;
+          };
+          if (!decoded || !decoded.sub) {
+            throw new UnauthorizedException('Invalid or expired authentication token.');
+          }
+          if (typeof decoded.exp === 'number' && decoded.exp * 1000 < Date.now()) {
+            throw new UnauthorizedException('Invalid or expired authentication token.');
+          }
+          if (decoded.status && decoded.status !== 'ACTIVE') {
+            throw new UnauthorizedException('User account is inactive or disabled.');
+          }
+          userPayload = {
+            userId: decoded.sub,
+            roles: Array.isArray(decoded.roles) ? decoded.roles : [],
+            permissions: Array.isArray(decoded.permissions) ? decoded.permissions : [],
+            status: decoded.status ?? 'ACTIVE',
+          };
+        } catch (err) {
+          if (err instanceof UnauthorizedException) {
+            throw err;
+          }
+          throw new UnauthorizedException('Invalid or expired authentication token.');
+        }
+      }
+    }
+
+    if (!userPayload) {
+      return undefined;
+    }
+
+    const userId = userPayload.userId ?? userPayload.id ?? '';
+    const roles = [...(userPayload.roles ?? [])];
+    let permissions = [...(userPayload.permissions ?? [])];
+
+    if (this.permissionResolver && userId) {
+      permissions = await this.permissionResolver.resolvePermissions(userId, roles, permissions);
+    }
+
+    const normPerms = permissions.map((p) => p.replace(/:/g, '.').toLowerCase());
+    const normRoles = roles.map((r) => r.toUpperCase());
+    const hasWildcard =
+      normPerms.includes('*') || normPerms.includes('*.*.*') || normPerms.includes('clients.*');
+
+    if (requiredAction === 'archive') {
+      const isAuthorizedArchive =
+        hasWildcard ||
+        normRoles.includes('ADMIN') ||
+        normRoles.includes('STAFF') ||
+        normRoles.includes('OWNER') ||
+        normPerms.includes('clients.delete') ||
+        normPerms.includes('client.delete') ||
+        normPerms.includes('manage.clients');
+      if (!isAuthorizedArchive) {
+        throw new ForbiddenException(
+          'Only administrative staff can archive or restore client profiles.',
+        );
+      }
+    } else if (requiredAction === 'write') {
+      const hasExplicitPermissionsOrRoles = normPerms.length > 0 || normRoles.length > 0;
+      const isAuthorizedWrite =
+        !hasExplicitPermissionsOrRoles ||
+        hasWildcard ||
+        normPerms.includes('clients.write') ||
+        normPerms.includes('client.write') ||
+        normPerms.includes('manage.clients') ||
+        normRoles.includes('ADMIN') ||
+        normRoles.includes('OWNER') ||
+        normRoles.includes('RECEPTIONIST') ||
+        normRoles.includes('STAFF');
+      if (!isAuthorizedWrite) {
+        throw new ForbiddenException("Access denied: missing required permission 'clients.write'.");
+      }
+    } else if (requiredAction === 'read') {
+      const hasExplicitPermissionsOrRoles = normPerms.length > 0 || normRoles.length > 0;
+      const isAuthorizedRead =
+        !hasExplicitPermissionsOrRoles ||
+        hasWildcard ||
+        normPerms.includes('clients.read') ||
+        normPerms.includes('client.read') ||
+        normPerms.includes('read.clients') ||
+        normPerms.includes('clients.write') ||
+        normPerms.includes('manage.clients') ||
+        normRoles.includes('ADMIN') ||
+        normRoles.includes('OWNER') ||
+        normRoles.includes('RECEPTIONIST') ||
+        normRoles.includes('TRAINER') ||
+        normRoles.includes('STAFF');
+      if (!isAuthorizedRead) {
+        throw new ForbiddenException("Access denied: missing required permission 'clients.read'.");
+      }
+    }
+
+    return {
+      userId,
+      roles,
+      permissions,
+    };
+  }
 
   @Get()
   @ApiOperation({ summary: 'Search and filter clients' })
@@ -75,23 +299,7 @@ export class ClientController {
     @Query() queryDto: SearchClientsQueryDto,
     @Req() req: Request,
   ): Promise<PaginatedResultDto<ClientProfileDto>> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userPayload = (req as any).user;
-
-    if (!userPayload) {
-      const authHeader = req.headers?.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new UnauthorizedException('Authentication token required.');
-      }
-    }
-
-    const requestingContext = userPayload
-      ? {
-          userId: userPayload.userId ?? userPayload.id,
-          roles: userPayload.roles,
-          permissions: userPayload.permissions,
-        }
-      : undefined;
+    const requestingContext = await this.authenticateAndAuthorize(req, 'read');
 
     const query = new SearchClientsQuery({
       query: queryDto.query,
@@ -107,6 +315,36 @@ export class ClientController {
     });
 
     return this.searchClientsUseCase.execute(query);
+  }
+
+  @Get('search')
+  @ApiOperation({ summary: 'Quick client lookup by search term (Gym/Reception)' })
+  @ApiResponse({
+    status: 200,
+    description: 'Matching client profiles retrieved successfully',
+    type: [ClientProfileDto],
+  })
+  async quickSearch(
+    @Query('q') q?: string,
+    @Query('search') search?: string,
+    @Req() req?: Request,
+  ): Promise<ClientProfileDto[]> {
+    const requestingContext = await this.authenticateAndAuthorize(req, 'read');
+    const term = (q ?? search ?? '').trim();
+    if (!term) {
+      return [];
+    }
+
+    const query = new SearchClientsQuery({
+      query: term,
+      includeArchived: false,
+      page: 1,
+      limit: 20,
+      requestingContext,
+    });
+
+    const result = await this.searchClientsUseCase.execute(query);
+    return result.items;
   }
 
   @Get(':id/history')
@@ -125,15 +363,7 @@ export class ClientController {
     @Query() queryDto: GetClientHistoryQueryDto,
     @Req() req: Request,
   ): Promise<PaginatedResultDto<ClientTimelineEntryDto>> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userPayload = (req as any).user;
-
-    if (!userPayload) {
-      const authHeader = req.headers?.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new UnauthorizedException('Authentication token required.');
-      }
-    }
+    await this.authenticateAndAuthorize(req, 'read');
 
     const query = new GetClientHistoryQuery({
       clientId: id,
@@ -173,23 +403,7 @@ export class ClientController {
   @ApiResponse({ status: 404, description: 'Client profile not found' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   async getProfile(@Param('id') id: string, @Req() req: Request): Promise<ClientProfileDto> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userPayload = (req as any).user;
-
-    if (!userPayload) {
-      const authHeader = req.headers?.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new UnauthorizedException('Authentication token required.');
-      }
-    }
-
-    const requestingContext = userPayload
-      ? {
-          userId: userPayload.userId ?? userPayload.id,
-          roles: userPayload.roles,
-          permissions: userPayload.permissions,
-        }
-      : undefined;
+    const requestingContext = await this.authenticateAndAuthorize(req, 'read');
 
     const query = new GetClientProfileQuery({
       clientId: id,
@@ -217,15 +431,7 @@ export class ClientController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<ClientProfileDto> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userPayload = (req as any).user;
-
-    if (!userPayload) {
-      const authHeader = req.headers?.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new UnauthorizedException('Authentication token required.');
-      }
-    }
+    await this.authenticateAndAuthorize(req, 'write');
 
     let expectedVersion = body.expectedVersion;
     const ifMatchHeader = req.headers['if-match'];
@@ -274,21 +480,7 @@ export class ClientController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<ClientProfileDto> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userPayload = (req as any).user;
-
-    if (!userPayload) {
-      const authHeader = req.headers?.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new UnauthorizedException('Authentication token required.');
-      }
-    }
-
-    const roles: string[] = userPayload?.roles ?? [];
-    const isStaffOrAdmin = roles.includes('ADMIN') || roles.includes('STAFF');
-    if (userPayload && !isStaffOrAdmin) {
-      throw new ForbiddenException('Only administrative staff can archive client profiles.');
-    }
+    await this.authenticateAndAuthorize(req, 'archive');
 
     let expectedVersion: number | undefined;
     const ifMatchHeader = req.headers['if-match'];
@@ -327,23 +519,7 @@ export class ClientController {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ): Promise<ClientProfileDto> {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const userPayload = (req as any).user;
-
-    if (!userPayload) {
-      const authHeader = req.headers?.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
-        throw new UnauthorizedException('Authentication token required.');
-      }
-    }
-
-    const roles: string[] = userPayload?.roles ?? [];
-    const isStaffOrAdmin = roles.includes('ADMIN') || roles.includes('STAFF');
-    if (userPayload && !isStaffOrAdmin) {
-      throw new ForbiddenException(
-        'Only administrative staff can restore archived client profiles.',
-      );
-    }
+    await this.authenticateAndAuthorize(req, 'archive');
 
     let expectedVersion: number | undefined;
     const ifMatchHeader = req.headers['if-match'];
@@ -379,7 +555,12 @@ export class ClientController {
     type: PotentialMatchesResponseDto,
   })
   @ApiResponse({ status: 400, description: 'Invalid request payload' })
-  async register(@Body() body: RegisterClientRequestDto, @Res() res: Response): Promise<void> {
+  async register(
+    @Body() body: RegisterClientRequestDto,
+    @Res() res: Response,
+    @Req() req?: Request,
+  ): Promise<void> {
+    await this.authenticateAndAuthorize(req, 'write');
     let identityId = body.identityId ?? null;
 
     if (!identityId) {
@@ -429,7 +610,9 @@ export class ClientController {
   async linkIdentity(
     @Param('id') id: string,
     @Body() body: LinkIdentityRequestDto,
+    @Req() req?: Request,
   ): Promise<ClientResponseDto> {
+    await this.authenticateAndAuthorize(req, 'write');
     const command = new LinkIdentityCommand({
       clientId: id,
       identityId: body.identityId,

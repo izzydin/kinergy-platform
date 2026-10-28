@@ -235,6 +235,7 @@ export class PaymentsController {
 
     const executeAction = async (): Promise<PaymentResponseDto> => {
       const command = new CreatePaymentCommand({
+        idempotencyKey: dto.idempotencyKey,
         saleId,
         amount: dto.amount,
         currency: dto.currency,

@@ -1,4 +1,4 @@
-import { ArgumentsHost, Catch, ExceptionFilter, HttpStatus } from '@nestjs/common';
+import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Response } from 'express';
 import {
   ClientAlreadyExistsException,
@@ -66,6 +66,19 @@ export class ClientExceptionFilter implements ExceptionFilter {
         error: 'Bad Request',
         message: exception.message,
       });
+      return;
+    }
+
+    if (exception instanceof HttpException && typeof response?.status === 'function') {
+      const status = exception.getStatus();
+      const exceptionResponse = exception.getResponse();
+      response
+        .status(status)
+        .json(
+          typeof exceptionResponse === 'object' && exceptionResponse !== null
+            ? exceptionResponse
+            : { statusCode: status, message: String(exceptionResponse) },
+        );
       return;
     }
 

@@ -66,7 +66,19 @@ export const GYM_FULFILLMENT_STORE_PORT_TOKEN = 'GymFulfillmentStorePort';
 export { DefaultGymMembershipRepository, DefaultGymPlanRepository, DefaultGymAttendanceRepository };
 
 class DefaultClientLookupPort implements ClientLookupPort {
-  async validateClientExists(_clientId: string): Promise<boolean> {
+  constructor(
+    private readonly clientFacade?: {
+      isClientActive(clientId: string): Promise<boolean>;
+    },
+  ) {}
+
+  async validateClientExists(clientId: string): Promise<boolean> {
+    if (!clientId || clientId.trim().length === 0) {
+      return false;
+    }
+    if (this.clientFacade) {
+      return this.clientFacade.isClientActive(clientId.trim());
+    }
     return true;
   }
 }
@@ -117,7 +129,9 @@ class DefaultGymEventPublisherPort implements GymEventPublisherPort {
     },
     {
       provide: CLIENT_LOOKUP_PORT_TOKEN,
-      useClass: DefaultClientLookupPort,
+      useFactory: (clientFacade?: { isClientActive(clientId: string): Promise<boolean> }) =>
+        new DefaultClientLookupPort(clientFacade),
+      inject: [{ token: 'IClientFacade', optional: true }],
     },
     {
       provide: GYM_EVENT_PUBLISHER_PORT_TOKEN,

@@ -17,6 +17,9 @@ export class ClientResponseDto {
   @ApiProperty({ example: 'Doe' })
   lastName!: string;
 
+  @ApiProperty({ example: 'John Doe' })
+  fullName!: string;
+
   @ApiProperty({ example: 'john.doe@example.com' })
   email!: string;
 
@@ -42,6 +45,7 @@ export class ClientResponseDto {
     dto.identityId = client.identityId;
     dto.firstName = client.name.firstName;
     dto.lastName = client.name.lastName;
+    dto.fullName = client.name.fullName;
     dto.email = client.email.value;
     dto.phone = client.phone.value;
     dto.status = client.status;

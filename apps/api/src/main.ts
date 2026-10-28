@@ -29,7 +29,9 @@ async function bootstrap(): Promise<void> {
   app.enableCors(corsConfig.createCorsOptions());
 
   // Global Prefix, Exception Filter & Pipe
-  app.setGlobalPrefix(globalPrefix);
+  app.setGlobalPrefix(globalPrefix, {
+    exclude: [`${globalPrefix}/(.*)`, globalPrefix],
+  });
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalPipes(new GlobalSanitizationValidationPipe());
 
