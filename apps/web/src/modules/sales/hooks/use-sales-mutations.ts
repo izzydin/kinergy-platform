@@ -180,6 +180,8 @@ export function useCancelSale() {
     onSuccess: (updatedSale) => {
       notification.success('Sale order cancelled');
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.detail(updatedSale.id) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.paymentsBySale(updatedSale.id) });
+      queryClient.invalidateQueries({ queryKey: salesQueryKeys.payments.all });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.receiptBySale(updatedSale.id) });
       queryClient.invalidateQueries({ queryKey: salesQueryKeys.lists() });
     },

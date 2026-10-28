@@ -286,6 +286,18 @@ export const SaleDetailPage: React.FC = () => {
             </Badge>
           )}
 
+          {/* Cancellation Invariant Explanations */}
+          {isSettled && (
+            <Badge
+              variant="outline"
+              className="text-xs text-muted-foreground border-dashed"
+              data-testid="cancellation-unavailable-settled"
+            >
+              <XCircle className="h-3 w-3 mr-1 opacity-50" />
+              Cancellation unavailable (fully settled)
+            </Badge>
+          )}
+
           {/* Cancel Order Button */}
           {(isDraft || isPending) && (
             <HasPermission name="sales.cancel">
@@ -733,6 +745,11 @@ export const SaleDetailPage: React.FC = () => {
         open={isCancelDialogOpen}
         onOpenChange={setIsCancelDialogOpen}
         saleId={sale.id}
+        status={sale.status}
+        itemCount={sale.itemCount}
+        total={sale.total}
+        currency={sale.currency}
+        payments={payments}
         isSubmitting={cancelMutation.isPending}
         onConfirm={handleConfirmCancel}
       />
