@@ -2,6 +2,8 @@ import { Injectable, Optional } from '@nestjs/common';
 import {
   GetInventoryItemByIdHandler,
   GetInventoryItemByIdQuery,
+  INVENTORY_CATEGORY_REGISTRY,
+  InventoryCategory,
   SaleSourceType,
   SourceType,
 } from '@kinergy-platform/core';
@@ -90,6 +92,18 @@ export class ResourcesSourceValidatorAdapter {
           belongsToContext: true,
           actualContext: 'resources',
           errorMessage: `Inventory item '${item.name}' is in '${item.status}' status. Only ACTIVE items can be sold.`,
+        };
+      }
+
+      // Retail Eligibility Invariant: Only retail-eligible inventory items can be sold (ADR-0088, ADR-0121, ADR-0139)
+      const categoryDesc = INVENTORY_CATEGORY_REGISTRY[item.category as InventoryCategory];
+      if (categoryDesc && !categoryDesc.isRetailEligible) {
+        return {
+          isValid: false,
+          exists: true,
+          belongsToContext: true,
+          actualContext: 'resources',
+          errorMessage: `Inventory item '${item.name}' belonging to category '${item.category}' is not eligible for retail sale.`,
         };
       }
 

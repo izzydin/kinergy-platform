@@ -13,6 +13,7 @@ import {
 } from '@kinergy-platform/core';
 import {
   InventoryItem,
+  InventoryItemStatus,
   FixedAsset,
   AssetId,
   AssetStatus,
@@ -94,6 +95,16 @@ export class InMemoryInventoryItemRepository implements InventoryItemRepository 
           i.sku.value.toLowerCase().includes(q) ||
           (i.description && i.description.toLowerCase().includes(q)),
       );
+    }
+    if (filter?.status) {
+      const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+      result = result.filter((i) => statuses.includes(i.status));
+    }
+    if (!filter?.includeArchived) {
+      result = result.filter((i) => i.status !== InventoryItemStatus.ARCHIVED);
+    }
+    if (filter?.lowStockOnly) {
+      result = result.filter((i) => i.isLowStock());
     }
 
     return result;

@@ -358,6 +358,24 @@ describe('Source Validation Hexagonal Adapters (ADR-0139)', () => {
       expect(result.errorMessage).toContain('Only ACTIVE items can be sold');
     });
 
+    it('should reject an item belonging to a non-retail-eligible category (e.g. CLEANING_SUPPLIES)', async () => {
+      const supplyItem: InventoryItemDTO = {
+        ...baseItem,
+        category: 'CLEANING_SUPPLIES',
+      };
+      mockGetItemHandler.execute.mockResolvedValueOnce(successResult(supplyItem));
+
+      const result = await adapter.validate({
+        sourceType: SaleSourceType.FOOD,
+        sourceId: 'inv_item_bar_01',
+      });
+
+      expect(result.isValid).toBe(false);
+      expect(result.exists).toBe(true);
+      expect(result.errorMessage).toContain('CLEANING_SUPPLIES');
+      expect(result.errorMessage).toContain('not eligible for retail sale');
+    });
+
     it('should return error when query handler is not configured', async () => {
       const unconfiguredAdapter = new ResourcesSourceValidatorAdapter(undefined);
       const result = await unconfiguredAdapter.validate({
