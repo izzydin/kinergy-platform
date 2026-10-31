@@ -54,19 +54,29 @@ const AuthSubRouter: React.FC = () => (
 );
 
 const ClientListPage = lazyWithRetry(() =>
-  import('../../modules/client').then((m) => ({ default: m.ClientListPage })),
+  import('../../modules/client/routes/client-list-page').then((m) => ({
+    default: m.ClientListPage,
+  })),
 );
 const ClientCreatePage = lazyWithRetry(() =>
-  import('../../modules/client').then((m) => ({ default: m.ClientCreatePage })),
+  import('../../modules/client/routes/client-create-page').then((m) => ({
+    default: m.ClientCreatePage,
+  })),
 );
 const ClientDetailPage = lazyWithRetry(() =>
-  import('../../modules/client').then((m) => ({ default: m.ClientDetailPage })),
+  import('../../modules/client/routes/client-detail-page').then((m) => ({
+    default: m.ClientDetailPage,
+  })),
 );
 const ClientTimelinePage = lazyWithRetry(() =>
-  import('../../modules/client').then((m) => ({ default: m.ClientTimelinePage })),
+  import('../../modules/client/routes/client-timeline-page').then((m) => ({
+    default: m.ClientTimelinePage,
+  })),
 );
 const ClientTreatmentHistoryPage = lazyWithRetry(() =>
-  import('../../modules/kinesiology').then((m) => ({ default: m.ClientTreatmentHistoryPage })),
+  import('../../modules/kinesiology/routes/client-treatment-history-page').then((m) => ({
+    default: m.ClientTreatmentHistoryPage,
+  })),
 );
 
 const ClientSubRouter: React.FC = () => (
@@ -83,7 +93,9 @@ const ClientSubRouter: React.FC = () => (
 );
 
 const TreatmentSessionWorkspacePage = lazyWithRetry(() =>
-  import('../../modules/kinesiology').then((m) => ({ default: m.TreatmentSessionWorkspacePage })),
+  import('../../modules/kinesiology/routes/treatment-session-workspace-page').then((m) => ({
+    default: m.TreatmentSessionWorkspacePage,
+  })),
 );
 
 const KinesiologySubRouter: React.FC = () => (
@@ -124,49 +136,79 @@ moduleRegistry.register({
 });
 
 const ResourceOverviewPage = lazyWithRetry(() =>
-  import('../../modules/resources/overview').then((m) => ({ default: m.ResourceOverviewPage })),
+  import('../../modules/resources/overview/routes/resource-overview-page').then((m) => ({
+    default: m.ResourceOverviewPage,
+  })),
 );
 const InventoryOverviewPage = lazyWithRetry(() =>
-  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryOverviewPage })),
+  import('../../modules/resources/inventory/routes/inventory-overview-page').then((m) => ({
+    default: m.InventoryOverviewPage,
+  })),
 );
 const InventoryListPage = lazyWithRetry(() =>
-  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryListPage })),
+  import('../../modules/resources/inventory/routes/inventory-list-page').then((m) => ({
+    default: m.InventoryListPage,
+  })),
 );
 const InventoryCreatePage = lazyWithRetry(() =>
-  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryCreatePage })),
+  import('../../modules/resources/inventory/routes/inventory-create-page').then((m) => ({
+    default: m.InventoryCreatePage,
+  })),
 );
 const LowStockPage = lazyWithRetry(() =>
-  import('../../modules/resources/inventory').then((m) => ({ default: m.LowStockPage })),
+  import('../../modules/resources/inventory/routes/low-stock-page').then((m) => ({
+    default: m.LowStockPage,
+  })),
 );
 const InventoryDetailPage = lazyWithRetry(() =>
-  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryDetailPage })),
+  import('../../modules/resources/inventory/routes/inventory-detail-page').then((m) => ({
+    default: m.InventoryDetailPage,
+  })),
 );
 const InventoryEditPage = lazyWithRetry(() =>
-  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryEditPage })),
+  import('../../modules/resources/inventory/routes/inventory-edit-page').then((m) => ({
+    default: m.InventoryEditPage,
+  })),
 );
 const InventoryMovementsPage = lazyWithRetry(() =>
-  import('../../modules/resources/inventory').then((m) => ({ default: m.InventoryMovementsPage })),
+  import('../../modules/resources/inventory/routes/inventory-movements-page').then((m) => ({
+    default: m.InventoryMovementsPage,
+  })),
 );
 const AssetOverviewPage = lazyWithRetry(() =>
-  import('../../modules/resources/assets').then((m) => ({ default: m.AssetOverviewPage })),
+  import('../../modules/resources/assets/routes/asset-overview-page').then((m) => ({
+    default: m.AssetOverviewPage,
+  })),
 );
 const AssetsListPage = lazyWithRetry(() =>
-  import('../../modules/resources/assets').then((m) => ({ default: m.AssetsListPage })),
+  import('../../modules/resources/assets/routes/assets-list-page').then((m) => ({
+    default: m.AssetsListPage,
+  })),
 );
 const AssetCreatePage = lazyWithRetry(() =>
-  import('../../modules/resources/assets').then((m) => ({ default: m.AssetCreatePage })),
+  import('../../modules/resources/assets/routes/asset-create-page').then((m) => ({
+    default: m.AssetCreatePage,
+  })),
 );
 const AssetDetailPage = lazyWithRetry(() =>
-  import('../../modules/resources/assets').then((m) => ({ default: m.AssetDetailPage })),
+  import('../../modules/resources/assets/routes/asset-detail-page').then((m) => ({
+    default: m.AssetDetailPage,
+  })),
 );
 const AssetEditPage = lazyWithRetry(() =>
-  import('../../modules/resources/assets').then((m) => ({ default: m.AssetEditPage })),
+  import('../../modules/resources/assets/routes/asset-edit-page').then((m) => ({
+    default: m.AssetEditPage,
+  })),
 );
 const AssetHistoryPage = lazyWithRetry(() =>
-  import('../../modules/resources/assets').then((m) => ({ default: m.AssetHistoryPage })),
+  import('../../modules/resources/assets/routes/asset-history-page').then((m) => ({
+    default: m.AssetHistoryPage,
+  })),
 );
 const AssetMaintenancePage = lazyWithRetry(() =>
-  import('../../modules/resources/assets').then((m) => ({ default: m.AssetMaintenancePage })),
+  import('../../modules/resources/assets/routes/asset-maintenance-page').then((m) => ({
+    default: m.AssetMaintenancePage,
+  })),
 );
 
 const ResourcesIndexRoute: React.FC = () => {

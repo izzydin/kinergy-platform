@@ -2,8 +2,10 @@ import React, { Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { moduleRegistry } from '../../../app/routes/module-registry';
 import { lazyWithRetry, SuspenseFallback } from '../../../app/routes/lazy-loading';
-import { SettingsLayoutPage } from './settings-layout-page';
 
+const SettingsLayoutPage = lazyWithRetry(() =>
+  import('./settings-layout-page').then((m) => ({ default: m.SettingsLayoutPage })),
+);
 const GeneralSettingsPage = lazyWithRetry(() =>
   import('./general-settings-page').then((m) => ({ default: m.GeneralSettingsPage })),
 );

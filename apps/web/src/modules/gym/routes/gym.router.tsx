@@ -19,11 +19,7 @@ const GymAttendanceSubRouter = lazyWithRetry(() =>
     default: m.GymAttendanceSubRouter,
   })),
 );
-const TrainerDashboardSubRouter = lazyWithRetry(() =>
-  import('../trainer-dashboard/routes/trainer-dashboard.router').then((m) => ({
-    default: m.TrainerDashboardSubRouter,
-  })),
-);
+import { TrainerDashboardSubRouter } from '../trainer-dashboard/routes/trainer-dashboard.router';
 
 export const GymManagementSubRouter: React.FC = () => (
   <Suspense fallback={<SuspenseFallback label="Loading Gym Operations..." />}>
