@@ -148,6 +148,84 @@ describe('BreadcrumbGenerator', () => {
       expect(breadcrumbs).toHaveLength(3);
       expect(breadcrumbs[breadcrumbs.length - 1]?.label).toBe('#12345678');
     });
+
+    it('generates breadcrumbs for /resources/inventory using registered navigation metadata', () => {
+      const breadcrumbs = BreadcrumbGenerator.generate({
+        pathname: '/resources/inventory',
+        navigationItems: defaultNavigationItems,
+      });
+
+      expect(breadcrumbs).toHaveLength(3);
+      expect(breadcrumbs[0]).toEqual(
+        expect.objectContaining({
+          label: 'Dashboard',
+          path: '/dashboard',
+          isCurrent: false,
+        }),
+      );
+      expect(breadcrumbs[1]).toEqual(
+        expect.objectContaining({
+          label: 'Resources',
+          path: '/resources',
+          isCurrent: false,
+        }),
+      );
+      expect(breadcrumbs[2]).toEqual(
+        expect.objectContaining({
+          label: 'Consumable Inventory',
+          path: '/resources/inventory',
+          isCurrent: true,
+        }),
+      );
+    });
+
+    it('generates hierarchical breadcrumbs for /resources/inventory/low-stock', () => {
+      const breadcrumbs = BreadcrumbGenerator.generate({
+        pathname: '/resources/inventory/low-stock',
+        navigationItems: defaultNavigationItems,
+      });
+
+      expect(breadcrumbs).toHaveLength(4);
+      expect(breadcrumbs[2]).toEqual(
+        expect.objectContaining({
+          label: 'Consumable Inventory',
+          path: '/resources/inventory',
+          isCurrent: false,
+        }),
+      );
+      expect(breadcrumbs[3]).toEqual(
+        expect.objectContaining({
+          label: 'Low Stock',
+          path: '/resources/inventory/low-stock',
+          isCurrent: true,
+        }),
+      );
+    });
+
+    it('generates breadcrumbs for product nested movements ledger (/resources/inventory/12345/movements)', () => {
+      const breadcrumbs = BreadcrumbGenerator.generate({
+        pathname: '/resources/inventory/12345/movements',
+        navigationItems: defaultNavigationItems,
+      });
+
+      expect(breadcrumbs).toHaveLength(5);
+      expect(breadcrumbs[2]?.label).toBe('Consumable Inventory');
+      expect(breadcrumbs[3]?.label).toBe('#12345');
+      expect(breadcrumbs[4]?.label).toBe('Movements');
+      expect(breadcrumbs[4]?.isCurrent).toBe(true);
+    });
+
+    it('generates breadcrumbs for /resources/overview using registered navigation metadata', () => {
+      const breadcrumbs = BreadcrumbGenerator.generate({
+        pathname: '/resources/overview',
+        navigationItems: defaultNavigationItems,
+      });
+
+      expect(breadcrumbs).toHaveLength(3);
+      expect(breadcrumbs[1]?.label).toBe('Resources');
+      expect(breadcrumbs[2]?.label).toBe('Resource Overview');
+      expect(breadcrumbs[2]?.isCurrent).toBe(true);
+    });
   });
 
   describe('Route Handle Metadata Resolution (Strategy A)', () => {

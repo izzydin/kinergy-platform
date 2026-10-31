@@ -132,4 +132,18 @@ describe('Resource Overview SubRouter Routing & Protection', () => {
     ).toBeInTheDocument();
     expect(screen.queryByTestId('resource-overview-page')).not.toBeInTheDocument();
   });
+
+  it('renders ResourceOverviewPage at /resources/valuation for authorized executive', async () => {
+    renderWithRoute('/resources/valuation', AUTHORIZED_EXECUTIVE);
+    expect(await screen.findByTestId('resource-overview-page')).toBeInTheDocument();
+    expect(screen.getByText('Combined Resource Value')).toBeInTheDocument();
+  });
+
+  it('denies access to /resources/valuation with 403 Forbidden for unauthorized user', async () => {
+    renderWithRoute('/resources/valuation', UNAUTHORIZED_USER);
+    expect(
+      await screen.findByRole('heading', { name: /403 — Access Denied/i }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('resource-overview-page')).not.toBeInTheDocument();
+  });
 });

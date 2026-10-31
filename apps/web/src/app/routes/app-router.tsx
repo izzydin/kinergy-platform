@@ -12,6 +12,7 @@ import '../../modules/scheduling/routes/scheduling.router';
 import '../../modules/scheduling/routes/rooms.router';
 
 import { AuthLayout, DashboardLayout } from '../layouts';
+import { useAuth } from '../providers/auth-provider';
 import {
   ForbiddenView,
   NotFoundView,
@@ -168,18 +169,51 @@ const AssetMaintenancePage = lazyWithRetry(() =>
   import('../../modules/resources/assets').then((m) => ({ default: m.AssetMaintenancePage })),
 );
 
+const ResourcesIndexRoute: React.FC = () => {
+  const { hasPermission, hasRole } = useAuth();
+  const isExecutive = hasRole('ADMIN') || hasRole('SUPER_ADMIN') || hasRole('OWNER');
+  const hasInventory = hasPermission('inventory.read') || isExecutive;
+  const hasAssets = hasPermission('assets.read') || isExecutive;
+
+  if (hasInventory && hasAssets) {
+    return <ResourceOverviewPage />;
+  }
+  if (hasInventory) {
+    return <Navigate to="/resources/inventory" replace />;
+  }
+  if (hasAssets) {
+    return <Navigate to="/resources/assets" replace />;
+  }
+  return (
+    <ForbiddenView message="Access Denied: Missing required security claim (inventory.read, assets.read)" />
+  );
+};
+
+const ResourcesValuationRoute: React.FC = () => {
+  const { hasPermission, hasRole } = useAuth();
+  const isExecutive = hasRole('ADMIN') || hasRole('SUPER_ADMIN') || hasRole('OWNER');
+  const hasInventory = hasPermission('inventory.read') || isExecutive;
+  const hasAssets = hasPermission('assets.read') || isExecutive;
+
+  if (hasInventory && hasAssets) {
+    return <ResourceOverviewPage />;
+  }
+  if (hasInventory) {
+    return <Navigate to="/resources/inventory/overview" replace />;
+  }
+  if (hasAssets) {
+    return <Navigate to="/resources/assets/overview" replace />;
+  }
+  return (
+    <ForbiddenView message="Access Denied: Missing required security claim (inventory.read, assets.read)" />
+  );
+};
+
 const ResourcesSubRouter: React.FC = () => (
   <React.Suspense fallback={<SuspenseFallback label="Loading Resource View..." />}>
     <Routes>
-      {/* Executive Resource Overview Dashboard (Milestone 6.14) */}
-      <Route
-        index
-        element={
-          <RequirePermission permissions={['inventory.read', 'assets.read']}>
-            <ResourceOverviewPage />
-          </RequirePermission>
-        }
-      />
+      {/* Adaptive Resource Index Route (Executive Overview or Role-Specific Domain Redirect) */}
+      <Route index element={<ResourcesIndexRoute />} />
       <Route
         path="overview"
         element={
@@ -188,6 +222,7 @@ const ResourcesSubRouter: React.FC = () => (
           </RequirePermission>
         }
       />
+      <Route path="valuation" element={<ResourcesValuationRoute />} />
 
       {/* Consumable Inventory Routes */}
       <Route
