@@ -41,7 +41,6 @@ export function DataTableColumnHeader<TData, TValue>({
         variant="ghost"
         size="sm"
         onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-        aria-sort={ariaSort}
         aria-label={`Sort by ${title}, currently ${isSorted ? ariaSort : 'unsorted'}`}
         className="-ml-3 h-8 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >

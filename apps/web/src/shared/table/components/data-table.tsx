@@ -161,6 +161,15 @@ export function DataTable<TData, TValue = unknown>({
                       key={header.id}
                       scope="col"
                       colSpan={header.colSpan}
+                      aria-sort={
+                        header.column.getIsSorted() === 'asc'
+                          ? 'ascending'
+                          : header.column.getIsSorted() === 'desc'
+                            ? 'descending'
+                            : header.column.getCanSort()
+                              ? 'none'
+                              : undefined
+                      }
                       className="px-4 py-3.5"
                     >
                       {header.isPlaceholder

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -53,18 +54,20 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-slate-900">Sign & Complete Treatment Session</DialogTitle>
-          <p className="text-sm text-slate-500 mt-2">
+          <DialogTitle className="text-foreground font-bold">
+            Sign & Complete Treatment Session
+          </DialogTitle>
+          <DialogDescription className="text-sm text-muted-foreground mt-2">
             Completing this session signifies that the clinical encounter and SOAP documentation are
             finalized.
-          </p>
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-3 my-2 text-xs">
           {/* Clinical Documentation Status Notice */}
           {hasNotes ? (
             <div
-              className="rounded-md bg-emerald-50 border border-emerald-200 p-3 text-emerald-800"
+              className="rounded-md bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 p-3 text-emerald-800 dark:text-emerald-200"
               data-testid="notes-present-notice"
             >
               <p className="font-semibold">✓ Clinical Notes Documented</p>
@@ -74,7 +77,7 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
             </div>
           ) : (
             <div
-              className="rounded-md bg-amber-50 border border-amber-200 p-3 text-amber-800 space-y-2"
+              className="rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-3 text-amber-800 dark:text-amber-200 space-y-2"
               data-testid="empty-notes-warning"
             >
               <div>
@@ -88,12 +91,12 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                 <input
                   type="checkbox"
                   data-testid="confirm-empty-notes-checkbox"
-                  className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                  className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-ring"
                   checked={acknowledgedEmptyNotes}
                   onChange={(e) => setAcknowledgedEmptyNotes(e.target.checked)}
                   disabled={isLoading}
                 />
-                <span className="text-xs text-amber-900 font-medium">
+                <span className="text-xs text-amber-900 dark:text-amber-100 font-medium">
                   I acknowledge completing this encounter without documented SOAP notes.
                 </span>
               </label>
@@ -103,7 +106,7 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
           {/* Unsaved Draft Notes Warning */}
           {hasUnsavedNotes && (
             <div
-              className="rounded-md bg-amber-50 border border-amber-200 p-3 text-amber-800 space-y-2"
+              className="rounded-md bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 p-3 text-amber-800 dark:text-amber-200 space-y-2"
               data-testid="unsaved-notes-warning"
             >
               <div>
@@ -117,20 +120,20 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                 <input
                   type="checkbox"
                   data-testid="confirm-unsaved-notes-checkbox"
-                  className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500"
+                  className="mt-0.5 h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-ring"
                   checked={acknowledgedUnsavedNotes}
                   onChange={(e) => setAcknowledgedUnsavedNotes(e.target.checked)}
                   disabled={isLoading}
                 />
-                <span className="text-xs text-amber-900 font-medium">
+                <span className="text-xs text-amber-900 dark:text-amber-100 font-medium">
                   I acknowledge that unsaved edits in the editor will be discarded upon signing.
                 </span>
               </label>
             </div>
           )}
 
-          <div className="rounded-md bg-slate-50 border border-slate-200 p-3 text-slate-700 space-y-1">
-            <p className="font-semibold text-slate-900">⚠️ Irreversible Medico-Legal Action:</p>
+          <div className="rounded-md bg-muted/50 border border-border p-3 text-muted-foreground space-y-1">
+            <p className="font-semibold text-foreground">⚠️ Irreversible Medico-Legal Action:</p>
             <p>
               Once completed, clinical SOAP notes are permanently locked into read-only mode and the
               session cannot be edited, reopened, or cancelled.

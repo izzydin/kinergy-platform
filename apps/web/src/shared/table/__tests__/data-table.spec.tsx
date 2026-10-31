@@ -126,7 +126,8 @@ describe('DataTable Component (Track C Step C2.2)', () => {
     );
 
     const sortButton = screen.getByRole('button', { name: /sort by user name/i });
-    expect(sortButton).toHaveAttribute('aria-sort', 'ascending');
+    const headerCell = screen.getByRole('columnheader', { name: /user name/i });
+    expect(headerCell).toHaveAttribute('aria-sort', 'ascending');
 
     fireEvent.click(sortButton);
     expect(handleSortingChange).toHaveBeenCalled();

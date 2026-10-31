@@ -167,12 +167,12 @@ export const ClientEditDialog: React.FC<ClientEditDialogProps> = ({
       <Dialog open={open} onOpenChange={guardedOnOpenChange}>
         <DialogContent className="sm:max-w-lg" data-testid="client-edit-dialog">
           <DialogHeader>
-            <DialogTitle className="text-lg font-bold text-slate-900">
+            <DialogTitle className="text-lg font-bold text-foreground">
               Edit Client Profile
             </DialogTitle>
-            <DialogDescription className="text-xs text-slate-500">
+            <DialogDescription className="text-xs text-muted-foreground">
               Update personal and contact details for{' '}
-              <span className="font-semibold text-slate-700">
+              <span className="font-semibold text-foreground">
                 {client?.fullName || client?.referenceNumber}
               </span>
               . System identifiers and audit timestamps are server-controlled.

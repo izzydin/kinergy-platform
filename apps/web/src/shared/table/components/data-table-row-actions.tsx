@@ -22,6 +22,7 @@ export function DataTableRowActions<TData>({
   const [activeIndex, setActiveIndex] = useState<number>(-1);
   const menuRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
   const visibleActions = actions.filter((action) => !action.hidden);
 
@@ -32,6 +33,12 @@ export function DataTableRowActions<TData>({
       setActiveIndex(-1);
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && activeIndex >= 0 && itemRefs.current[activeIndex]) {
+      itemRefs.current[activeIndex]?.focus();
+    }
+  }, [isOpen, activeIndex]);
 
   if (visibleActions.length === 0) {
     return null;
@@ -115,13 +122,17 @@ export function DataTableRowActions<TData>({
                 return (
                   <button
                     key={action.id}
+                    ref={(el) => {
+                      itemRefs.current[index] = el;
+                    }}
                     type="button"
                     role="menuitem"
+                    tabIndex={isFocused ? 0 : -1}
                     disabled={isDisabled}
                     onClick={() => handleActionClick(action)}
                     onMouseEnter={() => setActiveIndex(index)}
                     className={cn(
-                      'flex w-full cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors focus:outline-none',
+                      'flex w-full cursor-pointer items-center gap-2 rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-1 focus-visible:ring-ring',
                       isFocused &&
                         !isDisabled &&
                         (isDestructive ? 'bg-destructive/10' : 'bg-muted'),

@@ -69,16 +69,16 @@ export const ClientRestoreDialog: React.FC<ClientRestoreDialogProps> = ({
       <DialogContent className="sm:max-w-md" data-testid="client-restore-dialog">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-full bg-emerald-100 text-emerald-700">
+            <div className="p-2 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
               <ArchiveRestore className="h-5 w-5" aria-hidden="true" />
             </div>
-            <DialogTitle className="text-lg font-bold text-slate-900">
+            <DialogTitle className="text-lg font-bold text-foreground">
               Restore Client Profile
             </DialogTitle>
           </div>
-          <DialogDescription className="text-sm text-slate-600 pt-2">
+          <DialogDescription className="text-sm text-muted-foreground pt-2">
             Restore{' '}
-            <strong className="text-slate-900">
+            <strong className="text-foreground">
               {client.fullName || `${client.firstName} ${client.lastName}`}
             </strong>{' '}
             (<span className="font-mono text-xs">{client.referenceNumber}</span>) back to Active
@@ -86,9 +86,9 @@ export const ClientRestoreDialog: React.FC<ClientRestoreDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 py-2 text-xs text-slate-600">
+        <div className="space-y-3 py-2 text-xs text-muted-foreground">
           <p>Reactivating this client restores standard operational privileges:</p>
-          <ul className="list-disc pl-5 space-y-1 text-slate-700">
+          <ul className="list-disc pl-5 space-y-1 text-foreground">
             <li>New appointments and treatment sessions may be scheduled.</li>
             <li>Gym access and membership purchases can be authorized.</li>
             <li>The profile will appear under active directory filter views.</li>

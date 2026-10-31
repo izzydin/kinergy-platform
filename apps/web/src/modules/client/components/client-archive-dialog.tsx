@@ -69,16 +69,16 @@ export const ClientArchiveDialog: React.FC<ClientArchiveDialogProps> = ({
       <DialogContent className="sm:max-w-md" data-testid="client-archive-dialog">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <div className="p-2 rounded-full bg-amber-100 text-amber-700">
+            <div className="p-2 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400">
               <Archive className="h-5 w-5" aria-hidden="true" />
             </div>
-            <DialogTitle className="text-lg font-bold text-slate-900">
+            <DialogTitle className="text-lg font-bold text-foreground">
               Archive Client Profile
             </DialogTitle>
           </div>
-          <DialogDescription className="text-sm text-slate-600 pt-2">
+          <DialogDescription className="text-sm text-muted-foreground pt-2">
             Are you sure you want to archive{' '}
-            <strong className="text-slate-900">
+            <strong className="text-foreground">
               {client.fullName || `${client.firstName} ${client.lastName}`}
             </strong>{' '}
             (<span className="font-mono text-xs">{client.referenceNumber}</span>)?
@@ -86,9 +86,9 @@ export const ClientArchiveDialog: React.FC<ClientArchiveDialogProps> = ({
         </DialogHeader>
 
         {/* Consequential Action Information */}
-        <div className="space-y-3 py-2 text-xs text-slate-600">
+        <div className="space-y-3 py-2 text-xs text-muted-foreground">
           <p>Archiving a client marks their profile as inactive:</p>
-          <ul className="list-disc pl-5 space-y-1 text-slate-700">
+          <ul className="list-disc pl-5 space-y-1 text-foreground">
             <li>New appointment scheduling and check-in bookings will be restricted.</li>
             <li>Active recurring facility access agreements will require review.</li>
             <li>

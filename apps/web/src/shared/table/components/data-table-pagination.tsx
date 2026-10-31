@@ -30,7 +30,7 @@ export function DataTablePagination({
   const canGoNext = currentPage < totalPages;
 
   return (
-    <div
+    <nav
       className={cn(
         'flex flex-col sm:flex-row items-center justify-between gap-4 px-2 py-3 text-sm text-muted-foreground',
         className,
@@ -128,6 +128,6 @@ export function DataTablePagination({
           </Button>
         </div>
       </div>
-    </div>
+    </nav>
   );
 }

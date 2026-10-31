@@ -57,13 +57,17 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const menuPanelRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const toggleMenu = useCallback(() => {
     setIsOpen((prev) => !prev);
   }, []);
 
-  const closeMenu = useCallback(() => {
+  const closeMenu = useCallback((restoreFocus = false) => {
     setIsOpen(false);
+    if (restoreFocus) {
+      triggerRef.current?.focus();
+    }
   }, []);
 
   // Manage auto-focus when menu opens
@@ -82,7 +86,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
       // AuthProvider safely forces local session clear on logout rejection per B2 design
     } finally {
       setIsLoggingOut(false);
-      closeMenu();
+      closeMenu(false);
     }
   }, [logout, closeMenu, isLoggingOut]);
 
@@ -90,7 +94,8 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (event.key === 'Escape') {
-        closeMenu();
+        event.preventDefault();
+        closeMenu(true);
       }
     },
     [closeMenu],
@@ -118,6 +123,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
     >
       {/* Trigger Button */}
       <button
+        ref={triggerRef}
         type="button"
         onClick={toggleMenu}
         disabled={isLoggingOut}
@@ -143,7 +149,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
           {/* Backdrop click dismiss */}
           <div
             className="fixed inset-0 z-40 bg-transparent"
-            onClick={closeMenu}
+            onClick={() => closeMenu(false)}
             aria-hidden="true"
           />
 
