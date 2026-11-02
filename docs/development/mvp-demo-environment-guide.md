@@ -153,11 +153,59 @@ pnpm prisma:migrate
 
 # 3. Generate fresh Prisma Client
 pnpm prisma:generate
+
+# 4. Seed deterministic synthetic demo data (Milestone 9.5.3)
+pnpm db:seed
+# Or: pnpm prisma:seed
 ```
 
 ---
 
-## 6. Starting the Demo Applications
+## 6. Deterministic Synthetic Demo Dataset & Persona Accounts
+
+Milestone 9.5.3 establishes a fully repeatable synthetic demo dataset that seeds all prerequisites for the **Gym**, **Kinesiology**, and **Inventory** presenter journeys.
+
+### A. Demo Accounts & Role Mapping
+
+All demo passwords are encrypted using PBKDF2 (`$pbkdf2-sha512$i=100000$...`) and verified by `Argon2PasswordHasher`. Credentials can be configured via environment variables or default to standard demonstration values:
+
+| Persona / Role                   | Email                             | Configurable Env Var  | Default Password    | Effective Granted Capabilities                                                            |
+| :------------------------------- | :-------------------------------- | :-------------------- | :------------------ | :---------------------------------------------------------------------------------------- |
+| **Platform Owner / Admin**       | `owner@kinergy.platform`          | `OWNER_PASSWORD`      | `OwnerPassword123!` | Full wildcard access across all modules (`*`).                                            |
+| **Front Desk Receptionist**      | `reception.demo@kinergy.platform` | `DEMO_USERS_PASSWORD` | `DemoPass123!`      | Client intake, plan enrollment, check-in, checkout, cash/QR payment settlement, receipts. |
+| **Clinical Therapist / Trainer** | `therapist.demo@kinergy.platform` | `DEMO_USERS_PASSWORD` | `DemoPass123!`      | Assigned client lookup, treatment session execution, clinical SOAP documentation notes.   |
+| **Operations / Inventory Staff** | `inventory.demo@kinergy.platform` | `DEMO_USERS_PASSWORD` | `DemoPass123!`      | Stock receiving, stock movement adjustments, retail product sales, inventory reports.     |
+
+### B. Seeded Demonstration Entities
+
+| Domain        | Entity ID / Code       | Name / Details                                  | Demonstration Purpose                                                                   |
+| :------------ | :--------------------- | :---------------------------------------------- | :-------------------------------------------------------------------------------------- |
+| **Rooms**     | `room-seed-kinesio-01` | Room 1 - Kinesiology Therapy Suite              | Clinical treatment & therapy bed appointment scheduling.                                |
+| **Rooms**     | `room-seed-consult-02` | Room 2 - Assessment & Consultation              | Private clinical consultation and physical evaluation.                                  |
+| **Rooms**     | `studio-b-facility`    | Studio B - Movement Room (Cap: 20)              | Movement group classes and facility access.                                             |
+| **Clients**   | `CLI-2026-00001`       | **Jane Doe** (`jane.doe@example.com`)           | Has completed assessment with SOAP notes and upcoming scheduled appointment.            |
+| **Clients**   | `CLI-2026-00002`       | **John Smith** (`john.smith@example.com`)       | Has active Gold Annual Membership and verified reception check-in record.               |
+| **Clients**   | `CLI-2026-00003`       | **Carlos Rivera** (`carlos.rivera@example.com`) | Unenrolled intake client ready for live front-desk membership enrollment and POS sales. |
+| **Plans**     | `MEM-GOLD-2026`        | Gold Annual Gym Membership ($600.00 / 365d)     | Annual full-facility gym membership tier.                                               |
+| **Plans**     | `MEM-SLV-MONTH`        | Silver Monthly Gym Membership ($60.00 / 30d)    | Standard recurring monthly gym membership.                                              |
+| **Plans**     | `MEM-10-VISITS`        | 10-Visit Flexibility Pass ($45.00 / 60d)        | Punch-card quota pass (10 check-in limit).                                              |
+| **Inventory** | `SKU-SNK-BAR-01`       | Organic Whey Protein Bar 60g                    | Saleable retail snack ($5.50 retail, On Hand: 42, Min: 15).                             |
+| **Inventory** | `SKU-DRK-ELEC-01`      | Electrolyte Hydration Drink 500ml               | Saleable retail beverage ($3.00 retail, On Hand: 36, Min: 12).                          |
+| **Inventory** | `SKU-CLIN-BAND-01`     | Kinesiology Tape Roll 5m                        | Low-stock consumable (On Hand: 3, Min: 10). **Triggers Low-Stock Alert**.               |
+| **Assets**    | `AST-GYM-TRDM-01`      | Commercial Treadmill Pro Series 8               | Cardio floor fixed asset tracking ($3,500 purchase, condition: EXCELLENT).              |
+
+### C. Safety Protections & Environment Lock
+
+The fixture mechanism includes `assertSafeDemoEnvironment()` which enforces:
+
+1. **Production Guard:** Throws immediately if `NODE_ENV=production`.
+2. **URL Inspector:** Rejects database connection strings containing `prod`, `production`, or `live-db`.
+3. **Secret Masking:** Error messages mask user credentials (`:***@`) to avoid leaking connection secrets.
+4. **Idempotency:** All entities use deterministic UUIDs and unique code/SKU keys with `upsert` semantics. Re-running `pnpm db:seed` multiple times updates existing entities non-destructively without creating duplicate records.
+
+---
+
+## 7. Starting the Demo Applications
 
 Launch the backend API and frontend SPA in two separate terminal windows:
 
@@ -268,11 +316,11 @@ pnpm prisma:seed
 
 ---
 
-## 10. Remaining Prerequisite Register
+## 11. Remaining Prerequisite Register
 
 | ID         | Prerequisite                              | Status / Responsibility | Blocking What              | Next Action / Prompt       |
 | :--------- | :---------------------------------------- | :---------------------- | :------------------------- | :------------------------- |
 | **PRE-01** | **Host PostgreSQL Activation**            | **RESOLVED & VERIFIED** | None (Active on port 5433) | Complete (Milestone 9.5.2) |
-| **PRE-02** | **Deterministic Synthetic Demo Fixtures** | Agent / Engineer        | Full demo workflow         | Prompt 9.5.3               |
+| **PRE-02** | **Deterministic Synthetic Demo Fixtures** | **RESOLVED & VERIFIED** | None (Seeded & Verified)   | Complete (Milestone 9.5.3) |
 | **PRE-03** | **Production Dockerfiles & Nginx**        | DevOps (Deferred)       | Production deployment      | Milestone 10               |
 | **PRE-04** | **Cloud S3 Media Storage Adapter**        | Platform Eng (Deferred) | Production media uploads   | Milestone 10               |
