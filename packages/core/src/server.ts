@@ -8,16 +8,16 @@
  */
 
 // Scheduling Persistence & Infrastructure
-export * from './scheduling/infrastructure';
+export * from './scheduling/infrastructure/index';
 
 // Kinesiology Adapters & Infrastructure
-export * from './kinesiology/infrastructure';
+export * from './kinesiology/infrastructure/index';
 
 // Gym Persistence & Infrastructure
-export * from './gym/infrastructure';
+export * from './gym/infrastructure/index';
 
 // Resources Persistence & Infrastructure
-export * from './resources/infrastructure';
+export * from './resources/infrastructure/index';
 
 // Sales Persistence & Infrastructure
-export * from './sales/infrastructure';
+export * from './sales/infrastructure/index';

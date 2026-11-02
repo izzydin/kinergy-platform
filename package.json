@@ -19,7 +19,12 @@
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "prisma:seed": "prisma db seed",
+    "dev:api": "nx serve api",
+    "dev:web": "nx serve web",
+    "docker:up": "docker-compose up -d postgres",
+    "docker:down": "docker-compose down",
+    "db:status": "prisma migrate status"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
