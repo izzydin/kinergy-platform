@@ -101,4 +101,28 @@ describe('Environment Variable Validation', () => {
 
     expect(() => validateEnv(rawEnv)).toThrow('Invalid environment configuration');
   });
+
+  it('should throw an error in production environment if DATABASE_URL points to localhost', () => {
+    const rawEnv = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/kinergy_prod',
+      CORS_ORIGINS: 'https://app.kinergy.com',
+      JWT_ACCESS_SECRET: 'production-access-secret-at-least-32-chars-long!',
+      JWT_REFRESH_SECRET: 'production-refresh-secret-at-least-32-chars-long!',
+    };
+
+    expect(() => validateEnv(rawEnv)).toThrow(/DATABASE_URL must be explicitly configured/);
+  });
+
+  it('should throw an error in production environment if DATABASE_URL points to 127.0.0.1', () => {
+    const rawEnv = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://postgres:postgres@127.0.0.1:5432/kinergy_prod',
+      CORS_ORIGINS: 'https://app.kinergy.com',
+      JWT_ACCESS_SECRET: 'production-access-secret-at-least-32-chars-long!',
+      JWT_REFRESH_SECRET: 'production-refresh-secret-at-least-32-chars-long!',
+    };
+
+    expect(() => validateEnv(rawEnv)).toThrow(/DATABASE_URL must be explicitly configured/);
+  });
 });

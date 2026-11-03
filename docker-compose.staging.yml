@@ -1,0 +1,80 @@
+# ==============================================================================
+# Kinergy Platform - Dedicated Staging Environment Orchestration
+# Usage: docker compose -f docker-compose.staging.yml up --build -d
+# ==============================================================================
+
+services:
+  staging-postgres:
+    image: postgres:16-alpine
+    container_name: kinergy-staging-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${STAGING_POSTGRES_ADMIN_USER:-kinergy_staging_admin}
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_ADMIN_PASSWORD:-kinergy_staging_admin_password}
+      POSTGRES_DB: ${STAGING_POSTGRES_DB:-kinergy_staging}
+    ports:
+      - '${STAGING_POSTGRES_PORT:-5434}:5432'
+    volumes:
+      - staging_postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init-staging-roles.sql:/docker-entrypoint-initdb.d/01-init-staging-roles.sql:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${STAGING_POSTGRES_ADMIN_USER:-kinergy_staging_admin} -d ${STAGING_POSTGRES_DB:-kinergy_staging}',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - kinergy-staging-network
+
+  staging-api:
+    build:
+      context: .
+      dockerfile: infrastructure/deployment/docker/Dockerfile.api
+    container_name: kinergy-staging-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_PREFIX: api/v1
+      # Runtime connects as least-privilege 'kinergy_app' (DML only, no DDL)
+      DATABASE_URL: postgresql://kinergy_app:${STAGING_APP_DB_PASSWORD:-kinergy_app_secure_password}@staging-postgres:5432/${STAGING_POSTGRES_DB:-kinergy_staging}?schema=public&connection_limit=10&pool_timeout=20
+      JWT_ACCESS_SECRET: ${STAGING_JWT_ACCESS_SECRET:-kinergy-staging-access-token-secret-minimum-32-chars!}
+      JWT_REFRESH_SECRET: ${STAGING_JWT_REFRESH_SECRET:-kinergy-staging-refresh-token-secret-minimum-32-chars!}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CORS_ORIGINS: ${STAGING_CORS_ORIGINS:-http://localhost:8081,http://127.0.0.1:8081}
+      CORS_ALLOW_CREDENTIALS: 'true'
+      SWAGGER_ENABLED: 'false'
+      STORAGE_PROVIDER: ${STAGING_STORAGE_PROVIDER:-local}
+    ports:
+      - '3001:3000'
+    depends_on:
+      staging-postgres:
+        condition: service_healthy
+    networks:
+      - kinergy-staging-network
+
+  staging-web:
+    build:
+      context: .
+      dockerfile: infrastructure/deployment/docker/Dockerfile.web
+    container_name: kinergy-staging-web
+    restart: unless-stopped
+    ports:
+      - '8081:8080'
+    depends_on:
+      - staging-api
+    networks:
+      - kinergy-staging-network
+
+volumes:
+  staging_postgres_data:
+    name: kinergy_staging_postgres_data
+
+networks:
+  kinergy-staging-network:
+    name: kinergy_staging_network
+    driver: bridge

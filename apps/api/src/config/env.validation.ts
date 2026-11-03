@@ -100,6 +100,23 @@ export const envSchema = z
     if (data.NODE_ENV === 'production') {
       const devAccessSecret = 'kinergy-platform-dev-access-secret-min-32-chars!';
       const devRefreshSecret = 'kinergy-platform-dev-refresh-secret-min-32-chars!';
+      const defaultDevDatabaseUrl =
+        'postgresql://postgres:postgres@localhost:5432/kinergy_db?schema=public';
+
+      if (
+        !data.DATABASE_URL ||
+        data.DATABASE_URL.trim() === '' ||
+        data.DATABASE_URL === defaultDevDatabaseUrl ||
+        data.DATABASE_URL.includes('localhost') ||
+        data.DATABASE_URL.includes('127.0.0.1')
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'DATABASE_URL must be explicitly configured with a non-localhost remote database host when NODE_ENV is "production".',
+          path: ['DATABASE_URL'],
+        });
+      }
 
       if (
         !data.JWT_ACCESS_SECRET ||
