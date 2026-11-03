@@ -292,35 +292,145 @@ pnpm prisma:seed
 
 ---
 
-## 9. Common Failures & Troubleshooting
+## 9. Comprehensive Presenter Recovery Procedures (Milestone 9.5.7)
 
-### Error 1: `PrismaClientInitializationError: Can't reach database server at 127.0.0.1:5433`
+During live demonstration rehearsals or client presentations, operational issues must be resolved rapidly following deterministic, non-destructive protocols.
 
-- **Cause:** Docker daemon is stopped, or container was not started.
-- **Remedy:** Ensure Docker Desktop is running, then execute `pnpm docker:up`. Verify port with `netstat -ano | findstr 5433`.
+```
+                                      PRESENTER INCIDENT DETECTED
+                                                   │
+                   ┌───────────────────────────────┼───────────────────────────────┐
+                   ▼                               ▼                               ▼
+          [PostgreSQL Outage]              [API / Web Crash]             [State Desync / Fail]
+                   │                               │                               │
+             pnpm docker:up                 nx reset && build              pnpm db:seed (Upsert)
+                   │                               │                               │
+            Check port 5433                 Restart Service                 Verify in Cockpit
+                   │                               │                               │
+                   └───────────────────────┬───────┴───────────────────────────────┘
+                                           ▼
+                                [PROCEED WITH RUNBOOK]
+```
 
-### Error 2: `Port 5432 is already in use`
+### Scenario 1: PostgreSQL Database Unavailable
 
-- **Cause:** Host Windows PostgreSQL service is occupying port 5432 while Docker attempts to bind 5432.
-- **Remedy:** Set `POSTGRES_PORT=5433` in `.env`. The Docker container will map host port 5433 to container port 5432 cleanly.
+- **Symptom**: `PrismaClientInitializationError: Can't reach database server at 127.0.0.1:5433` or API logs connection refused.
+- **Root Cause**: Docker daemon paused, container stopped, or port conflict.
+- **Recovery Protocol**:
+  ```powershell
+  # 1. Check container status
+  docker ps -a --filter name=kinergy-postgres
+  # 2. Restart container
+  docker compose up -d postgres
+  # 3. Test TCP readiness
+  & "C:\Program Files\PostgreSQL\18\bin\pg_isready.exe" -h 127.0.0.1 -p 5433
+  ```
+- **Stop Condition**: If Docker reports `daemon not running`, launch Docker Desktop from Windows Start Menu and wait 30 seconds before retrying.
 
-### Error 3: `Error: Could not find .../dist/apps/api/src/main.js`
+### Scenario 2: API Startup Failure
 
-- **Cause:** Project compiler options configured with mismatched root directory.
-- **Remedy:** Verified fixed in Milestone 9.5.2 by removing redundant `"rootDir": "."` from `apps/api/project.json`.
+- **Symptom**: `pnpm dev:api` fails to bind port 3000 or exits with module error.
+- **Root Cause**: Zombie Node.js process occupying port 3000, or stale build artifact in `dist/`.
+- **Recovery Protocol**:
+  ```powershell
+  # 1. Kill zombie process on port 3000
+  Get-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force
+  # 2. Clear Nx cache and restart
+  npx nx reset
+  pnpm dev:api
+  ```
 
-### Error 4: `Directory import ... is not supported resolving ES modules`
+### Scenario 3: Web Application Startup Failure
 
-- **Cause:** Node.js native ESM loader rejecting directory imports without explicit `index` files.
-- **Remedy:** Verified fixed in Milestone 9.5.2 by specifying explicit `/index` paths in `packages/core/src/server.ts`.
+- **Symptom**: `pnpm dev:web` fails or Vite server exits immediately.
+- **Root Cause**: Vite port 5173 occupied, or corrupted cache in `node_modules/.vite`.
+- **Recovery Protocol**:
+  ```powershell
+  # 1. Kill process on port 5173
+  Get-Process -Id (Get-NetTCPConnection -LocalPort 5173).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force
+  # 2. Clean Vite cache and restart
+  Remove-Item -Recurse -Force apps/web/node_modules/.vite -ErrorAction SilentlyContinue
+  pnpm dev:web
+  ```
+
+### Scenario 4: Authentication Failure
+
+- **Symptom**: `401 Unauthorized` on login; demo credentials rejected.
+- **Root Cause**: JWT secret mismatch or password hash desynchronization.
+- **Recovery Protocol**:
+  ```powershell
+  # 1. Verify .env JWT variables match reference
+  Get-Content .env | Select-String "JWT_"
+  # 2. Re-apply identity seed to re-encrypt password hashes
+  pnpm prisma:seed
+  # 3. Presenter signs in with verified default credentials:
+  #    reception.demo@kinergy.platform / Demo123!
+  ```
+
+### Scenario 5: Incorrect Demo Data or Entity Missing
+
+- **Symptom**: Demo patient (Elena Rostova) or catalog item (Protein Shake) missing from dropdowns.
+- **Root Cause**: Seed data partially applied or modified during previous test session.
+- **Recovery Protocol**:
+  ```powershell
+  # Re-run idempotent seed pipeline (non-destructive upserts)
+  pnpm db:seed
+  ```
+
+### Scenario 6: Fixture Creation Failure
+
+- **Symptom**: `ts-node prisma/seed.ts` throws constraint or validation error.
+- **Root Cause**: Unapplied schema migration.
+- **Recovery Protocol**:
+  ```powershell
+  pnpm prisma:migrate
+  pnpm prisma:generate
+  pnpm db:seed
+  ```
+
+### Scenario 7: Incomplete or Failed Business Workflow
+
+- **Symptom**: A demo workflow was interrupted mid-stream (e.g. sale created in `PENDING_PAYMENT`, but cashier dialog closed).
+- **Recovery Protocol**:
+  - Do **not** mutate the database manually.
+  - Navigate to `/sales` and locate the draft or pending order.
+  - Complete payment or cancel the order via the UI action button.
+  - Alternatively, create a fresh sale with a distinct synthetic line item.
+
+### Scenario 8: Demo State That Cannot Be Safely Reversed
+
+- **Symptom**: Terminal state (e.g. treatment session signed off or member expired) prevents re-demonstrating an ingress action on the same record.
+- **Recovery Protocol (Disposable Demo DB Reset Only)**:
+  ```powershell
+  # Explicit reset for dedicated local disposable database (Port 5433 ONLY)
+  docker-compose down -v
+  docker-compose up -d postgres
+  pnpm prisma:migrate
+  pnpm db:seed
+  ```
+  > [!CAUTION]
+  > Execute this command ONLY against the local demo database `kinergy_dev` on port 5433. Never run against staging or production.
+
+### Scenario 9: Application Shutdown and Restart
+
+- **Normal Shutdown Protocol**:
+  1. Frontend: Press `Ctrl + C` in Terminal 2.
+  2. Backend: Press `Ctrl + C` in Terminal 1.
+  3. Database: `docker compose stop postgres` (preserves data).
+- **Restart Protocol**:
+  1. `docker compose start postgres`
+  2. `pnpm dev:api` (Terminal 1)
+  3. `pnpm dev:web` (Terminal 2)
 
 ---
 
-## 11. Remaining Prerequisite Register
+## 10. Remaining Prerequisite Register (Production vs. Demo Scope)
 
-| ID         | Prerequisite                              | Status / Responsibility | Blocking What              | Next Action / Prompt       |
-| :--------- | :---------------------------------------- | :---------------------- | :------------------------- | :------------------------- |
-| **PRE-01** | **Host PostgreSQL Activation**            | **RESOLVED & VERIFIED** | None (Active on port 5433) | Complete (Milestone 9.5.2) |
-| **PRE-02** | **Deterministic Synthetic Demo Fixtures** | **RESOLVED & VERIFIED** | None (Seeded & Verified)   | Complete (Milestone 9.5.3) |
-| **PRE-03** | **Production Dockerfiles & Nginx**        | DevOps (Deferred)       | Production deployment      | Milestone 10               |
-| **PRE-04** | **Cloud S3 Media Storage Adapter**        | Platform Eng (Deferred) | Production media uploads   | Milestone 10               |
+| ID         | Prerequisite                    | Demo Status                    | Production Status               | Next Planned Milestone |
+| :--------- | :------------------------------ | :----------------------------- | :------------------------------ | :--------------------- |
+| **PRE-01** | **PostgreSQL Availability**     | **ACTIVE (Port 5433)**         | Cloud Staging DB Pending        | Milestone 10           |
+| **PRE-02** | **Synthetic Demo Fixtures**     | **ACTIVE (Seeded & Verified)** | Production Seed Policy Required | Milestone 10           |
+| **PRE-03** | **Production Docker Packaging** | Local Container Operational    | Multi-stage Dockerfile Deferred | Milestone 10           |
+| **PRE-04** | **Reverse Proxy & TLS**         | Localhost Direct Routing       | Nginx / Caddy Ingress Deferred  | Milestone 10           |
+| **PRE-05** | **Cloud Object Storage (S3)**   | Local Attachment Simulation    | AWS S3 / MinIO Integration      | Milestone 10           |
+| **PRE-06** | **Automated Staging CI/CD**     | Local Validation Passing       | GitHub Actions Staging Pipeline | Milestone 10           |
