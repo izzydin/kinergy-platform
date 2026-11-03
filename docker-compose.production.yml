@@ -1,0 +1,78 @@
+# ==============================================================================
+# Kinergy Platform - Local Production Container Verification Orchestration
+# Usage: docker compose -f docker-compose.production.yml up --build
+# ==============================================================================
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: kinergy-prod-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-kinergy_prod_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kinergy_prod_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-kinergy_prod}
+    ports:
+      - '5435:5432'
+    volumes:
+      - prod_postgres_data:/var/lib/postgresql/data
+      - ./infrastructure/docker/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'pg_isready -U ${POSTGRES_USER:-kinergy_prod_user} -d ${POSTGRES_DB:-kinergy_prod}',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - kinergy-prod-network
+
+  api:
+    build:
+      context: .
+      dockerfile: infrastructure/deployment/docker/Dockerfile.api
+    container_name: kinergy-prod-api
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      API_PREFIX: api/v1
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kinergy_prod_user}:${POSTGRES_PASSWORD:-kinergy_prod_secure_password}@postgres:5432/${POSTGRES_DB:-kinergy_prod}?schema=public
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-kinergy-prod-access-token-secret-minimum-32-chars!}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-kinergy-prod-refresh-token-secret-minimum-32-chars!}
+      JWT_ACCESS_EXPIRES_IN: 15m
+      JWT_REFRESH_EXPIRES_IN: 7d
+      CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+      CORS_ALLOW_CREDENTIALS: 'true'
+      SWAGGER_ENABLED: 'false'
+    ports:
+      - '3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - kinergy-prod-network
+
+  web:
+    build:
+      context: .
+      dockerfile: infrastructure/deployment/docker/Dockerfile.web
+    container_name: kinergy-prod-web
+    restart: unless-stopped
+    ports:
+      - '8080:8080'
+    depends_on:
+      - api
+    networks:
+      - kinergy-prod-network
+
+volumes:
+  prod_postgres_data:
+    name: kinergy_prod_postgres_data
+
+networks:
+  kinergy-prod-network:
+    name: kinergy_prod_network
+    driver: bridge

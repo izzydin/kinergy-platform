@@ -1,0 +1,48 @@
+# VCS & IDE Metadata
+.git
+.github
+.husky
+.vscode
+.idea
+
+# Dependencies & Build Artifacts
+node_modules
+dist
+coverage
+tmp
+.nx
+.vite
+
+# Environment & Secrets (CRITICAL SECURITY)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.cert
+*.crt
+
+# Documentation & Specifications
+docs/
+*.md
+!package.json
+
+# Local Logs & OS Files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Test Files
+**/__tests__/**
+**/__mocks__/**
+**/*.spec.ts
+**/*.spec.tsx
+**/*.test.ts
+**/*.test.tsx
+jest.config.*
+jest.preset.js
+

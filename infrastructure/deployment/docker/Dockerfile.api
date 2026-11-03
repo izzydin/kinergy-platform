@@ -1,0 +1,101 @@
+# ==============================================================================
+# Kinergy Platform - API Production Container Specification (Dockerfile.api)
+# Architecture: NestJS 10 / Node.js 24 LTS / Debian Bookworm Slim
+# Standard: Non-root execution (node UID 1000), multi-stage, zero secrets
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Stage 1: Base Runtime Environment
+# ------------------------------------------------------------------------------
+FROM node:24.12.0-bookworm-slim AS base
+
+WORKDIR /app
+
+ENV CI=true
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssl \
+    ca-certificates \
+    tini \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN npm install -g pnpm@11.17.0
+
+# ------------------------------------------------------------------------------
+# Stage 2: Workspace Dependencies & Native Compilation
+# ------------------------------------------------------------------------------
+FROM base AS dependencies
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    make \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY modules/client/package.json ./modules/client/
+COPY packages/core/package.json ./packages/core/
+COPY prisma ./prisma
+
+RUN pnpm install --frozen-lockfile
+
+# ------------------------------------------------------------------------------
+# Stage 3: Monorepo Compilation & Prisma Generation
+# ------------------------------------------------------------------------------
+FROM dependencies AS builder
+
+WORKDIR /app
+
+COPY prisma ./prisma
+RUN pnpm prisma generate
+
+COPY tsconfig.base.json nx.json ./
+COPY apps/api ./apps/api
+COPY packages ./packages
+COPY modules ./modules
+
+RUN pnpm nx run-many -t build -p api core client-domain
+
+# ------------------------------------------------------------------------------
+# Stage 4: Production Dependency Pruning
+# ------------------------------------------------------------------------------
+FROM dependencies AS pruner
+
+WORKDIR /app
+
+RUN pnpm prune --prod --ignore-scripts
+
+# ------------------------------------------------------------------------------
+# Stage 5: Minimal Production Runtime Image
+# ------------------------------------------------------------------------------
+FROM base AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production \
+    PORT=3000 \
+    NODE_PATH=/app/node_modules:/app/dist/packages:/app/dist/modules
+
+USER node
+
+# Copy pruned production runtime dependencies
+COPY --chown=node:node --from=pruner /app/node_modules ./node_modules
+
+# Copy compiled application artifacts
+COPY --chown=node:node --from=builder /app/dist/apps/api ./dist/apps/api
+COPY --chown=node:node --from=builder /app/dist/packages ./dist/packages
+COPY --chown=node:node --from=builder /app/dist/modules ./dist/modules
+
+# Map internal workspace packages directly into node_modules for CJS resolution
+COPY --chown=node:node --from=builder /app/dist/modules/client ./node_modules/@kinergy-platform/client-domain
+COPY --chown=node:node --from=builder /app/dist/packages/core ./node_modules/@kinergy-platform/core
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+  CMD node -e "require('http').get('http://127.0.0.1:' + (process.env.PORT || 3000) + '/api/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["node", "dist/apps/api/src/main.js"]

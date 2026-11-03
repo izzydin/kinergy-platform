@@ -2,16 +2,16 @@
   "name": "@kinergy-platform/core",
   "version": "0.1.0",
   "private": true,
-  "main": "./src/index.ts",
+  "main": "./src/index.js",
   "types": "./src/index.ts",
   "exports": {
     ".": {
       "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "default": "./src/index.js"
     },
     "./server": {
       "types": "./src/server.ts",
-      "default": "./src/server.ts"
+      "default": "./src/server.js"
     }
   }
 }
