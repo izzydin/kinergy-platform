@@ -134,6 +134,7 @@ describe('Phase 6 Predictable Refresh Behavior Specification', () => {
       defaultOptions: {
         queries: {
           retry: false,
+          refetchOnWindowFocus: false,
           gcTime: 5 * 60 * 1000,
         },
       },
@@ -198,6 +199,11 @@ describe('Phase 6 Predictable Refresh Behavior Specification', () => {
 
   describe('2. Keep Previous Data on Navigation and Filtering', () => {
     it('preserves existing page items (keepPreviousData) during page change without flashing blank', async () => {
+      let resolvePage2!: (value: unknown) => void;
+      const pendingPage2 = new Promise((resolve) => {
+        resolvePage2 = resolve;
+      });
+
       (inventoryApi.listItems as jest.Mock)
         .mockResolvedValueOnce({
           items: [mockProduct],
@@ -206,22 +212,108 @@ describe('Phase 6 Predictable Refresh Behavior Specification', () => {
           limit: 10,
           totalPages: 2,
         })
-        .mockImplementationOnce(
-          () =>
-            new Promise((resolve) =>
-              setTimeout(
-                () =>
-                  resolve({
-                    items: [{ ...mockProduct, id: 'prod-2', sku: 'SKU-002' }],
-                    total: 20,
-                    page: 2,
-                    limit: 10,
-                    totalPages: 2,
-                  }),
-                50,
-              ),
-            ),
-        );
+        .mockImplementationOnce(() => pendingPage2);
+
+      const wrapper = createWrapper();
+
+      const { result, rerender } = renderHook(({ page }) => useInventoryList({ page }), {
+        wrapper,
+        initialProps: { page: 1 },
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.items[0]?.id).toBe('prod-1');
+      expect(result.current.isPlaceholderData).toBe(false);
+
+      // User advances to page 2 (transition state)
+      rerender({ page: 2 });
+
+      // While in flight, isFetching is true, but previously loaded page 1 data remains intact!
+      expect(result.current.isFetching).toBe(true);
+      expect(result.current.isPlaceholderData).toBe(true);
+      expect(result.current.data?.items[0]?.id).toBe('prod-1');
+
+      // Once resolved, data updates smoothly
+      act(() => {
+        resolvePage2({
+          items: [{ ...mockProduct, id: 'prod-2', sku: 'SKU-002' }],
+          total: 20,
+          page: 2,
+          limit: 10,
+          totalPages: 2,
+        });
+      });
+
+      await waitFor(() => expect(result.current.isFetching).toBe(false));
+      expect(result.current.isPlaceholderData).toBe(false);
+      expect(result.current.data?.items[0]?.id).toBe('prod-2');
+    });
+
+    it('preserves asset list data during filter modification without layout blanking', async () => {
+      let resolveFilter!: (value: unknown) => void;
+      const pendingFilter = new Promise((resolve) => {
+        resolveFilter = resolve;
+      });
+
+      (assetsApi.listAssets as jest.Mock)
+        .mockResolvedValueOnce({
+          items: [mockAsset],
+          total: 1,
+          page: 1,
+          limit: 10,
+          totalPages: 1,
+        })
+        .mockImplementationOnce(() => pendingFilter);
+
+      const wrapper = createWrapper();
+
+      const { result, rerender } = renderHook(({ category }) => useAssetsList({ category }), {
+        wrapper,
+        initialProps: { category: undefined as AssetCategory | undefined },
+      });
+
+      await waitFor(() => expect(result.current.isSuccess).toBe(true));
+      expect(result.current.data?.items).toHaveLength(1);
+      expect(result.current.isPlaceholderData).toBe(false);
+
+      // User filters by category
+      rerender({ category: AssetCategory.GYM_EQUIPMENT });
+
+      // Previous items are preserved as placeholderData while fetching
+      expect(result.current.isFetching).toBe(true);
+      expect(result.current.isPlaceholderData).toBe(true);
+      expect(result.current.data?.items).toHaveLength(1);
+
+      act(() => {
+        resolveFilter({
+          items: [],
+          total: 0,
+          page: 1,
+          limit: 10,
+          totalPages: 0,
+        });
+      });
+
+      await waitFor(() => expect(result.current.isFetching).toBe(false));
+      expect(result.current.isPlaceholderData).toBe(false);
+      expect(result.current.data?.items).toHaveLength(0);
+    });
+
+    it('preserves previous page data when pagination request encounters an error', async () => {
+      let rejectPage2!: (err: Error) => void;
+      const failingPage2 = new Promise((_, reject) => {
+        rejectPage2 = reject;
+      });
+
+      (inventoryApi.listItems as jest.Mock)
+        .mockResolvedValueOnce({
+          items: [mockProduct],
+          total: 20,
+          page: 1,
+          limit: 10,
+          totalPages: 2,
+        })
+        .mockImplementationOnce(() => failingPage2);
 
       const wrapper = createWrapper();
 
@@ -233,63 +325,82 @@ describe('Phase 6 Predictable Refresh Behavior Specification', () => {
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
       expect(result.current.data?.items[0]?.id).toBe('prod-1');
 
-      // User advances to page 2 (transition state)
+      // Navigate to page 2 which will fail
       rerender({ page: 2 });
-
-      // While in flight, isFetching is true, but previously loaded page 1 data remains intact!
       expect(result.current.isFetching).toBe(true);
-      expect(result.current.data?.items[0]?.id).toBe('prod-1');
 
-      // Once resolved, data updates smoothly
-      await waitFor(() => expect(result.current.isFetching).toBe(false));
-      expect(result.current.data?.items[0]?.id).toBe('prod-2');
+      act(() => {
+        rejectPage2(new Error('Network Gateway Timeout'));
+      });
+
+      await waitFor(() => expect(result.current.isError).toBe(true));
+      expect(result.current.isFetching).toBe(false);
+      expect(result.current.error?.message).toBe('Network Gateway Timeout');
+      // The previous page 1 query cache remains intact and uncorrupted
+      const page1Data = queryClient.getQueryData<{ items: InventoryProductVM[] }>(
+        inventoryQueryKeys.list({ page: 1 }),
+      );
+      expect(page1Data?.items[0]?.id).toBe('prod-1');
     });
 
-    it('preserves asset list data during filter modification without layout blanking', async () => {
-      (assetsApi.listAssets as jest.Mock)
+    it('handles rapid page changes and converges on latest page result without stale data overwrite', async () => {
+      let resolvePage2!: (value: unknown) => void;
+      const page2Promise = new Promise((resolve) => {
+        resolvePage2 = resolve;
+      });
+      let resolvePage3!: (value: unknown) => void;
+      const page3Promise = new Promise((resolve) => {
+        resolvePage3 = resolve;
+      });
+
+      (inventoryApi.listItems as jest.Mock)
         .mockResolvedValueOnce({
-          items: [mockAsset],
-          total: 1,
+          items: [mockProduct],
+          total: 30,
           page: 1,
           limit: 10,
-          totalPages: 1,
+          totalPages: 3,
         })
-        .mockImplementationOnce(
-          () =>
-            new Promise((resolve) =>
-              setTimeout(
-                () =>
-                  resolve({
-                    items: [],
-                    total: 0,
-                    page: 1,
-                    limit: 10,
-                    totalPages: 0,
-                  }),
-                50,
-              ),
-            ),
-        );
+        .mockImplementationOnce(() => page2Promise)
+        .mockImplementationOnce(() => page3Promise);
 
       const wrapper = createWrapper();
 
-      const { result, rerender } = renderHook(({ category }) => useAssetsList({ category }), {
+      const { result, rerender } = renderHook(({ page }) => useInventoryList({ page }), {
         wrapper,
-        initialProps: { category: undefined as AssetCategory | undefined },
+        initialProps: { page: 1 },
       });
 
       await waitFor(() => expect(result.current.isSuccess).toBe(true));
-      expect(result.current.data?.items).toHaveLength(1);
+      expect(result.current.data?.items[0]?.id).toBe('prod-1');
 
-      // User filters by category
-      rerender({ category: AssetCategory.GYM_EQUIPMENT });
+      // User quickly jumps page 1 -> page 2 -> page 3
+      rerender({ page: 2 });
+      rerender({ page: 3 });
 
-      // Previous items are preserved as placeholderData while fetching
       expect(result.current.isFetching).toBe(true);
-      expect(result.current.data?.items).toHaveLength(1);
+      expect(result.current.data?.items[0]?.id).toBe('prod-1');
+
+      // Resolve both responses
+      act(() => {
+        resolvePage3({
+          items: [{ ...mockProduct, id: 'prod-3', sku: 'SKU-003' }],
+          total: 30,
+          page: 3,
+          limit: 10,
+          totalPages: 3,
+        });
+        resolvePage2({
+          items: [{ ...mockProduct, id: 'prod-2', sku: 'SKU-002' }],
+          total: 30,
+          page: 2,
+          limit: 10,
+          totalPages: 3,
+        });
+      });
 
       await waitFor(() => expect(result.current.isFetching).toBe(false));
-      expect(result.current.data?.items).toHaveLength(0);
+      expect(result.current.data?.items[0]?.id).toBe('prod-3');
     });
   });
 
