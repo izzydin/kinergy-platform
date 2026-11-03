@@ -74,6 +74,27 @@ export const envSchema = z
       .transform((val) => (typeof val === 'boolean' ? val : val === 'true' || val === '1'))
       .default(true),
     PASSWORD_HISTORY_LIMIT: z.coerce.number().min(0).max(24).default(5),
+    // External Object & Media Storage Settings (Milestone 10.5)
+    STORAGE_PROVIDER: z.enum(['local', 's3']).default('local'),
+    STORAGE_LOCAL_ROOT: z.string().default('./.storage'),
+    STORAGE_S3_ENDPOINT: z.string().optional(),
+    STORAGE_S3_REGION: z.string().default('auto'),
+    STORAGE_S3_BUCKET: z.string().default('kinergy-staging-media'),
+    STORAGE_S3_ACCESS_KEY_ID: z.string().optional(),
+    STORAGE_S3_SECRET_ACCESS_KEY: z.string().optional(),
+    STORAGE_S3_FORCE_PATH_STYLE: z
+      .union([z.boolean(), z.string()])
+      .transform((val) => (typeof val === 'boolean' ? val : val === 'true' || val === '1'))
+      .default(false),
+    STORAGE_MAX_FILE_SIZE_BYTES: z.coerce
+      .number()
+      .positive()
+      .default(10 * 1024 * 1024),
+    STORAGE_SIGNED_URL_EXPIRATION_SECONDS: z.coerce.number().positive().default(900),
+    STORAGE_TENANT_QUOTA_BYTES: z.coerce
+      .number()
+      .positive()
+      .default(5 * 1024 * 1024 * 1024),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {

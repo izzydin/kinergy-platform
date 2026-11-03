@@ -6,6 +6,7 @@ import { LoggingModule } from './logging';
 import { PrismaModule } from './persistence';
 import { RateLimitingModule } from './rate-limiting';
 import { WebSecurityModule } from './web-security';
+import { StorageModule } from './storage';
 
 @Global()
 @Module({
@@ -16,6 +17,7 @@ import { WebSecurityModule } from './web-security';
     AuditModule,
     RateLimitingModule,
     WebSecurityModule,
+    StorageModule.register(),
     ClientModule,
   ],
   exports: [
@@ -25,6 +27,7 @@ import { WebSecurityModule } from './web-security';
     AuditModule,
     RateLimitingModule,
     WebSecurityModule,
+    StorageModule,
     ClientModule,
   ],
 })
