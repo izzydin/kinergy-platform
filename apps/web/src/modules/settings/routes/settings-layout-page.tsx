@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { Suspense } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Badge } from '@kinergy-platform/ui';
+import { SuspenseFallback } from '../../../app/routes/lazy-loading';
 import { SettingsNavTabs } from '../components/settings-nav-tabs';
 
 export const SettingsLayoutPage: React.FC = () => {
@@ -33,7 +34,9 @@ export const SettingsLayoutPage: React.FC = () => {
 
       {/* 3. Nested Sub-Route Outlet */}
       <div className="pt-2">
-        <Outlet />
+        <Suspense fallback={<SuspenseFallback label="Loading Settings..." />}>
+          <Outlet />
+        </Suspense>
       </div>
     </div>
   );

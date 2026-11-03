@@ -113,9 +113,11 @@ export interface AuthContextState {
   readonly error: Error | null;
   /**
    * Signals a successful external login completion.
-   * Fetches the current user profile and transitions to `AUTHENTICATED`.
+   * Accepts authenticated user profile or credentials and transitions to `AUTHENTICATED`.
    */
-  readonly login: (credentials?: Record<string, unknown>) => Promise<void>;
+  readonly login: (
+    userOrCredentials?: Record<string, unknown> | AuthUser | object,
+  ) => Promise<void>;
   /** Executes server logout, clears in-memory tokens, and transitions to `UNAUTHENTICATED` */
   readonly logout: () => Promise<void>;
   /** Re-runs the full bootstrap sequence from `AUTHENTICATION_ERROR` state */

@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { moduleRegistry } from '../../../app/routes/module-registry';
 import { lazyWithRetry, SuspenseFallback } from '../../../app/routes/lazy-loading';
 
@@ -14,6 +14,28 @@ const SecuritySettingsPage = lazyWithRetry(() =>
 );
 
 /**
+ * Deterministic index redirect that preserves search query parameters
+ * (e.g. ?tab=security) and hash fragments (#section) on entry.
+ */
+const SettingsIndexRedirect: React.FC = () => {
+  const location = useLocation();
+  const searchParams = new URLSearchParams(location.search);
+  const tab = searchParams.get('tab');
+  const targetSubpath = tab === 'security' ? 'security' : 'general';
+
+  return (
+    <Navigate
+      to={{
+        pathname: targetSubpath,
+        search: location.search,
+        hash: location.hash,
+      }}
+      replace
+    />
+  );
+};
+
+/**
  * Settings Sub-Router
  * Encapsulates sub-routes (/settings/general, /settings/security)
  * and specifies breadcrumb handle metadata.
@@ -23,7 +45,7 @@ export const SettingsRouter: React.FC = () => {
     <Suspense fallback={<SuspenseFallback label="Loading Settings..." />}>
       <Routes>
         <Route element={<SettingsLayoutPage />}>
-          <Route index element={<Navigate to="general" replace />} />
+          <Route index element={<SettingsIndexRedirect />} />
           <Route
             path="general"
             element={<GeneralSettingsPage />}

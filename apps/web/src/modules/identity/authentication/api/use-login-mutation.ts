@@ -83,11 +83,11 @@ export function useLoginMutation(): UseLoginMutationReturn {
       setNormalizedError(null);
 
       try {
-        await executeLogin(credentials);
+        const loginResponse = await executeLogin(credentials);
 
         // Update global AuthProvider session context if available
         if (auth?.login) {
-          await auth.login();
+          await auth.login(loginResponse.user);
         }
 
         const result: LoginResult = {

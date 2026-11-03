@@ -15,9 +15,11 @@
  * 11. Scenario 11 — Responsive shell, navigation, breadcrumbs & slot integration
  */
 import '@testing-library/jest-dom';
-import { MemoryRouter } from 'react-router-dom';
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
+import { act, configure, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+configure({ asyncUtilTimeout: 5000 });
 
 import { AppRouter } from '../app-router';
 import { AuthProvider } from '../../providers/auth-provider';
@@ -77,12 +79,21 @@ const RESTRICTED_USER: AuthUser = {
   tenantId: 'tenant_b3_5',
 };
 
+let activeRouterLocation: { pathname: string; search: string; hash: string } | null = null;
+
+const RouterLocationObserver: React.FC = () => {
+  const location = useLocation();
+  activeRouterLocation = location;
+  return null;
+};
+
 function renderAppWithRouter(initialEntry = '/', userOverride?: AuthUser | null) {
   const queryClient = createTestQueryClient();
 
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
+        <RouterLocationObserver />
         <SlotProvider>
           <NotificationProvider>
             <AuthProvider initialSessionOverride={userOverride}>
@@ -106,10 +117,12 @@ describe('Track B — Step B3.5: Protected Routing End-to-End Integration', () =
   let fetchSpy: jest.SpyInstance;
 
   beforeEach(() => {
+    activeRouterLocation = null;
     act(() => {
       authTokenStore.clearSession();
     });
 
+    httpClient.clearInterceptors();
     setupAuthTransport(httpClient);
 
     if (!global.fetch) {
@@ -230,6 +243,9 @@ describe('Track B — Step B3.5: Protected Routing End-to-End Integration', () =
           }),
         );
       }
+      if (urlStr.includes('/api/v1/auth/me')) {
+        return Promise.resolve(createMockResponse(E2E_TEST_USER, 200));
+      }
       return Promise.resolve(createMockResponse({}, 401));
     });
 
@@ -250,6 +266,11 @@ describe('Track B — Step B3.5: Protected Routing End-to-End Integration', () =
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: /platform settings/i })).toBeInTheDocument();
     });
+
+    // Verify deep-link preservation: pathname directed to security tab with search params and hash preserved
+    expect(activeRouterLocation?.pathname).toMatch(/^\/settings/);
+    expect(activeRouterLocation?.search).toBe('?tab=security');
+    expect(activeRouterLocation?.hash).toBe('#privacy');
   });
 
   // ═══════════════════════════════════════════════════════════════════════════

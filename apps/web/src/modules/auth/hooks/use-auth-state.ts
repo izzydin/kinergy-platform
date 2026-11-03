@@ -177,17 +177,26 @@ export function useAuthState(
   }, [queryClient, safeSetState]);
 
   const login = useCallback(
-    async (userOrCredentials?: Record<string, unknown> | AuthUser): Promise<void> => {
+    async (userOrCredentials?: Record<string, unknown> | AuthUser | object): Promise<void> => {
       log.info('Executing Login Transition...');
 
       if (
         userOrCredentials &&
         typeof userOrCredentials === 'object' &&
         'id' in userOrCredentials &&
-        'email' in userOrCredentials &&
-        'name' in userOrCredentials
+        'email' in userOrCredentials
       ) {
-        const user = userOrCredentials as AuthUser;
+        const candidate = userOrCredentials as Partial<AuthUser>;
+        const user: AuthUser = {
+          id: String(candidate.id),
+          email: String(candidate.email),
+          name: candidate.name || String(candidate.email).split('@')[0] || 'User',
+          roles: Array.isArray(candidate.roles) ? candidate.roles : [],
+          permissions: Array.isArray(candidate.permissions) ? candidate.permissions : [],
+          tenantId: candidate.tenantId ?? undefined,
+          status: candidate.status,
+          createdAt: candidate.createdAt,
+        };
         safeSetState({
           status: 'AUTHENTICATED',
           session: user,

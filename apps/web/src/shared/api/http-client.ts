@@ -72,6 +72,12 @@ export class HttpClient {
     this.responseInterceptors.push(interceptor);
   }
 
+  /** Clears all registered request and response interceptors (useful for test isolation) */
+  clearInterceptors(): void {
+    this.requestInterceptors.length = 0;
+    this.responseInterceptors.length = 0;
+  }
+
   async get<T>(path: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(path, { ...options, method: 'GET' });
   }
