@@ -3,6 +3,7 @@ module.exports = {
   preset: '../../jest.preset.js',
   testEnvironment: 'node',
   maxWorkers: 2,
+  workerIdleMemoryLimit: '512MB',
   transform: {
     '^.+\\.[tj]s$': ['ts-jest', { tsconfig: '<rootDir>/tsconfig.spec.json' }],
   },
