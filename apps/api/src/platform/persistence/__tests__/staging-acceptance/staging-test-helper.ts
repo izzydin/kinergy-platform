@@ -9,18 +9,28 @@ export interface StagingDbConfig {
 export class StagingTestHelper {
   private static resolvedUrl: string | null = null;
 
+  public static resetResolvedUrl(): void {
+    this.resolvedUrl = null;
+  }
+
   public static getStagingAdminUrl(): string {
-    return (
-      process.env['STAGING_ADMIN_DATABASE_URL'] ||
-      'postgresql://kinergy_staging_admin:kinergy_staging_admin_password@127.0.0.1:5434/kinergy_staging?schema=public'
-    );
+    if (process.env['STAGING_ADMIN_DATABASE_URL']) {
+      return process.env['STAGING_ADMIN_DATABASE_URL'];
+    }
+    if (this.resolvedUrl && !this.resolvedUrl.includes(':5434')) {
+      return this.resolvedUrl;
+    }
+    return 'postgresql://kinergy_staging_admin:kinergy_staging_admin_password@127.0.0.1:5434/kinergy_staging?schema=public';
   }
 
   public static getStagingMigratorUrl(): string {
-    return (
-      process.env['STAGING_MIGRATOR_DATABASE_URL'] ||
-      'postgresql://kinergy_migrator:kinergy_migrator_secure_password@127.0.0.1:5434/kinergy_staging?schema=public'
-    );
+    if (process.env['STAGING_MIGRATOR_DATABASE_URL']) {
+      return process.env['STAGING_MIGRATOR_DATABASE_URL'];
+    }
+    if (this.resolvedUrl && !this.resolvedUrl.includes(':5434')) {
+      return this.resolvedUrl;
+    }
+    return 'postgresql://kinergy_migrator:kinergy_migrator_secure_password@127.0.0.1:5434/kinergy_staging?schema=public';
   }
 
   public static getStagingAppUrl(): string {
@@ -31,16 +41,19 @@ export class StagingTestHelper {
   }
 
   public static getStagingTestUrl(): string {
-    return (
-      process.env['STAGING_TEST_DATABASE_URL'] ||
-      'postgresql://kinergy_test:kinergy_test_secure_password@127.0.0.1:5434/kinergy_staging?schema=public'
-    );
+    if (process.env['STAGING_TEST_DATABASE_URL']) {
+      return process.env['STAGING_TEST_DATABASE_URL'];
+    }
+    if (this.resolvedUrl && !this.resolvedUrl.includes(':5434')) {
+      return this.resolvedUrl;
+    }
+    return 'postgresql://kinergy_test:kinergy_test_secure_password@127.0.0.1:5434/kinergy_staging?schema=public';
   }
 
   /**
    * Resolves the active PostgreSQL database URL for integration tests.
    * Priority:
-   * 1. STAGING_DATABASE_URL / STAGING_TEST_DATABASE_URL if defined
+   * 1. STAGING_DATABASE_URL / STAGING_TEST_DATABASE_URL / STAGING_MIGRATOR_DATABASE_URL if defined
    * 2. Port 5434 (kinergy_staging with kinergy_test role)
    * 3. Port 5433 (kinergy_dev / CI service with kinergy_user)
    */
@@ -50,6 +63,7 @@ export class StagingTestHelper {
     const candidateUrls = [
       process.env['STAGING_TEST_DATABASE_URL'],
       process.env['STAGING_DATABASE_URL'],
+      process.env['STAGING_MIGRATOR_DATABASE_URL'],
       'postgresql://kinergy_test:kinergy_test_secure_password@127.0.0.1:5434/kinergy_staging?schema=public',
       process.env['DATABASE_URL'],
       'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public',

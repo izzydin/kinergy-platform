@@ -16,8 +16,16 @@ describe('Milestone 10.7 — Phase 4: Full Business Acceptance Journeys Against 
       isDbAvailable = true;
 
       prisma = StagingTestHelper.createClient(activeUrl);
-    } catch {
+    } catch (error) {
       isDbAvailable = false;
+      if (process.env['CI']) {
+        throw new Error(
+          `[FATAL] Staging database not available in CI environment at ${activeUrl}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          { cause: error },
+        );
+      }
       console.warn('[WARN] Staging database not available for Phase 4 Acceptance Journeys.');
     }
   });

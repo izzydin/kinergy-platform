@@ -34,6 +34,9 @@ jobs:
 
     env:
       DATABASE_URL: postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
+      STAGING_MIGRATOR_DATABASE_URL: postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
+      STAGING_ADMIN_DATABASE_URL: postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
+      STAGING_TEST_DATABASE_URL: postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
       NODE_OPTIONS: '--max-old-space-size=4096'
 
     steps:

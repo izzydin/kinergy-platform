@@ -19,8 +19,16 @@ describe('Milestone 10.7 — Phase 1: Staging Migration & Schema Integrity', () 
       prismaMigrator = StagingTestHelper.createClient(StagingTestHelper.getStagingMigratorUrl());
       prismaAdmin = StagingTestHelper.createClient(StagingTestHelper.getStagingAdminUrl());
       prismaApp = StagingTestHelper.createClient(StagingTestHelper.getStagingAppUrl());
-    } catch {
+    } catch (error) {
       isDbAvailable = false;
+      if (process.env['CI']) {
+        throw new Error(
+          `[FATAL] Staging database not available in CI environment at ${activeUrl}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          { cause: error },
+        );
+      }
       console.warn('[WARN] Staging database not available for Phase 1 Migration test.');
     }
   });

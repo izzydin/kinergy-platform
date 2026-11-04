@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { PrismaClient } from '@prisma/client';
+import { StagingTestHelper } from './staging-acceptance/staging-test-helper';
 
 describe('Milestone 10.6 — Staging PostgreSQL Provisioning and Validation Specification', () => {
   const rootDir = process.cwd();
@@ -185,6 +186,61 @@ describe('Milestone 10.6 — Staging PostgreSQL Provisioning and Validation Spec
       } finally {
         await prisma.$disconnect();
       }
+    });
+  });
+
+  // ==========================================================================
+  // 6. Staging & CI Database URL Alignment & Port Consistency
+  // ==========================================================================
+  describe('6. Staging & CI Database URL Alignment & Port Consistency', () => {
+    const originalEnv = { ...process.env };
+
+    afterEach(() => {
+      process.env = { ...originalEnv };
+      StagingTestHelper.resetResolvedUrl();
+    });
+
+    it('verifies CI workflow aligns PostgreSQL service port with DATABASE_URL and staging URLs', () => {
+      const ciYmlPath = path.join(rootDir, '.github/workflows/ci.yml');
+      expect(fs.existsSync(ciYmlPath)).toBe(true);
+      const ciContent = fs.readFileSync(ciYmlPath, 'utf8');
+
+      // Port mapping and DATABASE_URL consistency
+      expect(ciContent).toContain('- 5433:5432');
+      expect(ciContent).toContain(':5433/kinergy_dev');
+      expect(ciContent).toContain('DATABASE_URL:');
+      expect(ciContent).toContain('STAGING_MIGRATOR_DATABASE_URL:');
+    });
+
+    it('verifies StagingTestHelper falls back to resolvedUrl when staging environment variable is omitted', () => {
+      delete process.env['STAGING_MIGRATOR_DATABASE_URL'];
+      delete process.env['STAGING_ADMIN_DATABASE_URL'];
+      delete process.env['STAGING_TEST_DATABASE_URL'];
+
+      StagingTestHelper.resetResolvedUrl();
+
+      // When resolvedUrl is port 5433 (CI or dev)
+      (StagingTestHelper as unknown as { resolvedUrl: string }).resolvedUrl =
+        'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public';
+
+      expect(StagingTestHelper.getStagingMigratorUrl()).toBe(
+        'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public',
+      );
+      expect(StagingTestHelper.getStagingAdminUrl()).toBe(
+        'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public',
+      );
+      expect(StagingTestHelper.getStagingTestUrl()).toBe(
+        'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public',
+      );
+    });
+
+    it('verifies explicit STAGING_MIGRATOR_DATABASE_URL overrides default fallback', () => {
+      process.env['STAGING_MIGRATOR_DATABASE_URL'] =
+        'postgresql://custom_migrator:custom_pass@127.0.0.1:5434/custom_staging?schema=public';
+
+      expect(StagingTestHelper.getStagingMigratorUrl()).toBe(
+        'postgresql://custom_migrator:custom_pass@127.0.0.1:5434/custom_staging?schema=public',
+      );
     });
   });
 });
