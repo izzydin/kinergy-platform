@@ -78,8 +78,8 @@ describe('Gym Management Genuine Database Persistence Integration (ADR-0080)', (
   });
 
   afterAll(async () => {
-    if (isDatabaseAvailable && prisma) {
-      try {
+    try {
+      if (isDatabaseAvailable && prisma) {
         // Deterministic cleanup of test fixtures
         if (createdAttendanceIds.length > 0) {
           await prisma.attendanceRecord.deleteMany({
@@ -96,9 +96,11 @@ describe('Gym Management Genuine Database Persistence Integration (ADR-0080)', (
             where: { id: { in: createdPlanIds } },
           });
         }
-      } catch (cleanupError) {
-        console.warn('Post-test fixture cleanup warning:', cleanupError);
-      } finally {
+      }
+    } catch (cleanupError) {
+      console.warn('Post-test fixture cleanup warning:', cleanupError);
+    } finally {
+      if (prisma) {
         await prisma.$disconnect();
       }
     }

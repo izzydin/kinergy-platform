@@ -17,6 +17,24 @@ jobs:
     name: Validate Workspace
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kinergy_user
+          POSTGRES_PASSWORD: kinergy_secure_pass
+          POSTGRES_DB: kinergy_dev
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
+
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v5
@@ -36,6 +54,9 @@ jobs:
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Deploy Prisma Migrations
+        run: pnpm prisma:migrate:deploy
 
       - name: Validate Workspace
         run: pnpm validate
