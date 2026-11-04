@@ -19,6 +19,7 @@ BEGIN
   END IF;
 END
 $$;
+GRANT kinergy_migrator TO CURRENT_USER;
 
 -- Application Runtime Identity (DML ONLY - Least Privilege)
 -- Used exclusively by the NestJS API server runtime. No table create/drop/alter permissions.

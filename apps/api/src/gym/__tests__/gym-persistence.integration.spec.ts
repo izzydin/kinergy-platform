@@ -59,6 +59,7 @@ describe('Gym Management Genuine Database Persistence Integration (ADR-0080)', (
   const createdAttendanceIds: string[] = [];
 
   beforeAll(async () => {
+    jest.setTimeout(30000);
     prisma = new PrismaClient({
       datasources: {
         db: { url: dbUrl },

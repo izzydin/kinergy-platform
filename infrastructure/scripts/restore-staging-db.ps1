@@ -10,7 +10,8 @@ param (
     [string]$HostName = $env:PGHOST,
     [string]$Port = $env:PGPORT,
     [string]$Database = $env:PGDATABASE,
-    [string]$User = $env:PGUSER
+    [string]$User = $env:PGUSER,
+    [string]$ContainerName = "kinergy-staging-postgres"
 )
 
 if (-not $HostName) { $HostName = "localhost" }
@@ -39,7 +40,18 @@ if (Test-Path $checksumFile) {
 Write-Host "[INFO] Restoring $BackupFile into $HostName`:$Port/$Database..."
 
 try {
-    & pg_restore --host=$HostName --port=$Port --username=$User --dbname=$Database --clean --if-exists --no-owner --no-privileges $BackupFile
+    $hasPgRestore = Get-Command pg_restore -ErrorAction SilentlyContinue
+    if ($hasPgRestore) {
+        & pg_restore --host=$HostName --port=$Port --username=$User --dbname=$Database --clean --if-exists --no-owner --no-privileges $BackupFile
+    } elseif (Get-Command docker -ErrorAction SilentlyContinue) {
+        Write-Host "[INFO] Local pg_restore CLI not in PATH. Restoring via container $ContainerName..."
+        docker cp $BackupFile "${ContainerName}:/tmp/restore.dump"
+        docker exec -i $ContainerName pg_restore -U $User -d $Database --clean --if-exists --no-owner --no-privileges /tmp/restore.dump
+        docker exec -i $ContainerName rm -f /tmp/restore.dump
+    } else {
+        throw "Neither pg_restore nor docker is available in system PATH."
+    }
+
     if ($LASTEXITCODE -ne 0) {
         throw "pg_restore failed with exit code $LASTEXITCODE"
     }
@@ -49,4 +61,5 @@ catch {
     Write-Error "[ERROR] Restore failed: $_"
     exit 1
 }
+
 

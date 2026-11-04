@@ -59,3 +59,9 @@ coverage/
 tmp/
 *.tmp
 *.bak
+
+# Database Backups & Dumps
+backups/
+*.dump
+*.dump.sha256
+

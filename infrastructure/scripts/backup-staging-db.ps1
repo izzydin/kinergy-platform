@@ -10,7 +10,8 @@ param (
     [string]$HostName = $env:PGHOST,
     [string]$Port = $env:PGPORT,
     [string]$Database = $env:PGDATABASE,
-    [string]$User = $env:PGUSER
+    [string]$User = $env:PGUSER,
+    [string]$ContainerName = "kinergy-staging-postgres"
 )
 
 if (-not $HostName) { $HostName = "localhost" }
@@ -27,11 +28,22 @@ $backupFile = Join-Path $BackupDir "kinergy_staging_$timestamp.dump"
 
 Write-Host "[INFO] Starting Kinergy Staging PostgreSQL backup to $backupFile..."
 
-# Execute pg_dump
+# Execute pg_dump (native or containerized fallback)
 try {
-    & pg_dump --host=$HostName --port=$Port --username=$User --dbname=$Database --format=custom --blobs --file=$backupFile
+    $hasPgDump = Get-Command pg_dump -ErrorAction SilentlyContinue
+    if ($hasPgDump) {
+        & pg_dump --host=$HostName --port=$Port --username=$User --dbname=$Database --format=custom --blobs --file=$backupFile
+    } elseif (Get-Command docker -ErrorAction SilentlyContinue) {
+        Write-Host "[INFO] Local pg_dump CLI not in PATH. Executing backup via container $ContainerName..."
+        docker exec $ContainerName pg_dump -U $User -d $Database --format=custom --blobs --file=/tmp/staging_backup.dump
+        docker cp "${ContainerName}:/tmp/staging_backup.dump" $backupFile
+        docker exec $ContainerName rm -f /tmp/staging_backup.dump
+    } else {
+        throw "Neither pg_dump nor docker is available in system PATH."
+    }
+
     if ($LASTEXITCODE -ne 0) {
-        throw "pg_dump failed with exit code $LASTEXITCODE"
+        throw "pg_dump execution failed with exit code $LASTEXITCODE"
     }
 
     # Generate SHA256 checksum
@@ -50,4 +62,5 @@ catch {
     Write-Error "[ERROR] Backup failed: $_"
     exit 1
 }
+
 
