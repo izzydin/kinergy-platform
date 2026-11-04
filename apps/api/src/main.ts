@@ -35,16 +35,22 @@ async function bootstrap(): Promise<void> {
   app.useGlobalFilters(new GlobalExceptionFilter());
   app.useGlobalPipes(new GlobalSanitizationValidationPipe());
 
-  // OpenAPI Swagger Setup
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Kinergy Platform API')
-    .setDescription('Kinergy Health, Wellness, Gym, and Clinic Management Platform API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
+  // OpenAPI Swagger Setup (Controlled via SWAGGER_ENABLED)
+  const isSwaggerEnabled = configService.get<boolean>('app.swaggerEnabled', true);
+  if (isSwaggerEnabled) {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Kinergy Platform API')
+      .setDescription('Kinergy Health, Wellness, Gym, and Clinic Management Platform API')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
 
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+    logger.log(`📚 Swagger documentation available at: http://localhost:${port}/api/docs`);
+  } else {
+    logger.log('🔒 Swagger documentation disabled per configuration');
+  }
 
   // Graceful Shutdown
   app.enableShutdownHooks();
