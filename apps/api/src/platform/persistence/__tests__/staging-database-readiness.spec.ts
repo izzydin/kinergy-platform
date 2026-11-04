@@ -190,9 +190,9 @@ describe('Milestone 10.6 — Staging PostgreSQL Provisioning and Validation Spec
   });
 
   // ==========================================================================
-  // 6. Staging & CI Database URL Alignment & Port Consistency
+  // 6. Staging & CI Shared Infrastructure, RBAC Isolation & Port Consistency
   // ==========================================================================
-  describe('6. Staging & CI Database URL Alignment & Port Consistency', () => {
+  describe('6. Staging & CI Shared Infrastructure, RBAC Isolation & Port Consistency', () => {
     const originalEnv = { ...process.env };
 
     afterEach(() => {
@@ -200,47 +200,86 @@ describe('Milestone 10.6 — Staging PostgreSQL Provisioning and Validation Spec
       StagingTestHelper.resetResolvedUrl();
     });
 
-    it('verifies CI workflow aligns PostgreSQL service port with DATABASE_URL and staging URLs', () => {
+    it('verifies CI workflow configures dedicated staging-postgres service on port 5434 alongside dev postgres on port 5433', () => {
       const ciYmlPath = path.join(rootDir, '.github/workflows/ci.yml');
       expect(fs.existsSync(ciYmlPath)).toBe(true);
       const ciContent = fs.readFileSync(ciYmlPath, 'utf8');
 
-      // Port mapping and DATABASE_URL consistency
+      // Development PostgreSQL service on port 5433
       expect(ciContent).toContain('- 5433:5432');
       expect(ciContent).toContain(':5433/kinergy_dev');
       expect(ciContent).toContain('DATABASE_URL:');
+
+      // Staging PostgreSQL service on port 5434
+      expect(ciContent).toContain('- 5434:5432');
+      expect(ciContent).toContain(':5434/kinergy_staging');
+      expect(ciContent).toContain('STAGING_ADMIN_DATABASE_URL:');
       expect(ciContent).toContain('STAGING_MIGRATOR_DATABASE_URL:');
+      expect(ciContent).toContain('STAGING_DATABASE_URL:');
+      expect(ciContent).toContain('STAGING_TEST_DATABASE_URL:');
+
+      // Provisioning and migration deployment steps
+      expect(ciContent).toContain('init-staging-roles.sql');
+      expect(ciContent).toContain('STAGING_MIGRATOR_DATABASE_URL');
     });
 
-    it('verifies StagingTestHelper falls back to resolvedUrl when staging environment variable is omitted', () => {
-      delete process.env['STAGING_MIGRATOR_DATABASE_URL'];
+    it('verifies staging role URLs maintain strict RBAC isolation without conflation or silent dev fallback', () => {
       delete process.env['STAGING_ADMIN_DATABASE_URL'];
+      delete process.env['STAGING_MIGRATOR_DATABASE_URL'];
+      delete process.env['STAGING_DATABASE_URL'];
       delete process.env['STAGING_TEST_DATABASE_URL'];
-
       StagingTestHelper.resetResolvedUrl();
 
-      // When resolvedUrl is port 5433 (CI or dev)
-      (StagingTestHelper as unknown as { resolvedUrl: string }).resolvedUrl =
-        'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public';
+      const adminUrl = StagingTestHelper.getStagingAdminUrl();
+      const migratorUrl = StagingTestHelper.getStagingMigratorUrl();
+      const appUrl = StagingTestHelper.getStagingAppUrl();
+      const testUrl = StagingTestHelper.getStagingTestUrl();
 
-      expect(StagingTestHelper.getStagingMigratorUrl()).toBe(
-        'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public',
-      );
-      expect(StagingTestHelper.getStagingAdminUrl()).toBe(
-        'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public',
-      );
-      expect(StagingTestHelper.getStagingTestUrl()).toBe(
-        'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public',
-      );
+      // All target dedicated staging port 5434
+      expect(adminUrl).toContain('127.0.0.1:5434/kinergy_staging');
+      expect(migratorUrl).toContain('127.0.0.1:5434/kinergy_staging');
+      expect(appUrl).toContain('127.0.0.1:5434/kinergy_staging');
+      expect(testUrl).toContain('127.0.0.1:5434/kinergy_staging');
+
+      // Distinct identities without role conflation
+      expect(adminUrl).toContain('kinergy_staging_admin');
+      expect(migratorUrl).toContain('kinergy_migrator');
+      expect(appUrl).toContain('kinergy_app');
+      expect(testUrl).toContain('kinergy_test');
+
+      // Never silently fall back to development superuser
+      expect(adminUrl).not.toContain('kinergy_user');
+      expect(migratorUrl).not.toContain('kinergy_user');
+      expect(appUrl).not.toContain('kinergy_user');
+      expect(testUrl).not.toContain('kinergy_user');
+      expect(appUrl).not.toContain(':5433');
     });
 
-    it('verifies explicit STAGING_MIGRATOR_DATABASE_URL overrides default fallback', () => {
+    it('verifies explicit environment variable overrides take precedence per identity', () => {
       process.env['STAGING_MIGRATOR_DATABASE_URL'] =
         'postgresql://custom_migrator:custom_pass@127.0.0.1:5434/custom_staging?schema=public';
+      process.env['STAGING_DATABASE_URL'] =
+        'postgresql://custom_app:custom_pass@127.0.0.1:5434/custom_staging?schema=public';
 
       expect(StagingTestHelper.getStagingMigratorUrl()).toBe(
         'postgresql://custom_migrator:custom_pass@127.0.0.1:5434/custom_staging?schema=public',
       );
+      expect(StagingTestHelper.getStagingAppUrl()).toBe(
+        'postgresql://custom_app:custom_pass@127.0.0.1:5434/custom_staging?schema=public',
+      );
+    });
+
+    it('verifies security test assertions distinguish permission-denied errors from connection failures', () => {
+      const permissionRegex = /permission denied for schema public|42501/i;
+
+      // Genuine PostgreSQL 42501 permission error must match
+      const genuineDdlDenial = 'ERROR: permission denied for schema public (SQLSTATE 42501)';
+      expect(permissionRegex.test(genuineDdlDenial)).toBe(true);
+
+      // Connection failures must NOT match and cannot be mistaken for permission denial
+      const connectionError =
+        "PrismaClientInitializationError: Can't reach database server at 127.0.0.1:5434";
+      expect(permissionRegex.test(connectionError)).toBe(false);
     });
   });
 });

@@ -23,8 +23,16 @@ describe('Milestone 10.8 — Production Security & Operational Verification Spec
       await probe.$queryRawUnsafe('SELECT 1');
       await probe.$disconnect();
       isDbAvailable = true;
-    } catch {
+    } catch (error) {
       isDbAvailable = false;
+      if (process.env['CI']) {
+        throw new Error(
+          `[FATAL] Staging database not available in CI environment at ${activeUrl}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          { cause: error },
+        );
+      }
     }
   });
 
@@ -197,6 +205,11 @@ describe('Milestone 10.8 — Production Security & Operational Verification Spec
 
       const appPrisma = StagingTestHelper.createClient(StagingTestHelper.getStagingAppUrl());
       try {
+        // 1. Verify application runtime role connects and queries successfully
+        const ping = await appPrisma.$queryRawUnsafe('SELECT 1 as result');
+        expect(Array.isArray(ping)).toBe(true);
+
+        // 2. Verify application runtime role is denied DDL permissions by PostgreSQL engine (42501)
         await expect(
           appPrisma.$executeRawUnsafe('CREATE TABLE security_ddl_breach_probe (id int)'),
         ).rejects.toThrow(/permission denied for schema public|42501/i);

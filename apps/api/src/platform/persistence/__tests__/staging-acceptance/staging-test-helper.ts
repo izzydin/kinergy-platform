@@ -14,23 +14,17 @@ export class StagingTestHelper {
   }
 
   public static getStagingAdminUrl(): string {
-    if (process.env['STAGING_ADMIN_DATABASE_URL']) {
-      return process.env['STAGING_ADMIN_DATABASE_URL'];
-    }
-    if (this.resolvedUrl && !this.resolvedUrl.includes(':5434')) {
-      return this.resolvedUrl;
-    }
-    return 'postgresql://kinergy_staging_admin:kinergy_staging_admin_password@127.0.0.1:5434/kinergy_staging?schema=public';
+    return (
+      process.env['STAGING_ADMIN_DATABASE_URL'] ||
+      'postgresql://kinergy_staging_admin:kinergy_staging_admin_password@127.0.0.1:5434/kinergy_staging?schema=public'
+    );
   }
 
   public static getStagingMigratorUrl(): string {
-    if (process.env['STAGING_MIGRATOR_DATABASE_URL']) {
-      return process.env['STAGING_MIGRATOR_DATABASE_URL'];
-    }
-    if (this.resolvedUrl && !this.resolvedUrl.includes(':5434')) {
-      return this.resolvedUrl;
-    }
-    return 'postgresql://kinergy_migrator:kinergy_migrator_secure_password@127.0.0.1:5434/kinergy_staging?schema=public';
+    return (
+      process.env['STAGING_MIGRATOR_DATABASE_URL'] ||
+      'postgresql://kinergy_migrator:kinergy_migrator_secure_password@127.0.0.1:5434/kinergy_staging?schema=public'
+    );
   }
 
   public static getStagingAppUrl(): string {
@@ -41,30 +35,91 @@ export class StagingTestHelper {
   }
 
   public static getStagingTestUrl(): string {
-    if (process.env['STAGING_TEST_DATABASE_URL']) {
-      return process.env['STAGING_TEST_DATABASE_URL'];
+    return (
+      process.env['STAGING_TEST_DATABASE_URL'] ||
+      'postgresql://kinergy_test:kinergy_test_secure_password@127.0.0.1:5434/kinergy_staging?schema=public'
+    );
+  }
+
+  /**
+   * Deterministically provisions staging roles and permissions if connected to the administrative endpoint.
+   * Ensures kinergy_migrator, kinergy_app, and kinergy_test exist with proper RBAC boundaries.
+   */
+  public static async provisionStagingRolesAndSchema(): Promise<void> {
+    const adminUrl = this.getStagingAdminUrl();
+    const adminClient = new PrismaClient({
+      datasources: { db: { url: adminUrl } },
+    });
+    try {
+      await adminClient.$queryRawUnsafe('SELECT 1');
+      const roles = await adminClient.$queryRawUnsafe<Array<{ rolname: string }>>(
+        `SELECT rolname FROM pg_catalog.pg_roles WHERE rolname IN ('kinergy_migrator', 'kinergy_app', 'kinergy_test')`,
+      );
+      if (roles.length < 3) {
+        const sqlStatements = [
+          `CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`,
+          `CREATE EXTENSION IF NOT EXISTS "pgcrypto"`,
+          `CREATE EXTENSION IF NOT EXISTS "pg_trgm"`,
+          `DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'kinergy_migrator') THEN CREATE ROLE kinergy_migrator WITH LOGIN PASSWORD 'kinergy_migrator_secure_password'; END IF; END $$`,
+          `GRANT kinergy_migrator TO CURRENT_USER`,
+          `DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'kinergy_app') THEN CREATE ROLE kinergy_app WITH LOGIN PASSWORD 'kinergy_app_secure_password'; END IF; END $$`,
+          `DO $$ BEGIN IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'kinergy_test') THEN CREATE ROLE kinergy_test WITH LOGIN PASSWORD 'kinergy_test_secure_password'; END IF; END $$`,
+          `GRANT ALL ON SCHEMA public TO kinergy_migrator`,
+          `GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO kinergy_migrator`,
+          `GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO kinergy_migrator`,
+          `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO kinergy_migrator`,
+          `ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO kinergy_migrator`,
+          `GRANT USAGE ON SCHEMA public TO kinergy_app`,
+          `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO kinergy_app`,
+          `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO kinergy_app`,
+          `ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO kinergy_app`,
+          `ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO kinergy_app`,
+          `ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_staging_admin IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO kinergy_app`,
+          `ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_staging_admin IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO kinergy_app`,
+          `REVOKE CREATE ON SCHEMA public FROM kinergy_app`,
+          `GRANT USAGE ON SCHEMA public TO kinergy_test`,
+          `GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON ALL TABLES IN SCHEMA public TO kinergy_test`,
+          `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO kinergy_test`,
+          `ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_migrator IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON TABLES TO kinergy_test`,
+          `ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_migrator IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO kinergy_test`,
+          `ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_staging_admin IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON TABLES TO kinergy_test`,
+          `ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_staging_admin IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO kinergy_test`,
+          `REVOKE CREATE ON SCHEMA public FROM kinergy_test`,
+        ];
+
+        for (const stmt of sqlStatements) {
+          await adminClient.$executeRawUnsafe(stmt);
+        }
+      }
+    } catch {
+      // If admin connection not available or roles already provisioned, continue
+    } finally {
+      await adminClient.$disconnect().catch(() => {});
     }
-    if (this.resolvedUrl && !this.resolvedUrl.includes(':5434')) {
-      return this.resolvedUrl;
-    }
-    return 'postgresql://kinergy_test:kinergy_test_secure_password@127.0.0.1:5434/kinergy_staging?schema=public';
   }
 
   /**
    * Resolves the active PostgreSQL database URL for integration tests.
    * Priority:
-   * 1. STAGING_DATABASE_URL / STAGING_TEST_DATABASE_URL / STAGING_MIGRATOR_DATABASE_URL if defined
-   * 2. Port 5434 (kinergy_staging with kinergy_test role)
-   * 3. Port 5433 (kinergy_dev / CI service with kinergy_user)
+   * 1. STAGING_TEST_DATABASE_URL / port 5434 (kinergy_staging with kinergy_test role)
+   * 2. STAGING_MIGRATOR_DATABASE_URL / STAGING_DATABASE_URL
+   * 3. DATABASE_URL / port 5433 (kinergy_dev / CI service with kinergy_user)
    */
   public static async resolveActivePostgresUrl(): Promise<string> {
     if (this.resolvedUrl) return this.resolvedUrl;
 
+    // Ensure staging roles exist if staging admin endpoint is available
+    await this.provisionStagingRolesAndSchema();
+
     const candidateUrls = [
       process.env['STAGING_TEST_DATABASE_URL'],
-      process.env['STAGING_DATABASE_URL'],
-      process.env['STAGING_MIGRATOR_DATABASE_URL'],
       'postgresql://kinergy_test:kinergy_test_secure_password@127.0.0.1:5434/kinergy_staging?schema=public',
+      process.env['STAGING_MIGRATOR_DATABASE_URL'],
+      'postgresql://kinergy_migrator:kinergy_migrator_secure_password@127.0.0.1:5434/kinergy_staging?schema=public',
+      process.env['STAGING_DATABASE_URL'],
+      'postgresql://kinergy_app:kinergy_app_secure_password@127.0.0.1:5434/kinergy_staging?schema=public',
+      process.env['STAGING_ADMIN_DATABASE_URL'],
+      'postgresql://kinergy_staging_admin:kinergy_staging_admin_password@127.0.0.1:5434/kinergy_staging?schema=public',
       process.env['DATABASE_URL'],
       'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public',
     ].filter((u): u is string => !!u);

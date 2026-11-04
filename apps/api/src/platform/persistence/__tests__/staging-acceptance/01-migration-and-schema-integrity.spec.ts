@@ -153,13 +153,17 @@ describe('Milestone 10.7 — Phase 1: Staging Migration & Schema Integrity', () 
   it('1.5 verifies least-privilege role boundaries (kinergy_app vs kinergy_migrator)', async () => {
     if (!isDbAvailable) return;
 
-    try {
+    if (process.env['CI']) {
       await prismaApp.$queryRawUnsafe('SELECT 1');
-    } catch {
-      console.warn(
-        '[INFO] Staging least-privilege role kinergy_app not present in this database; skipping role boundary test.',
-      );
-      return;
+    } else {
+      try {
+        await prismaApp.$queryRawUnsafe('SELECT 1');
+      } catch {
+        console.warn(
+          '[INFO] Staging least-privilege role kinergy_app not present in this database; skipping role boundary test.',
+        );
+        return;
+      }
     }
 
     // kinergy_migrator can execute DDL (CREATE TEMP TABLE / TABLE)

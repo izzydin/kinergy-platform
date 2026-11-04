@@ -32,11 +32,26 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      staging-postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kinergy_staging_admin
+          POSTGRES_PASSWORD: kinergy_staging_admin_password
+          POSTGRES_DB: kinergy_staging
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd "pg_isready -U kinergy_staging_admin -d kinergy_staging"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
     env:
       DATABASE_URL: postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
-      STAGING_MIGRATOR_DATABASE_URL: postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
-      STAGING_ADMIN_DATABASE_URL: postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
-      STAGING_TEST_DATABASE_URL: postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
+      STAGING_ADMIN_DATABASE_URL: postgresql://kinergy_staging_admin:kinergy_staging_admin_password@127.0.0.1:5434/kinergy_staging?schema=public
+      STAGING_MIGRATOR_DATABASE_URL: postgresql://kinergy_migrator:kinergy_migrator_secure_password@127.0.0.1:5434/kinergy_staging?schema=public
+      STAGING_DATABASE_URL: postgresql://kinergy_app:kinergy_app_secure_password@127.0.0.1:5434/kinergy_staging?schema=public
+      STAGING_TEST_DATABASE_URL: postgresql://kinergy_test:kinergy_test_secure_password@127.0.0.1:5434/kinergy_staging?schema=public
       NODE_OPTIONS: '--max-old-space-size=4096'
 
     steps:
@@ -59,8 +74,13 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy Prisma Migrations
+      - name: Deploy Prisma Migrations (Dev Database)
         run: pnpm prisma:migrate:deploy
+
+      - name: Provision Staging Roles and Deploy Staging Migrations
+        run: |
+          PGPASSWORD=kinergy_staging_admin_password psql -h 127.0.0.1 -p 5434 -U kinergy_staging_admin -d kinergy_staging -f infrastructure/docker/init-staging-roles.sql
+          DATABASE_URL="$STAGING_MIGRATOR_DATABASE_URL" pnpm prisma:migrate:deploy
 
       - name: Validate Workspace
         run: pnpm validate
