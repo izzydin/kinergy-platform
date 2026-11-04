@@ -8,7 +8,8 @@ export class StorageKeyUtil {
    * Sanitizes a user-supplied filename to prevent path traversal and shell injection.
    */
   static sanitizeFilename(filename: string): string {
-    const basename = path.basename(filename);
+    const normalized = filename.replace(/\\/g, '/');
+    const basename = path.posix.basename(normalized);
     const cleaned = basename
       .replace(/[^a-zA-Z0-9._-]/g, '_')
       .replace(/\.{2,}/g, '.')
