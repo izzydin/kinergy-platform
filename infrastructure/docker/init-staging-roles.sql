@@ -60,6 +60,12 @@ ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_migrator IN SCHEMA public
 ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_migrator IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO kinergy_app;
 
+-- Also ensure tables created by admin automatically grant DML to kinergy_app
+ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_staging_admin IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO kinergy_app;
+ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_staging_admin IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO kinergy_app;
+
 -- Explicitly revoke DDL privileges from kinergy_app (Defense-in-depth)
 REVOKE CREATE ON SCHEMA public FROM kinergy_app;
 
@@ -70,6 +76,10 @@ GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO kinergy_test;
 ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_migrator IN SCHEMA public
   GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON TABLES TO kinergy_test;
 ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_migrator IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO kinergy_test;
+ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_staging_admin IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE, TRUNCATE ON TABLES TO kinergy_test;
+ALTER DEFAULT PRIVILEGES FOR ROLE kinergy_staging_admin IN SCHEMA public
   GRANT USAGE, SELECT ON SEQUENCES TO kinergy_test;
 REVOKE CREATE ON SCHEMA public FROM kinergy_test;
 
