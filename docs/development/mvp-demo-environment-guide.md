@@ -6,7 +6,7 @@
 **Status:** **ACTIVE & OPERATIONAL**  
 **Document Ownership:** Platform Architecture Team, Product Delivery Lead, QA Lead  
 **Last Verified Date:** 2026-11-05  
-**Cross-References:** [Milestone 11.1 Readiness Audit](../demo/MILESTONE-11-1-READINESS-AUDIT.md), [ADR-0006](../adr/0006-docker-local-development-infrastructure.md), [ADR-0010](../adr/0010-backend-clean-architecture-layering.md), [ADR-0017](../adr/0017-password-infrastructure-argon2id.md), [ADR-0025](../adr/0025-role-and-permission-authorization-framework.md)
+**Cross-References:** [Milestone 11.8 Final Demo Readiness Certification](../demo/MILESTONE-11-8-FINAL-DEMO-ACCEPTANCE.md), [Milestone 11.1 Readiness Audit](../demo/MILESTONE-11-1-READINESS-AUDIT.md), [ADR-0006](../adr/0006-docker-local-development-infrastructure.md), [ADR-0010](../adr/0010-backend-clean-architecture-layering.md), [ADR-0017](../adr/0017-password-infrastructure-argon2id.md), [ADR-0025](../adr/0025-role-and-permission-authorization-framework.md)
 
 ---
 
@@ -687,6 +687,15 @@ Verify all items before commencing a client demonstration:
 
 ---
 
+## 15. Final Demonstration Readiness Certification
+
+The Kinergy platform has undergone formal rehearsal audit and has achieved an **UNCONDITIONAL GO** certification for all business, investor, and client demonstrations.
+
+For full certification artifacts, automated test matrices, and executive sign-off details, refer to:
+👉 **[Milestone 11.8 Final Demo Rehearsal and Readiness Certification Report](../demo/MILESTONE-11-8-FINAL-DEMO-ACCEPTANCE.md)**
+
+---
+
 _Document Author: Platform Architecture Team_  
-_Approved by: Product Delivery Lead, QA Lead_  
-_Last Verified: 2026-11-05 against commit ef580d1_
+_Approved by: Product Delivery Lead, QA Lead, DevOps Lead, Business Acceptance Manager_  
+_Last Certified: 2026-11-05 (Commit `3a14fb5`) — UNCONDITIONAL GO_
