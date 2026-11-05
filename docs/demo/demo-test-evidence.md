@@ -1,0 +1,117 @@
+# Kinergy Platform — MVP Demonstration Test Evidence & Quality Assurance Record
+
+**Document ID:** `DOC-QA-011`  
+**Milestone:** 11.2 — Professional MVP Demo Documentation  
+**Version:** `1.0.0`  
+**Status:** **ACTIVE & VERIFIED**  
+**Document Ownership:** QA Lead, Senior Product Delivery Lead  
+**Last Verified Date:** 2026-11-05 (Commit `ef580d1`)  
+**Companion Manuals:** [Milestone 11.1 Audit](MILESTONE-11-1-READINESS-AUDIT.md), [MVP Demo Guide](../development/mvp-demo-environment-guide.md)
+
+---
+
+## 1. Executive Quality Assurance Summary
+
+The **Kinergy Platform** enforces an institutional quality gate standard ensuring that every domain rule, aggregate invariant, state machine transition, and API contract is proven through automated tests prior to demonstration.
+
+### Test Execution Summary
+
+| Test Project         | Target Scope                                        | Test Suites | Total Tests |   Pass Rate   | Execution Command             |
+| :------------------- | :-------------------------------------------------- | :---------: | :---------: | :-----------: | :---------------------------- |
+| **`modules/client`** | Client ingress, trigram search, timeline projection |     22      |     160     | **100% PASS** | `pnpm test:client-domain`     |
+| **`packages/core`**  | Domain aggregates, value objects, use cases, ports  |     291     |    4,555    | **100% PASS** | `pnpm test:core`              |
+| **`packages/ui`**    | Design system, accessible modals, forms, feedback   |      6      |     53      | **100% PASS** | `pnpm test:ui`                |
+| **`apps/web`**       | React SPA, route guards, pages, React Query         |     189     |    2,174    | **100% PASS** | `pnpm test:web`               |
+| **`apps/api`**       | NestJS HTTP controllers, guards, exception filters  |     166     |    2,355    | **100% PASS** | `pnpm test:api`               |
+| **Total Test Suite** | **Monorepo Workspace Baseline**                     |   **674**   |  **9,297**  | **100% PASS** | `pnpm test` / `pnpm validate` |
+
+### Static Analysis & Build Verification
+
+- **TypeScript Strictness**: `tsc --noEmit -p tsconfig.base.json` executed with **0 errors**.
+- **ESLint Code Quality**: `nx run-many -t lint` across 10 projects executed with **0 warnings / 0 errors**.
+- **Production Build Pipeline**: `nx run-many -t build` across 10 projects compiled successfully.
+
+---
+
+## 2. Business Journey Acceptance Test Mapping
+
+Every demonstration journey is backed by automated end-to-end acceptance test suites:
+
+### 2.1 Gym & Membership Acceptance (`apps/api`)
+
+- **Primary Suite:** `apps/api/src/gym/__tests__/gym-business-journey-acceptance.e2e.spec.ts` (22/22 passed)
+- **Key Invariants Verified:**
+  - Client registration assigns deterministic `ClientReferenceNumber` (`CLI-YYYY-XXXXX`).
+  - Active gym plan enrollment immediately updates membership to `ACTIVE`.
+  - Cash payment settles commercial gym membership order to `PAID`.
+  - Sequential tax receipt generated (`REC-YYYY-XXXXX`).
+  - Turnstile check-in grants entry for active membership.
+  - Turnstile check-in rejects rapid successive check-in within the 5-minute cooldown window.
+- **Supporting Specifications:**
+  - `packages/core/src/gym/application/__tests__/gym-application-orchestration-audit.spec.ts`
+  - `packages/core/src/gym/domain/__tests__/gym-domain-audit-completion.spec.ts`
+
+### 2.2 Clinical Kinesiology & 4D Scheduling (`apps/api`, `packages/core`)
+
+- **Primary Suite:** `apps/api/src/kinesiology/__tests__/kinesiology-business-journey-acceptance.e2e.spec.ts` (19/19 passed)
+- **Key Invariants Verified:**
+  - 4D collision detection prevents overlapping therapist, room, client, and buffer bookings (HTTP 409).
+  - Treatment session transitions from `SCHEDULED` to `IN_PROGRESS` upon encounter start.
+  - Draft SOAP notes persist Subjective, Objective, Assessment, and Plan fields.
+  - Medico-legal locking: Transition to `COMPLETED` locks SOAP notes; subsequent edits are rejected (HTTP 422).
+  - Cross-domain billing creates payable sale order upon session sign-off.
+- **Supporting Specifications:**
+  - `packages/core/src/kinesiology/application/handlers/phase4-business-process-master.integration.spec.ts`
+  - `packages/core/src/scheduling/domain/services/conflict-detection.integration.spec.ts`
+
+### 2.3 Consumable Inventory & Retail POS (`apps/api`, `packages/core`)
+
+- **Primary Suite:** `apps/api/src/resources/__tests__/inventory-business-journey-acceptance.e2e.spec.ts` (10/10 passed)
+- **Key Invariants Verified:**
+  - Low-stock trigger surfaces items where `quantityOnHand <= minimumStock`.
+  - Stock receiving logs immutable `PURCHASE` movement and clears low-stock alert.
+  - Retail order creation does not decrement inventory while in `PENDING_PAYMENT`.
+  - Settlement of payment automatically decrements stock and appends immutable `SALE` movement.
+  - Optimistic Concurrency Control (`version` column) prevents concurrent inventory overwrites.
+- **Supporting Specifications:**
+  - `packages/core/src/resources/application/__tests__/food-drink-sales-integration.spec.ts`
+  - `packages/core/src/resources/application/__tests__/inventory-application-persistence-integration.spec.ts`
+
+### 2.4 Commercial Sales & Financial Integrity (`apps/api`, `packages/core`)
+
+- **Primary Suites:**
+  - `apps/api/src/sales/__tests__/payments-http-api.integration.spec.ts`
+  - `apps/api/src/sales/__tests__/receipts-http-api.integration.spec.ts`
+  - `apps/api/src/sales/__tests__/sales-http-api.integration.spec.ts`
+- **Key Invariants Verified:**
+  - Integer cent calculations prevent floating-point rounding errors (`Money` Value Object).
+  - Price snapshots in `SaleItem` insulate orders from subsequent catalog price updates.
+  - Discounts cannot exceed line item total or create negative order amounts.
+  - QR tenders instantiate in `PENDING` status; explicit settlement transitions payment to `COMPLETED`.
+  - Receipts cannot be issued for unpaid or unsettled orders.
+- **Supporting Specifications:**
+  - `packages/core/src/sales/infrastructure/persistence/prisma/__tests__/financial-concurrency.integration.spec.ts`
+  - `packages/core/src/sales/infrastructure/persistence/prisma/__tests__/complete-payment-atomic-concurrency.integration.spec.ts`
+
+---
+
+## 3. Database Engine & Relational Integrity Evidence
+
+Staging acceptance tests verify engine compatibility and relational check constraints:
+
+| Test File                                   | Verified Domain Capability                          | Verification Method                          |  Result  |
+| :------------------------------------------ | :-------------------------------------------------- | :------------------------------------------- | :------: |
+| `01-migration-and-schema-integrity.spec.ts` | 14 migrations deployed cleanly without drift        | Prisma migrate status & schema introspection | **PASS** |
+| `02-database-engine-compatibility.spec.ts`  | PostgreSQL 16/18 feature parity (Trigram, pgcrypto) | Raw SQL extensions probe                     | **PASS** |
+| `03-domain-integrity-postgresql.spec.ts`    | Monetary and discount CHECK constraints             | Database level constraint violation tests    | **PASS** |
+| `05-concurrency-and-transactions.spec.ts`   | Multi-connection transaction isolation and OCC      | Concurrent atomic write race conditions      | **PASS** |
+
+---
+
+## 4. Web Client Quality & UI Component Accessibility
+
+Web client specifications in `apps/web` verify user experience, client-side route guards, and accessibility:
+
+- **Routing & Route Guards:** `apps/web/src/app/routes/__tests__/routing-auth-integration.spec.tsx` validates unauthenticated redirects and role-permission route gates.
+- **Financial Component Accuracy:** `apps/web/src/modules/sales/__tests__/financial-ux-accessibility.spec.tsx` validates non-color dependent status indicators, modal focus traps, and monetary formatting.
+- **Settlement Dialog Behavior:** `apps/web/src/modules/sales/__tests__/payment-lifecycle-verification.spec.tsx` verifies that `SettlePaymentDialog` blocks dismissal during submission and catches 409 concurrency conflicts.

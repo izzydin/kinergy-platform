@@ -1,126 +1,133 @@
-# MVP Demo Environment Setup & Operational Runbook
+# Kinergy Platform — MVP Demonstration Environment Guide & Presenter Manual
 
-**Milestone:** 9.5.2 — Establish a Repeatable MVP Demo Environment  
-**Audience:** Platform Engineers, Presenters, QA Leads, Product Owners  
-**Target Environment:** Local Presenter-Controlled Demonstration / Controlled Client Evaluation  
-**Status:** **ACTIVE & OPERATIONAL**
+**Document ID:** `DOC-ENV-011`  
+**Milestone:** 11.2 — Professional MVP Demo Documentation  
+**Version:** `2.0.0`  
+**Status:** **ACTIVE & OPERATIONAL**  
+**Document Ownership:** Platform Architecture Team, Product Delivery Lead, QA Lead  
+**Last Verified Date:** 2026-11-05  
+**Cross-References:** [Milestone 11.1 Readiness Audit](../demo/MILESTONE-11-1-READINESS-AUDIT.md), [ADR-0006](../adr/0006-docker-local-development-infrastructure.md), [ADR-0010](../adr/0010-backend-clean-architecture-layering.md), [ADR-0017](../adr/0017-password-infrastructure-argon2id.md), [ADR-0025](../adr/0025-role-and-permission-authorization-framework.md)
 
 ---
 
-## 1. Overview & Demonstration Architecture
+## 1. Document Purpose, Audience & Scope
 
-This runbook specifies the exact procedure to establish, start, verify, and safely tear down the **Kinergy Platform** demonstration environment.
+### 1.1 Purpose
 
-The demonstration environment executes the real NestJS API (`apps/api`) and React Vite web application (`apps/web`), communicating with an authentic relational PostgreSQL database managed via Prisma ORM. It strictly prohibits synthetic production bypasses or mock SQLite fallbacks, ensuring total parity with domain aggregates, check constraints, and integer-cent financial integrity.
+This manual is the authoritative operational guide for configuring, booting, demonstrating, and safely troubleshooting the **Kinergy Platform** MVP demonstration environment. It enables presenters, product managers, and evaluation engineers to conduct repeatable, deterministic client-facing demonstrations without code modifications or synthetic mocks.
+
+### 1.2 Target Audience
+
+- **Presenters & Solution Architects**: Conducting structured functional demonstrations of business flows.
+- **QA & Evaluation Engineers**: Verifying end-to-end integration across domain boundaries.
+- **Platform & DevOps Engineers**: Managing containerized infrastructure, migrations, and runtime safety.
+
+### 1.3 Demonstration Scope
+
+The MVP demonstration encompasses four fully realized, cross-integrated business domains:
+
+1. **Client Identity & Ingress**: Registration, normalization, unique reference assignment (`CLI-YYYY-XXXXX`), trigram search, and audit timeline tracking.
+2. **Gym & Membership Management**: Plan cataloging, agreement enrollment, date validity resolution, suspension/renewal, and attendance turnstile check-in with a 5-minute anti-passback cooldown.
+3. **Clinical Kinesiology & Therapy**: 4D conflict-protected appointment booking (therapist, room, client, turnaround buffer), treatment session lifecycle, structured SOAP clinical charting, and medico-legal immutability locking upon completion.
+4. **Consumable Inventory & Retail POS**: Multi-category catalog, unit-of-measure tracking, supplier stock receiving, append-only stock movement ledger, automated low-stock warnings, and payment-triggered stock decrementing.
+5. **Commercial Sales, Payments & Fiscal Receipts**: Order composition, immutable item price snapshotting, promotional discount checks, multi-tender payments (`CASH`, `CARD`, `QR`, `TRANSFER`), split settlements, explicit QR settlement confirmation, and sequential fiscal receipt vouchers (`REC-YYYY-XXXXX`).
+
+### 1.4 Exclusions & Non-Goals
+
+The following operational capabilities are deliberately excluded from MVP demonstration scope:
+
+- **Physical Hardware Integration**: USB barcode scanners, physical turnstile relays, and EMV chip-and-PIN payment terminals (simulated via software web UI).
+- **Electronic Data Interchange (EDI)**: Automated supplier replenishment orders (manual invoice receiving is implemented).
+- **Clinical SOAP Addenda**: In-place post-completion note mutation (prohibited for healthcare medico-legal compliance; addendum workflow is planned for Phase 12).
+- **Multi-Tenant Self-Service Onboarding**: Dynamic tenant registration (single primary demonstration tenant `tenant-kinergy-main` is seeded).
+
+---
+
+## 2. System Architecture & Topology
+
+The demonstration environment executes the real NestJS API and React 18 SPA, persisting directly to an authentic PostgreSQL relational engine. Mock in-memory backends and SQLite shims are strictly prohibited.
 
 ```
-┌────────────────────────────────┐       HTTP / REST (Port 3000)       ┌────────────────────────────────┐
-│       React / Vite SPA         │ ─────────────────────────────────► │         NestJS REST API        │
-│          (Port 5173)           │                                    │           (Port 3000)          │
-│   (Modules: Gym, Clinic, POS)  │ ◄───────────────────────────────── │    (Zod Validation, RBAC)      │
-└────────────────────────────────┘                                    └───────────────┬────────────────┘
-                                                                                      │
-                                                                       Prisma Client  │ (TCP 5432 / 5433)
-                                                                                      ▼
-                                                                      ┌────────────────────────────────┐
-                                                                      │      PostgreSQL 16 / 18        │
-                                                                      │        (kinergy_dev)           │
-                                                                      │ (12 Relational Migrations)     │
-                                                                      └────────────────────────────────┘
+┌─────────────────────────────────────────┐          HTTP / REST (Port 3000)          ┌─────────────────────────────────────────┐
+│        React 18 / Vite SPA Client       │ ────────────────────────────────────────► │             NestJS REST API             │
+│               (Port 5173)               │                                           │               (Port 3000)               │
+│    (Modules: Gym, Clinic, POS, Admin)   │ ◄──────────────────────────────────────── │         (Zod Validation, RBAC)          │
+└─────────────────────────────────────────┘                                           └────────────────────┬────────────────────┘
+                                                                                                           │
+                                                                                            Prisma Client  │ (TCP 5433 / 5432)
+                                                                                                           ▼
+                                                                                      ┌─────────────────────────────────────────┐
+                                                                                      │           PostgreSQL 16 / 18            │
+                                                                                      │             (kinergy_dev)               │
+                                                                                      │       (14 Relational Migrations)        │
+                                                                                      └─────────────────────────────────────────┘
 ```
 
----
+### Module Boundary Directory Mapping
 
-## 2. Prerequisites
-
-| Component            | Minimum Version      | Verified Host Location / Status                                 | Purpose                                       |
-| :------------------- | :------------------- | :-------------------------------------------------------------- | :-------------------------------------------- |
-| **Node.js**          | `v20.x` or `v24.x`   | `Node.js v24.12.0` (Active)                                     | JavaScript runtime                            |
-| **pnpm**             | `v10.x` or `v11.x`   | `pnpm v11.17.0` (Active)                                        | Fast monorepo package manager                 |
-| **Docker Desktop**   | `v29+` (Compose v5+) | `C:\Program Files\Docker\Docker\Docker Desktop.exe`             | Preferred option: containerized PostgreSQL 16 |
-| **Local PostgreSQL** | `v16+` or `v18+`     | `C:\Program Files\PostgreSQL\18` (Service: `postgresql-x64-18`) | Fallback option: native Windows service       |
+- **API Runtime (`apps/api`)**: NestJS HTTP controllers, routing, guards, exception filters, OpenAPI Swagger documentation.
+- **Web SPA (`apps/web`)**: React 18, React Router v6, TanStack Query, Radix UI primitives, TailwindCSS.
+- **Core Domain Kernel (`packages/core`)**: Pure domain aggregates, Value Objects, repository ports, application use cases.
+- **Client Bounded Context (`modules/client`)**: Hexagonal client profile, trigram search, timeline event projections.
+- **UI Primitives (`packages/ui`)**: Shared accessible design system components.
+- **Persistence (`prisma/`)**: Canonical schema, 14 migrations, deterministic seed orchestrator.
 
 ---
 
-## 3. Database Options Supported by Repository
+## 3. Supported Environment & Host Prerequisites
 
-The repository supports two distinct configurations for PostgreSQL. Presenters can select either option based on machine privileges.
+### 3.1 Software Baseline
 
-### Option A: Docker Compose (Recommended per ADR-0006)
-
-This is the canonical developer setup. It requires zero host OS database configuration and isolates database files in named volume `kinergy_postgres_data`.
-
-1. **Launch Docker Desktop:**
-   - Open **Docker Desktop** from the Start Menu or run `& "C:\Program Files\Docker\Docker\Docker Desktop.exe"`.
-   - Ensure the Docker whale icon in the Windows taskbar tray indicates _Docker Desktop is running_.
-2. **Start PostgreSQL Container:**
-   ```powershell
-   pnpm docker:up
-   # Equivalent to: docker-compose up -d postgres
-   ```
-3. **Container Network Mapping:**
-   - Container port `5432` is mapped to host port `${POSTGRES_PORT:-5432}` (set to `5433` in `.env` to prevent port collisions).
-   - Database name: `kinergy_dev`
-   - Superuser credentials: `kinergy_user` / `kinergy_secure_pass`
-   - Extensions initialized: `uuid-ossp`, `pgcrypto` (via `./infrastructure/docker/init-db.sql`).
-
-### Option B: Native Host Windows PostgreSQL 18 Service
-
-If Docker is unavailable, the native PostgreSQL 18 engine already installed on the Windows host can be utilized.
-
-1. **Start the Windows PostgreSQL Service:**
-   Open an elevated (Run as Administrator) PowerShell or Services manager (`services.msc`) and run:
-   ```powershell
-   net start postgresql-x64-18
-   # Or: Start-Service postgresql-x64-18
-   ```
-2. **Ensure Demo Database Exists:**
-   Using `psql` or `pgAdmin 4`:
-   ```sql
-   CREATE DATABASE kinergy_dev;
-   \c kinergy_dev
-   CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-   CREATE EXTENSION IF NOT EXISTS "pgcrypto";
-   ```
-3. **Configure Connection String in `.env`:**
-   ```bash
-   DATABASE_URL="postgresql://postgres:YOUR_POSTGRES_PASSWORD@localhost:5432/kinergy_dev?schema=public"
-   ```
+| Component            | Minimum Version  | Recommended Version       | Verification Command     | Purpose                                        |
+| :------------------- | :--------------- | :------------------------ | :----------------------- | :--------------------------------------------- |
+| **Node.js**          | `v20.12.0+`      | `v24.12.0`                | `node -v`                | JavaScript runtime environment                 |
+| **pnpm**             | `v10.0.0+`       | `v11.17.0`                | `pnpm -v`                | Monorepo package manager                       |
+| **Docker Desktop**   | `v27.0.0+`       | `v29.0+` (Compose v2.30+) | `docker compose version` | Primary option: Containerized PostgreSQL       |
+| **Local PostgreSQL** | `v16.0+`         | `v18.0+`                  | `psql --version`         | Fallback option: Native host PostgreSQL engine |
+| **Web Browser**      | Recent Evergreen | Chrome 120+, Edge 120+    | Help $\to$ About         | HTML5, CSS Grid, LocalStorage support          |
 
 ---
 
 ## 4. Environment Configuration (`.env`)
 
-The repository requires a valid `.env` file at the root. Copy from `.env.example` if not already present:
+The application validates all configuration on startup using Zod (`apps/api/src/config/env.validation.ts`). Missing or invalid configuration will immediately halt startup with descriptive diagnostics.
+
+### 4.1 Configuration Initialization
+
+Create the root `.env` file from the repository template if not already present:
 
 ```powershell
-# Copy template if .env does not exist
 Copy-Item .env.example .env
 ```
 
-### Authoritative Demo Variables Reference
+### 4.2 Authoritative Demo Configuration Template
+
+Verify that `c:\Projects\kinergy-platform\.env` contains the following active keys:
 
 ```ini
 # ==============================================================================
-# Kinergy Platform - Demo Environment Configuration
+# Kinergy Platform - Authoritative Demo Environment Configuration
 # ==============================================================================
 
-# Server Runtime
+# 1. Server Execution Environment
 NODE_ENV=development
 PORT=3000
 API_PREFIX=api/v1
 SWAGGER_ENABLED=true
 
-# Database Persistence
-# Option A (Docker on port 5433):
-DATABASE_URL=postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
+# 2. Database & Persistence Infrastructure
+# Option A: Docker Compose container on port 5433 (Default & Recommended)
+POSTGRES_USER=kinergy_user
+POSTGRES_PASSWORD=kinergy_secure_pass
+POSTGRES_DB=kinergy_dev
 POSTGRES_PORT=5433
+DATABASE_URL=postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public
 
-# Option B (Native PostgreSQL on port 5432):
-# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kinergy_dev?schema=public
+# Option B: Native Host PostgreSQL on port 5432 (Uncomment if Docker is unavailable)
 # POSTGRES_PORT=5432
+# DATABASE_URL=postgresql://postgres:postgres@localhost:5432/kinergy_dev?schema=public
 
-# Security & Tokens (Minimum 32 characters)
+# 3. Cryptographic Security Secrets (Minimum 32 characters)
 JWT_ACCESS_SECRET=kinergy-platform-dev-access-secret-min-32-chars!
 JWT_REFRESH_SECRET=kinergy-platform-dev-refresh-secret-min-32-chars!
 JWT_ACCESS_EXPIRES_IN=15m
@@ -128,309 +135,471 @@ JWT_REFRESH_EXPIRES_IN=7d
 JWT_ISSUER=kinergy-platform
 JWT_AUDIENCE=kinergy-api
 
-# Web Security & CORS
-CORS_ORIGINS=http://localhost:5173,http://localhost:4200
+# 4. Web Security & CORS Configuration (CRITICAL FOR DEMO)
+# Allows both Vite dev server (5173) and alternate ports (4200, 8080)
+CORS_ORIGINS=http://localhost:5173,http://localhost:4200,http://localhost:8080
+CORS_ALLOWED_METHODS=GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS
+CORS_ALLOWED_HEADERS=Content-Type,Authorization,X-Requested-With,Accept,Origin,X-Tenant-ID
 CORS_ALLOW_CREDENTIALS=true
 
-# Password Infrastructure Defaults
+# 5. Password Infrastructure Defaults
 PASSWORD_MIN_LENGTH=12
+ARGON2_MEMORY_COST=65536
+ARGON2_TIME_COST=3
+
+# 6. Object & Media Storage (Local Filesystem Simulation)
+STORAGE_PROVIDER=local
+STORAGE_LOCAL_ROOT=./.storage
+
+# 7. Demo Seeding Customization (Optional overrides)
+DEMO_USERS_PASSWORD=DemoPass123!
+OWNER_PASSWORD=OwnerPassword123!
 ```
+
+> [!IMPORTANT]
+> **CORS Origin Requirement**: The backend API defaults `CORS_ORIGINS` to `http://localhost:4200` if omitted. Because the Vite development server serves the frontend on `http://localhost:5173`, `CORS_ORIGINS` **must** include `http://localhost:5173` to prevent browser CORS request blocking.
 
 ---
 
-## 5. Database Migration & Schema Deployment
+## 5. Database Preparation & Migration Pipeline
 
-Before starting the API, apply the 12 existing schema migrations. This step creates all relational tables, indexes, and monetary check constraints:
+### 5.1 Starting the PostgreSQL Engine
+
+#### Option A: Docker Compose (Recommended)
+
+```powershell
+pnpm docker:up
+# Equivalent to: docker compose up -d postgres
+```
+
+Verify container health:
+
+```powershell
+docker ps --filter name=kinergy-postgres
+```
+
+#### Option B: Native Host Windows PostgreSQL Service
+
+If Docker is unavailable, start the native Windows service from an elevated terminal:
+
+```powershell
+Start-Service postgresql-x64-18
+```
+
+Ensure the target database `kinergy_dev` exists with required extensions:
+
+```sql
+CREATE DATABASE kinergy_dev;
+\c kinergy_dev
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+```
+
+### 5.2 Schema Migration Deployment
+
+Apply all **14 schema migrations** and synchronize the Prisma Client:
 
 ```powershell
 # 1. Verify connection status
 pnpm db:status
-# Equivalent to: pnpm prisma migrate status
 
-# 2. Deploy migrations
-pnpm prisma:migrate
-# Equivalent to: pnpm prisma migrate dev
+# 2. Deploy all 14 migrations deterministically
+pnpm prisma:migrate:deploy
 
-# 3. Generate fresh Prisma Client
+# 3. Generate latest Prisma Client types
 pnpm prisma:generate
-
-# 4. Seed deterministic synthetic demo data (Milestone 9.5.3)
-pnpm db:seed
-# Or: pnpm prisma:seed
 ```
 
----
+### 5.3 Deterministic Schema Migrations Inventory
 
-## 6. Deterministic Synthetic Demo Dataset & Persona Accounts
+The 14 migrations deployed to `kinergy_dev` are:
 
-Milestone 9.5.3 establishes a fully repeatable synthetic demo dataset that seeds all prerequisites for the **Gym**, **Kinesiology**, and **Inventory** presenter journeys.
-
-### A. Demo Accounts & Role Mapping
-
-All demo passwords are encrypted using PBKDF2 (`$pbkdf2-sha512$i=100000$...`) and verified by `Argon2PasswordHasher`. Credentials can be configured via environment variables or default to standard demonstration values:
-
-| Persona / Role                   | Email                             | Configurable Env Var  | Default Password    | Effective Granted Capabilities                                                            |
-| :------------------------------- | :-------------------------------- | :-------------------- | :------------------ | :---------------------------------------------------------------------------------------- |
-| **Platform Owner / Admin**       | `owner@kinergy.platform`          | `OWNER_PASSWORD`      | `OwnerPassword123!` | Full wildcard access across all modules (`*`).                                            |
-| **Front Desk Receptionist**      | `reception.demo@kinergy.platform` | `DEMO_USERS_PASSWORD` | `DemoPass123!`      | Client intake, plan enrollment, check-in, checkout, cash/QR payment settlement, receipts. |
-| **Clinical Therapist / Trainer** | `therapist.demo@kinergy.platform` | `DEMO_USERS_PASSWORD` | `DemoPass123!`      | Assigned client lookup, treatment session execution, clinical SOAP documentation notes.   |
-| **Operations / Inventory Staff** | `inventory.demo@kinergy.platform` | `DEMO_USERS_PASSWORD` | `DemoPass123!`      | Stock receiving, stock movement adjustments, retail product sales, inventory reports.     |
-
-### B. Seeded Demonstration Entities
-
-| Domain        | Entity ID / Code       | Name / Details                                  | Demonstration Purpose                                                                   |
-| :------------ | :--------------------- | :---------------------------------------------- | :-------------------------------------------------------------------------------------- |
-| **Rooms**     | `room-seed-kinesio-01` | Room 1 - Kinesiology Therapy Suite              | Clinical treatment & therapy bed appointment scheduling.                                |
-| **Rooms**     | `room-seed-consult-02` | Room 2 - Assessment & Consultation              | Private clinical consultation and physical evaluation.                                  |
-| **Rooms**     | `studio-b-facility`    | Studio B - Movement Room (Cap: 20)              | Movement group classes and facility access.                                             |
-| **Clients**   | `CLI-2026-00001`       | **Jane Doe** (`jane.doe@example.com`)           | Has completed assessment with SOAP notes and upcoming scheduled appointment.            |
-| **Clients**   | `CLI-2026-00002`       | **John Smith** (`john.smith@example.com`)       | Has active Gold Annual Membership and verified reception check-in record.               |
-| **Clients**   | `CLI-2026-00003`       | **Carlos Rivera** (`carlos.rivera@example.com`) | Unenrolled intake client ready for live front-desk membership enrollment and POS sales. |
-| **Plans**     | `MEM-GOLD-2026`        | Gold Annual Gym Membership ($600.00 / 365d)     | Annual full-facility gym membership tier.                                               |
-| **Plans**     | `MEM-SLV-MONTH`        | Silver Monthly Gym Membership ($60.00 / 30d)    | Standard recurring monthly gym membership.                                              |
-| **Plans**     | `MEM-10-VISITS`        | 10-Visit Flexibility Pass ($45.00 / 60d)        | Punch-card quota pass (10 check-in limit).                                              |
-| **Inventory** | `SKU-SNK-BAR-01`       | Organic Whey Protein Bar 60g                    | Saleable retail snack ($5.50 retail, On Hand: 42, Min: 15).                             |
-| **Inventory** | `SKU-DRK-ELEC-01`      | Electrolyte Hydration Drink 500ml               | Saleable retail beverage ($3.00 retail, On Hand: 36, Min: 12).                          |
-| **Inventory** | `SKU-CLIN-BAND-01`     | Kinesiology Tape Roll 5m                        | Low-stock consumable (On Hand: 3, Min: 10). **Triggers Low-Stock Alert**.               |
-| **Assets**    | `AST-GYM-TRDM-01`      | Commercial Treadmill Pro Series 8               | Cardio floor fixed asset tracking ($3,500 purchase, condition: EXCELLENT).              |
-
-### C. Safety Protections & Environment Lock
-
-The fixture mechanism includes `assertSafeDemoEnvironment()` which enforces:
-
-1. **Production Guard:** Throws immediately if `NODE_ENV=production`.
-2. **URL Inspector:** Rejects database connection strings containing `prod`, `production`, or `live-db`.
-3. **Secret Masking:** Error messages mask user credentials (`:***@`) to avoid leaking connection secrets.
-4. **Idempotency:** All entities use deterministic UUIDs and unique code/SKU keys with `upsert` semantics. Re-running `pnpm db:seed` multiple times updates existing entities non-destructively without creating duplicate records.
+1. `20260729000000_init_base_tables`: Users, roles, permissions, clients, tokens.
+2. `20260730000000_add_client_search_trgm_indexes`: PostgreSQL trigram extensions and indices.
+3. `20260730000001_add_client_timeline_entries`: Append-only client activity timeline.
+4. `20260815000000_add_room_and_maintenance_windows`: Schedulable rooms and blackout periods.
+5. `20260826000000_add_resources_management`: Inventory items, stock movements, fixed assets.
+6. `20260918000000_add_sales_and_payments_monetary_persistence`: Orders, items, tenders.
+7. `20260921000000_add_payments_domain_persistence`: Payment domain aggregates and methods.
+8. `20260924000000_add_receipts_and_sequence_persistence`: Fiscal vouchers and atomic sequences.
+9. `20260930000000_add_sale_source_correlation_indexes`: Fast lookup indices across cross-domain sources.
+10. `20261001000000_add_phase_7_monetary_check_constraints`: Non-negative math check constraints.
+11. `20261001010000_add_discount_structural_check_constraints`: Discount integrity bounds.
+12. `20261002000000_optimize_phase_7_financial_indexes`: High-throughput reporting indices.
+13. `20261016000000_add_phase_7_concurrency_and_single_billing_indexes`: Concurrency locks.
+14. `20261104000000_align_treatment_sessions_and_scheduling_schema`: Clinical session alignment.
 
 ---
 
-## 7. Starting the Demo Applications
+## 6. Demo Account Provisioning & Deterministic Fixtures
 
-Launch the backend API and frontend SPA in two separate terminal windows:
+Seed the database with deterministic baseline accounts, entities, and historical records:
 
-### Terminal 1 — Backend REST API
+```powershell
+pnpm db:seed
+# Equivalent to: prisma db seed (executes prisma/seed.ts)
+```
+
+### 6.1 Demonstration User Personas & Credentials
+
+| Role / Persona                     | Email Address                     | Password            | Effective Granted Capabilities                                                                                      |
+| :--------------------------------- | :-------------------------------- | :------------------ | :------------------------------------------------------------------------------------------------------------------ |
+| **Platform Owner / Administrator** | `owner@kinergy.platform`          | `OwnerPassword123!` | Complete wildcard administrative access (`*`).                                                                      |
+| **Front Desk Receptionist**        | `reception.demo@kinergy.platform` | `DemoPass123!`      | Client registration, gym plan enrollment, check-in, POS checkout, cash/QR payment settlement, receipts.             |
+| **Clinical Therapist / Trainer**   | `therapist.demo@kinergy.platform` | `DemoPass123!`      | Assigned client lookup, treatment session execution, clinical SOAP documentation charting, medico-legal completion. |
+| **Operations / Inventory Staff**   | `inventory.demo@kinergy.platform` | `DemoPass123!`      | Inventory item management, stock receiving, supplier invoice tracking, inventory movement ledger inspection.        |
+
+> [!WARNING]
+> **Credential Accuracy**: The default password for all demo staff accounts is **`DemoPass123!`** (not `Demo123!`). Using incorrect credentials will result in `401 Unauthorized`.
+
+### 6.2 Deterministic Seed Fixtures Reference
+
+| Domain           | Entity Identifier      | Display Name / Description                      | Initial Seed State                                                          |
+| :--------------- | :--------------------- | :---------------------------------------------- | :-------------------------------------------------------------------------- |
+| **Clients**      | `CLI-2026-00001`       | **Jane Doe** (`jane.doe@example.com`)           | Has completed assessment with SOAP notes; upcoming scheduled appointment.   |
+| **Clients**      | `CLI-2026-00002`       | **John Smith** (`john.smith@example.com`)       | Has active Gold Annual Membership; verified turnstile check-in record.      |
+| **Clients**      | `CLI-2026-00003`       | **Carlos Rivera** (`carlos.rivera@example.com`) | Registered intake profile ready for live enrollment, billing, and check-in. |
+| **Gym Plans**    | `MEM-GOLD-2026`        | Gold Annual Gym Membership                      | \$600.00 / 365 days; unlimited access.                                      |
+| **Gym Plans**    | `MEM-SLV-MONTH`        | Silver Monthly Gym Membership                   | \$60.00 / 30 days; recurring facility access.                               |
+| **Gym Plans**    | `MEM-10-VISITS`        | 10-Visit Flexibility Pass                       | \$45.00 / 60 days; 10 check-in quota limit.                                 |
+| **Rooms**        | `room-seed-kinesio-01` | Room 1 - Kinesiology Therapy Suite              | Therapy bed, ultrasound machine; available for booking.                     |
+| **Rooms**        | `room-seed-consult-02` | Room 2 - Assessment & Consultation              | Consultation desk, goniometers; available for booking.                      |
+| **Inventory**    | `SKU-SNK-BAR-01`       | Organic Whey Protein Bar 60g                    | In Stock: 42 units (Min: 15) \| Selling Price: \$5.50                       |
+| **Inventory**    | `SKU-DRK-ELEC-01`      | Electrolyte Hydration Drink 500ml               | In Stock: 36 units (Min: 12) \| Selling Price: \$3.00                       |
+| **Inventory**    | `SKU-CLIN-BAND-01`     | Kinesiology Tape Roll 5m                        | Low Stock: 3 units (Min: 10) \| **Triggers Low-Stock Alert**                |
+| **Fixed Assets** | `AST-GYM-TRDM-01`      | Commercial Treadmill Pro Series 8               | Condition: EXCELLENT \| Purchase Cost: \$3,500.00                           |
+
+### 6.3 Safety Protections & Environment Guards
+
+The fixture pipeline executes `assertSafeDemoEnvironment()`, which enforces:
+
+1. Immediate termination if `NODE_ENV=production`.
+2. Immediate termination if the database connection string contains `prod`, `production`, or `live-db`.
+3. Secret masking in all log output (`:***@`).
+4. Idempotent upsert semantics; re-running `pnpm db:seed` restores baseline state without creating duplicate records.
+
+---
+
+## 7. Application Startup & Health Verification
+
+Launch the backend API and frontend SPA in two separate terminal sessions:
+
+### Terminal 1: Backend REST API
 
 ```powershell
 pnpm dev:api
-# Equivalent to: pnpm nx serve api
+# Equivalent to: nx serve api
 ```
 
-- **Listening Address:** `http://localhost:3000/api/v1`
+- **REST API Endpoint:** `http://localhost:3000/api/v1`
 - **Swagger Documentation:** `http://localhost:3000/api/docs`
 
-### Terminal 2 — Frontend Web Application
+### Terminal 2: Frontend Web Application
 
 ```powershell
 pnpm dev:web
-# Equivalent to: pnpm nx serve web
+# Equivalent to: nx serve web
 ```
 
-- **Listening Address:** `http://localhost:5173`
-- Communicates directly with `http://localhost:3000/api/v1`.
+- **Web Application URL:** `http://localhost:5173`
 
----
+### 7.1 Health Probes & Runtime Verification
 
-## 7. Health & Connectivity Verification
-
-Once both servers are running, verify runtime readiness using non-destructive probes:
-
-### 1. Database Connectivity Probe
+Execute these verification checks before starting a presentation:
 
 ```powershell
+# 1. Probe Database Connectivity
 & "C:\Program Files\PostgreSQL\18\bin\pg_isready.exe" -h 127.0.0.1 -p 5433
-# Output: 127.0.0.1:5433 - accepting connections
-```
 
-### 2. API Health Check
-
-```powershell
+# 2. Probe API Health Endpoint
 curl http://localhost:3000/api/v1/health
-# Expected JSON Response:
-# {"status":"ok","timestamp":"2026-11-02T...","uptime":...}
-```
+# Expected response: {"status":"ok","timestamp":"...","uptime":...}
 
-### 3. Swagger OpenAPI Verification
+# 3. Verify Swagger OpenAPI Specification
+curl -I http://localhost:3000/api/docs
+# Expected HTTP Status: 200 OK
 
-Open `http://localhost:3000/api/docs` in your browser. Verify that the endpoints for `Gym`, `Scheduling`, `Kinesiology`, `Resources`, and `Sales` are visible.
-
-### 4. Web Application Health
-
-Open `http://localhost:5173` in your browser. The login screen should render without console errors.
-
----
-
-## 8. Safe Shutdown & Reset Procedures
-
-### Normal Shutdown
-
-- Stop the frontend: Press `Ctrl + C` in Terminal 2.
-- Stop the backend API: Press `Ctrl + C` in Terminal 1.
-- Stop the database container (Option A):
-  ```powershell
-  pnpm docker:down
-  # Preserves volume data
-  ```
-
-### Complete Disposable Reset (Rehearsal Cleanup)
-
-If rehearsal test data needs to be completely purged to return to clean state:
-
-```powershell
-# 1. Stop and remove persistent database volume
-docker-compose down -v
-
-# 2. Start fresh container
-pnpm docker:up
-
-# 3. Re-apply schema migrations
-pnpm prisma:migrate
-
-# 4. Seed baseline data (Prompt 9.5.3)
-pnpm prisma:seed
+# 4. Verify Frontend Routing
+curl -I http://localhost:5173
+# Expected HTTP Status: 200 OK
 ```
 
 ---
 
-## 9. Comprehensive Presenter Recovery Procedures (Milestone 9.5.7)
+## 8. Business Walkthrough Scripts (Presenter Runbooks)
 
-During live demonstration rehearsals or client presentations, operational issues must be resolved rapidly following deterministic, non-destructive protocols.
+### 8.1 Journey 1: Gym Membership Enrollment, Payment & Turnstile Access
+
+- **Presenter Persona**: Front Desk Receptionist (`reception.demo@kinergy.platform` / `DemoPass123!`)
+- **Target Subject**: Carlos Rivera (`CLI-2026-00003`)
+
+#### Step-by-Step Walkthrough
+
+1. **Sign In**: Navigate to `http://localhost:5173/login`. Enter receptionist credentials and submit.
+2. **Member Selection**: Navigate to `/clients`. Locate Carlos Rivera (`CLI-2026-00003`) using the search bar.
+3. **Plan Enrollment**:
+   - Click **Enroll in Plan** or navigate to `/gym/memberships/new`.
+   - Select **Silver Monthly Gym Membership** (\$60.00 / 30 days).
+   - Confirm enrollment. Highlight that the membership status immediately updates to `ACTIVE`.
+4. **Commercial POS Billing**:
+   - Navigate to `/sales/new`.
+   - Set source type to `GYM_MEMBERSHIP`, select the newly created membership, and verify that the line item snapshot locks at \$60.00.
+   - Click **Create Order**. Order transitions to `PENDING_PAYMENT`.
+5. **Cash Payment Tender**:
+   - Click **Record Payment**. Select method `CASH`, input \$60.00, and confirm.
+   - Verify that the order transitions to `PAID` with balance \$0.00.
+6. **Fiscal Receipt Generation**:
+   - Click **View Receipt**. Show the fiscal receipt voucher with sequential number (`REC-2026-00000X`).
+7. **Turnstile Check-In**:
+   - Navigate to `/gym/attendance`.
+   - Search for Carlos Rivera and click **Check In**.
+   - Show green indicator: `GRANTED — Access Permitted`.
+8. **Anti-Passback Security Demonstration**:
+   - Immediately click **Check In** again for Carlos Rivera.
+   - Show yellow/red indicator: `DENIED — Rapid Duplicate Check-In Cooldown Active` (5-minute security cooldown).
+
+> [!NOTE]
+> **Business Disclosure**: Attendance turnstiles operate on an **agreement-first** model, validating active membership status and date validity. Linking strict unpaid sales ledger balances to turnstile gate denial is configurable per business policy.
+
+---
+
+### 8.2 Journey 2: Clinical Kinesiology, 4D Scheduling & SOAP Charting
+
+- **Presenter Personas**:
+  - Receptionist (`reception.demo@kinergy.platform`) for booking & billing.
+  - Clinical Therapist Dr. Sarah Chen (`therapist.demo@kinergy.platform`) for clinical documentation.
+- **Target Subject**: Jane Doe (`CLI-2026-00001`), Room 1 (`room-seed-kinesio-01`)
+
+#### Step-by-Step Walkthrough
+
+1. **Appointment Booking (Receptionist)**:
+   - Navigate to `/scheduling/calendar`.
+   - Book a 60-minute **Kinesiology Assessment** for Jane Doe in Room 1 with therapist Dr. Sarah Chen.
+   - Highlight that timestamps are stored in UTC while rendering in the facility's local time zone.
+2. **4D Conflict Prevention Demonstration**:
+   - Attempt to book a overlapping appointment for Room 1 or Dr. Sarah Chen at the identical time slot.
+   - Verify that the scheduling engine rejects the collision with a clear conflict warning (`409 Conflict`).
+3. **Clinical Encounter Start (Switch to Therapist)**:
+   - Sign out and sign in as `therapist.demo@kinergy.platform` / `DemoPass123!`.
+   - Navigate to `/kinesiology/sessions`.
+   - Locate Jane Doe's scheduled encounter and click **Start Treatment Session**. Status transitions to `IN_PROGRESS`.
+4. **SOAP Charting**:
+   - In the clinical workspace, enter clinical notes:
+     - **Subjective**: Patient reports persistent shoulder stiffness after overhead training; pain 3/10.
+     - **Objective**: Range of motion restricted in abduction (140°); impingement test mildly positive.
+     - **Assessment**: Subacromial irritation responding favorably to manual therapy.
+     - **Plan**: Prescribed rotator cuff strengthening and scapular stabilization drills.
+   - Click **Save Draft Notes**. Point out that drafts can be incrementally updated during the encounter.
+5. **Medico-Legal Immutability Locking**:
+   - Click **Complete Session**.
+   - Note the status transition to `COMPLETED` with a locked badge.
+   - Point out that the clinical notes are now permanently read-only and cannot be tampered with.
+6. **Commercial Checkout (Switch to Receptionist)**:
+   - Switch back to `reception.demo@kinergy.platform`.
+   - Navigate to `/sales/new`, source the completed session, bill \$120.00, and complete payment.
+
+---
+
+### 8.3 Journey 3: Consumable Inventory, Receiving & Retail POS
+
+- **Presenter Personas**:
+  - Inventory Staff (`inventory.demo@kinergy.platform`) for replenishment.
+  - Cashier (`reception.demo@kinergy.platform`) for retail checkout.
+
+#### Step-by-Step Walkthrough
+
+1. **Low-Stock Cockpit (Inventory Staff)**:
+   - Sign in as `inventory.demo@kinergy.platform` / `DemoPass123!`.
+   - Navigate to `/resources/inventory/low-stock`.
+   - Highlight that **Kinesiology Tape Roll 5m** is flagged with a low-stock alert (3 rolls on hand vs. 10 minimum).
+2. **Stock Receiving (Replenishment)**:
+   - Navigate to `/resources/inventory` and select **Kinesiology Tape Roll**.
+   - Click **Receive Stock**. Add 15 rolls, enter supplier invoice `INV-2026-991`, and submit.
+   - Verify that quantity on hand updates to 18 rolls and that the low-stock alert clears immediately.
+3. **Movement Ledger Audit**:
+   - Click the **Movements** tab on the item detail page.
+   - Point out the immutable `PURCHASE` movement entry (+15 rolls) with timestamp and user audit trail.
+4. **Retail POS Checkout (Cashier)**:
+   - Switch to `reception.demo@kinergy.platform`.
+   - Navigate to `/sales/new`.
+   - Add retail items: 2 bottles of **Electrolyte Hydration Drink** (\$3.00 each = \$6.00).
+   - Click **Create Order**. Order enters `PENDING_PAYMENT`.
+5. **Payment-Triggered Stock Decrement**:
+   - Settle payment via `CASH`.
+   - Return to `/resources/inventory` and inspect the Electrolyte Drink item.
+   - Verify that stock on hand has automatically decremented from 36 to 34 bottles, and verify the corresponding `SALE` record in the movement ledger.
+
+---
+
+### 8.4 Journey 4: Commercial Sales, QR Payment Settlement & Receipts
+
+- **Presenter Persona**: Receptionist / Cashier (`reception.demo@kinergy.platform`)
+
+#### Step-by-Step Walkthrough
+
+1. **Create Commercial Sale**:
+   - Navigate to `/sales/new`. Add 1 **Organic Whey Protein Bar** (\$5.50).
+   - Create order in `PENDING_PAYMENT` status.
+2. **Initiate QR Tender**:
+   - Click **Record Payment**. Select method `QR`, enter \$5.50, and input customer reference `QR-REF-8841`.
+   - Submit payment.
+3. **Verify Pending Status (Financial Safety Rule)**:
+   - Notice that the payment is recorded with status **`PENDING`** (not `COMPLETED`).
+   - The sale remains in `PENDING_PAYMENT`.
+4. **Confirm External Funds & Settle Payment**:
+   - Click on the pending payment ID to navigate to `/payments/:id`.
+   - Click **Settle Payment**.
+   - The `SettlePaymentDialog` displays an authoritative financial breakdown.
+   - Enter bank confirmation code `BANK-TXN-90210` and click **Confirm Settlement**.
+   - The payment transitions to `COMPLETED` with an authoritative `paidAt` timestamp.
+   - The sale transitions to `PAID`.
+5. **Issue Tax Receipt**:
+   - Click **View Receipt**. Print or inspect the official fiscal voucher.
+
+---
+
+## 9. Financial & Payment Integrity Rules
+
+1. **Integer Cents Precision**: All monetary values are processed internally in integer cents to prevent floating-point rounding errors.
+2. **Price Snapshotting**: When an item is added to an order, its unit price is frozen in `SaleItem`. Future price catalog changes never affect existing orders.
+3. **Discount Bounds**: Discounts cannot exceed 100% of line item subtotal or create negative order totals.
+4. **Payment State Machine**:
+   - `CASH` tenders can be settled immediately at the register.
+   - `QR` and `TRANSFER` tenders are created in `PENDING` status and require explicit settlement confirmation via the API endpoint `POST /api/v1/payments/:id/complete`.
+5. **Receipt Immutability**: Receipts are strictly generated only for sales with settled payments and receive a gapless sequence number (`REC-YYYY-XXXXX`).
+
+---
+
+## 10. Security & Tenant Boundary Considerations
+
+1. **Password Hashing**: Passwords in the live application are hashed using Argon2id (64MB memory, 3 iterations).
+2. **JWT Token Policy**: Access tokens expire in 15 minutes; refresh tokens expire in 7 days and use cryptographic hash storage with replay detection.
+3. **Role-Based Access Control**:
+   - `Owner`: Wildcard access (`*`).
+   - `Receptionist`: Client ingress, gym plans, attendance, sales orders, payment settlement, receipts.
+   - `Trainer`: Client lookup, scheduling, treatment sessions, SOAP notes.
+   - `Kitchen Staff` / `Inventory Staff`: Inventory items, stock receiving, retail sales.
+4. **Tenant Isolation**: All database queries enforce tenant scoping (`tenantId = 'tenant-kinergy-main'`).
+
+---
+
+## 11. Presenter Troubleshooting & Incident Recovery
 
 ```
-                                      PRESENTER INCIDENT DETECTED
-                                                   │
-                   ┌───────────────────────────────┼───────────────────────────────┐
-                   ▼                               ▼                               ▼
-          [PostgreSQL Outage]              [API / Web Crash]             [State Desync / Fail]
-                   │                               │                               │
-             pnpm docker:up                 nx reset && build              pnpm db:seed (Upsert)
-                   │                               │                               │
-            Check port 5433                 Restart Service                 Verify in Cockpit
-                   │                               │                               │
-                   └───────────────────────┬───────┴───────────────────────────────┘
-                                           ▼
-                                [PROCEED WITH RUNBOOK]
+                                  INCIDENT DETECTED DURING DEMO
+                                                │
+               ┌────────────────────────────────┼────────────────────────────────┐
+               ▼                                ▼                                ▼
+      [PostgreSQL Offline]             [Port Collision / API Crash]     [Authentication Failure]
+               │                                │                                │
+      docker compose up -d postgres    Stop conflicting process          Verify .env credentials
+               │                                │                                │
+      Check port 5433 (pg_isready)     Restart: pnpm dev:api             Use: DemoPass123!
+               │                                │                                │
+               └────────────────────────┬───────┴────────────────────────────────┘
+                                        ▼
+                                 [RESUME RUNBOOK]
 ```
 
-### Scenario 1: PostgreSQL Database Unavailable
+### Incident 1: Database Unavailable (`PrismaClientInitializationError`)
 
-- **Symptom**: `PrismaClientInitializationError: Can't reach database server at 127.0.0.1:5433` or API logs connection refused.
-- **Root Cause**: Docker daemon paused, container stopped, or port conflict.
-- **Recovery Protocol**:
+- **Symptom**: API logs show `Can't reach database server at 127.0.0.1:5433`.
+- **Resolution**:
   ```powershell
-  # 1. Check container status
-  docker ps -a --filter name=kinergy-postgres
-  # 2. Restart container
   docker compose up -d postgres
-  # 3. Test TCP readiness
   & "C:\Program Files\PostgreSQL\18\bin\pg_isready.exe" -h 127.0.0.1 -p 5433
   ```
-- **Stop Condition**: If Docker reports `daemon not running`, launch Docker Desktop from Windows Start Menu and wait 30 seconds before retrying.
 
-### Scenario 2: API Startup Failure
+### Incident 2: Port Collision on Port 3000 or 5173 (`EADDRINUSE`)
 
-- **Symptom**: `pnpm dev:api` fails to bind port 3000 or exits with module error.
-- **Root Cause**: Zombie Node.js process occupying port 3000, or stale build artifact in `dist/`.
-- **Recovery Protocol**:
+- **Symptom**: `pnpm dev:api` or `pnpm dev:web` fails with address already in use.
+- **Resolution**:
   ```powershell
-  # 1. Kill zombie process on port 3000
+  # Kill process on port 3000 (API)
   Get-Process -Id (Get-NetTCPConnection -LocalPort 3000).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force
-  # 2. Clear Nx cache and restart
-  npx nx reset
-  pnpm dev:api
-  ```
 
-### Scenario 3: Web Application Startup Failure
-
-- **Symptom**: `pnpm dev:web` fails or Vite server exits immediately.
-- **Root Cause**: Vite port 5173 occupied, or corrupted cache in `node_modules/.vite`.
-- **Recovery Protocol**:
-  ```powershell
-  # 1. Kill process on port 5173
+  # Kill process on port 5173 (Web)
   Get-Process -Id (Get-NetTCPConnection -LocalPort 5173).OwningProcess -ErrorAction SilentlyContinue | Stop-Process -Force
-  # 2. Clean Vite cache and restart
-  Remove-Item -Recurse -Force apps/web/node_modules/.vite -ErrorAction SilentlyContinue
-  pnpm dev:web
   ```
 
-### Scenario 4: Authentication Failure
+### Incident 3: CORS Request Blocked in Browser
 
-- **Symptom**: `401 Unauthorized` on login; demo credentials rejected.
-- **Root Cause**: JWT secret mismatch or password hash desynchronization.
-- **Recovery Protocol**:
+- **Symptom**: Browser console logs `Access to XMLHttpRequest has been blocked by CORS policy`.
+- **Resolution**: Ensure `.env` contains `CORS_ORIGINS=http://localhost:5173,http://localhost:4200` and restart the backend API.
+
+### Incident 4: Authentication Rejected (`401 Unauthorized`)
+
+- **Symptom**: Login rejected with demo credentials.
+- **Resolution**: Re-apply the deterministic identity seed:
   ```powershell
-  # 1. Verify .env JWT variables match reference
-  Get-Content .env | Select-String "JWT_"
-  # 2. Re-apply identity seed to re-encrypt password hashes
-  pnpm prisma:seed
-  # 3. Presenter signs in with verified default credentials:
-  #    reception.demo@kinergy.platform / Demo123!
-  ```
-
-### Scenario 5: Incorrect Demo Data or Entity Missing
-
-- **Symptom**: Demo patient (Elena Rostova) or catalog item (Protein Shake) missing from dropdowns.
-- **Root Cause**: Seed data partially applied or modified during previous test session.
-- **Recovery Protocol**:
-  ```powershell
-  # Re-run idempotent seed pipeline (non-destructive upserts)
   pnpm db:seed
   ```
+  Sign in with verified credentials: `reception.demo@kinergy.platform` / `DemoPass123!`.
 
-### Scenario 6: Fixture Creation Failure
+### Incident 5: Live Rehearsal State Reset (Clean Baseline Restoration)
 
-- **Symptom**: `ts-node prisma/seed.ts` throws constraint or validation error.
-- **Root Cause**: Unapplied schema migration.
-- **Recovery Protocol**:
-  ```powershell
-  pnpm prisma:migrate
-  pnpm prisma:generate
-  pnpm db:seed
-  ```
+To restore the demo environment to its baseline state non-destructively:
 
-### Scenario 7: Incomplete or Failed Business Workflow
+```powershell
+# Re-run idempotent seed pipeline (restores base clients, plans, items)
+pnpm db:seed
+```
 
-- **Symptom**: A demo workflow was interrupted mid-stream (e.g. sale created in `PENDING_PAYMENT`, but cashier dialog closed).
-- **Recovery Protocol**:
-  - Do **not** mutate the database manually.
-  - Navigate to `/sales` and locate the draft or pending order.
-  - Complete payment or cancel the order via the UI action button.
-  - Alternatively, create a fresh sale with a distinct synthetic line item.
+If a complete database wipe is required for dedicated demo container:
 
-### Scenario 8: Demo State That Cannot Be Safely Reversed
-
-- **Symptom**: Terminal state (e.g. treatment session signed off or member expired) prevents re-demonstrating an ingress action on the same record.
-- **Recovery Protocol (Disposable Demo DB Reset Only)**:
-  ```powershell
-  # Explicit reset for dedicated local disposable database (Port 5433 ONLY)
-  docker-compose down -v
-  docker-compose up -d postgres
-  pnpm prisma:migrate
-  pnpm db:seed
-  ```
-  > [!CAUTION]
-  > Execute this command ONLY against the local demo database `kinergy_dev` on port 5433. Never run against staging or production.
-
-### Scenario 9: Application Shutdown and Restart
-
-- **Normal Shutdown Protocol**:
-  1. Frontend: Press `Ctrl + C` in Terminal 2.
-  2. Backend: Press `Ctrl + C` in Terminal 1.
-  3. Database: `docker compose stop postgres` (preserves data).
-- **Restart Protocol**:
-  1. `docker compose start postgres`
-  2. `pnpm dev:api` (Terminal 1)
-  3. `pnpm dev:web` (Terminal 2)
+```powershell
+docker compose down -v
+docker compose up -d postgres
+pnpm prisma:migrate:deploy
+pnpm db:seed
+```
 
 ---
 
-## 10. Remaining Prerequisite Register (Production vs. Demo Scope)
+## 12. Safe Shutdown Instructions
 
-| ID         | Prerequisite                    | Demo Status                    | Production Status               | Next Planned Milestone |
-| :--------- | :------------------------------ | :----------------------------- | :------------------------------ | :--------------------- |
-| **PRE-01** | **PostgreSQL Availability**     | **ACTIVE (Port 5433)**         | Cloud Staging DB Pending        | Milestone 10           |
-| **PRE-02** | **Synthetic Demo Fixtures**     | **ACTIVE (Seeded & Verified)** | Production Seed Policy Required | Milestone 10           |
-| **PRE-03** | **Production Docker Packaging** | Local Container Operational    | Multi-stage Dockerfile Deferred | Milestone 10           |
-| **PRE-04** | **Reverse Proxy & TLS**         | Localhost Direct Routing       | Nginx / Caddy Ingress Deferred  | Milestone 10           |
-| **PRE-05** | **Cloud Object Storage (S3)**   | Local Attachment Simulation    | AWS S3 / MinIO Integration      | Milestone 10           |
-| **PRE-06** | **Automated Staging CI/CD**     | Local Validation Passing       | GitHub Actions Staging Pipeline | Milestone 10           |
+### Normal Session Termination
+
+1. **Frontend Web App**: Press `Ctrl + C` in Terminal 2.
+2. **Backend API**: Press `Ctrl + C` in Terminal 1.
+3. **PostgreSQL Container**:
+   ```powershell
+   pnpm docker:down
+   # Preserves container volume data
+   ```
+
+---
+
+## 13. Pre-Flight Demonstration Readiness Checklist
+
+Verify all items before commencing a client demonstration:
+
+| Check | Item                             | Verification Method                                                        |     Status      |
+| :---: | :------------------------------- | :------------------------------------------------------------------------- | :-------------: |
+|  [ ]  | **Host Node & pnpm**             | `node -v` ($\ge 20$), `pnpm -v` ($\ge 10$)                                 |    Verified     |
+|  [ ]  | **PostgreSQL Engine Running**    | `pg_isready -h 127.0.0.1 -p 5433` reports accepting connections            | Pending Startup |
+|  [ ]  | **CORS Configuration Verified**  | `.env` includes `CORS_ORIGINS=http://localhost:5173,http://localhost:4200` |    Required     |
+|  [ ]  | **Migrations Applied**           | `pnpm prisma:migrate:status` reports all 14 migrations applied             |    Required     |
+|  [ ]  | **Baseline Seed Data Present**   | `pnpm db:seed` completed successfully                                      |    Required     |
+|  [ ]  | **API Healthy**                  | `http://localhost:3000/api/v1/health` returns `{"status":"ok"}`            |    Required     |
+|  [ ]  | **Swagger Docs Accessible**      | `http://localhost:3000/api/docs` renders OpenAPI spec                      |    Required     |
+|  [ ]  | **Web Client Accessible**        | `http://localhost:5173` renders login screen                               |    Required     |
+|  [ ]  | **Presenter Credentials Tested** | Login verified with `reception.demo@kinergy.platform` / `DemoPass123!`     |    Required     |
+
+---
+
+## 14. Known Limitations & Next Planned Milestones
+
+| Domain / Area               | Current MVP Demonstration Behavior                                           | Planned Production Enhancement                                                 | Milestone    |
+| :-------------------------- | :--------------------------------------------------------------------------- | :----------------------------------------------------------------------------- | :----------- |
+| **Turnstile Gating**        | Agreement-first: allows check-in based on active membership validity window. | Commercial payment balance gating (blocks check-in if overdue balance exists). | Milestone 12 |
+| **Clinical Records**        | Completed SOAP notes are permanently locked and read-only.                   | Formal healthcare clinical addendum authoring workflow.                        | Milestone 12 |
+| **Inventory Replenishment** | Manual item receiving with purchase invoice reference logging.               | Electronic Data Interchange (EDI) and automated vendor purchase orders.        | Milestone 13 |
+| **Hardware Devices**        | Software turnstile and POS entry via responsive web interface.               | USB barcode scanner driver and physical turnstile relay integration.           | Milestone 13 |
+| **Payment Terminals**       | Software payment simulation for Cash, Card, QR, Transfer.                    | Direct EMV smart-card terminal pre-authorization and capture integration.      | Milestone 13 |
+
+---
+
+_Document Author: Platform Architecture Team_  
+_Approved by: Product Delivery Lead, QA Lead_  
+_Last Verified: 2026-11-05 against commit ef580d1_
