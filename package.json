@@ -31,6 +31,9 @@
     "dev:web": "nx serve web",
     "docker:up": "docker-compose up -d postgres",
     "docker:down": "docker-compose down",
+    "demo:up": "docker compose -f docker-compose.demo.yml up -d",
+    "demo:down": "docker compose -f docker-compose.demo.yml down",
+    "demo:reset": "docker compose -f docker-compose.demo.yml down -v",
     "db:status": "prisma migrate status",
     "db:seed": "prisma db seed"
   },

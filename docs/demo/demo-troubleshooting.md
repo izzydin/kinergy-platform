@@ -157,6 +157,58 @@ During live presentations or stakeholder rehearsals, operational incidents must 
 
 ---
 
+### Protocol 8: Containerized Demo Stack Triage (`docker-compose.demo.yml`)
+
+- **Use Case:** When running the fully containerized demo stack (`pnpm demo:up`), diagnose container state, view logs, or rebuild images.
+- **Diagnostics & Recovery:**
+  ```powershell
+  # 1. View live logs across all 3 containers
+  docker compose -f docker-compose.demo.yml logs -f
+
+  # 2. View specific service logs (e.g. API)
+  docker compose -f docker-compose.demo.yml logs -f demo-api
+
+  # 3. Check container health status
+  docker compose -f docker-compose.demo.yml ps
+
+  # 4. Rebuild containers after code adjustments
+  docker compose -f docker-compose.demo.yml up -d --build
+
+  # 5. Clean disposable reset of container stack and volumes
+  pnpm demo:reset
+  pnpm demo:up
+  pnpm prisma:migrate:deploy
+  pnpm db:seed
+  ```
+
+---
+
+### Protocol 8: Containerized Demo Stack Triage (`docker-compose.demo.yml`)
+
+- **Use Case:** When running the fully containerized demo stack (`pnpm demo:up`), diagnose container state, view logs, or rebuild images.
+- **Diagnostics & Recovery:**
+  ```powershell
+  # 1. View live logs across all 3 containers
+  docker compose -f docker-compose.demo.yml logs -f
+
+  # 2. View specific service logs (e.g. API)
+  docker compose -f docker-compose.demo.yml logs -f demo-api
+
+  # 3. Check container health status
+  docker compose -f docker-compose.demo.yml ps
+
+  # 4. Rebuild containers after code adjustments
+  docker compose -f docker-compose.demo.yml up -d --build
+
+  # 5. Clean disposable reset of container stack and volumes
+  pnpm demo:reset
+  pnpm demo:up
+  pnpm prisma:migrate:deploy
+  pnpm db:seed
+  ```
+
+---
+
 ## 3. Browser & Session Hygiene Checklist
 
 - **Use Private / Incognito Windows**: Always open the demo in a fresh Chrome Incognito or Edge InPrivate window to avoid stale cookies, cached tokens, or third-party browser extensions interfering with UI rendering.

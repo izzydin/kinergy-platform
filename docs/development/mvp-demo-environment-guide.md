@@ -280,28 +280,47 @@ The fixture pipeline executes `assertSafeDemoEnvironment()`, which enforces:
 
 ---
 
-## 7. Application Startup & Health Verification
+## 7. Application Startup & Operating Topologies
 
-Launch the backend API and frontend SPA in two separate terminal sessions:
+The demonstration environment supports two reproducible execution topologies:
 
-### Terminal 1: Backend REST API
+### Option A: Hybrid Presenter Stack (Default & Fast Iteration)
+
+In this mode, PostgreSQL executes in Docker on port 5433, while the API and Web apps run directly on Node.js.
 
 ```powershell
+# 1. Start database container
+pnpm docker:up
+
+# 2. Terminal 1: Launch Backend REST API
 pnpm dev:api
-# Equivalent to: nx serve api
+# Listening on: http://localhost:3000/api/v1 (Swagger: http://localhost:3000/api/docs)
+
+# 3. Terminal 2: Launch Frontend Web SPA
+pnpm dev:web
+# Listening on: http://localhost:4200 (or http://localhost:5173)
 ```
 
-- **REST API Endpoint:** `http://localhost:3000/api/v1`
-- **Swagger Documentation:** `http://localhost:3000/api/docs`
+### Option B: Dedicated Containerized Demo Stack (`docker-compose.demo.yml`)
 
-### Terminal 2: Frontend Web Application
+For completely isolated presentations where zero host Node processes are desired, deploy the self-contained 3-tier container stack:
 
 ```powershell
-pnpm dev:web
-# Equivalent to: nx serve web
+# 1. Start full demo container orchestration (PostgreSQL 16, API, Web / Nginx)
+pnpm demo:up
+# Equivalent to: docker compose -f docker-compose.demo.yml up -d
+
+# 2. Verify all 3 containers are healthy
+docker compose -f docker-compose.demo.yml ps
+
+# 3. Deploy migrations & baseline seed into container
+pnpm prisma:migrate:deploy
+pnpm db:seed
 ```
 
-- **Web Application URL:** `http://localhost:5173`
+- **Web SPA & Nginx Ingress:** `http://localhost:8080` (Proxies `/api` to internal API container)
+- **API Direct & Swagger:** `http://localhost:3000/api/docs`
+- **Database Port:** `127.0.0.1:5433`
 
 ### 7.1 Health Probes & Runtime Verification
 
@@ -319,8 +338,9 @@ curl http://localhost:3000/api/v1/health
 curl -I http://localhost:3000/api/docs
 # Expected HTTP Status: 200 OK
 
-# 4. Verify Frontend Routing
-curl -I http://localhost:5173
+# 4. Verify Frontend Routing (Port 8080 for Containerized, 4200/5173 for Dev)
+curl -I http://localhost:8080/healthz   # Ingress probe (Containerized)
+curl -I http://localhost:5173           # SPA direct (Dev)
 # Expected HTTP Status: 200 OK
 ```
 
@@ -556,9 +576,11 @@ pnpm db:seed
 
 ---
 
-## 12. Safe Shutdown Instructions
+## 12. Safe Shutdown & Reset Instructions
 
 ### Normal Session Termination
+
+#### Mode A: Hybrid Dev Stack
 
 1. **Frontend Web App**: Press `Ctrl + C` in Terminal 2.
 2. **Backend API**: Press `Ctrl + C` in Terminal 1.
@@ -567,6 +589,26 @@ pnpm db:seed
    pnpm docker:down
    # Preserves container volume data
    ```
+
+#### Mode B: Dedicated Containerized Demo Stack
+
+```powershell
+pnpm demo:down
+# Equivalent to: docker compose -f docker-compose.demo.yml down
+# Safely sends SIGTERM and preserves demo volumes
+```
+
+### Clean Rehearsal Reset (Disposable Volume Wipe)
+
+When an evaluation session requires a clean slate:
+
+```powershell
+pnpm demo:reset
+# Equivalent to: docker compose -f docker-compose.demo.yml down -v
+pnpm demo:up
+pnpm prisma:migrate:deploy
+pnpm db:seed
+```
 
 ---
 
