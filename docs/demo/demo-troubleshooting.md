@@ -208,6 +208,52 @@ During live POS or inventory demonstrations, simulated negative scenarios or ope
 
 ---
 
+### Protocol 10: Nginx Upstream DNS Resolution Failure (`host not found in upstream "api"`)
+
+- **Symptom:** `kinergy-demo-web` container crashes or continuously restarts with log:
+  ```text
+  [emerg] 1#1: host not found in upstream "api" in /etc/nginx/conf.d/default.conf:68
+  nginx: [emerg] host not found in upstream "api"
+  ```
+- **Root Cause:**
+  1. The API service in `docker-compose.demo.yml` is named `demo-api`, but the unprivileged Nginx configuration routes `/api` to `http://api:3000`. Docker internal DNS does not resolve `api` unless the service is aliased.
+  2. Nginx resolves upstream hostnames statically at startup; if `demo-web` starts before `demo-api` is healthy on `kinergy-demo-network`, Nginx fails.
+- **Diagnostics:**
+  ```powershell
+  # 1. Verify container status and health
+  docker compose -f docker-compose.demo.yml ps
+
+  # 2. Check network aliases on demo network
+  docker network inspect kinergy_demo_network
+
+  # 3. Test Nginx configuration syntax inside container
+  docker exec kinergy-demo-web nginx -t
+  ```
+- **Recovery Procedure:**
+  1. Ensure `docker-compose.demo.yml` defines the `api` alias and healthcheck dependency:
+     ```yaml
+     demo-api:
+       networks:
+         kinergy-demo-network:
+           aliases:
+             - api
+     demo-web:
+       depends_on:
+         demo-api:
+           condition: service_healthy
+     ```
+  2. Re-apply the Compose orchestration:
+     ```powershell
+     pnpm demo:up
+     ```
+  3. Verify web ingress:
+     ```powershell
+     curl -i http://localhost:8080/healthz
+     curl -i http://localhost:8080/api/v1/health
+     ```
+
+---
+
 ## 3. Browser & Session Hygiene Checklist
 
 - **Use Private / Incognito Windows**: Always open the demo in a fresh Chrome Incognito or Edge InPrivate window to avoid stale cookies, cached tokens, or third-party browser extensions interfering with UI rendering.

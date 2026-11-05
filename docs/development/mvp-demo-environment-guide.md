@@ -352,6 +352,16 @@ pnpm db:seed
 - **API Direct & Swagger:** `http://localhost:3000/api/docs`
 - **Database Port:** `127.0.0.1:5433`
 
+#### Network Architecture & Service Discovery
+
+The demo environment provisions an isolated Docker bridge network (`kinergy_demo_network`) with deterministic startup dependencies:
+
+- **Service Discovery & Network Aliases:** `demo-api` declares a network alias `api` on `kinergy-demo-network`. This enables the unprivileged Nginx ingress (`demo-web`) to resolve the upstream `http://api:3000` via Docker's embedded DNS (`127.0.0.11`) without modifying environment-invariant Nginx production configurations.
+- **Startup Readiness Chain:** Containers follow strict healthcheck dependencies:
+  1. `demo-postgres`: Runs PostgreSQL 16 Alpine with `pg_isready` healthcheck (5s interval).
+  2. `demo-api`: Waits for `demo-postgres` (`condition: service_healthy`) and reports healthy via internal HTTP probe (`/api/v1/health`).
+  3. `demo-web`: Waits for `demo-api` (`condition: service_healthy`) before launching Nginx to guarantee upstream DNS and TCP availability at startup.
+
 ### 7.1 Health Probes & Runtime Verification
 
 Execute these verification checks before starting a presentation:

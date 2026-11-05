@@ -49,6 +49,18 @@ services:
       SWAGGER_ENABLED: 'false'
     ports:
       - '3000:3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://127.0.0.1:3000/api/v1/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,7 +76,8 @@ services:
     ports:
       - '8080:8080'
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks:
       - kinergy-prod-network
 
