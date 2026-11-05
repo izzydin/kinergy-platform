@@ -247,6 +247,7 @@ pnpm db:seed
 | **Platform Owner / Administrator** | `owner@kinergy.platform`          | `OwnerPassword123!` | Complete wildcard administrative access (`*`).                                                                      |
 | **Front Desk Receptionist**        | `reception.demo@kinergy.platform` | `DemoPass123!`      | Client registration, gym plan enrollment, check-in, POS checkout, cash/QR payment settlement, receipts.             |
 | **Clinical Therapist / Trainer**   | `therapist.demo@kinergy.platform` | `DemoPass123!`      | Assigned client lookup, treatment session execution, clinical SOAP documentation charting, medico-legal completion. |
+| **Gym Movement Coach / Trainer**   | `trainer.demo@kinergy.platform`   | `DemoPass123!`      | Assigned member training oversight, movement supervision, check-in access verification, attendance tracking.        |
 | **Operations / Inventory Staff**   | `inventory.demo@kinergy.platform` | `DemoPass123!`      | Inventory item management, stock receiving, supplier invoice tracking, inventory movement ledger inspection.        |
 
 > [!WARNING]
@@ -254,20 +255,28 @@ pnpm db:seed
 
 ### 6.2 Deterministic Seed Fixtures Reference
 
-| Domain           | Entity Identifier      | Display Name / Description                      | Initial Seed State                                                          |
-| :--------------- | :--------------------- | :---------------------------------------------- | :-------------------------------------------------------------------------- |
-| **Clients**      | `CLI-2026-00001`       | **Jane Doe** (`jane.doe@example.com`)           | Has completed assessment with SOAP notes; upcoming scheduled appointment.   |
-| **Clients**      | `CLI-2026-00002`       | **John Smith** (`john.smith@example.com`)       | Has active Gold Annual Membership; verified turnstile check-in record.      |
-| **Clients**      | `CLI-2026-00003`       | **Carlos Rivera** (`carlos.rivera@example.com`) | Registered intake profile ready for live enrollment, billing, and check-in. |
-| **Gym Plans**    | `MEM-GOLD-2026`        | Gold Annual Gym Membership                      | \$600.00 / 365 days; unlimited access.                                      |
-| **Gym Plans**    | `MEM-SLV-MONTH`        | Silver Monthly Gym Membership                   | \$60.00 / 30 days; recurring facility access.                               |
-| **Gym Plans**    | `MEM-10-VISITS`        | 10-Visit Flexibility Pass                       | \$45.00 / 60 days; 10 check-in quota limit.                                 |
-| **Rooms**        | `room-seed-kinesio-01` | Room 1 - Kinesiology Therapy Suite              | Therapy bed, ultrasound machine; available for booking.                     |
-| **Rooms**        | `room-seed-consult-02` | Room 2 - Assessment & Consultation              | Consultation desk, goniometers; available for booking.                      |
-| **Inventory**    | `SKU-SNK-BAR-01`       | Organic Whey Protein Bar 60g                    | In Stock: 42 units (Min: 15) \| Selling Price: \$5.50                       |
-| **Inventory**    | `SKU-DRK-ELEC-01`      | Electrolyte Hydration Drink 500ml               | In Stock: 36 units (Min: 12) \| Selling Price: \$3.00                       |
-| **Inventory**    | `SKU-CLIN-BAND-01`     | Kinesiology Tape Roll 5m                        | Low Stock: 3 units (Min: 10) \| **Triggers Low-Stock Alert**                |
-| **Fixed Assets** | `AST-GYM-TRDM-01`      | Commercial Treadmill Pro Series 8               | Condition: EXCELLENT \| Purchase Cost: \$3,500.00                           |
+For complete catalog breakdown, entity relationship graphs, and reset procedures, see [docs/demo/demo-fixtures.md](../demo/demo-fixtures.md).
+
+| Domain           | Entity Identifier      | Display Name / Description                        | Initial Seed State                                                                   |
+| :--------------- | :--------------------- | :------------------------------------------------ | :----------------------------------------------------------------------------------- |
+| **Clients**      | `CLI-2026-00001`       | **Jane Doe** (`jane.doe@example.com`)             | Has completed assessment with SOAP notes; upcoming scheduled appointment.            |
+| **Clients**      | `CLI-2026-00002`       | **John Smith** (`john.smith@example.com`)         | Has active Gold Annual Membership; verified turnstile check-in record.               |
+| **Clients**      | `CLI-2026-00003`       | **Carlos Rivera** (`carlos.rivera@example.com`)   | Registered intake profile ready for live enrollment, billing, and check-in.          |
+| **Clients**      | `CLI-2026-00004`       | **Maria Gonzalez** (`maria.gonzalez@example.com`) | Has Silver Monthly Membership **frozen** on medical hold; scheduled therapy session. |
+| **Clients**      | `CLI-2026-00005`       | **David Kim** (`david.kim@example.com`)           | Has **expired** membership; documented turnstile gate check-in denial.               |
+| **Gym Plans**    | `MEM-GOLD-2026`        | Gold Annual Gym Membership                        | \$600.00 / 365 days; unlimited facility access.                                      |
+| **Gym Plans**    | `MEM-SLV-MONTH`        | Silver Monthly Gym Membership                     | \$60.00 / 30 days; recurring facility access.                                        |
+| **Gym Plans**    | `MEM-10-VISITS`        | 10-Visit Flexibility Pass                         | \$45.00 / 60 days; 10 check-in quota limit.                                          |
+| **Rooms**        | `room-seed-kinesio-01` | Room 1 - Kinesiology Therapy Suite                | Therapy bed, ultrasound machine; available for booking.                              |
+| **Rooms**        | `room-seed-consult-02` | Room 2 - Assessment & Consultation                | Consultation desk, goniometers; available for booking.                               |
+| **Rooms**        | `studio-b-facility`    | Studio B - Movement Room                          | Mats, Pilates reformers, wall bars (Capacity: 20).                                   |
+| **Inventory**    | `SKU-SNK-BAR-01`       | Organic Whey Protein Bar 60g                      | In Stock: 42 units (Min: 15) \| Selling Price: \$5.50                                |
+| **Inventory**    | `SKU-DRK-ELEC-01`      | Electrolyte Hydration Drink 500ml                 | In Stock: 36 units (Min: 12) \| Selling Price: \$3.00                                |
+| **Inventory**    | `SKU-CLIN-BAND-01`     | Kinesiology Tape Roll 5m                          | Low Stock: 3 units (Min: 10) \| **Triggers Low-Stock Alert**                         |
+| **Inventory**    | `SKU-SUP-CREAT-01`     | Micronized Creatine Monohydrate 300g              | In Stock: 25 units (Min: 8) \| Selling Price: \$28.00                                |
+| **Inventory**    | `SKU-RET-BOTTLE-01`    | Stainless Steel Insulated Shaker Bottle 750ml     | In Stock: 18 units (Min: 5) \| Selling Price: \$22.00                                |
+| **Fixed Assets** | `AST-GYM-TRDM-01`      | Commercial Treadmill Pro Series 8                 | Condition: EXCELLENT \| Purchase Cost: \$3,500.00                                    |
+| **Fixed Assets** | `AST-CLN-PLTH-02`      | Hi-Lo Electric Clinical Treatment Plinth          | Condition: EXCELLENT \| Purchase Cost: \$2,850.00                                    |
 
 ### 6.3 Safety Protections & Environment Guards
 

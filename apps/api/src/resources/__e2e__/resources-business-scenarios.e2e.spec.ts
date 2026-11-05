@@ -105,7 +105,8 @@ describe('Phase 6: Resources Management End-to-End Business Scenarios (A through
   const trainer = createTestTrainer();
   const clientUser = createTestClient();
 
-  const testSecret = 'kynergy-dev-jwt-access-secret-minimum-32-chars-long';
+  const testSecret =
+    process.env.JWT_ACCESS_SECRET || 'kynergy-dev-jwt-access-secret-minimum-32-chars-long';
 
   beforeAll(async () => {
     userRepo = new InMemoryE2EUserRepository();

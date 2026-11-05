@@ -40,6 +40,13 @@ describe('Demo Fixtures Safety and Determinism Verification', () => {
       }
     });
 
+    it('should throw error when DATABASE_URL is missing', () => {
+      process.env.NODE_ENV = 'development';
+      expect(() => {
+        assertSafeDemoEnvironment('');
+      }).toThrow(/DATABASE_URL environment variable is missing/);
+    });
+
     it('should pass safety assertion for local demo/development database URL', () => {
       process.env.NODE_ENV = 'development';
       expect(() => {
@@ -57,6 +64,7 @@ describe('Demo Fixtures Safety and Determinism Verification', () => {
       const demoAccounts = [
         { email: 'reception.demo@kinergy.platform', role: 'Receptionist' },
         { email: 'therapist.demo@kinergy.platform', role: 'Trainer' },
+        { email: 'trainer.demo@kinergy.platform', role: 'Trainer' },
         { email: 'inventory.demo@kinergy.platform', role: 'Kitchen Staff' },
       ];
 
@@ -80,6 +88,32 @@ describe('Demo Fixtures Safety and Determinism Verification', () => {
 
       const isValid = await hasher.verify(rawPassword, hash);
       expect(isValid).toBe(true);
+    });
+
+    it('should verify synthetic client and inventory identifiers follow strict formatting invariants', () => {
+      const clientRefs = [
+        'CLI-2026-00001',
+        'CLI-2026-00002',
+        'CLI-2026-00003',
+        'CLI-2026-00004',
+        'CLI-2026-00005',
+      ];
+      const clientRefRegex = /^CLI-2026-\d{5}$/;
+      for (const ref of clientRefs) {
+        expect(clientRefRegex.test(ref)).toBe(true);
+      }
+
+      const skus = [
+        'SKU-SNK-BAR-01',
+        'SKU-DRK-ELEC-01',
+        'SKU-CLIN-BAND-01',
+        'SKU-SUP-CREAT-01',
+        'SKU-RET-BOTTLE-01',
+      ];
+      const skuRegex = /^SKU-[A-Z]+-[A-Z]+-\d{2}$/;
+      for (const sku of skus) {
+        expect(skuRegex.test(sku)).toBe(true);
+      }
     });
   });
 });

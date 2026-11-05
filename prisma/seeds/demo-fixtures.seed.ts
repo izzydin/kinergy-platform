@@ -104,6 +104,12 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       roleName: 'Trainer / Clinical Therapist',
     },
     {
+      id: 'usr-demo-trainer-002',
+      email: 'trainer.demo@kinergy.platform',
+      roleId: trainerRoleId,
+      roleName: 'Trainer / Gym Movement Coach',
+    },
+    {
       id: 'usr-demo-inventory-001',
       email: 'inventory.demo@kinergy.platform',
       roleId: kitchenRoleId,
@@ -140,6 +146,7 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
   }
 
   const therapistUserId = 'usr-demo-therapist-001';
+  const trainerUserId = 'usr-demo-trainer-002';
   const inventoryUserId = 'usr-demo-inventory-001';
   const receptionUserId = 'usr-demo-reception-001';
 
@@ -232,6 +239,32 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       status: 'ACTIVE',
       timelineSummary:
         'Client intake profile registered for front-desk gym enrollment demonstration.',
+    },
+    {
+      id: 'cli-seed-maria-04',
+      referenceNumber: 'CLI-2026-00004',
+      firstName: 'Maria',
+      lastName: 'Gonzalez',
+      email: 'maria.gonzalez@example.com',
+      phone: '+15550188123',
+      normalizedEmail: 'maria.gonzalez@example.com',
+      normalizedPhone: '+15550188123',
+      normalizedSearchName: 'maria gonzalez',
+      status: 'ACTIVE',
+      timelineSummary: 'Enrolled in Silver Monthly Membership; temporary medical freeze requested.',
+    },
+    {
+      id: 'cli-seed-david-05',
+      referenceNumber: 'CLI-2026-00005',
+      firstName: 'David',
+      lastName: 'Kim',
+      email: 'david.kim@example.com',
+      phone: '+15550133123',
+      normalizedEmail: 'david.kim@example.com',
+      normalizedPhone: '+15550133123',
+      normalizedSearchName: 'david kim',
+      status: 'ACTIVE',
+      timelineSummary: 'Past facility member with expired pass; attended turnstile check-in.',
     },
   ];
 
@@ -331,36 +364,69 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
   // ==========================================================================
   // 5. Active Memberships & Check-In Attendance Records
   // ==========================================================================
-  const membershipId = 'mem-seed-john-01';
-  await prisma.membership.upsert({
-    where: { id: membershipId },
-    update: {
-      status: MembershipStatus.ACTIVE,
-      assignedTrainerId: therapistUserId,
-    },
-    create: {
-      id: membershipId,
+  const membershipsData = [
+    {
+      id: 'mem-seed-john-01',
       clientId: 'cli-seed-john-02',
       planId: 'plan-seed-gold-annual',
       status: MembershipStatus.ACTIVE,
       startDate: new Date('2026-10-01T00:00:00.000Z'),
       endDate: new Date('2027-10-01T00:00:00.000Z'),
-      assignedTrainerId: therapistUserId,
+      assignedTrainerId: trainerUserId,
+      freezeHistory: [],
       version: 1,
     },
-  });
-  const membershipsCount = 1;
-
-  const attendanceId = 'att-seed-john-001';
-  await prisma.attendanceRecord.upsert({
-    where: { id: attendanceId },
-    update: {
-      result: AccessResult.GRANTED,
+    {
+      id: 'mem-seed-maria-02',
+      clientId: 'cli-seed-maria-04',
+      planId: 'plan-seed-silver-monthly',
+      status: MembershipStatus.FROZEN,
+      startDate: new Date('2026-09-01T00:00:00.000Z'),
+      endDate: new Date('2026-12-01T00:00:00.000Z'),
+      assignedTrainerId: trainerUserId,
+      freezeHistory: [
+        {
+          frozenAt: '2026-10-15T09:00:00.000Z',
+          reason: 'Medical recovery leave after minor knee strain',
+          resumesAt: '2026-11-15T09:00:00.000Z',
+        },
+      ],
+      version: 1,
     },
-    create: {
-      id: attendanceId,
+    {
+      id: 'mem-seed-david-03',
+      clientId: 'cli-seed-david-05',
+      planId: 'plan-seed-silver-monthly',
+      status: MembershipStatus.EXPIRED,
+      startDate: new Date('2026-08-01T00:00:00.000Z'),
+      endDate: new Date('2026-09-01T00:00:00.000Z'),
+      assignedTrainerId: null,
+      freezeHistory: [],
+      version: 1,
+    },
+  ];
+
+  let membershipsCount = 0;
+  for (const m of membershipsData) {
+    await prisma.membership.upsert({
+      where: { id: m.id },
+      update: {
+        status: m.status,
+        assignedTrainerId: m.assignedTrainerId,
+        freezeHistory: m.freezeHistory,
+        startDate: m.startDate,
+        endDate: m.endDate,
+      },
+      create: m,
+    });
+    membershipsCount++;
+  }
+
+  const attendanceData = [
+    {
+      id: 'att-seed-john-001',
       clientId: 'cli-seed-john-02',
-      membershipId,
+      membershipId: 'mem-seed-john-01',
       checkInTime: new Date('2026-11-02T08:30:00.000Z'),
       gymDay: '2026-11-02@main(UTC)',
       method: CheckInMethod.QR_CODE,
@@ -369,20 +435,51 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       receptionistId: receptionUserId,
       notes: 'Presenter demonstration check-in verified.',
     },
-  });
-  const attendanceCount = 1;
+    {
+      id: 'att-seed-david-002',
+      clientId: 'cli-seed-david-05',
+      membershipId: 'mem-seed-david-03',
+      checkInTime: new Date('2026-11-02T09:15:00.000Z'),
+      gymDay: '2026-11-02@main(UTC)',
+      method: CheckInMethod.MANUAL_RECEPTION,
+      result: AccessResult.DENIED_EXPIRED,
+      gateId: 'GATE-FRONT-DESK',
+      receptionistId: receptionUserId,
+      notes: 'Turnstile gate check-in denied: membership expired on 2026-09-01.',
+    },
+    {
+      id: 'att-seed-maria-003',
+      clientId: 'cli-seed-maria-04',
+      membershipId: 'mem-seed-maria-02',
+      checkInTime: new Date('2026-11-02T10:00:00.000Z'),
+      gymDay: '2026-11-02@main(UTC)',
+      method: CheckInMethod.QR_CODE,
+      result: AccessResult.DENIED_FROZEN,
+      gateId: 'GATE-FRONT-DESK',
+      receptionistId: receptionUserId,
+      notes: 'Access denied: membership is currently frozen on medical hold.',
+    },
+  ];
+
+  let attendanceCount = 0;
+  for (const a of attendanceData) {
+    await prisma.attendanceRecord.upsert({
+      where: { id: a.id },
+      update: {
+        result: a.result,
+        notes: a.notes,
+      },
+      create: a,
+    });
+    attendanceCount++;
+  }
 
   // ==========================================================================
   // 6. Appointments & Clinical Treatment Sessions (SOAP Notes)
   // ==========================================================================
-  const appt1Id = 'appt-seed-jane-001';
-  await prisma.appointment.upsert({
-    where: { id: appt1Id },
-    update: {
-      status: AppointmentStatus.COMPLETED,
-    },
-    create: {
-      id: appt1Id,
+  const appointmentsData = [
+    {
+      id: 'appt-seed-jane-001',
       clientId: 'cli-seed-jane-01',
       therapistId: therapistUserId,
       roomId: 'room-seed-kinesio-01',
@@ -392,16 +489,8 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       endTime: new Date('2026-10-02T11:00:00.000Z'),
       version: 1,
     },
-  });
-
-  const appt2Id = 'appt-seed-jane-upcoming';
-  await prisma.appointment.upsert({
-    where: { id: appt2Id },
-    update: {
-      status: AppointmentStatus.SCHEDULED,
-    },
-    create: {
-      id: appt2Id,
+    {
+      id: 'appt-seed-jane-upcoming',
       clientId: 'cli-seed-jane-01',
       therapistId: therapistUserId,
       roomId: 'room-seed-kinesio-01',
@@ -411,8 +500,34 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       endTime: new Date('2026-11-03T11:00:00.000Z'),
       version: 1,
     },
-  });
-  const appointmentsCount = 2;
+    {
+      id: 'appt-seed-maria-003',
+      clientId: 'cli-seed-maria-04',
+      therapistId: therapistUserId,
+      roomId: 'room-seed-consult-02',
+      type: 'KINESIOLOGY_TREATMENT',
+      status: AppointmentStatus.SCHEDULED,
+      startTime: new Date('2026-11-04T14:00:00.000Z'),
+      endTime: new Date('2026-11-04T15:00:00.000Z'),
+      version: 1,
+    },
+  ];
+
+  let appointmentsCount = 0;
+  for (const appt of appointmentsData) {
+    await prisma.appointment.upsert({
+      where: { id: appt.id },
+      update: {
+        status: appt.status,
+        startTime: appt.startTime,
+        endTime: appt.endTime,
+      },
+      create: appt,
+    });
+    appointmentsCount++;
+  }
+
+  const appt1Id = 'appt-seed-jane-001';
 
   const sessionId = 'sess-seed-rehab-001';
   await prisma.treatmentSession.upsert({
@@ -492,6 +607,34 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       quantityOnHand: new Prisma.Decimal('3.00'), // Low stock trigger: 3.00 <= 10.00
       purchaseCostAmount: new Prisma.Decimal('3.50'),
       sellingPriceAmount: new Prisma.Decimal('0.00'),
+      status: InventoryItemStatus.ACTIVE,
+      tenantId,
+    },
+    {
+      id: 'inv-seed-sup-creatine',
+      sku: 'SKU-SUP-CREAT-01',
+      name: 'Micronized Creatine Monohydrate 300g',
+      description: 'Pure unflavored micronized creatine monohydrate powder',
+      category: InventoryCategory.SUPPLEMENTS,
+      unit: UnitOfMeasure.UNITS,
+      minimumStock: new Prisma.Decimal('8.00'),
+      quantityOnHand: new Prisma.Decimal('25.00'),
+      purchaseCostAmount: new Prisma.Decimal('14.00'),
+      sellingPriceAmount: new Prisma.Decimal('28.00'),
+      status: InventoryItemStatus.ACTIVE,
+      tenantId,
+    },
+    {
+      id: 'inv-seed-ret-bottle',
+      sku: 'SKU-RET-BOTTLE-01',
+      name: 'Stainless Steel Insulated Shaker Bottle 750ml',
+      description: 'Double-walled vacuum insulated protein shaker with whisk ball',
+      category: InventoryCategory.RETAIL_PRODUCTS,
+      unit: UnitOfMeasure.BOTTLES,
+      minimumStock: new Prisma.Decimal('5.00'),
+      quantityOnHand: new Prisma.Decimal('18.00'),
+      purchaseCostAmount: new Prisma.Decimal('9.50'),
+      sellingPriceAmount: new Prisma.Decimal('22.00'),
       status: InventoryItemStatus.ACTIVE,
       tenantId,
     },
@@ -578,6 +721,46 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       reason: 'Clinical treatment consumable usage (low stock trigger)',
       recordedByUserId: inventoryUserId,
     },
+    {
+      id: 'sm-seed-sup-01',
+      inventoryItemId: 'inv-seed-sup-creatine',
+      movementType: StockMovementType.PURCHASE,
+      quantityDelta: new Prisma.Decimal('30.00'),
+      balanceAfter: new Prisma.Decimal('30.00'),
+      unitCostAmount: new Prisma.Decimal('14.00'),
+      reason: 'Initial supplement inventory receipt',
+      recordedByUserId: inventoryUserId,
+    },
+    {
+      id: 'sm-seed-sup-02',
+      inventoryItemId: 'inv-seed-sup-creatine',
+      movementType: StockMovementType.SALE,
+      quantityDelta: new Prisma.Decimal('-5.00'),
+      balanceAfter: new Prisma.Decimal('25.00'),
+      unitCostAmount: new Prisma.Decimal('14.00'),
+      reason: 'Client supplement purchases at front desk',
+      recordedByUserId: inventoryUserId,
+    },
+    {
+      id: 'sm-seed-ret-01',
+      inventoryItemId: 'inv-seed-ret-bottle',
+      movementType: StockMovementType.PURCHASE,
+      quantityDelta: new Prisma.Decimal('20.00'),
+      balanceAfter: new Prisma.Decimal('20.00'),
+      unitCostAmount: new Prisma.Decimal('9.50'),
+      reason: 'Retail merchandise shipment receipt',
+      recordedByUserId: inventoryUserId,
+    },
+    {
+      id: 'sm-seed-ret-02',
+      inventoryItemId: 'inv-seed-ret-bottle',
+      movementType: StockMovementType.SALE,
+      quantityDelta: new Prisma.Decimal('-2.00'),
+      balanceAfter: new Prisma.Decimal('18.00'),
+      unitCostAmount: new Prisma.Decimal('9.50'),
+      reason: 'Member merchandise sales',
+      recordedByUserId: inventoryUserId,
+    },
   ];
 
   let stockMovementsCount = 0;
@@ -597,17 +780,9 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
   // ==========================================================================
   // 8. Fixed Assets
   // ==========================================================================
-  const assetId = 'asset-seed-treadmill-01';
-  await prisma.fixedAsset.upsert({
-    where: { id: assetId },
-    update: {
-      name: 'Commercial Treadmill Pro Series 8',
-      condition: AssetCondition.EXCELLENT,
-      status: AssetStatus.ACTIVE,
-      location: { facility: 'Main Facility', room: 'Cardio Zone' },
-    },
-    create: {
-      id: assetId,
+  const fixedAssetsData = [
+    {
+      id: 'asset-seed-treadmill-01',
       assetTag: 'AST-GYM-TRDM-01',
       name: 'Commercial Treadmill Pro Series 8',
       description: 'Cardio area motorized commercial treadmill',
@@ -622,8 +797,40 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       location: { facility: 'Main Facility', room: 'Cardio Zone' },
       tenantId,
     },
-  });
-  const fixedAssetsCount = 1;
+    {
+      id: 'asset-seed-plinth-02',
+      assetTag: 'AST-CLN-PLTH-02',
+      name: 'Hi-Lo Electric Clinical Treatment Plinth',
+      description:
+        '3-section motorized examination and treatment table with adjustable head section',
+      category: AssetCategory.THERAPY_EQUIPMENT,
+      purchaseDate: new Date('2026-02-10T00:00:00.000Z'),
+      purchaseValueAmount: new Prisma.Decimal('2850.00'),
+      purchaseValueCurrency: 'USD',
+      currentEstimatedValueAmount: new Prisma.Decimal('2600.00'),
+      currentEstimatedValueCurrency: 'USD',
+      condition: AssetCondition.EXCELLENT,
+      status: AssetStatus.ACTIVE,
+      location: { facility: 'Main Facility', room: 'Room 1 - Kinesiology Therapy Suite' },
+      tenantId,
+    },
+  ];
+
+  let fixedAssetsCount = 0;
+  for (const asset of fixedAssetsData) {
+    await prisma.fixedAsset.upsert({
+      where: { id: asset.id },
+      update: {
+        name: asset.name,
+        condition: asset.condition,
+        status: asset.status,
+        location: asset.location,
+        currentEstimatedValueAmount: asset.currentEstimatedValueAmount,
+      },
+      create: asset,
+    });
+    fixedAssetsCount++;
+  }
 
   console.log('    ✅ Demo Fixtures Seeded Successfully:');
   console.log(`       - Staff Accounts:    ${usersCount}`);

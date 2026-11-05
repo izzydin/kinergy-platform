@@ -108,7 +108,8 @@ export async function createResourcesE2ETestEnvironment(): Promise<ResourcesE2ET
 
   await seedAuthPersonas(userRepo, [owner, receptionist, trainer, clientUser]);
 
-  const testSecret = 'kynergy-dev-jwt-access-secret-minimum-32-chars-long';
+  const testSecret =
+    process.env.JWT_ACCESS_SECRET || 'kynergy-dev-jwt-access-secret-minimum-32-chars-long';
 
   const configServiceMock = {
     get: jest.fn((key: string) => {
