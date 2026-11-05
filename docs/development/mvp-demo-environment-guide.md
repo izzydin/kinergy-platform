@@ -421,6 +421,9 @@ curl -I http://localhost:5173           # SPA direct (Dev)
 
 ### 8.2 Journey 2: Clinical Kinesiology, 4D Scheduling & SOAP Charting
 
+> [!NOTE]
+> **Formal Acceptance**: Fully verified in [Milestone 11.6 Kinesiology MVP Business Acceptance Report](../demo/MILESTONE-11-6-KINESIOLOGY-ACCEPTANCE.md) (**100% PASS** across 42 automated E2E and UI scenarios).
+
 - **Presenter Personas**:
   - Receptionist (`reception.demo@kinergy.platform`) for booking & billing.
   - Clinical Therapist Dr. Sarah Chen (`therapist.demo@kinergy.platform`) for clinical documentation.

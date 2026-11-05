@@ -61,15 +61,23 @@ Every demonstration journey is backed by automated end-to-end acceptance test su
   - `packages/core/src/gym/application/__tests__/gym-application-orchestration-audit.spec.ts`
   - `packages/core/src/gym/domain/__tests__/gym-domain-audit-completion.spec.ts`
 
-### 2.2 Clinical Kinesiology & 4D Scheduling (`apps/api`, `packages/core`)
+### 2.2 Clinical Kinesiology & 4D Scheduling (`apps/api`, `apps/web`, `packages/core`)
 
-- **Primary Suite:** `apps/api/src/kinesiology/__tests__/kinesiology-business-journey-acceptance.e2e.spec.ts` (19/19 passed)
+- **Acceptance Report:** [Milestone 11.6 Kinesiology MVP Business Acceptance Report](MILESTONE-11-6-KINESIOLOGY-ACCEPTANCE.md) (**PASS - 42/42 tests passed**)
+- **Primary Backend Suite:** `apps/api/src/kinesiology/__tests__/kinesiology-business-journey-acceptance.e2e.spec.ts` (19/19 passed)
+- **Primary Frontend Suites:**
+  - `apps/web/src/modules/kinesiology/__tests__/treatment-session-workspace-page.spec.tsx` (4/4 passed)
+  - `apps/web/src/modules/kinesiology/__tests__/client-treatment-history.spec.tsx` (13/13 passed)
+  - `apps/web/src/modules/scheduling/components/__tests__/appointment-booking-wizard.spec.tsx` (3/3 passed)
+  - `apps/web/src/modules/kinesiology/__tests__/kinesiology-fullstack-integration.spec.tsx` (3/3 passed)
 - **Key Invariants Verified:**
   - 4D collision detection prevents overlapping therapist, room, client, and buffer bookings (HTTP 409).
   - Treatment session transitions from `SCHEDULED` to `IN_PROGRESS` upon encounter start.
   - Draft SOAP notes persist Subjective, Objective, Assessment, and Plan fields.
   - Medico-legal locking: Transition to `COMPLETED` locks SOAP notes; subsequent edits are rejected (HTTP 422).
-  - Cross-domain billing creates payable sale order upon session sign-off.
+  - Cross-domain billing creates payable sale order upon session sign-off ($120.00 price snapshot).
+  - Multi-tender payment settlement (Cash/QR) and monotonic sequential receipt issuance (`REC-YYYY-XXXXXX`).
+  - Single-billing concurrency guard prevents duplicate charges for the same treatment session (HTTP 409).
 - **Supporting Specifications:**
   - `packages/core/src/kinesiology/application/handlers/phase4-business-process-master.integration.spec.ts`
   - `packages/core/src/scheduling/domain/services/conflict-detection.integration.spec.ts`
