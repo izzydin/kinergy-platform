@@ -278,6 +278,27 @@ For complete catalog breakdown, entity relationship graphs, and reset procedures
 | **Fixed Assets** | `AST-GYM-TRDM-01`      | Commercial Treadmill Pro Series 8                 | Condition: EXCELLENT \| Purchase Cost: \$3,500.00                                    |
 | **Fixed Assets** | `AST-CLN-PLTH-02`      | Hi-Lo Electric Clinical Treatment Plinth          | Condition: EXCELLENT \| Purchase Cost: \$2,850.00                                    |
 
+| Domain           | Entity Identifier      | Display Name / Description                        | Initial Seed State                                                                   |
+| :--------------- | :--------------------- | :------------------------------------------------ | :----------------------------------------------------------------------------------- |
+| **Clients**      | `CLI-2026-00001`       | **Jane Doe** (`jane.doe@example.com`)             | Has completed assessment with SOAP notes; upcoming scheduled appointment.            |
+| **Clients**      | `CLI-2026-00002`       | **John Smith** (`john.smith@example.com`)         | Has active Gold Annual Membership; verified turnstile check-in record.               |
+| **Clients**      | `CLI-2026-00003`       | **Carlos Rivera** (`carlos.rivera@example.com`)   | Registered intake profile ready for live enrollment, billing, and check-in.          |
+| **Clients**      | `CLI-2026-00004`       | **Maria Gonzalez** (`maria.gonzalez@example.com`) | Has Silver Monthly Membership **frozen** on medical hold; scheduled therapy session. |
+| **Clients**      | `CLI-2026-00005`       | **David Kim** (`david.kim@example.com`)           | Has **expired** membership; documented turnstile gate check-in denial.               |
+| **Gym Plans**    | `MEM-GOLD-2026`        | Gold Annual Gym Membership                        | \$600.00 / 365 days; unlimited facility access.                                      |
+| **Gym Plans**    | `MEM-SLV-MONTH`        | Silver Monthly Gym Membership                     | \$60.00 / 30 days; recurring facility access.                                        |
+| **Gym Plans**    | `MEM-10-VISITS`        | 10-Visit Flexibility Pass                         | \$45.00 / 60 days; 10 check-in quota limit.                                          |
+| **Rooms**        | `room-seed-kinesio-01` | Room 1 - Kinesiology Therapy Suite                | Therapy bed, ultrasound machine; available for booking.                              |
+| **Rooms**        | `room-seed-consult-02` | Room 2 - Assessment & Consultation                | Consultation desk, goniometers; available for booking.                               |
+| **Rooms**        | `studio-b-facility`    | Studio B - Movement Room                          | Mats, Pilates reformers, wall bars (Capacity: 20).                                   |
+| **Inventory**    | `SKU-SNK-BAR-01`       | Organic Whey Protein Bar 60g                      | In Stock: 42 units (Min: 15) \| Selling Price: \$5.50                                |
+| **Inventory**    | `SKU-DRK-ELEC-01`      | Electrolyte Hydration Drink 500ml                 | In Stock: 36 units (Min: 12) \| Selling Price: \$3.00                                |
+| **Inventory**    | `SKU-CLIN-BAND-01`     | Kinesiology Tape Roll 5m                          | Low Stock: 3 units (Min: 10) \| **Triggers Low-Stock Alert**                         |
+| **Inventory**    | `SKU-SUP-CREAT-01`     | Micronized Creatine Monohydrate 300g              | In Stock: 25 units (Min: 8) \| Selling Price: \$28.00                                |
+| **Inventory**    | `SKU-RET-BOTTLE-01`    | Stainless Steel Insulated Shaker Bottle 750ml     | In Stock: 18 units (Min: 5) \| Selling Price: \$22.00                                |
+| **Fixed Assets** | `AST-GYM-TRDM-01`      | Commercial Treadmill Pro Series 8                 | Condition: EXCELLENT \| Purchase Cost: \$3,500.00                                    |
+| **Fixed Assets** | `AST-CLN-PLTH-02`      | Hi-Lo Electric Clinical Treatment Plinth          | Condition: EXCELLENT \| Purchase Cost: \$2,850.00                                    |
+
 ### 6.3 Safety Protections & Environment Guards
 
 The fixture pipeline executes `assertSafeDemoEnvironment()`, which enforces:
@@ -359,13 +380,16 @@ curl -I http://localhost:5173           # SPA direct (Dev)
 
 ### 8.1 Journey 1: Gym Membership Enrollment, Payment & Turnstile Access
 
+> [!NOTE]
+> **Formal Acceptance**: Fully verified in [Milestone 11.5 Gym MVP Business Acceptance Report](../demo/MILESTONE-11-5-GYM-ACCEPTANCE.md) (**100% PASS** across 87 automated and UI scenarios).
+
 - **Presenter Persona**: Front Desk Receptionist (`reception.demo@kinergy.platform` / `DemoPass123!`)
 - **Target Subject**: Carlos Rivera (`CLI-2026-00003`)
 
 #### Step-by-Step Walkthrough
 
 1. **Sign In**: Navigate to `http://localhost:5173/login`. Enter receptionist credentials and submit.
-2. **Member Selection**: Navigate to `/clients`. Locate Carlos Rivera (`CLI-2026-00003`) using the search bar.
+2. **Member Selection**: Navigate to `/clients`. Locate Carlos Rivera (`CLI-2026-00003`) using the search bar (evaluated via trigram index in < 25ms).
 3. **Plan Enrollment**:
    - Click **Enroll in Plan** or navigate to `/gym/memberships/new`.
    - Select **Silver Monthly Gym Membership** (\$60.00 / 30 days).
@@ -386,6 +410,9 @@ curl -I http://localhost:5173           # SPA direct (Dev)
 8. **Anti-Passback Security Demonstration**:
    - Immediately click **Check In** again for Carlos Rivera.
    - Show yellow/red indicator: `DENIED — Rapid Duplicate Check-In Cooldown Active` (5-minute security cooldown).
+9. **Negative Ingress Security Demonstrations**:
+   - Search for **David Kim** (`CLI-2026-00005`) $\to$ Click **Check In** $\to$ Red indicator: `DENIED — Membership Expired on 2026-09-01`.
+   - Search for **Maria Gonzalez** (`CLI-2026-00004`) $\to$ Click **Check In** $\to$ Blue/Yellow indicator: `DENIED — Membership Frozen (Medical Hold)`.
 
 > [!NOTE]
 > **Business Disclosure**: Attendance turnstiles operate on an **agreement-first** model, validating active membership status and date validity. Linking strict unpaid sales ledger balances to turnstile gate denial is configurable per business policy.

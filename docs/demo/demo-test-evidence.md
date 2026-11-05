@@ -37,16 +37,26 @@ The **Kinergy Platform** enforces an institutional quality gate standard ensurin
 
 Every demonstration journey is backed by automated end-to-end acceptance test suites:
 
-### 2.1 Gym & Membership Acceptance (`apps/api`)
+### 2.1 Gym & Membership Acceptance (`apps/api`, `apps/web`)
 
-- **Primary Suite:** `apps/api/src/gym/__tests__/gym-business-journey-acceptance.e2e.spec.ts` (22/22 passed)
+- **Acceptance Report:** [Milestone 11.5 Gym MVP Business Acceptance Report](MILESTONE-11-5-GYM-ACCEPTANCE.md) (**PASS - 100% Acceptance**)
+- **Backend Acceptance Suites:**
+  - `apps/api/src/gym/__tests__/gym-business-journey-acceptance.e2e.spec.ts` (22/22 passed)
+  - `apps/api/src/platform/persistence/__tests__/staging-acceptance/04-business-journeys-acceptance.spec.ts` (PostgreSQL 16 Staging Acceptance)
+- **Frontend UI & Hardening Suites:**
+  - `apps/web/src/modules/gym/__tests__/gym-critical-business-workflows.e2e.spec.tsx` (9/9 passed)
+  - `apps/web/src/modules/gym/__tests__/gym-cross-feature-lifecycle-integrity.spec.tsx` (10/10 passed)
+  - `apps/web/src/modules/gym/__tests__/milestone-6-gym-hardening-and-concurrency.spec.tsx` (14/14 passed)
+  - `apps/web/src/modules/gym/memberships/__tests__/membership-enrollment-and-lifecycle.spec.tsx` (15/15 passed)
+  - `apps/web/src/modules/gym/plans/__tests__/plan-catalog-and-management.spec.tsx` (14/14 passed)
 - **Key Invariants Verified:**
-  - Client registration assigns deterministic `ClientReferenceNumber` (`CLI-YYYY-XXXXX`).
-  - Active gym plan enrollment immediately updates membership to `ACTIVE`.
-  - Cash payment settles commercial gym membership order to `PAID`.
-  - Sequential tax receipt generated (`REC-YYYY-XXXXX`).
-  - Turnstile check-in grants entry for active membership.
-  - Turnstile check-in rejects rapid successive check-in within the 5-minute cooldown window.
+  - Client registration assigns deterministic `ClientReferenceNumber` (`CLI-YYYY-XXXXX`); duplicate emails/phones return 409 Conflict.
+  - Active gym plan enrollment immediately updates membership to `ACTIVE`; overlaps are strictly rejected with 400 Bad Request.
+  - Cash and QR payments settle commercial gym membership orders to `PAID` with integer-cent monetary precision.
+  - Sequential tax receipt generated (`REC-YYYY-XXXXXX`) using atomic sequence counters.
+  - Turnstile check-in grants entry for active membership (`result: GRANTED`).
+  - Turnstile check-in rejects rapid successive check-in within the 5-minute cooldown window (`result: DENIED_DUPLICATE_CHECKIN`).
+  - Turnstile check-in denies access for expired members (`result: DENIED_EXPIRED`) and frozen members (`result: DENIED_FROZEN`).
 - **Supporting Specifications:**
   - `packages/core/src/gym/application/__tests__/gym-application-orchestration-audit.spec.ts`
   - `packages/core/src/gym/domain/__tests__/gym-domain-audit-completion.spec.ts`
