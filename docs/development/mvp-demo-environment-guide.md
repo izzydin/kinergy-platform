@@ -461,6 +461,9 @@ curl -I http://localhost:5173           # SPA direct (Dev)
 
 ### 8.3 Journey 3: Consumable Inventory, Receiving & Retail POS
 
+> [!NOTE]
+> **Formal Acceptance**: Fully verified in [Milestone 11.7 Inventory & Financial MVP Acceptance Report](../demo/MILESTONE-11-7-INVENTORY-FINANCIAL-ACCEPTANCE.md) (**100% PASS** across 36 inventory automated and UI scenarios).
+
 - **Presenter Personas**:
   - Inventory Staff (`inventory.demo@kinergy.platform`) for replenishment.
   - Cashier (`reception.demo@kinergy.platform`) for retail checkout.
@@ -491,6 +494,9 @@ curl -I http://localhost:5173           # SPA direct (Dev)
 ---
 
 ### 8.4 Journey 4: Commercial Sales, QR Payment Settlement & Receipts
+
+> [!NOTE]
+> **Formal Acceptance**: Fully verified in [Milestone 11.7 Inventory & Financial MVP Acceptance Report](../demo/MILESTONE-11-7-INVENTORY-FINANCIAL-ACCEPTANCE.md) (**100% PASS** across 70 sales, payment, and receipting scenarios).
 
 - **Presenter Persona**: Receptionist / Cashier (`reception.demo@kinergy.platform`)
 

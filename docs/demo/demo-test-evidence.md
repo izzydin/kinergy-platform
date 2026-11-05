@@ -82,31 +82,48 @@ Every demonstration journey is backed by automated end-to-end acceptance test su
   - `packages/core/src/kinesiology/application/handlers/phase4-business-process-master.integration.spec.ts`
   - `packages/core/src/scheduling/domain/services/conflict-detection.integration.spec.ts`
 
-### 2.3 Consumable Inventory & Retail POS (`apps/api`, `packages/core`)
+### 2.3 Consumable Inventory & Retail POS (`apps/api`, `apps/web`, `packages/core`)
 
-- **Primary Suite:** `apps/api/src/resources/__tests__/inventory-business-journey-acceptance.e2e.spec.ts` (10/10 passed)
+- **Acceptance Report:** [Milestone 11.7 Inventory & Financial MVP Acceptance Report](MILESTONE-11-7-INVENTORY-FINANCIAL-ACCEPTANCE.md) (**PASS - 36 tests passed**)
+- **Primary Backend Suites:**
+  - `apps/api/src/resources/__tests__/inventory-business-journey-acceptance.e2e.spec.ts` (10/10 passed)
+  - `apps/api/src/sales/__tests__/sales-milestone-7-23-scenario-2.e2e.spec.ts` (8/8 passed)
+- **Primary Frontend Suites:**
+  - `apps/web/src/modules/resources/inventory/__tests__/stock-mutation-dialogs.spec.tsx` (19/19 passed)
+  - `apps/web/src/modules/resources/inventory/__tests__/low-stock-page.spec.tsx` (7/7 passed)
 - **Key Invariants Verified:**
   - Low-stock trigger surfaces items where `quantityOnHand <= minimumStock`.
   - Stock receiving logs immutable `PURCHASE` movement and clears low-stock alert.
   - Retail order creation does not decrement inventory while in `PENDING_PAYMENT`.
-  - Settlement of payment automatically decrements stock and appends immutable `SALE` movement.
+  - Settlement of payment automatically decrements stock via `InventoryStockDecrementPort` and appends immutable `SALE` movement.
+  - Insufficient-stock protection prevents negative overdrafts (HTTP 422).
   - Optimistic Concurrency Control (`version` column) prevents concurrent inventory overwrites.
 - **Supporting Specifications:**
   - `packages/core/src/resources/application/__tests__/food-drink-sales-integration.spec.ts`
   - `packages/core/src/resources/application/__tests__/inventory-application-persistence-integration.spec.ts`
 
-### 2.4 Commercial Sales & Financial Integrity (`apps/api`, `packages/core`)
+### 2.4 Commercial Sales & Financial Integrity (`apps/api`, `apps/web`, `packages/core`)
 
-- **Primary Suites:**
-  - `apps/api/src/sales/__tests__/payments-http-api.integration.spec.ts`
-  - `apps/api/src/sales/__tests__/receipts-http-api.integration.spec.ts`
-  - `apps/api/src/sales/__tests__/sales-http-api.integration.spec.ts`
+- **Acceptance Report:** [Milestone 11.7 Inventory & Financial MVP Acceptance Report](MILESTONE-11-7-INVENTORY-FINANCIAL-ACCEPTANCE.md) (**PASS - 70 tests passed**)
+- **Primary Backend Suites:**
+  - `apps/api/src/sales/__tests__/sales-milestone-7-23-scenario-3.e2e.spec.ts` (10/10 passed)
+  - `apps/api/src/sales/__tests__/sales-milestone-7-23-scenario-4.e2e.spec.ts` (8/8 passed)
+  - `apps/api/src/sales/__tests__/sales-milestone-7-23-scenario-5.e2e.spec.ts` (8/8 passed)
+  - `apps/api/src/sales/__tests__/sales-milestone-7-23-scenario-6.e2e.spec.ts` (9/9 passed)
+- **Primary Frontend Suites:**
+  - `apps/web/src/modules/sales/__tests__/payment-lifecycle-verification.spec.tsx` (17/17 passed)
+  - `apps/web/src/modules/sales/__tests__/receipt-view-and-output-verification.spec.tsx` (13/13 passed)
+  - `apps/web/src/modules/sales/__tests__/sales-workflow-e2e-integration.spec.tsx` (7/7 passed)
 - **Key Invariants Verified:**
   - Integer cent calculations prevent floating-point rounding errors (`Money` Value Object).
   - Price snapshots in `SaleItem` insulate orders from subsequent catalog price updates.
-  - Discounts cannot exceed line item total or create negative order amounts.
-  - QR tenders instantiate in `PENDING` status; explicit settlement transitions payment to `COMPLETED`.
-  - Receipts cannot be issued for unpaid or unsettled orders.
+  - Discounts cannot exceed line item total or create negative order amounts (Half-Up rounding at $0.005).
+  - QR tenders instantiate in `PENDING` status; explicit settlement transitions payment to `COMPLETED` via `SettlePaymentDialog`.
+  - Overpayment and fractional 1-cent overdraft protection strictly enforced (HTTP 422).
+  - Sequential fiscal receipt generation (`REC-YYYY-XXXXXX`) using atomic sequence counters.
+  - Receipts cannot be issued for unpaid, unsettled, or cancelled orders.
+  - Audited duplicate reprint watermark when reprint count > 0.
+  - Sale cancellation cascades to pending payments while preserving completed payment audit history.
 - **Supporting Specifications:**
   - `packages/core/src/sales/infrastructure/persistence/prisma/__tests__/financial-concurrency.integration.spec.ts`
   - `packages/core/src/sales/infrastructure/persistence/prisma/__tests__/complete-payment-atomic-concurrency.integration.spec.ts`

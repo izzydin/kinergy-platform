@@ -140,7 +140,11 @@ This document provides complete, deterministic execution scripts for the four pr
 
 ### 5.4 Verification Evidence
 
-- **Automated Integration Spec**: `apps/api/src/resources/__tests__/inventory-business-journey-acceptance.e2e.spec.ts` (10 tests passed).
+- **Acceptance Report**: [Milestone 11.7 Inventory & Financial MVP Acceptance Report](MILESTONE-11-7-INVENTORY-FINANCIAL-ACCEPTANCE.md) (**PASS**).
+- **Automated Integration Spec**: `apps/api/src/resources/__tests__/inventory-business-journey-acceptance.e2e.spec.ts` (10/10 tests passed).
+- **Consumable Retail Integration Spec**: `apps/api/src/sales/__tests__/sales-milestone-7-23-scenario-2.e2e.spec.ts` (8/8 tests passed).
+- **Inventory Mutation Dialogs Spec**: `apps/web/src/modules/resources/inventory/__tests__/stock-mutation-dialogs.spec.tsx` (19/19 tests passed).
+- **Low-Stock Cockpit Spec**: `apps/web/src/modules/resources/inventory/__tests__/low-stock-page.spec.tsx` (7/7 tests passed).
 - **Cross-Domain Inventory Port Spec**: `packages/core/src/resources/application/__tests__/food-drink-sales-integration.spec.ts`.
 
 ---
@@ -166,5 +170,11 @@ This document provides complete, deterministic execution scripts for the four pr
 
 ### 6.3 Verification Evidence
 
-- **Automated Integration Spec**: `apps/api/src/sales/__tests__/payments-http-api.integration.spec.ts`.
+- **Acceptance Report**: [Milestone 11.7 Inventory & Financial MVP Acceptance Report](MILESTONE-11-7-INVENTORY-FINANCIAL-ACCEPTANCE.md) (**PASS**).
+- **Payments Lifecycle UI Spec**: `apps/web/src/modules/sales/__tests__/payment-lifecycle-verification.spec.tsx` (17/17 tests passed).
+- **Receipt View & Output Hardening Spec**: `apps/web/src/modules/sales/__tests__/receipt-view-and-output-verification.spec.tsx` (13/13 tests passed).
+- **Discounts & Monetary Math Spec**: `apps/api/src/sales/__tests__/sales-milestone-7-23-scenario-3.e2e.spec.ts` (10/10 tests passed).
+- **Overpayment Protection Spec**: `apps/api/src/sales/__tests__/sales-milestone-7-23-scenario-4.e2e.spec.ts` (8/8 tests passed).
+- **Concurrency & Idempotency Spec**: `apps/api/src/sales/__tests__/sales-milestone-7-23-scenario-5.e2e.spec.ts` (8/8 tests passed).
+- **Sale Cancellation & Audit Spec**: `apps/api/src/sales/__tests__/sales-milestone-7-23-scenario-6.e2e.spec.ts` (9/9 tests passed).
 - **Financial Concurrency Spec**: `packages/core/src/sales/infrastructure/persistence/prisma/__tests__/financial-concurrency.integration.spec.ts`.

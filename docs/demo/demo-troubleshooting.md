@@ -183,29 +183,28 @@ During live presentations or stakeholder rehearsals, operational incidents must 
 
 ---
 
-### Protocol 8: Containerized Demo Stack Triage (`docker-compose.demo.yml`)
+### Protocol 9: Inventory & Financial Failure Recovery
 
-- **Use Case:** When running the fully containerized demo stack (`pnpm demo:up`), diagnose container state, view logs, or rebuild images.
-- **Diagnostics & Recovery:**
-  ```powershell
-  # 1. View live logs across all 3 containers
-  docker compose -f docker-compose.demo.yml logs -f
+During live POS or inventory demonstrations, simulated negative scenarios or operational errors must be recovered without losing context:
 
-  # 2. View specific service logs (e.g. API)
-  docker compose -f docker-compose.demo.yml logs -f demo-api
-
-  # 3. Check container health status
-  docker compose -f docker-compose.demo.yml ps
-
-  # 4. Rebuild containers after code adjustments
-  docker compose -f docker-compose.demo.yml up -d --build
-
-  # 5. Clean disposable reset of container stack and volumes
-  pnpm demo:reset
-  pnpm demo:up
-  pnpm prisma:migrate:deploy
-  pnpm db:seed
-  ```
+1. **Recovering from Failed / Declined Payments**:
+   - If a QR payment is marked `FAILED` or declined by external bank authorization:
+     - The failed payment record is retained in the payment history for auditability.
+     - The parent Sale status remains in `PENDING_PAYMENT` (or `PARTIALLY_PAID`).
+     - Click **Record Payment** to retry with another tender method (e.g., Cash) or re-attempt QR tender with an updated merchant reference.
+2. **Recovering from Insufficient Stock Overdraft**:
+   - If POS checkout fails with `HTTP 422 (Insufficient stock on hand)`:
+     - The cart is preserved; no partial stock is deducted.
+     - In another tab (as Inventory Staff), navigate to `/resources/inventory` and click **Receive Stock** on the item to replenish inventory.
+     - Switch back to POS and click **Create Order** again. Checkout will succeed immediately.
+3. **Recovering from Concurrency Conflicts / Duplicate Submissions**:
+   - If a `409 Conflict` banner appears due to concurrent submission or double-clicking:
+     - The UI form preserves all entered data.
+     - Click **Refresh Status** or close the collision alert; the backend guarantees that exactly one order or payment was persisted without balance corruption.
+4. **Cancelled Orders & Terminal State Isolation**:
+   - If an order in `PENDING_PAYMENT` is accidentally cancelled:
+     - Cancelled orders are terminal and read-only.
+     - Click **New Sale** (`/sales/new`) to quickly generate a fresh order; previous stock and payment history remain intact and uncorrupted.
 
 ---
 
