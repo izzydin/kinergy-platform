@@ -35,18 +35,19 @@ A comprehensive rehearsal was executed across all six project phases, testing 15
 
 The verified demonstration environment topology operates on an isolated staging database decoupled from all external third-party production infrastructure:
 
-| Infrastructure Component  | Certified Configuration                                        | Health / Verification Evidence                        |
-| :------------------------ | :------------------------------------------------------------- | :---------------------------------------------------- |
-| **Operating System**      | Windows 11 Enterprise (x64)                                    | Host OS verified                                      |
-| **Node.js Runtime**       | v20.18.0 LTS                                                   | `node -v` $\to$ `v20.18.0`                            |
-| **Package Manager**       | pnpm v9.15.4                                                   | `pnpm -v` $\to$ `9.15.4`                              |
-| **Database Engine**       | PostgreSQL 16.3 (Official Docker Container `kinergy-postgres`) | Port 5433 (`127.0.0.1:5433 - aceptando conexiones`)   |
-| **Prisma ORM Migrations** | 14 Migrations Deployed Deterministically                       | `prisma migrate status` (Database schema up to date)  |
-| **Backend API Service**   | NestJS REST API on port 3000 (`/api/v1`)                       | `curl http://localhost:3000/api/v1/health` (HTTP 200) |
-| **Frontend Web SPA**      | Vite React 18 SPA on port 5173                                 | `curl -I http://localhost:5173` (HTTP 200 OK)         |
-| **Containerized Stack**   | Optional 3-tier orchestration (`docker-compose.demo.yml`)      | Nginx proxy on port 8080 (`/healthz` HTTP 200)        |
-| **Media / File Storage**  | Local static filesystem directory (`./uploads`)                | Isolated upload directory with path traversal guard   |
-| **External Integrations** | 100% Mocked / Localized (Zero production network egress)       | In-memory token service, deterministic sequences      |
+| Infrastructure Component    | Certified Configuration                                          | Health / Verification Evidence                        |
+| :-------------------------- | :--------------------------------------------------------------- | :---------------------------------------------------- |
+| **Operating System**        | Windows 11 Enterprise (x64)                                      | Host OS verified                                      |
+| **Node.js Runtime**         | v20.18.0 LTS                                                     | `node -v` $\to$ `v20.18.0`                            |
+| **Package Manager**         | pnpm v9.15.4                                                     | `pnpm -v` $\to$ `9.15.4`                              |
+| **Database Engine**         | PostgreSQL 16.3 (Official Docker Container `kinergy-postgres`)   | Port 5433 (`127.0.0.1:5433 - aceptando conexiones`)   |
+| **Prisma ORM Migrations**   | 14 Migrations Deployed Deterministically                         | `prisma migrate status` (Database schema up to date)  |
+| **Backend API Service**     | NestJS REST API on port 3000 (`/api/v1`)                         | `curl http://localhost:3000/api/v1/health` (HTTP 200) |
+| **Frontend Web SPA (Demo)** | React 18 SPA served via Nginx on port 8080 (`/healthz` HTTP 200) | `curl -i http://localhost:8080/healthz` (HTTP 200 OK) |
+| **Frontend Web SPA (Dev)**  | Vite React 18 dev server on port 5173 (Hybrid Mode A)            | `curl -I http://localhost:5173` (HTTP 200 OK)         |
+| **Containerized Stack**     | Optional 3-tier orchestration (`docker-compose.demo.yml`)        | Nginx proxy on port 8080 (`/healthz` HTTP 200)        |
+| **Media / File Storage**    | Local static filesystem directory (`./uploads`)                  | Isolated upload directory with path traversal guard   |
+| **External Integrations**   | 100% Mocked / Localized (Zero production network egress)         | In-memory token service, deterministic sequences      |
 
 ### Certified Demo Accounts & Credentials
 

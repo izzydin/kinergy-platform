@@ -45,15 +45,15 @@ This checklist governs the formal "Go / No-Go" verification protocol executed pr
 
 ### Phase 3: Application Health & Network Connectivity
 
-|  #  | Check Item               | Verification Command / Target                                       | Pass Criteria                                                       | Sign-Off |
-| :-: | :----------------------- | :------------------------------------------------------------------ | :------------------------------------------------------------------ | :------: |
-| 3.1 | **Backend API Startup**  | `pnpm dev:api` (Hybrid) or `pnpm demo:up` (Containerized)           | Listens on `http://localhost:3000/api/v1` without errors            |   [ ]    |
-| 3.2 | **API Health Probe**     | `curl http://localhost:3000/api/v1/health`                          | HTTP 200, `{"status":"ok"}`                                         |   [ ]    |
-| 3.3 | **OpenAPI Swagger Spec** | Browser: `http://localhost:3000/api/docs`                           | Swagger UI loads all domain endpoints                               |   [ ]    |
-| 3.4 | **Frontend Web Startup** | `pnpm dev:web` (Port 4200/5173) or container `demo-web` (Port 8080) | Serves SPA client                                                   |   [ ]    |
-| 3.5 | **SPA Root Route**       | Browser: `http://localhost:5173` (or `http://localhost:8080`)       | Login page renders with clean browser console                       |   [ ]    |
-| 3.6 | **Browser CORS / Proxy** | Inspect Network tab during login                                    | No CORS preflight or header rejections; reverse proxy routes `/api` |   [ ]    |
-| 3.7 | **Media Storage Ready**  | Verify `.storage` directory exists (or volume `demo_storage_data`)  | Local storage adapter initialized                                   |   [ ]    |
+|  #  | Check Item               | Verification Command / Target                                                                 | Pass Criteria                                                       | Sign-Off |
+| :-: | :----------------------- | :-------------------------------------------------------------------------------------------- | :------------------------------------------------------------------ | :------: |
+| 3.1 | **Backend API Startup**  | `pnpm dev:api` (Hybrid) or `pnpm demo:up` (Containerized)                                     | Listens on `http://localhost:3000/api/v1` without errors            |   [ ]    |
+| 3.2 | **API Health Probe**     | `curl http://localhost:3000/api/v1/health`                                                    | HTTP 200, `{"status":"ok"}`                                         |   [ ]    |
+| 3.3 | **OpenAPI Swagger Spec** | Browser: `http://localhost:3000/api/docs`                                                     | Swagger UI loads all domain endpoints                               |   [ ]    |
+| 3.4 | **Frontend Web Startup** | `pnpm demo:up` (Containerized Ingress: Port 8080) or `pnpm dev:web` (Hybrid Dev: Port 5173)   | Serves SPA client                                                   |   [ ]    |
+| 3.5 | **SPA Root Route**       | Browser: `http://localhost:8080/login` (Option B) or `http://localhost:5173/login` (Option A) | Login page renders with clean browser console                       |   [ ]    |
+| 3.6 | **Browser CORS / Proxy** | Inspect Network tab during login                                                              | No CORS preflight or header rejections; reverse proxy routes `/api` |   [ ]    |
+| 3.7 | **Media Storage Ready**  | Verify `.storage` directory exists (or volume `demo_storage_data`)                            | Local storage adapter initialized                                   |   [ ]    |
 
 ---
 

@@ -50,7 +50,7 @@ The demonstration environment executes the real NestJS API and React 18 SPA, per
 ```
 ┌─────────────────────────────────────────┐          HTTP / REST (Port 3000)          ┌─────────────────────────────────────────┐
 │        React 18 / Vite SPA Client       │ ────────────────────────────────────────► │             NestJS REST API             │
-│               (Port 5173)               │                                           │               (Port 3000)               │
+│    (Port 8080 Demo / Port 5173 Dev)     │                                           │               (Port 3000)               │
 │    (Modules: Gym, Clinic, POS, Admin)   │ ◄──────────────────────────────────────── │         (Zod Validation, RBAC)          │
 └─────────────────────────────────────────┘                                           └────────────────────┬────────────────────┘
                                                                                                            │
@@ -378,15 +378,28 @@ curl http://localhost:3000/api/v1/health
 curl -I http://localhost:3000/api/docs
 # Expected HTTP Status: 200 OK
 
-# 4. Verify Frontend Routing (Port 8080 for Containerized, 4200/5173 for Dev)
-curl -I http://localhost:8080/healthz   # Ingress probe (Containerized)
-curl -I http://localhost:5173           # SPA direct (Dev)
+# 4. Verify Frontend Routing (Port 8080 for Containerized Option B, 5173 for Dev Option A)
+curl -I http://localhost:8080/healthz   # Ingress probe (Containerized Option B)
+curl -I http://localhost:8080/login     # Web SPA Entrypoint (Containerized Option B)
+curl -I http://localhost:5173           # SPA direct (Dev Option A)
 # Expected HTTP Status: 200 OK
 ```
 
 ---
 
 ## 8. Business Walkthrough Scripts (Presenter Runbooks)
+
+> [!IMPORTANT]
+> **Authoritative Deployment Mode & Frontend URL Notice**:
+>
+> - **Option B: Dedicated Containerized Demo (`pnpm demo:up` — Default & Recommended)**:
+>   - **Frontend Web SPA & Ingress:** **`http://localhost:8080/login`** (or `http://localhost:8080`). All client browser navigation for this option **must** target port **`8080`**.
+>   - **Direct Backend API / Docs:** `http://localhost:3000` (Swagger: `http://localhost:3000/api/docs`).
+>   - **Relational Database:** `127.0.0.1:5433`.
+> - **Option A: Hybrid Local Development Stack (`pnpm dev:api` + `pnpm dev:web`)**:
+>   - **Frontend Web SPA:** **`http://localhost:5173/login`** (or `http://localhost:4200`). Port 5173 is active **only** when running the Vite dev server on the host machine.
+>   - **Backend API:** `http://localhost:3000/api/v1`.
+>   - **Database:** `127.0.0.1:5433` (Docker container).
 
 ### 8.1 Journey 1: Gym Membership Enrollment, Payment & Turnstile Access
 
@@ -398,23 +411,26 @@ curl -I http://localhost:5173           # SPA direct (Dev)
 
 #### Step-by-Step Walkthrough
 
-1. **Sign In**: Navigate to `http://localhost:5173/login`. Enter receptionist credentials and submit.
-2. **Member Selection**: Navigate to `/clients`. Locate Carlos Rivera (`CLI-2026-00003`) using the search bar (evaluated via trigram index in < 25ms).
+1. **Sign In**:
+   - **Option B (Containerized Demo)**: Navigate to `http://localhost:8080/login` (or `http://localhost:8080`).
+   - **Option A (Local Dev Stack)**: Navigate to `http://localhost:5173/login`.
+     Enter receptionist credentials (`reception.demo@kinergy.platform` / `DemoPass123!`) and submit.
+2. **Member Selection**: Navigate to `/clients` (`http://localhost:8080/clients`). Locate Carlos Rivera (`CLI-2026-00003`) using the search bar (evaluated via trigram index in < 25ms).
 3. **Plan Enrollment**:
-   - Click **Enroll in Plan** or navigate to `/gym/memberships/new`.
-   - Select **Silver Monthly Gym Membership** (\$60.00 / 30 days).
+   - Click **Enroll in Plan** or navigate to `/gym/memberships/new` (`http://localhost:8080/gym/memberships/new`).
+   - Select **Silver Monthly Gym Membership** ($60.00 / 30 days).
    - Confirm enrollment. Highlight that the membership status immediately updates to `ACTIVE`.
 4. **Commercial POS Billing**:
-   - Navigate to `/sales/new`.
-   - Set source type to `GYM_MEMBERSHIP`, select the newly created membership, and verify that the line item snapshot locks at \$60.00.
+   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`).
+   - Set source type to `GYM_MEMBERSHIP`, select the newly created membership, and verify that the line item snapshot locks at $60.00.
    - Click **Create Order**. Order transitions to `PENDING_PAYMENT`.
 5. **Cash Payment Tender**:
-   - Click **Record Payment**. Select method `CASH`, input \$60.00, and confirm.
-   - Verify that the order transitions to `PAID` with balance \$0.00.
+   - Click **Record Payment**. Select method `CASH`, input $60.00, and confirm.
+   - Verify that the order transitions to `PAID` with balance $0.00.
 6. **Fiscal Receipt Generation**:
    - Click **View Receipt**. Show the fiscal receipt voucher with sequential number (`REC-2026-00000X`).
 7. **Turnstile Check-In**:
-   - Navigate to `/gym/attendance`.
+   - Navigate to `/gym/attendance` (`http://localhost:8080/gym/attendance`).
    - Search for Carlos Rivera and click **Check In**.
    - Show green indicator: `GRANTED — Access Permitted`.
 8. **Anti-Passback Security Demonstration**:
@@ -442,15 +458,15 @@ curl -I http://localhost:5173           # SPA direct (Dev)
 #### Step-by-Step Walkthrough
 
 1. **Appointment Booking (Receptionist)**:
-   - Navigate to `/scheduling/calendar`.
+   - Navigate to `/scheduling/calendar` (`http://localhost:8080/scheduling/calendar` in Option B / `http://localhost:5173/scheduling/calendar` in Option A).
    - Book a 60-minute **Kinesiology Assessment** for Jane Doe in Room 1 with therapist Dr. Sarah Chen.
    - Highlight that timestamps are stored in UTC while rendering in the facility's local time zone.
 2. **4D Conflict Prevention Demonstration**:
    - Attempt to book a overlapping appointment for Room 1 or Dr. Sarah Chen at the identical time slot.
    - Verify that the scheduling engine rejects the collision with a clear conflict warning (`409 Conflict`).
 3. **Clinical Encounter Start (Switch to Therapist)**:
-   - Sign out and sign in as `therapist.demo@kinergy.platform` / `DemoPass123!`.
-   - Navigate to `/kinesiology/sessions`.
+   - Sign out and sign in as `therapist.demo@kinergy.platform` / `DemoPass123!` at `http://localhost:8080/login` (Option B) or `http://localhost:5173/login` (Option A).
+   - Navigate to `/kinesiology/sessions` (`http://localhost:8080/kinesiology/sessions`).
    - Locate Jane Doe's scheduled encounter and click **Start Treatment Session**. Status transitions to `IN_PROGRESS`.
 4. **SOAP Charting**:
    - In the clinical workspace, enter clinical notes:
@@ -465,7 +481,7 @@ curl -I http://localhost:5173           # SPA direct (Dev)
    - Point out that the clinical notes are now permanently read-only and cannot be tampered with.
 6. **Commercial Checkout (Switch to Receptionist)**:
    - Switch back to `reception.demo@kinergy.platform`.
-   - Navigate to `/sales/new`, source the completed session, bill \$120.00, and complete payment.
+   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`), source the completed session, bill $120.00, and complete payment.
 
 ---
 
@@ -481,24 +497,24 @@ curl -I http://localhost:5173           # SPA direct (Dev)
 #### Step-by-Step Walkthrough
 
 1. **Low-Stock Cockpit (Inventory Staff)**:
-   - Sign in as `inventory.demo@kinergy.platform` / `DemoPass123!`.
-   - Navigate to `/resources/inventory/low-stock`.
+   - Sign in as `inventory.demo@kinergy.platform` / `DemoPass123!` at `http://localhost:8080/login` (Option B) or `http://localhost:5173/login` (Option A).
+   - Navigate to `/resources/inventory/low-stock` (`http://localhost:8080/resources/inventory/low-stock`).
    - Highlight that **Kinesiology Tape Roll 5m** is flagged with a low-stock alert (3 rolls on hand vs. 10 minimum).
 2. **Stock Receiving (Replenishment)**:
-   - Navigate to `/resources/inventory` and select **Kinesiology Tape Roll**.
+   - Navigate to `/resources/inventory` (`http://localhost:8080/resources/inventory`) and select **Kinesiology Tape Roll**.
    - Click **Receive Stock**. Add 15 rolls, enter supplier invoice `INV-2026-991`, and submit.
    - Verify that quantity on hand updates to 18 rolls and that the low-stock alert clears immediately.
 3. **Movement Ledger Audit**:
-   - Click the **Movements** tab on the item detail page.
+   - Click the **Movements** tab on the item detail page (`http://localhost:8080/resources/inventory/:id/movements`).
    - Point out the immutable `PURCHASE` movement entry (+15 rolls) with timestamp and user audit trail.
 4. **Retail POS Checkout (Cashier)**:
    - Switch to `reception.demo@kinergy.platform`.
-   - Navigate to `/sales/new`.
-   - Add retail items: 2 bottles of **Electrolyte Hydration Drink** (\$3.00 each = \$6.00).
+   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`).
+   - Add retail items: 2 bottles of **Electrolyte Hydration Drink** ($3.00 each = $6.00).
    - Click **Create Order**. Order enters `PENDING_PAYMENT`.
 5. **Payment-Triggered Stock Decrement**:
    - Settle payment via `CASH`.
-   - Return to `/resources/inventory` and inspect the Electrolyte Drink item.
+   - Return to `/resources/inventory` (`http://localhost:8080/resources/inventory`) and inspect the Electrolyte Drink item.
    - Verify that stock on hand has automatically decremented from 36 to 34 bottles, and verify the corresponding `SALE` record in the movement ledger.
 
 ---
@@ -513,23 +529,23 @@ curl -I http://localhost:5173           # SPA direct (Dev)
 #### Step-by-Step Walkthrough
 
 1. **Create Commercial Sale**:
-   - Navigate to `/sales/new`. Add 1 **Organic Whey Protein Bar** (\$5.50).
+   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`). Add 1 **Organic Whey Protein Bar** ($5.50).
    - Create order in `PENDING_PAYMENT` status.
 2. **Initiate QR Tender**:
-   - Click **Record Payment**. Select method `QR`, enter \$5.50, and input customer reference `QR-REF-8841`.
+   - Click **Record Payment**. Select method `QR`, enter $5.50, and input customer reference `QR-REF-8841`.
    - Submit payment.
 3. **Verify Pending Status (Financial Safety Rule)**:
    - Notice that the payment is recorded with status **`PENDING`** (not `COMPLETED`).
    - The sale remains in `PENDING_PAYMENT`.
 4. **Confirm External Funds & Settle Payment**:
-   - Click on the pending payment ID to navigate to `/payments/:id`.
+   - Click on the pending payment ID to navigate to `/payments/:id` (`http://localhost:8080/payments/:id`).
    - Click **Settle Payment**.
    - The `SettlePaymentDialog` displays an authoritative financial breakdown.
    - Enter bank confirmation code `BANK-TXN-90210` and click **Confirm Settlement**.
    - The payment transitions to `COMPLETED` with an authoritative `paidAt` timestamp.
    - The sale transitions to `PAID`.
 5. **Issue Tax Receipt**:
-   - Click **View Receipt**. Print or inspect the official fiscal voucher.
+   - Click **View Receipt** (or `/sales/:id/receipt`). Print or inspect the official fiscal voucher.
 
 ---
 
@@ -629,6 +645,12 @@ pnpm prisma:migrate:deploy
 pnpm db:seed
 ```
 
+### Incident 6: Browser Cannot Access Port 5173 During Containerized Demo
+
+- **Symptom**: Browser cannot access `localhost:5173/login` while using the containerized demo (`ERR_CONNECTION_REFUSED` or timeout).
+- **Cause**: Port 5173 belongs to Vite development mode (Option A). The dedicated containerized demo stack (Option B) serves the React frontend via Nginx on port 8080.
+- **Resolution**: Navigate to `http://localhost:8080/login` (or `http://localhost:8080`).
+
 ---
 
 ## 12. Safe Shutdown & Reset Instructions
@@ -671,17 +693,17 @@ pnpm db:seed
 
 Verify all items before commencing a client demonstration:
 
-| Check | Item                             | Verification Method                                                        |     Status      |
-| :---: | :------------------------------- | :------------------------------------------------------------------------- | :-------------: |
-|  [ ]  | **Host Node & pnpm**             | `node -v` ($\ge 20$), `pnpm -v` ($\ge 10$)                                 |    Verified     |
-|  [ ]  | **PostgreSQL Engine Running**    | `pg_isready -h 127.0.0.1 -p 5433` reports accepting connections            | Pending Startup |
-|  [ ]  | **CORS Configuration Verified**  | `.env` includes `CORS_ORIGINS=http://localhost:5173,http://localhost:4200` |    Required     |
-|  [ ]  | **Migrations Applied**           | `pnpm prisma:migrate:status` reports all 14 migrations applied             |    Required     |
-|  [ ]  | **Baseline Seed Data Present**   | `pnpm db:seed` completed successfully                                      |    Required     |
-|  [ ]  | **API Healthy**                  | `http://localhost:3000/api/v1/health` returns `{"status":"ok"}`            |    Required     |
-|  [ ]  | **Swagger Docs Accessible**      | `http://localhost:3000/api/docs` renders OpenAPI spec                      |    Required     |
-|  [ ]  | **Web Client Accessible**        | `http://localhost:5173` renders login screen                               |    Required     |
-|  [ ]  | **Presenter Credentials Tested** | Login verified with `reception.demo@kinergy.platform` / `DemoPass123!`     |    Required     |
+| Check | Item                             | Verification Method                                                                                      |     Status      |
+| :---: | :------------------------------- | :------------------------------------------------------------------------------------------------------- | :-------------: |
+|  [ ]  | **Host Node & pnpm**             | `node -v` ($\ge 20$), `pnpm -v` ($\ge 10$)                                                               |    Verified     |
+|  [ ]  | **PostgreSQL Engine Running**    | `pg_isready -h 127.0.0.1 -p 5433` reports accepting connections                                          | Pending Startup |
+|  [ ]  | **CORS Configuration Verified**  | `.env` includes `CORS_ORIGINS=http://localhost:5173,http://localhost:4200`                               |    Required     |
+|  [ ]  | **Migrations Applied**           | `pnpm prisma:migrate:status` reports all 14 migrations applied                                           |    Required     |
+|  [ ]  | **Baseline Seed Data Present**   | `pnpm db:seed` completed successfully                                                                    |    Required     |
+|  [ ]  | **API Healthy**                  | `http://localhost:3000/api/v1/health` returns `{"status":"ok"}`                                          |    Required     |
+|  [ ]  | **Swagger Docs Accessible**      | `http://localhost:3000/api/docs` renders OpenAPI spec                                                    |    Required     |
+|  [ ]  | **Web Client Accessible**        | `http://localhost:8080` (Option B: Demo) or `http://localhost:5173` (Option A: Dev) renders login screen |    Required     |
+|  [ ]  | **Presenter Credentials Tested** | Login verified with `reception.demo@kinergy.platform` / `DemoPass123!`                                   |    Required     |
 
 ---
 

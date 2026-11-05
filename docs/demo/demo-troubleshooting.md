@@ -14,16 +14,18 @@
 
 During live presentations or stakeholder rehearsals, operational incidents must be diagnosed and resolved rapidly. Use the diagnostic matrix below:
 
-| Symptom Observed                                                                 | Likely Root Cause                                     | Immediate Action                                          | Expected Recovery Time |
-| :------------------------------------------------------------------------------- | :---------------------------------------------------- | :-------------------------------------------------------- | :--------------------: |
-| `PrismaClientInitializationError: Can't reach database server at 127.0.0.1:5433` | Docker daemon paused, container stopped               | Run `docker compose up -d postgres`                       |     $< 15$ seconds     |
-| `Error: listen EADDRINUSE: address already in use :::3000`                       | Stale or zombie Node.js process on port 3000          | Kill process via PowerShell command                       |     $< 10$ seconds     |
-| `Error: listen EADDRINUSE: address already in use :::5173`                       | Orphaned Vite dev server on port 5173                 | Kill process via PowerShell command                       |     $< 10$ seconds     |
-| Browser console: `Access to XMLHttpRequest blocked by CORS policy`               | Missing `CORS_ORIGINS` in `.env`                      | Add `CORS_ORIGINS=http://localhost:5173...` & restart API |     $< 30$ seconds     |
-| `401 Unauthorized` on login with demo credentials                                | Password hash mismatch or wrong password (`Demo123!`) | Use `DemoPass123!` or run `pnpm db:seed`                  |     $< 20$ seconds     |
-| Seed entity (Carlos Rivera or Protein Bar) missing                               | Seed pipeline not executed or altered                 | Run `pnpm db:seed` (idempotent upsert)                    |     $< 15$ seconds     |
-| Live session interrupted or order left in invalid state                          | Rehearsal artifact or partial workflow                | Cancel order in UI or re-run `pnpm db:seed`               |     $< 15$ seconds     |
-| Terminal state prevents re-demonstrating same action                             | Completed SOAP notes or checked-in member             | Execute disposable database reset                         |     $< 60$ seconds     |
+| Symptom Observed                                                                 | Likely Root Cause                                            | Immediate Action                                          | Expected Recovery Time |
+| :------------------------------------------------------------------------------- | :----------------------------------------------------------- | :-------------------------------------------------------- | :--------------------: |
+| `PrismaClientInitializationError: Can't reach database server at 127.0.0.1:5433` | Docker daemon paused, container stopped                      | Run `docker compose up -d postgres`                       |     $< 15$ seconds     |
+| `Error: listen EADDRINUSE: address already in use :::3000`                       | Stale or zombie Node.js process on port 3000                 | Kill process via PowerShell command                       |     $< 10$ seconds     |
+| `Error: listen EADDRINUSE: address already in use :::5173`                       | Orphaned Vite dev server on port 5173                        | Kill process via PowerShell command                       |     $< 10$ seconds     |
+| Browser console: `Access to XMLHttpRequest blocked by CORS policy`               | Missing `CORS_ORIGINS` in `.env`                             | Add `CORS_ORIGINS=http://localhost:5173...` & restart API |     $< 30$ seconds     |
+| `401 Unauthorized` on login with demo credentials                                | Password hash mismatch or wrong password (`Demo123!`)        | Use `DemoPass123!` or run `pnpm db:seed`                  |     $< 20$ seconds     |
+| Seed entity (Carlos Rivera or Protein Bar) missing                               | Seed pipeline not executed or altered                        | Run `pnpm db:seed` (idempotent upsert)                    |     $< 15$ seconds     |
+| Live session interrupted or order left in invalid state                          | Rehearsal artifact or partial workflow                       | Cancel order in UI or re-run `pnpm db:seed`               |     $< 15$ seconds     |
+| Terminal state prevents re-demonstrating same action                             | Completed SOAP notes or checked-in member                    | Execute disposable database reset                         |     $< 60$ seconds     |
+| Browser cannot access `localhost:5173/login` during containerized demo           | Port 5173 belongs to Vite dev mode; container uses port 8080 | Navigate to `http://localhost:8080/login`                 |     $< 5$ seconds      |
+| Browser cannot access `localhost:5173/login` during containerized demo           | Port 5173 belongs to Vite dev mode; container uses port 8080 | Navigate to `http://localhost:8080/login`                 |     $< 5$ seconds      |
 
 ---
 
@@ -108,7 +110,7 @@ During live presentations or stakeholder rehearsals, operational incidents must 
      ```powershell
      pnpm db:seed
      ```
-  2. Clear browser LocalStorage at `http://localhost:5173` (DevTools $\to$ Application $\to$ Clear Storage).
+  2. Clear browser LocalStorage at `http://localhost:8080` (Option B) or `http://localhost:5173` (Option A) (DevTools $\to$ Application $\to$ Clear Storage).
   3. Log in with `DemoPass123!`.
 
 ---
@@ -251,6 +253,29 @@ During live POS or inventory demonstrations, simulated negative scenarios or ope
      curl -i http://localhost:8080/healthz
      curl -i http://localhost:8080/api/v1/health
      ```
+
+---
+
+### Protocol 11: Browser Connection Failure to localhost:5173 During Containerized Demo
+
+- **Symptom:** Browser fails to load `http://localhost:5173/login` with `ERR_CONNECTION_REFUSED` while running the containerized demo (`pnpm demo:up`).
+- **Root Cause:**
+  Port 5173 is the port of the host-level Vite development server used only in **Option A (Hybrid Dev Stack)**. When running **Option B (Dedicated Containerized Demo Stack)** via `pnpm demo:up`, Vite is not running on the host; instead, the pre-built React SPA is served through Nginx inside the `kinergy-demo-web` container on **port 8080**.
+- **Diagnostics:**
+  1. Verify running containers:
+     ```powershell
+     docker compose -f docker-compose.demo.yml ps
+     ```
+  2. Probe Nginx ingress health:
+     ```powershell
+     curl -i http://localhost:8080/healthz
+     ```
+- **Recovery Procedure:**
+  1. Open the browser and navigate directly to:
+     ```text
+     http://localhost:8080/login
+     ```
+  2. If running Option A (local Vite dev server) instead, ensure `pnpm dev:web` is running in a terminal before attempting to access port 5173.
 
 ---
 
