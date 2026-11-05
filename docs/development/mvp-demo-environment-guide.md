@@ -415,7 +415,7 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
    - **Option B (Containerized Demo)**: Navigate to `http://localhost:8080/login` (or `http://localhost:8080`).
    - **Option A (Local Dev Stack)**: Navigate to `http://localhost:5173/login`.
      Enter receptionist credentials (`reception.demo@kinergy.platform` / `DemoPass123!`) and submit.
-2. **Member Selection**: Navigate to `/clients` (`http://localhost:8080/clients`). Locate Carlos Rivera (`CLI-2026-00003`) using the search bar (evaluated via trigram index in < 25ms).
+2. **Member Selection**: Navigate to `/clients` (`http://localhost:8080/clients` in Option B / `http://localhost:5173/clients` in Option A). Locate Carlos Rivera (`CLI-2026-00003`) using the search bar (evaluated via trigram index in < 25ms).
 3. **Plan Enrollment**:
    - Click **Enroll in Plan** or navigate to `/gym/memberships/new` (`http://localhost:8080/gym/memberships/new`).
    - Select **Silver Monthly Gym Membership** ($60.00 / 30 days).
@@ -650,6 +650,26 @@ pnpm db:seed
 - **Symptom**: Browser cannot access `localhost:5173/login` while using the containerized demo (`ERR_CONNECTION_REFUSED` or timeout).
 - **Cause**: Port 5173 belongs to Vite development mode (Option A). The dedicated containerized demo stack (Option B) serves the React frontend via Nginx on port 8080.
 - **Resolution**: Navigate to `http://localhost:8080/login` (or `http://localhost:8080`).
+
+### Incident 7: Clients Module "Failed to load data / Failed to fetch"
+
+- **Symptom**: Navigating to `/clients` displays `Failed to load data — Failed to fetch` or HTTP 502 Bad Gateway.
+- **Root Cause & Diagnosis**:
+  - **API Connectivity / Exception Failure (HTTP 502)**: The backend API process crashed or threw an unhandled exception during client entity deserialization, causing Nginx to return 502 Bad Gateway. Check backend container logs:
+    ```powershell
+    docker compose -f docker-compose.demo.yml logs --tail=100 demo-api
+    ```
+  - **Authentication / Authorization Failure (HTTP 401 / 403)**: Access token expired or user lacks `clients.read` permission. If 401, re-authenticate at `/login`.
+- **Resolution**:
+  1. Verify container health: `docker compose -f docker-compose.demo.yml ps`.
+  2. Verify API upstream responds to probes:
+     ```powershell
+     curl -i http://localhost:8080/api/v1/health
+     ```
+  3. Ensure latest API container image is running:
+     ```powershell
+     docker compose -f docker-compose.demo.yml up -d --build demo-api
+     ```
 
 ---
 

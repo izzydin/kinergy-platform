@@ -25,7 +25,12 @@ export const QueryProvider: React.FC<QueryProviderProps> = ({
   const config = getAppConfig();
   const [queryClient] = useState(() => customQueryClient || createQueryClient());
 
-  const shouldRenderDevtools = showDevtools ?? config.isDev;
+  const shouldRenderDevtools =
+    showDevtools ??
+    (config.isDev &&
+      !config.isTest &&
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function');
 
   return (
     <QueryClientProvider client={queryClient}>

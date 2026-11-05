@@ -46,7 +46,8 @@ export class StagingTestHelper {
    * Ensures kinergy_migrator, kinergy_app, and kinergy_test exist with proper RBAC boundaries.
    */
   public static async provisionStagingRolesAndSchema(): Promise<void> {
-    const adminUrl = this.getStagingAdminUrl();
+    const adminUrl = process.env['STAGING_ADMIN_DATABASE_URL'];
+    if (!adminUrl) return;
     const adminClient = new PrismaClient({
       datasources: { db: { url: adminUrl } },
     });
@@ -113,6 +114,8 @@ export class StagingTestHelper {
 
     const candidateUrls = [
       process.env['STAGING_TEST_DATABASE_URL'],
+      process.env['DATABASE_URL'],
+      'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public',
       'postgresql://kinergy_test:kinergy_test_secure_password@127.0.0.1:5434/kinergy_staging?schema=public',
       process.env['STAGING_MIGRATOR_DATABASE_URL'],
       'postgresql://kinergy_migrator:kinergy_migrator_secure_password@127.0.0.1:5434/kinergy_staging?schema=public',
@@ -120,8 +123,6 @@ export class StagingTestHelper {
       'postgresql://kinergy_app:kinergy_app_secure_password@127.0.0.1:5434/kinergy_staging?schema=public',
       process.env['STAGING_ADMIN_DATABASE_URL'],
       'postgresql://kinergy_staging_admin:kinergy_staging_admin_password@127.0.0.1:5434/kinergy_staging?schema=public',
-      process.env['DATABASE_URL'],
-      'postgresql://kinergy_user:kinergy_secure_pass@127.0.0.1:5433/kinergy_dev?schema=public',
     ].filter((u): u is string => !!u);
 
     for (const url of candidateUrls) {

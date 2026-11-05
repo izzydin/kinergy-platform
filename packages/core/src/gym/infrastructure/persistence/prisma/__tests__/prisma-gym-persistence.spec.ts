@@ -127,6 +127,99 @@ describe('Phase 5: Gym Management Production Persistence Audit', () => {
       expect(reconstituted.freezeHistory[0]?.durationDays).toBe(10);
       expect(reconstituted.trainerAssignment?.trainerId).toBe('trainer_alice');
     });
+
+    it('correctly reconstitutes membership with legacy frozenAt and resumesAt freeze format', () => {
+      const rawRow: PrismaMembershipModel = {
+        id: 'mem_legacy_01',
+        clientId: 'client_legacy',
+        planId: 'plan_silver',
+        status: 'FROZEN',
+        startDate: new Date('2026-09-01T00:00:00.000Z'),
+        endDate: new Date('2026-12-01T00:00:00.000Z'),
+        assignedTrainerId: null,
+        freezeHistory: [
+          {
+            frozenAt: '2026-10-15T09:00:00.000Z',
+            reason: 'Medical recovery leave after minor knee strain',
+            resumesAt: '2026-11-15T09:00:00.000Z',
+          },
+        ] as unknown as Prisma.JsonValue,
+        cancellationReason: null,
+        terminationReason: null,
+        version: 1,
+        createdAt: new Date('2026-09-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-10-15T09:00:00.000Z'),
+      };
+
+      const reconstituted = PrismaMembershipMapper.toDomain(rawRow);
+      expect(reconstituted.id.value).toBe('mem_legacy_01');
+      expect(reconstituted.status).toBe(MembershipStatus.FROZEN);
+      expect(reconstituted.freezeHistory.length).toBe(1);
+      expect(reconstituted.freezeHistory[0]?.startDate).toEqual(
+        new Date('2026-10-15T09:00:00.000Z'),
+      );
+      expect(reconstituted.freezeHistory[0]?.endDate).toEqual(new Date('2026-11-15T09:00:00.000Z'));
+      expect(reconstituted.freezeHistory[0]?.reason).toBe(
+        'Medical recovery leave after minor knee strain',
+      );
+      expect(reconstituted.freezeHistory[0]?.durationDays).toBe(31);
+    });
+
+    it('correctly reconstitutes membership with null or empty freezeHistory without error', () => {
+      const rawEmpty: PrismaMembershipModel = {
+        id: 'mem_empty_01',
+        clientId: 'client_active',
+        planId: 'plan_silver',
+        status: 'ACTIVE',
+        startDate: new Date('2026-09-01T00:00:00.000Z'),
+        endDate: new Date('2026-12-01T00:00:00.000Z'),
+        assignedTrainerId: null,
+        freezeHistory: [] as unknown as Prisma.JsonValue,
+        cancellationReason: null,
+        terminationReason: null,
+        version: 1,
+        createdAt: new Date('2026-09-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+      };
+
+      const reconstitutedEmpty = PrismaMembershipMapper.toDomain(rawEmpty);
+      expect(reconstitutedEmpty.freezeHistory).toEqual([]);
+
+      const rawNull: PrismaMembershipModel = {
+        ...rawEmpty,
+        id: 'mem_null_01',
+        freezeHistory: null as unknown as Prisma.JsonValue,
+      };
+
+      const reconstitutedNull = PrismaMembershipMapper.toDomain(rawNull);
+      expect(reconstitutedNull.freezeHistory).toEqual([]);
+    });
+
+    it('preserves domain invariant throwing when freeze record has invalid dates', () => {
+      const rawInvalid: PrismaMembershipModel = {
+        id: 'mem_invalid_01',
+        clientId: 'client_bad',
+        planId: 'plan_silver',
+        status: 'FROZEN',
+        startDate: new Date('2026-09-01T00:00:00.000Z'),
+        endDate: new Date('2026-12-01T00:00:00.000Z'),
+        assignedTrainerId: null,
+        freezeHistory: [
+          {
+            reason: 'Broken entry missing dates',
+          },
+        ] as unknown as Prisma.JsonValue,
+        cancellationReason: null,
+        terminationReason: null,
+        version: 1,
+        createdAt: new Date('2026-09-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-09-01T00:00:00.000Z'),
+      };
+
+      expect(() => PrismaMembershipMapper.toDomain(rawInvalid)).toThrow(
+        'Freeze start date must be a valid Date.',
+      );
+    });
   });
 
   describe('3. Attendance Record Mapping & Append-Only Verification', () => {

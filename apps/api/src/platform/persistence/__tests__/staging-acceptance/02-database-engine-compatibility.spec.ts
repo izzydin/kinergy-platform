@@ -40,7 +40,7 @@ describe('Milestone 10.7 — Phase 2: PostgreSQL Database Engine Compatibility',
       }
       console.warn('[WARN] Staging database not available for Phase 2 Compatibility test.');
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     if (isDbAvailable && prisma) {

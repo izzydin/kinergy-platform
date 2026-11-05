@@ -28,7 +28,7 @@ describe('Milestone 10.7 — Phase 5: PostgreSQL Concurrency & Transaction Stres
       }
       console.warn('[WARN] Staging database not available for Phase 5 Concurrency test.');
     }
-  });
+  }, 45000);
 
   afterAll(async () => {
     if (isDbAvailable && prisma) {

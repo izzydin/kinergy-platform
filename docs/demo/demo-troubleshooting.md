@@ -14,18 +14,18 @@
 
 During live presentations or stakeholder rehearsals, operational incidents must be diagnosed and resolved rapidly. Use the diagnostic matrix below:
 
-| Symptom Observed                                                                 | Likely Root Cause                                            | Immediate Action                                          | Expected Recovery Time |
-| :------------------------------------------------------------------------------- | :----------------------------------------------------------- | :-------------------------------------------------------- | :--------------------: |
-| `PrismaClientInitializationError: Can't reach database server at 127.0.0.1:5433` | Docker daemon paused, container stopped                      | Run `docker compose up -d postgres`                       |     $< 15$ seconds     |
-| `Error: listen EADDRINUSE: address already in use :::3000`                       | Stale or zombie Node.js process on port 3000                 | Kill process via PowerShell command                       |     $< 10$ seconds     |
-| `Error: listen EADDRINUSE: address already in use :::5173`                       | Orphaned Vite dev server on port 5173                        | Kill process via PowerShell command                       |     $< 10$ seconds     |
-| Browser console: `Access to XMLHttpRequest blocked by CORS policy`               | Missing `CORS_ORIGINS` in `.env`                             | Add `CORS_ORIGINS=http://localhost:5173...` & restart API |     $< 30$ seconds     |
-| `401 Unauthorized` on login with demo credentials                                | Password hash mismatch or wrong password (`Demo123!`)        | Use `DemoPass123!` or run `pnpm db:seed`                  |     $< 20$ seconds     |
-| Seed entity (Carlos Rivera or Protein Bar) missing                               | Seed pipeline not executed or altered                        | Run `pnpm db:seed` (idempotent upsert)                    |     $< 15$ seconds     |
-| Live session interrupted or order left in invalid state                          | Rehearsal artifact or partial workflow                       | Cancel order in UI or re-run `pnpm db:seed`               |     $< 15$ seconds     |
-| Terminal state prevents re-demonstrating same action                             | Completed SOAP notes or checked-in member                    | Execute disposable database reset                         |     $< 60$ seconds     |
-| Browser cannot access `localhost:5173/login` during containerized demo           | Port 5173 belongs to Vite dev mode; container uses port 8080 | Navigate to `http://localhost:8080/login`                 |     $< 5$ seconds      |
-| Browser cannot access `localhost:5173/login` during containerized demo           | Port 5173 belongs to Vite dev mode; container uses port 8080 | Navigate to `http://localhost:8080/login`                 |     $< 5$ seconds      |
+| Symptom Observed                                                                 | Likely Root Cause                                                  | Immediate Action                                          | Expected Recovery Time |
+| :------------------------------------------------------------------------------- | :----------------------------------------------------------------- | :-------------------------------------------------------- | :--------------------: |
+| `PrismaClientInitializationError: Can't reach database server at 127.0.0.1:5433` | Docker daemon paused, container stopped                            | Run `docker compose up -d postgres`                       |     $< 15$ seconds     |
+| `Error: listen EADDRINUSE: address already in use :::3000`                       | Stale or zombie Node.js process on port 3000                       | Kill process via PowerShell command                       |     $< 10$ seconds     |
+| `Error: listen EADDRINUSE: address already in use :::5173`                       | Orphaned Vite dev server on port 5173                              | Kill process via PowerShell command                       |     $< 10$ seconds     |
+| Browser console: `Access to XMLHttpRequest blocked by CORS policy`               | Missing `CORS_ORIGINS` in `.env`                                   | Add `CORS_ORIGINS=http://localhost:5173...` & restart API |     $< 30$ seconds     |
+| `401 Unauthorized` on login with demo credentials                                | Password hash mismatch or wrong password (`Demo123!`)              | Use `DemoPass123!` or run `pnpm db:seed`                  |     $< 20$ seconds     |
+| Seed entity (Carlos Rivera or Protein Bar) missing                               | Seed pipeline not executed or altered                              | Run `pnpm db:seed` (idempotent upsert)                    |     $< 15$ seconds     |
+| Live session interrupted or order left in invalid state                          | Rehearsal artifact or partial workflow                             | Cancel order in UI or re-run `pnpm db:seed`               |     $< 15$ seconds     |
+| Terminal state prevents re-demonstrating same action                             | Completed SOAP notes or checked-in member                          | Execute disposable database reset                         |     $< 60$ seconds     |
+| Browser cannot access `localhost:5173/login` during containerized demo           | Port 5173 belongs to Vite dev mode; container uses port 8080       | Navigate to `http://localhost:8080/login`                 |     $< 5$ seconds      |
+| Clients module shows "Failed to load data / Failed to fetch"                     | Backend 502 exception during client hydration or 401 expired token | Inspect `logs demo-api` or re-authenticate at `/login`    |     $< 15$ seconds     |
 
 ---
 
@@ -276,6 +276,39 @@ During live POS or inventory demonstrations, simulated negative scenarios or ope
      http://localhost:8080/login
      ```
   2. If running Option A (local Vite dev server) instead, ensure `pnpm dev:web` is running in a terminal before attempting to access port 5173.
+
+---
+
+### Protocol 12: Clients Module Data Fetch Failure (`Failed to load data`)
+
+- **Symptom:** Opening `/clients` displays an error banner: `Failed to load data — Failed to fetch` or HTTP 502 Bad Gateway.
+- **Root Cause & Diagnosis:**
+  1. **Backend Unhandled Domain Exception (502)**: The API process threw an unhandled domain validation exception (e.g. `Invalid ClientId: '<id>' is not a valid UUID format`) during entity reconstitution in `ClientMapper.toDomain`, crashing the Node.js process and causing Nginx to return 502 Bad Gateway.
+     - Inspect recent API error traces:
+       ```powershell
+       docker compose -f docker-compose.demo.yml logs --tail=100 demo-api
+       ```
+  2. **Authentication / Session Expiration (401)**: The browser session expired or the JWT token was invalidated.
+     - Inspect Network tab in DevTools for `GET /api/v1/clients`: if 401 Unauthorized, log out and sign back in.
+- **Recovery Procedure:**
+  1. Verify the 3 demo containers are healthy:
+     ```powershell
+     docker compose -f docker-compose.demo.yml ps
+     ```
+  2. Test direct API health and Nginx ingress:
+     ```powershell
+     curl -i http://localhost:8080/api/v1/health
+     ```
+  3. Rebuild and restart the API container image if code changes were made:
+     ```powershell
+     docker compose -f docker-compose.demo.yml up -d --build demo-api
+     ```
+  4. Test authenticated client retrieval via PowerShell:
+     ```powershell
+     $login = @{ email = 'reception.demo@kinergy.platform'; password = 'DemoPass123!' } | ConvertTo-Json
+     $auth = Invoke-RestMethod -Uri 'http://localhost:8080/api/v1/auth/login' -Method Post -ContentType 'application/json' -Body $login
+     Invoke-RestMethod -Uri 'http://localhost:8080/api/v1/clients' -Method Get -Headers @{ Authorization = "Bearer $($auth.accessToken)" }
+     ```
 
 ---
 

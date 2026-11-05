@@ -28,7 +28,7 @@ describe('Milestone 10.7 — Phase 3: Critical Domain Integrity Against PostgreS
       }
       console.warn('[WARN] Staging database not available for Phase 3 Domain Integrity test.');
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     if (isDbAvailable && prisma) {

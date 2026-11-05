@@ -386,9 +386,12 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       assignedTrainerId: trainerUserId,
       freezeHistory: [
         {
+          startDate: '2026-10-15T09:00:00.000Z',
+          endDate: '2026-11-15T09:00:00.000Z',
           frozenAt: '2026-10-15T09:00:00.000Z',
-          reason: 'Medical recovery leave after minor knee strain',
           resumesAt: '2026-11-15T09:00:00.000Z',
+          reason: 'Medical recovery leave after minor knee strain',
+          durationDays: 31,
         },
       ],
       version: 1,

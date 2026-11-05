@@ -13,9 +13,9 @@ export class PlanCode implements ValueObject<string> {
       throw new MembershipPlanInvariantViolationException('Plan code cannot be empty.');
     }
     const normalized = code.trim().toUpperCase();
-    if (!/^[A-Z0-9_]{3,50}$/.test(normalized)) {
+    if (!/^[A-Z0-9_-]{3,50}$/.test(normalized)) {
       throw new MembershipPlanInvariantViolationException(
-        `Plan code '${code}' is invalid. Must be 3-50 uppercase alphanumeric characters or underscores.`,
+        `Plan code '${code}' is invalid. Must be 3-50 uppercase alphanumeric characters, underscores, or hyphens.`,
       );
     }
     this._value = normalized;

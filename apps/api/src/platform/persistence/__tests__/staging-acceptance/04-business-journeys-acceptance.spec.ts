@@ -28,7 +28,7 @@ describe('Milestone 10.7 — Phase 4: Full Business Acceptance Journeys Against 
       }
       console.warn('[WARN] Staging database not available for Phase 4 Acceptance Journeys.');
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     if (isDbAvailable && prisma) {

@@ -7,6 +7,7 @@ export interface ClientIdProps {
 export class ClientId extends ValueObject<ClientIdProps> {
   private static readonly UUID_REGEX =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  private static readonly PREFIXED_REGEX = /^(?:cli|client)[-_][a-zA-Z0-9_-]+$/i;
 
   private constructor(props: ClientIdProps) {
     super(props);
@@ -28,6 +29,6 @@ export class ClientId extends ValueObject<ClientIdProps> {
   }
 
   public static isValid(id: string): boolean {
-    return this.UUID_REGEX.test(id);
+    return this.UUID_REGEX.test(id) || this.PREFIXED_REGEX.test(id);
   }
 }

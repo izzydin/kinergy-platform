@@ -11,8 +11,10 @@ import { FreezeWindow } from '../../../../domain/membership/freeze-window.vo';
 import { TrainerAssignment } from '../../../../domain/membership/trainer-assignment.vo';
 
 interface FreezeRecordJson {
-  startDate: string;
-  endDate: string;
+  startDate?: string;
+  endDate?: string;
+  frozenAt?: string;
+  resumesAt?: string;
   reason?: string;
   durationDays?: number;
 }
@@ -20,9 +22,15 @@ interface FreezeRecordJson {
 export class PrismaMembershipMapper {
   public static toDomain(raw: PrismaMembershipModel): Membership {
     const freezeHistoryRaw = (raw.freezeHistory as unknown as FreezeRecordJson[]) || [];
-    const freezeHistory = freezeHistoryRaw.map((f) =>
-      FreezeWindow.create(new Date(f.startDate), new Date(f.endDate), f.reason),
-    );
+    const freezeHistory = Array.isArray(freezeHistoryRaw)
+      ? freezeHistoryRaw.map((f) => {
+          const startStr = f?.startDate ?? f?.frozenAt;
+          const endStr = f?.endDate ?? f?.resumesAt;
+          const startDate = startStr ? new Date(startStr) : (undefined as unknown as Date);
+          const endDate = endStr ? new Date(endStr) : (undefined as unknown as Date);
+          return FreezeWindow.create(startDate, endDate, f?.reason);
+        })
+      : [];
 
     return Membership.reconstitute({
       id: MembershipId.create(raw.id),

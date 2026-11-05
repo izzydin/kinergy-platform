@@ -52,7 +52,7 @@ export function useTodayGymCheckIns(options?: { enabled?: boolean; retry?: boole
     },
     enabled: isEnabled,
     staleTime: 30 * 1000,
-    retry: options?.retry ?? (process.env.NODE_ENV === 'test' ? false : 1),
+    ...(options?.retry !== undefined ? { retry: options.retry } : {}),
   });
 }
 
@@ -83,6 +83,6 @@ export function useLowStockAlerts(options?: { enabled?: boolean; retry?: boolean
     },
     enabled: isEnabled,
     staleTime: 60 * 1000,
-    retry: options?.retry ?? (process.env.NODE_ENV === 'test' ? false : 1),
+    ...(options?.retry !== undefined ? { retry: options.retry } : {}),
   });
 }

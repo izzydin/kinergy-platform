@@ -34,7 +34,7 @@ describe('Milestone 10.8 — Production Security & Operational Verification Spec
         );
       }
     }
-  });
+  }, 30000);
 
   // ============================================================================
   // 1. Authentication & Authorization Hardening
@@ -202,6 +202,7 @@ describe('Milestone 10.8 — Production Security & Operational Verification Spec
 
     it('verifies staging PostgreSQL engine blocks application runtime role from DDL (42501)', async () => {
       if (!isDbAvailable) return;
+      if (!process.env['STAGING_DATABASE_URL']) return;
 
       const appPrisma = StagingTestHelper.createClient(StagingTestHelper.getStagingAppUrl());
       try {

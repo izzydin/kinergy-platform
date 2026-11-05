@@ -44,6 +44,11 @@ describe('MembershipPlan Value Objects Specification (Phase 5.3-B)', () => {
 
       const code2 = PlanCode.create('VIP_ANNUAL_2026');
       expect(code2.value).toBe('VIP_ANNUAL_2026');
+
+      const code3 = PlanCode.create('MEM-10-VISITS');
+      expect(code3.value).toBe('MEM-10-VISITS');
+      const code4 = PlanCode.create('mem-gold-2026');
+      expect(code4.value).toBe('MEM-GOLD-2026');
     });
 
     it('should reject invalid, too short, too long, or non-alphanumeric PlanCode', () => {

@@ -28,6 +28,15 @@ describe('Client Domain Value Objects Unit Tests', () => {
       expect(id.value).toBe(validUuid);
     });
 
+    it('should accept valid prefixed client IDs (demo fixtures and test identifiers)', () => {
+      const seedIds = ['cli-seed-carlos-03', 'cli-seed-jane-01', 'client-123', 'cli_demo_01'];
+      for (const seedId of seedIds) {
+        const id = ClientId.create(seedId);
+        expect(id.value).toBe(seedId);
+        expect(ClientId.isValid(seedId)).toBe(true);
+      }
+    });
+
     it('should reject invalid UUID strings', () => {
       expect(() => ClientId.create('invalid-uuid')).toThrow('Invalid ClientId');
     });
