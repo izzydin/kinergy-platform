@@ -8,3 +8,5 @@ coverage
 pnpm-lock.yaml
 *.min.js
 apps/web/public/mockServiceWorker.js
+scratch-*.js
+scratch/

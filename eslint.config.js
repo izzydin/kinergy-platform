@@ -7,10 +7,25 @@ module.exports = tseslint.config(
   ...tseslint.configs.recommended,
   eslintConfigPrettier,
   {
-    ignores: ['**/dist/**', '**/node_modules/**', '**/.nx/**', '**/coverage/**'],
+    ignores: [
+      '**/dist/**',
+      '**/node_modules/**',
+      '**/.nx/**',
+      '**/coverage/**',
+      'scratch-*.js',
+      'scratch/**',
+      '**/scratch/**',
+    ],
   },
   {
-    files: ['eslint.config.js', 'jest.preset.js', '**/*.config.js'],
+    files: [
+      'eslint.config.js',
+      'jest.preset.js',
+      '**/*.config.js',
+      'scratch-*.js',
+      'scratch/**',
+      '**/scratch/**',
+    ],
     rules: {
       '@typescript-eslint/no-require-imports': 'off',
       'no-undef': 'off',
