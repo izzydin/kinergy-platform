@@ -184,10 +184,16 @@ export class HttpClient {
     if (!response.ok) {
       const errorPayload = await response.json().catch(() => ({}));
       const statusCode = response.status;
+      const retryAfterHeader =
+        response.headers?.get?.('Retry-After') || response.headers?.get?.('retry-after');
+      const retryAfterSeconds =
+        retryAfterHeader && !isNaN(parseInt(retryAfterHeader, 10))
+          ? parseInt(retryAfterHeader, 10)
+          : undefined;
       const normalizedPayload =
         typeof errorPayload === 'object' && errorPayload !== null
-          ? { statusCode, ...errorPayload }
-          : { statusCode, message: `HTTP ${statusCode} — ${path}` };
+          ? { statusCode, retryAfterSeconds, ...errorPayload }
+          : { statusCode, retryAfterSeconds, message: `HTTP ${statusCode} — ${path}` };
 
       throw normalizeApiError(normalizedPayload);
     }

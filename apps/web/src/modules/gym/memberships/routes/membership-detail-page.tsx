@@ -31,6 +31,7 @@ import { MembershipStatusBadge } from '../components/membership-status-badge';
 import { RenewMembershipDialog } from '../components/renew-membership-dialog';
 import { UnfreezeMembershipDialog } from '../components/unfreeze-membership-dialog';
 import { useMembershipDetail } from '../hooks/use-memberships';
+import { useClientDetail } from '../../../client/hooks/use-client-queries';
 
 export const MembershipDetailPage: React.FC = () => {
   const { membershipId = '' } = useParams<{ membershipId: string }>();
@@ -54,6 +55,10 @@ export const MembershipDetailPage: React.FC = () => {
     error,
     refetch,
   } = useMembershipDetail(membershipId);
+
+  const { data: clientData } = useClientDetail(membership?.clientId, {
+    enabled: Boolean(membership?.clientId),
+  });
 
   if (isLoading) {
     return <CrudLoading variant="detail" />;
@@ -207,9 +212,21 @@ export const MembershipDetailPage: React.FC = () => {
                 <User className="h-3.5 w-3.5" />
                 Client Reference
               </span>
-              <div className="text-sm font-mono font-bold text-foreground truncate">
-                {membership.clientId}
-              </div>
+              {clientData?.fullName || membership.clientName ? (
+                <>
+                  <div className="text-sm font-bold text-foreground truncate">
+                    {clientData?.fullName || membership.clientName}
+                  </div>
+                  <div className="text-[11px] font-mono text-muted-foreground truncate">
+                    {clientData?.referenceNumber ? `${clientData.referenceNumber} · ` : ''}
+                    {membership.clientId}
+                  </div>
+                </>
+              ) : (
+                <div className="text-sm font-mono font-bold text-foreground truncate">
+                  {membership.clientId}
+                </div>
+              )}
               {membership.assignedTrainerId ? (
                 <p className="text-[11px] text-muted-foreground font-mono">
                   Trainer: {membership.assignedTrainerId}

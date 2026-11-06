@@ -9,6 +9,8 @@ describe('ConfigRateLimitConfiguration', () => {
     mockConfigService = {
       get: jest.fn().mockImplementation((key: string, defaultValue: unknown) => {
         const values: Record<string, unknown> = {
+          THROTTLE_LIMIT: 120,
+          THROTTLE_TTL: 60,
           AUTH_LOGIN_LIMIT: 5,
           AUTH_LOGIN_WINDOW: 60,
           AUTH_REFRESH_LIMIT: 20,
@@ -26,6 +28,8 @@ describe('ConfigRateLimitConfiguration', () => {
   });
 
   it('should return configured or default rate limits for auth endpoints', () => {
+    expect(config.apiDefaultLimit).toBe(120);
+    expect(config.apiDefaultWindowSeconds).toBe(60);
     expect(config.authLoginLimit).toBe(5);
     expect(config.authLoginWindowSeconds).toBe(60);
     expect(config.authRefreshLimit).toBe(20);

@@ -15,8 +15,9 @@ import { CustomThrottlerGuard } from './guards/custom-throttler.guard';
       inject: [RATE_LIMIT_CONFIGURATION],
       useFactory: (config: IRateLimitConfiguration) => [
         {
-          ttl: config.authLoginWindowSeconds * 1000,
-          limit: config.authLoginLimit,
+          name: 'default',
+          ttl: config.apiDefaultWindowSeconds * 1000,
+          limit: config.apiDefaultLimit,
         },
       ],
     }),

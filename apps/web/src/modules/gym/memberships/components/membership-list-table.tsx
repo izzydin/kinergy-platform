@@ -10,6 +10,7 @@ import {
 } from '../../../../shared/table';
 import type { MembershipVM } from '../types';
 import { MembershipStatusBadge } from './membership-status-badge';
+import { ClientNameCell } from './client-name-cell';
 
 export interface MembershipListTableProps {
   readonly memberships: readonly MembershipVM[];
@@ -68,6 +69,16 @@ export const MembershipListTable: React.FC<MembershipListTableProps> = ({
 }) => {
   const columns = useMemo<ColumnDef<MembershipVM, unknown>[]>(() => {
     return [
+      {
+        accessorKey: 'clientName',
+        header: ({ column }) => <DataTableColumnHeader column={column} title="Client Name" />,
+        cell: ({ row }) => {
+          const m = row.original;
+          return <ClientNameCell clientId={m.clientId} clientName={m.clientName} />;
+        },
+        enableSorting: true,
+        enableHiding: false,
+      },
       {
         accessorKey: 'clientId',
         header: ({ column }) => <DataTableColumnHeader column={column} title="Client ID" />,

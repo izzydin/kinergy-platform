@@ -21,6 +21,11 @@ export const LogoutThrottle = () => Throttle({ default: { ttl: 60000, limit: 30 
 export const MeThrottle = () => Throttle({ default: { ttl: 60000, limit: 60 } });
 
 /**
+ * Decorator enforcing rate limits on Password change and reset endpoints (10 reqs / 60s per client/IP default).
+ */
+export const PasswordThrottle = () => Throttle({ default: { ttl: 60000, limit: 10 } });
+
+/**
  * Decorator marking endpoints (such as health checks) to bypass rate-limiting.
  */
 export const SkipThrottle = NestSkipThrottle;

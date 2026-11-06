@@ -11,7 +11,11 @@ import {
   ValidationError,
 } from '../index';
 
-function createMockResponse(body: unknown, status = 200): Response {
+function createMockResponse(
+  body: unknown,
+  status = 200,
+  headers?: Record<string, string>,
+): Response {
   const isString = typeof body === 'string';
   const textContent = isString
     ? (body as string)
@@ -22,6 +26,7 @@ function createMockResponse(body: unknown, status = 200): Response {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: new Headers(headers || {}),
     text: () => Promise.resolve(textContent),
     json: () => {
       if (!textContent) return Promise.resolve({});
@@ -254,6 +259,35 @@ describe('Step A6.2 — Shared HTTP API Client Transport Infrastructure', () => 
       } catch (err) {
         expect(err).toBeInstanceOf(RateLimitError);
         expect((err as RateLimitError).retryAfterSeconds).toBe(60);
+      }
+    });
+
+    it('extracts Retry-After from response headers and preserves NestJS exception message', async () => {
+      fetchSpy.mockResolvedValueOnce(
+        createMockResponse(
+          {
+            statusCode: 429,
+            timestamp: '2026-11-06T13:00:00.000Z',
+            path: '/api/v1/gym/memberships',
+            error: { message: 'Too many requests. Please slow down and try again later.' },
+          },
+          429,
+          { 'Retry-After': '45' },
+        ),
+      );
+
+      try {
+        await client.get('/gym/memberships');
+        fail('Expected request to throw RateLimitError');
+      } catch (err) {
+        expect(err).toBeInstanceOf(RateLimitError);
+        const rateLimitErr = err as RateLimitError;
+        expect(rateLimitErr.message).toBe(
+          'Too many requests. Please slow down and try again later.',
+        );
+        expect(rateLimitErr.retryAfterSeconds).toBe(45);
+        expect(rateLimitErr.statusCode).toBe(429);
+        expect(rateLimitErr.isRecoverable).toBe(true);
       }
     });
 

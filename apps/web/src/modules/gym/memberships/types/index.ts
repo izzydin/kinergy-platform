@@ -13,6 +13,7 @@ export interface FreezeWindowVM {
 export interface MembershipVM {
   id: string;
   clientId: string;
+  clientName?: string;
   planId: string;
   period: MembershipPeriodVM;
   status: 'PENDING' | 'ACTIVE' | 'FROZEN' | 'EXPIRED' | 'CANCELLED' | 'TERMINATED';

@@ -22,6 +22,10 @@ async function bootstrap(): Promise<void> {
   const port = configService.get<number>('PORT', 3000);
   const globalPrefix = configService.get<string>('API_PREFIX', 'api/v1');
 
+  // Trust reverse proxy (e.g. Nginx edge gateway forwarding X-Forwarded-For)
+  const trustProxy = configService.get<string | number | boolean>('TRUST_PROXY', 1);
+  app.getHttpAdapter().getInstance().set('trust proxy', trustProxy);
+
   // Security & Optimization Middleware
   app.use(helmet(helmetSecurityOptions));
   app.use(new SecurityHeadersMiddleware().use);

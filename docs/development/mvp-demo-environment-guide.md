@@ -418,6 +418,7 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 2. **Member Selection**: Navigate to `/clients` (`http://localhost:8080/clients` in Option B / `http://localhost:5173/clients` in Option A). Locate Carlos Rivera (`CLI-2026-00003`) using the search bar (evaluated via trigram index in < 25ms).
 3. **Plan Enrollment**:
    - Click **Enroll in Plan** or navigate to `/gym/memberships/new` (`http://localhost:8080/gym/memberships/new`).
+   - In the **Select Client** field, search for and select **Carlos Rivera** by typing his name, phone number, or client code (`CLI-2026-00003`) into the searchable client combobox.
    - Select **Silver Monthly Gym Membership** ($60.00 / 30 days).
    - Confirm enrollment. Highlight that the membership status immediately updates to `ACTIVE`.
 4. **Commercial POS Billing**:
@@ -670,6 +671,19 @@ pnpm db:seed
      ```powershell
      docker compose -f docker-compose.demo.yml up -d --build demo-api
      ```
+
+### Incident 8: Rapid Navigation Returns HTTP 429 Too Many Requests
+
+- **Symptom**: Navigating between modules (Clients, Memberships, Attendance, POS) rapidly causes some requests to fail with `HTTP 429 Too Many Requests` and empty states.
+- **Root Cause**:
+  1. Global rate limiter was previously pegged to the strict authentication threshold (`AUTH_LOGIN_LIMIT=5` per 60s) rather than general API traffic thresholds.
+  2. The Express server did not trust the Nginx edge reverse proxy (`trust proxy` was unset), grouping all client browser traffic into Nginx's bridge IP.
+  3. Rate limiting was tracked by IP rather than cryptographically validated user identity (`user:<id>`).
+- **Resolution & Architecture**:
+  1. **Separated Policy Throttlers**: Sensitive authentication endpoints use dedicated granular decorators (`@LoginThrottle()` at 5 req/min, `@RefreshThrottle()` at 20 req/min, `@LogoutThrottle()` at 30 req/min, `@MeThrottle()` at 60 req/min, `@PasswordThrottle()` at 10 req/min), while general API navigation uses `THROTTLE_LIMIT=120` (default: 120 req / 60s).
+  2. **Proxy Trust**: Express enables `app.set('trust proxy', 1)` to correctly inspect client IPs from `X-Forwarded-For` forwarded by Nginx.
+  3. **User-Aware Tracking**: `CustomThrottlerGuard` inspects the request context and verified Bearer JWT tokens, tracking requests by `user:<userId>` for authenticated sessions with graceful fallback to `ip:<clientIp>`.
+  4. **Frontend Normalization**: Frontend `HttpClient` extracts `Retry-After` headers into `RateLimitError` and preserves server exception messages.
 
 ---
 

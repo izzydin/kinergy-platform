@@ -40,6 +40,8 @@ import {
 import { usePlans } from '../../plans/hooks/use-plans';
 import { useMembershipEligibility, useMembershipMutations } from '../hooks/use-memberships';
 import { createMembershipSchema, CreateMembershipFormValues } from '../schemas/membership.schema';
+import { ClientSelector } from '../components/client-selector';
+import type { ClientModel } from '../../../client/types/client.types';
 
 export const CreateMembershipPage: React.FC = () => {
   const navigate = useNavigate();
@@ -47,6 +49,7 @@ export const CreateMembershipPage: React.FC = () => {
   const { success, error: notifyError } = useNotification();
   const { createMembership } = useMembershipMutations();
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [selectedClient, setSelectedClient] = useState<ClientModel | null>(null);
 
   // 1. Fetch only selectable/available plans directly from authoritative API
   const { data: plansData, isLoading: isLoadingPlans } = usePlans({
@@ -177,17 +180,21 @@ export const CreateMembershipPage: React.FC = () => {
                   name="clientId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel required>Client ID</FormLabel>
+                      <FormLabel required>Select Client</FormLabel>
                       <FormControl>
-                        <Input
-                          {...field}
-                          placeholder="e.g. cli_01j7h8v9w..."
-                          className="font-mono text-sm"
-                          data-testid="input-client-id"
+                        <ClientSelector
+                          value={field.value}
+                          onChange={(id, client) => {
+                            field.onChange(id);
+                            setSelectedClient(client ?? null);
+                          }}
+                          onBlur={field.onBlur}
+                          disabled={createMembership.isPending}
                         />
                       </FormControl>
                       <FormDescription>
-                        Enter the unique identifier of the registered platform client.
+                        Search by client name, phone number, or client code to select an active
+                        client.
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -373,9 +380,27 @@ export const CreateMembershipPage: React.FC = () => {
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                     <div className="p-3 bg-card border rounded space-y-1">
                       <span className="text-muted-foreground font-medium">Selected Client:</span>
-                      <p className="font-mono font-semibold text-foreground truncate">
-                        {watchedClientId || 'No client specified'}
+                      <p className="font-semibold text-foreground truncate">
+                        {selectedClient ? (
+                          <>
+                            <span>{selectedClient.fullName}</span>
+                            {selectedClient.referenceNumber && (
+                              <span className="font-mono text-xs text-muted-foreground ml-1.5">
+                                ({selectedClient.referenceNumber})
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <span className="font-mono">
+                            {watchedClientId || 'No client specified'}
+                          </span>
+                        )}
                       </p>
+                      {selectedClient?.phone && (
+                        <p className="text-xs text-muted-foreground font-mono">
+                          {selectedClient.phone}
+                        </p>
+                      )}
                     </div>
                     <div className="p-3 bg-card border rounded space-y-1">
                       <span className="text-muted-foreground font-medium">

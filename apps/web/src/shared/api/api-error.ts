@@ -147,8 +147,13 @@ export function normalizeApiError(error: unknown): ApiError {
     };
 
     const statusCode = Number(errObj.statusCode || errObj.status || 500);
-    const message =
-      typeof errObj.message === 'string' ? errObj.message : 'An unexpected error occurred.';
+    const serverMessage =
+      typeof errObj.message === 'string'
+        ? errObj.message
+        : typeof (errObj.error as { message?: unknown })?.message === 'string'
+          ? (errObj.error as { message: string }).message
+          : undefined;
+    const message = serverMessage || 'An unexpected error occurred.';
     const details = (errObj.details as Record<string, string[]>) || undefined;
     const correlationId =
       typeof errObj.correlationId === 'string' ? errObj.correlationId : undefined;

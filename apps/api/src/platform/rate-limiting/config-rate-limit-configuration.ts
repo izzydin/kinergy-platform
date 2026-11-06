@@ -10,6 +10,14 @@ import { IRateLimitConfiguration } from './rate-limit-configuration.interface';
 export class ConfigRateLimitConfiguration implements IRateLimitConfiguration {
   constructor(private readonly configService: ConfigService) {}
 
+  get apiDefaultLimit(): number {
+    return this.configService.get<number>('THROTTLE_LIMIT', 120);
+  }
+
+  get apiDefaultWindowSeconds(): number {
+    return this.configService.get<number>('THROTTLE_TTL', 60);
+  }
+
   get authLoginLimit(): number {
     return this.configService.get<number>('AUTH_LOGIN_LIMIT', 5);
   }

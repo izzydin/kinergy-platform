@@ -33,4 +33,8 @@ export interface DataTableRowActionsProps<TData> {
   readonly triggerLabel?: string;
   /** Custom trigger button className */
   readonly className?: string;
+  /** Whether to render the menu inside a portal to escape table/container clipping (default: true) */
+  readonly usePortal?: boolean;
+  /** Horizontal alignment relative to the trigger button (default: 'end') */
+  readonly align?: 'start' | 'end';
 }

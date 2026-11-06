@@ -10,6 +10,13 @@ import { AuthenticationGuard } from '../guards/authentication.guard';
 import { AuthorizationGuard } from '../authorization/authorization.guard';
 import { Public, Roles, Permissions, CurrentUser } from '../decorators';
 import { AuthenticatedUserContext } from '../context/authenticated-user-context';
+import {
+  LoginThrottle,
+  RefreshThrottle,
+  LogoutThrottle,
+  MeThrottle,
+  PasswordThrottle,
+} from '../../rate-limiting';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -24,6 +31,7 @@ export class AuthController {
   ) {}
 
   @Public()
+  @LoginThrottle()
   @Post('login')
   @ApiOperation({ summary: 'Authenticate user with email and password' })
   @ApiResponse({ status: 200, description: 'Login successful, returns token pair' })
@@ -33,6 +41,7 @@ export class AuthController {
   }
 
   @Public()
+  @RefreshThrottle()
   @Post('refresh')
   @ApiOperation({ summary: 'Refresh access token using refresh token' })
   @ApiResponse({ status: 200, description: 'Token pair refreshed successfully' })
@@ -44,6 +53,7 @@ export class AuthController {
   }
 
   @UseGuards(AuthenticationGuard)
+  @LogoutThrottle()
   @Post('logout')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Revoke active refresh token family and logout' })
@@ -59,6 +69,7 @@ export class AuthController {
   }
 
   @UseGuards(AuthenticationGuard)
+  @MeThrottle()
   @Get('me')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get profile details for currently authenticated user' })
@@ -68,6 +79,7 @@ export class AuthController {
   }
 
   @UseGuards(AuthenticationGuard)
+  @PasswordThrottle()
   @Post('change-password')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change password for authenticated user' })
@@ -85,6 +97,7 @@ export class AuthController {
   @UseGuards(AuthenticationGuard, AuthorizationGuard)
   @Roles('ADMIN', 'SUPER_ADMIN')
   @Permissions('manage:users')
+  @PasswordThrottle()
   @Post('users/:userId/reset-password')
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Reset user password (Admin functionality)' })

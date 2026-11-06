@@ -3,6 +3,8 @@
  * Hides framework environment variables behind an application port.
  */
 export interface IRateLimitConfiguration {
+  readonly apiDefaultLimit: number;
+  readonly apiDefaultWindowSeconds: number;
   readonly authLoginLimit: number;
   readonly authLoginWindowSeconds: number;
   readonly authRefreshLimit: number;
