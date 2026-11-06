@@ -6,20 +6,19 @@ describe('Milestone 10.7 — Phase 1: Staging Migration & Schema Integrity', () 
   let prismaApp: PrismaClient;
   let prismaMigrator: PrismaClient;
   let isDbAvailable = false;
-  let activeUrl = '';
 
   beforeAll(async () => {
     jest.setTimeout(30000);
-    activeUrl = await StagingTestHelper.resolveActivePostgresUrl();
+    const activeUrl = await StagingTestHelper.resolveActivePostgresUrl();
     try {
       const probe = StagingTestHelper.createClient(activeUrl);
       await probe.$queryRawUnsafe('SELECT 1');
       await probe.$disconnect();
       isDbAvailable = true;
 
-      prismaMigrator = StagingTestHelper.createClient(activeUrl);
-      prismaAdmin = StagingTestHelper.createClient(activeUrl);
-      prismaApp = StagingTestHelper.createClient(activeUrl);
+      prismaMigrator = StagingTestHelper.createClient(StagingTestHelper.getStagingMigratorUrl());
+      prismaAdmin = StagingTestHelper.createClient(StagingTestHelper.getStagingAdminUrl());
+      prismaApp = StagingTestHelper.createClient(StagingTestHelper.getStagingAppUrl());
     } catch (error) {
       isDbAvailable = false;
       if (process.env['CI']) {
@@ -153,29 +152,52 @@ describe('Milestone 10.7 — Phase 1: Staging Migration & Schema Integrity', () 
 
   it('1.5 verifies least-privilege role boundaries (kinergy_app vs kinergy_migrator)', async () => {
     if (!isDbAvailable) return;
-    if (!process.env['STAGING_DATABASE_URL'] && !activeUrl.includes('kinergy_app')) {
-      console.warn(
-        '[INFO] Staging least-privilege role kinergy_app not active in this database; skipping role boundary test.',
-      );
-      return;
+
+    if (process.env['CI']) {
+      await prismaApp.$queryRawUnsafe('SELECT 1');
+    } else {
+      try {
+        await prismaApp.$queryRawUnsafe('SELECT 1');
+      } catch {
+        console.warn(
+          '[INFO] Staging least-privilege role kinergy_app not present in this database; skipping role boundary test.',
+        );
+        return;
+      }
     }
 
-    // kinergy_migrator can execute DDL (CREATE TEMP TABLE / TABLE)
-    await prismaMigrator.$executeRawUnsafe(
-      'CREATE TABLE IF NOT EXISTS migrator_ddl_verification (id int PRIMARY KEY)',
-    );
-    await prismaMigrator.$executeRawUnsafe('DROP TABLE IF EXISTS migrator_ddl_verification');
+    // kinergy_migrator can execute DDL (CREATE TABLE)
+    try {
+      await prismaMigrator.$executeRawUnsafe(
+        'CREATE TABLE IF NOT EXISTS migrator_ddl_verification (id int PRIMARY KEY)',
+      );
+      const tableCheck = await prismaMigrator.$queryRawUnsafe<Array<{ exists: boolean }>>(
+        `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'migrator_ddl_verification') as exists`,
+      );
+      expect(tableCheck[0]?.exists).toBe(true);
+    } finally {
+      await prismaMigrator
+        .$executeRawUnsafe('DROP TABLE IF EXISTS migrator_ddl_verification')
+        .catch(() => {});
+    }
 
     // kinergy_app is restricted to DML ONLY. DDL must fail at PostgreSQL engine level with 42501
     let appDdlFailed = false;
+    let pgErrorCode: string | null = null;
     try {
       await prismaApp.$executeRawUnsafe('CREATE TABLE app_ddl_forbidden (id int PRIMARY KEY)');
     } catch (err: unknown) {
       appDdlFailed = true;
       const msg = err instanceof Error ? err.message : String(err);
       expect(msg).toMatch(/permission denied for schema public|42501/i);
+      if (msg.includes('42501')) {
+        pgErrorCode = '42501';
+      }
+    } finally {
+      await prismaAdmin.$executeRawUnsafe('DROP TABLE IF EXISTS app_ddl_forbidden').catch(() => {});
     }
     expect(appDdlFailed).toBe(true);
+    expect(pgErrorCode).toBe('42501');
 
     // kinergy_app CAN execute DML (SELECT)
     const selectCheck = await prismaApp.$queryRawUnsafe('SELECT 1 as verified');
