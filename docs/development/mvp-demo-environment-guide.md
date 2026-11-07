@@ -30,7 +30,7 @@ The MVP demonstration encompasses four fully realized, cross-integrated business
 2. **Gym & Membership Management**: Plan cataloging, agreement enrollment, date validity resolution, suspension/renewal, and attendance turnstile check-in with a 5-minute anti-passback cooldown.
 3. **Clinical Kinesiology & Therapy**: 4D conflict-protected appointment booking (therapist, room, client, turnaround buffer), treatment session lifecycle, structured SOAP clinical charting, and medico-legal immutability locking upon completion.
 4. **Consumable Inventory & Retail POS**: Multi-category catalog, unit-of-measure tracking, supplier stock receiving, append-only stock movement ledger, automated low-stock warnings, and payment-triggered stock decrementing.
-5. **Commercial Sales, Payments & Fiscal Receipts**: Order composition, immutable item price snapshotting, promotional discount checks, multi-tender payments (`CASH`, `CARD`, `QR`, `TRANSFER`), split settlements, explicit QR settlement confirmation, and sequential fiscal receipt vouchers (`REC-YYYY-XXXXX`).
+5. **Commercial Sales, Payments & Receipt Vouchers**: Order composition, immutable item price snapshotting, promotional discount checks, multi-tender payments (`CASH`, `CARD`, `QR`, `TRANSFER`), split settlements, explicit QR settlement confirmation, and sequential commercial receipt vouchers (`REC-YYYY-XXXXX`).
 
 ### 1.4 Exclusions & Non-Goals
 
@@ -38,6 +38,7 @@ The following operational capabilities are deliberately excluded from MVP demons
 
 - **Physical Hardware Integration**: USB barcode scanners, physical turnstile relays, and EMV chip-and-PIN payment terminals (simulated via software web UI).
 - **Electronic Data Interchange (EDI)**: Automated supplier replenishment orders (manual invoice receiving is implemented).
+- **Government Tax Authority Integration (Fiscal Invoicing)**: External tax authority electronic digital signatures and fiscal clearance (e.g. Bolivian SIN CUF) are not integrated in this MVP; the system issues internal commercial sequential receipt vouchers (`REC-YYYY-XXXXX`) as proof of payment.
 - **Clinical SOAP Addenda**: In-place post-completion note mutation (prohibited for healthcare medico-legal compliance; addendum workflow is planned for Phase 12).
 - **Multi-Tenant Self-Service Onboarding**: Dynamic tenant registration (single primary demonstration tenant `tenant-kinergy-main` is seeded).
 
@@ -221,7 +222,7 @@ The 14 migrations deployed to `kinergy_dev` are:
 5. `20260826000000_add_resources_management`: Inventory items, stock movements, fixed assets.
 6. `20260918000000_add_sales_and_payments_monetary_persistence`: Orders, items, tenders.
 7. `20260921000000_add_payments_domain_persistence`: Payment domain aggregates and methods.
-8. `20260924000000_add_receipts_and_sequence_persistence`: Fiscal vouchers and atomic sequences.
+8. `20260924000000_add_receipts_and_sequence_persistence`: Commercial receipt vouchers and atomic sequences.
 9. `20260930000000_add_sale_source_correlation_indexes`: Fast lookup indices across cross-domain sources.
 10. `20261001000000_add_phase_7_monetary_check_constraints`: Non-negative math check constraints.
 11. `20261001010000_add_discount_structural_check_constraints`: Discount integrity bounds.
@@ -421,23 +422,26 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
    - In the **Select Client** field, search for and select **Carlos Rivera** by typing his name, phone number, or client code (`CLI-2026-00003`) into the searchable client combobox.
    - Select **Silver Monthly Gym Membership** ($60.00 / 30 days).
    - Confirm enrollment. Highlight that the membership status immediately updates to `ACTIVE`.
-4. **Commercial POS Billing**:
-   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`).
-   - Set source type to `GYM_MEMBERSHIP`, select the newly created membership, and verify that the line item snapshot locks at $60.00.
-   - Click **Create Order**. Order transitions to `PENDING_PAYMENT`.
-5. **Cash Payment Tender**:
-   - Click **Record Payment**. Select method `CASH`, input $60.00, and confirm.
-   - Verify that the order transitions to `PAID` with balance $0.00.
-6. **Fiscal Receipt Generation**:
-   - Click **View Receipt**. Show the fiscal receipt voucher with sequential number (`REC-2026-00000X`).
-7. **Turnstile Check-In**:
+4. **Commercial POS Station Billing & Cash Tender**:
+   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`). The intuitive Point of Sale (POS) Station opens by default.
+   - In **Customer Selection**, Carlos Rivera is selected (or search by typing "Carlos" in the client combobox).
+   - In **Purchase Categories**, select **Gym Memberships**.
+   - Browse the active membership catalog and click **Add to Cart** on **Silver Monthly Gym Membership** ($60.00 / 30 days).
+   - In the **Current Transaction** panel, review the subtotal ($60.00 USD).
+   - In the **Payment Tender** panel, select **CASH Tender**, enter tender amount $60.00 (or click **Exact $60.00**), and verify change is $0.00.
+   - Click **Complete Sale**. The station automatically orchestrates agreement initialization, order finalization, cash settlement, and receipt voucher issuance.
+5. **Post-Sale Confirmation & Receipt Voucher**:
+   - The station displays the **Sale Completed Successfully** confirmation voucher with sequential receipt reference (`REC-2026-00000X`), settled total, and itemized lines.
+   - Click **View Receipt** to inspect the printable proof-of-payment receipt voucher.
+   - Click **Start Next Sale** to clear the cart and return the terminal to standby for the next client.
+6. **Turnstile Check-In**:
    - Navigate to `/gym/attendance` (`http://localhost:8080/gym/attendance`).
    - Search for Carlos Rivera and click **Check In**.
    - Show green indicator: `GRANTED — Access Permitted`.
-8. **Anti-Passback Security Demonstration**:
+7. **Anti-Passback Security Demonstration**:
    - Immediately click **Check In** again for Carlos Rivera.
    - Show yellow/red indicator: `DENIED — Rapid Duplicate Check-In Cooldown Active` (5-minute security cooldown).
-9. **Negative Ingress Security Demonstrations**:
+8. **Negative Ingress Security Demonstrations**:
    - Search for **David Kim** (`CLI-2026-00005`) $\to$ Click **Check In** $\to$ Red indicator: `DENIED — Membership Expired on 2026-09-01`.
    - Search for **Maria Gonzalez** (`CLI-2026-00004`) $\to$ Click **Check In** $\to$ Blue/Yellow indicator: `DENIED — Membership Frozen (Medical Hold)`.
 
@@ -529,15 +533,19 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 
 #### Step-by-Step Walkthrough
 
-1. **Create Commercial Sale**:
-   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`). Add 1 **Organic Whey Protein Bar** ($5.50).
-   - Create order in `PENDING_PAYMENT` status.
-2. **Initiate QR Tender**:
-   - Click **Record Payment**. Select method `QR`, enter $5.50, and input customer reference `QR-REF-8841`.
-   - Submit payment.
+1. **Compose Sale at POS Station**:
+   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`).
+   - In **Purchase Categories**, click **Drinks & Products**.
+   - Browse the retail items and click **Add to Cart** for 1 **Organic Whey Protein Bar** ($5.50).
+   - Review the integer-cents calculated total ($5.50 USD) in the transaction cart.
+2. **Initiate QR Digital Tender at Checkout**:
+   - In the **Payment Tender** panel, select **QR Digital**.
+   - Enter customer payment reference `QR-REF-8841`.
+   - Click **Complete Sale ($5.50)**.
 3. **Verify Pending Status (Financial Safety Rule)**:
-   - Notice that the payment is recorded with status **`PENDING`** (not `COMPLETED`).
-   - The sale remains in `PENDING_PAYMENT`.
+   - Notice that the checkout completes with tender status **`PENDING`** (not `COMPLETED`).
+   - Because funds have not settled, the commercial receipt voucher is withheld in accordance with accounting invariants.
+   - Click **Sale Agreement** on the confirmation voucher to view the sale in `PENDING_PAYMENT` status.
 4. **Confirm External Funds & Settle Payment**:
    - Click on the pending payment ID to navigate to `/payments/:id` (`http://localhost:8080/payments/:id`).
    - Click **Settle Payment**.
@@ -545,8 +553,8 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
    - Enter bank confirmation code `BANK-TXN-90210` and click **Confirm Settlement**.
    - The payment transitions to `COMPLETED` with an authoritative `paidAt` timestamp.
    - The sale transitions to `PAID`.
-5. **Issue Tax Receipt**:
-   - Click **View Receipt** (or `/sales/:id/receipt`). Print or inspect the official fiscal voucher.
+5. **Issue Receipt Voucher**:
+   - Click **View Receipt** (or `/sales/:id/receipt`). Print or inspect the official proof-of-payment receipt voucher.
 
 ---
 
@@ -685,6 +693,21 @@ pnpm db:seed
   3. **User-Aware Tracking**: `CustomThrottlerGuard` inspects the request context and verified Bearer JWT tokens, tracking requests by `user:<userId>` for authenticated sessions with graceful fallback to `ip:<clientIp>`.
   4. **Frontend Normalization**: Frontend `HttpClient` extracts `Retry-After` headers into `RateLimitError` and preserves server exception messages.
 
+### Incident 9: Frontend Source Changes Not Reflected in Running Containerized Demo
+
+- **Symptom**: Modifications made to React SPA source code (e.g. `/sales/new` POS Station) do not appear at `http://localhost:8080/sales/new` even after browser hard refresh.
+- **Root Cause**: In Option B (`docker-compose.demo.yml`), the frontend container `kinergy-demo-web` serves precompiled production static assets from Nginx (`/usr/share/nginx/html/`). Vite development hot module reloading is active only in Option A (`pnpm dev:web` on port 5173). Editing source code does not automatically update static assets inside the running Docker container.
+- **Resolution (Safe Zero-Data-Loss Frontend Rebuild)**:
+  Rebuild only the frontend image and recreate the web container without modifying PostgreSQL, volumes, or the backend API:
+  ```powershell
+  # 1. Rebuild web Docker image with latest production assets
+  docker compose -f docker-compose.demo.yml build demo-web
+
+  # 2. Recreate web container gracefully without touching DB or API
+  docker compose -f docker-compose.demo.yml up -d --no-deps demo-web
+  ```
+  Nginx configuration guarantees that `index.html` is served with `Cache-Control: no-cache, no-store, must-revalidate`, allowing browsers to immediately pick up new JS chunks upon refresh.
+
 ---
 
 ## 12. Safe Shutdown & Reset Instructions
@@ -743,13 +766,15 @@ Verify all items before commencing a client demonstration:
 
 ## 14. Known Limitations & Next Planned Milestones
 
-| Domain / Area               | Current MVP Demonstration Behavior                                           | Planned Production Enhancement                                                 | Milestone    |
-| :-------------------------- | :--------------------------------------------------------------------------- | :----------------------------------------------------------------------------- | :----------- |
-| **Turnstile Gating**        | Agreement-first: allows check-in based on active membership validity window. | Commercial payment balance gating (blocks check-in if overdue balance exists). | Milestone 12 |
-| **Clinical Records**        | Completed SOAP notes are permanently locked and read-only.                   | Formal healthcare clinical addendum authoring workflow.                        | Milestone 12 |
-| **Inventory Replenishment** | Manual item receiving with purchase invoice reference logging.               | Electronic Data Interchange (EDI) and automated vendor purchase orders.        | Milestone 13 |
-| **Hardware Devices**        | Software turnstile and POS entry via responsive web interface.               | USB barcode scanner driver and physical turnstile relay integration.           | Milestone 13 |
-| **Payment Terminals**       | Software payment simulation for Cash, Card, QR, Transfer.                    | Direct EMV smart-card terminal pre-authorization and capture integration.      | Milestone 13 |
+| Domain / Area               | Current MVP Demonstration Behavior                                           | Planned Production Enhancement                                                  | Milestone    |
+| :-------------------------- | :--------------------------------------------------------------------------- | :------------------------------------------------------------------------------ | :----------- |
+| **Turnstile Gating**        | Agreement-first: allows check-in based on active membership validity window. | Commercial payment balance gating (blocks check-in if overdue balance exists).  | Milestone 12 |
+| **Clinical Records**        | Completed SOAP notes are permanently locked and read-only.                   | Formal healthcare clinical addendum authoring workflow.                         | Milestone 12 |
+| **Inventory Replenishment** | Manual item receiving with purchase invoice reference logging.               | Electronic Data Interchange (EDI) and automated vendor purchase orders.         | Milestone 13 |
+| **Hardware Devices**        | Software turnstile and POS entry via responsive web interface.               | USB barcode scanner driver and physical turnstile relay integration.            | Milestone 13 |
+| **Payment Terminals**       | Software payment simulation for Cash, Card, QR, Transfer.                    | Direct EMV smart-card terminal pre-authorization and capture integration.       | Milestone 13 |
+| **Fiscal Invoicing / Tax**  | Internal sequential proof-of-payment receipt vouchers (`REC-YYYY-XXXXX`).    | Bolivian SIN / electronic fiscal invoicing integration with digital signatures. | Milestone 13 |
+| **Fiscal Invoicing / Tax**  | Internal sequential proof-of-payment receipt vouchers (`REC-YYYY-XXXXX`).    | Bolivian SIN / electronic fiscal invoicing integration with digital signatures. | Milestone 13 |
 
 ---
 

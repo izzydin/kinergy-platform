@@ -17,6 +17,10 @@ describe('ConfigCorsConfiguration', () => {
     ]);
     expect(config.getAllowedHeaders()).toContain('Content-Type');
     expect(config.getAllowedHeaders()).toContain('Authorization');
+    expect(config.getAllowedHeaders()).toContain('X-Tenant-ID');
+    expect(config.getAllowedHeaders()).toContain('X-Idempotency-Key');
+    expect(config.getAllowedHeaders()).toContain('Idempotency-Key');
+    expect(config.getAllowedHeaders()).toContain('X-Retry-Attempt');
     expect(config.getExposedHeaders()).toContain('X-Request-ID');
     expect(config.getMaxAge()).toBe(86400);
     expect(config.getAllowCredentials()).toBe(true);

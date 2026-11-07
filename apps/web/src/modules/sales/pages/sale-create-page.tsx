@@ -31,6 +31,19 @@ import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { SALES_ROUTES } from '../routes/sales-routes';
 import { useDirtyGuard, ConfirmDiscardDialog, useApplyServerErrors } from '../../../shared/forms';
 import { ValidationError } from '../../../shared/query';
+import {
+  PosClientSelector,
+  PosCategorySelector,
+  PosItemBrowser,
+  PosCart,
+  PosPaymentPanel,
+  PosConfirmation,
+  usePosCheckout,
+  type PosCategory,
+  type PosCartItem,
+  type PosDiscount,
+} from '../components/pos';
+import type { ClientModel } from '../../client/types/client.types';
 
 export const SOURCE_TYPE_LABELS: Record<string, string> = {
   TREATMENT_SESSION: 'TREATMENT SESSION (Kinesiology Therapy)',
@@ -159,6 +172,83 @@ export const SaleCreatePage: React.FC = () => {
     return { subtotal, discountTotal, total };
   }, [watchedItems, hasOrderDiscount, watchedOrderDiscount]);
 
+  // POS Experience State & Handlers
+  const [viewMode, setViewMode] = useState<'pos' | 'manual'>('pos');
+  const [posCategory, setPosCategory] = useState<PosCategory>('GYM_MEMBERSHIP');
+  const [posClientId, setPosClientId] = useState<string>('');
+  const [posSelectedClient, setPosSelectedClient] = useState<ClientModel | null>(null);
+  const [posIsWalkIn, setPosIsWalkIn] = useState<boolean>(false);
+  const [posCartItems, setPosCartItems] = useState<PosCartItem[]>([]);
+  const [posOrderDiscount, setPosOrderDiscount] = useState<PosDiscount | undefined>(undefined);
+
+  const posCheckout = usePosCheckout({
+    currency: watchedCurrency,
+    selectedClientId: posClientId,
+    selectedClient: posSelectedClient,
+    isWalkIn: posIsWalkIn,
+    cartItems: posCartItems,
+    orderDiscount: posOrderDiscount,
+    onClearCart: () => setPosCartItems([]),
+  });
+
+  const handleAddToCart = (item: Omit<PosCartItem, 'id'>) => {
+    setPosCartItems((prev) => {
+      const existingIndex = prev.findIndex(
+        (it) => it.sourceType === item.sourceType && it.sourceId === item.sourceId,
+      );
+      if (existingIndex >= 0) {
+        const existing = prev[existingIndex];
+        if (existing) {
+          const maxStock = existing.maxStock;
+          const newQty =
+            maxStock !== undefined
+              ? Math.min(maxStock, existing.quantity + item.quantity)
+              : existing.quantity + item.quantity;
+          const updated = [...prev];
+          updated[existingIndex] = { ...existing, quantity: newQty };
+          return updated;
+        }
+      }
+      return [
+        ...prev,
+        {
+          ...item,
+          id: `cart_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        },
+      ];
+    });
+  };
+
+  const handleUpdateCartQuantity = (id: string, newQuantity: number) => {
+    setPosCartItems((prev) =>
+      prev.map((it) => {
+        if (it.id !== id) return it;
+        const qty =
+          it.maxStock !== undefined
+            ? Math.min(it.maxStock, Math.max(1, newQuantity))
+            : Math.max(1, newQuantity);
+        return { ...it, quantity: qty };
+      }),
+    );
+  };
+
+  const handleRemoveCartItem = (id: string) => {
+    setPosCartItems((prev) => prev.filter((it) => it.id !== id));
+  };
+
+  const handleClearCart = () => {
+    setPosCartItems([]);
+  };
+
+  const handleStartNewSale = () => {
+    posCheckout.resetPos();
+    setPosCartItems([]);
+    setPosClientId('');
+    setPosSelectedClient(null);
+    setPosIsWalkIn(false);
+    setPosOrderDiscount(undefined);
+  };
+
   if (!canCreate) {
     return (
       <ForbiddenView message="Access Denied: Missing required permission 'sales.create' to initialize sales agreements." />
@@ -257,7 +347,7 @@ export const SaleCreatePage: React.FC = () => {
   const isPending = createSaleMutation.isPending || isSubmitting;
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto" data-testid="sale-create-page">
+    <div className="space-y-6 max-w-6xl mx-auto" data-testid="sale-create-page">
       {/* 1. Header Navigation */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -275,402 +365,343 @@ export const SaleCreatePage: React.FC = () => {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                Create Commercial Sale
+                {viewMode === 'pos' ? 'Point of Sale (POS) Station' : 'Create Commercial Sale'}
               </h1>
+              {viewMode === 'pos' && <h2 className="sr-only">Create Commercial Sale</h2>}
               <Badge variant="outline" className="text-xs">
-                DRAFT Session
+                {viewMode === 'pos' ? 'Live POS Terminal' : 'DRAFT Session'}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Initialize a commercial checkout agreement. Line items and discounts will be
-              authoritatively computed upon submission.
+              {viewMode === 'pos'
+                ? 'Quick checkout for gym memberships, clinical therapy sessions, cafe meals, beverages, and facility room rentals.'
+                : 'Initialize a commercial checkout agreement. Line items and discounts will be authoritatively computed upon submission.'}
             </p>
           </div>
         </div>
-      </div>
 
-      {/* Commercial Agreement Scope Disclaimer */}
-      <div
-        className="p-3.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-950 dark:text-blue-200 text-xs flex items-start gap-2.5"
-        data-testid="sale-create-scope-banner"
-      >
-        <Info className="h-4 w-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
-        <div className="space-y-0.5">
-          <span className="font-semibold block">Commercial Agreement Scope:</span>
-          <span>
-            Creating a sale initializes a commercial order agreement in <strong>DRAFT</strong>{' '}
-            status. This action defines the purchased line items, discounts, and net payable total.
-            It does
-            <strong> NOT</strong> collect payment tender, charge client payment methods, or settle
-            funds. Payment recording occurs in a separate, explicit step once the agreement is
-            finalized.
-          </span>
+        {/* View Mode Switcher */}
+        <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg border border-border">
+          <Button
+            type="button"
+            variant={viewMode === 'pos' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('pos')}
+            className="h-7 text-xs px-2.5 font-medium"
+            data-testid="switch-to-pos-view-btn"
+          >
+            <ShoppingBag className="h-3.5 w-3.5 mr-1" /> Point of Sale (POS)
+          </Button>
+          <Button
+            type="button"
+            variant={viewMode === 'manual' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => setViewMode('manual')}
+            className="h-7 text-xs px-2.5 font-medium"
+            data-testid="switch-to-manual-view-btn"
+          >
+            <Tag className="h-3.5 w-3.5 mr-1" /> Standard Agreement Form
+          </Button>
         </div>
       </div>
 
-      {/* 2. Server Error / Duplicate Conflict Alert */}
-      {serverError && (
+      {/* POS Confirmation View (Shown when transaction settles) */}
+      {posCheckout.completedSummary && (
+        <PosConfirmation
+          summary={posCheckout.completedSummary}
+          onStartNewSale={handleStartNewSale}
+        />
+      )}
+
+      {/* POS Workstation View */}
+      {!posCheckout.completedSummary && (
         <div
-          className={`flex items-start gap-3 p-4 rounded-lg border text-sm ${
-            serverError.isConflict
-              ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
-              : 'border-destructive/30 bg-destructive/10 text-destructive'
-          }`}
-          data-testid="sale-create-error"
-          role="alert"
+          className={viewMode === 'pos' ? 'block space-y-6' : 'hidden'}
+          data-testid="pos-station-view"
         >
-          {serverError.isConflict ? (
-            <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
-          ) : (
-            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-          )}
-          <div className="space-y-1">
-            <p className="font-semibold">
-              {serverError.isConflict
-                ? 'Duplicate Sale Transaction Detected'
-                : 'Sale Initialization Failed'}
-            </p>
-            <p className="text-xs">{serverError.message}</p>
-            {serverError.isConflict && (
-              <p className="text-xs opacity-90">
-                To prevent duplicate charges or repeated billing of the same entity, the system
-                prohibits creating duplicate sales for the same upstream reference.
-              </p>
-            )}
-            {serverError.isAmbiguous && (
-              <p className="text-xs opacity-90 mt-1">
-                A network interruption occurred. Because the server may have already processed this
-                agreement, please check the{' '}
-                <Link
-                  to={SALES_ROUTES.list()}
-                  className="underline font-semibold hover:text-foreground"
-                >
-                  Sales Directory
-                </Link>{' '}
-                before resubmitting. If resubmitting, your original idempotency token is safely
-                preserved.
-              </p>
-            )}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Left Column: Customer + Category + Catalog Browser */}
+            <div className="lg:col-span-7 xl:col-span-8 space-y-4">
+              <PosClientSelector
+                selectedClientId={posClientId}
+                selectedClient={posSelectedClient}
+                isWalkIn={posIsWalkIn}
+                onSelectClient={(id, client) => {
+                  setPosClientId(id);
+                  setPosSelectedClient(client ?? null);
+                  setValue('clientId', id, { shouldDirty: true });
+                }}
+                onToggleWalkIn={(walkIn) => {
+                  setPosIsWalkIn(walkIn);
+                  if (walkIn) {
+                    setPosClientId('');
+                    setPosSelectedClient(null);
+                    setValue('clientId', '', { shouldDirty: true });
+                    setHasSourceReference(false);
+                    setValue('hasSourceReference', false);
+                  }
+                }}
+                disabled={posCheckout.isSubmitting}
+              />
+
+              <PosCategorySelector
+                selectedCategory={posCategory}
+                onSelectCategory={setPosCategory}
+                disabled={posCheckout.isSubmitting}
+              />
+
+              <PosItemBrowser
+                selectedCategory={posCategory}
+                selectedClientId={posClientId}
+                selectedClientName={posSelectedClient?.fullName}
+                isWalkIn={posIsWalkIn}
+                onAddToCart={handleAddToCart}
+                disabled={posCheckout.isSubmitting}
+              />
+            </div>
+
+            {/* Right Column: Transaction Cart & Payment Panel */}
+            <div className="lg:col-span-5 xl:col-span-4 space-y-4 lg:sticky lg:top-4">
+              <PosCart
+                items={posCartItems}
+                currency={watchedCurrency}
+                orderDiscount={posOrderDiscount}
+                onUpdateQuantity={handleUpdateCartQuantity}
+                onRemoveItem={handleRemoveCartItem}
+                onClearCart={handleClearCart}
+                onSetOrderDiscount={setPosOrderDiscount}
+                disabled={posCheckout.isSubmitting}
+              />
+
+              <PosPaymentPanel
+                netTotalCents={Math.max(
+                  0,
+                  posCartItems.reduce((acc, it) => acc + it.unitPriceCents * it.quantity, 0) -
+                    (posOrderDiscount?.value
+                      ? posOrderDiscount.type === 'PERCENTAGE'
+                        ? Math.round(
+                            (posCartItems.reduce(
+                              (acc, it) => acc + it.unitPriceCents * it.quantity,
+                              0,
+                            ) *
+                              Math.min(100, Math.max(0, posOrderDiscount.value))) /
+                              100,
+                          )
+                        : Math.min(
+                            posCartItems.reduce(
+                              (acc, it) => acc + it.unitPriceCents * it.quantity,
+                              0,
+                            ),
+                            Math.round(posOrderDiscount.value * 100),
+                          )
+                      : 0),
+                )}
+                currency={watchedCurrency}
+                isCartEmpty={posCartItems.length === 0}
+                isSubmitting={posCheckout.isSubmitting}
+                statusMessage={posCheckout.statusMessage}
+                errorMessage={posCheckout.errorMessage}
+                onCheckout={posCheckout.executeCheckout}
+                onSaveDraft={posCheckout.executeSaveDraft}
+              />
+            </div>
           </div>
         </div>
       )}
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-        {/* 3. Customer & Currency Settings */}
-        <Card className="border-border bg-card">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <ShoppingBag className="h-4 w-4 text-primary" />
-              Customer & Currency
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Assign this agreement to a registered client or record it as an anonymous walk-in.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Client ID */}
-              <div className="space-y-1.5">
-                <label htmlFor="clientId" className="text-xs font-medium text-foreground">
-                  Client ID{' '}
-                  <span className="text-muted-foreground font-normal">(Optional for Walk-in)</span>
-                </label>
-                <Input
-                  id="clientId"
-                  placeholder="e.g. client_123 (Leave empty for Walk-in)"
-                  {...register('clientId')}
-                  className="h-9 text-xs"
-                  aria-describedby="client-id-helper"
-                  data-testid="sale-client-id-input"
-                />
-                <p id="client-id-helper" className="text-[11px] text-muted-foreground">
-                  If left blank, this checkout will be tracked as an anonymous Walk-in customer.
-                </p>
-              </div>
+      {/* Standard Agreement Form (Accessible / Legacy Mode) */}
+      <div
+        className={viewMode === 'manual' ? 'block space-y-6' : 'hidden'}
+        data-testid="manual-form-container"
+      >
+        {/* Commercial Agreement Scope Disclaimer */}
+        <div
+          className="p-3.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-950 dark:text-blue-200 text-xs flex items-start gap-2.5"
+          data-testid="sale-create-scope-banner"
+        >
+          <Info className="h-4 w-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+          <div className="space-y-0.5">
+            <span className="font-semibold block">Commercial Agreement Scope:</span>
+            <span>
+              Creating a sale initializes a commercial order agreement in <strong>DRAFT</strong>{' '}
+              status. This action defines the purchased line items, discounts, and net payable
+              total. It does
+              <strong> NOT</strong> collect payment tender, charge client payment methods, or settle
+              funds. Payment recording occurs in a separate, explicit step once the agreement is
+              finalized.
+            </span>
+          </div>
+        </div>
 
-              {/* Currency */}
-              <div className="space-y-1.5">
-                <label htmlFor="currency" className="text-xs font-medium text-foreground">
-                  Currency Code (ISO-4217) *
-                </label>
-                <Input
-                  id="currency"
-                  defaultValue="USD"
-                  maxLength={3}
-                  {...register('currency')}
-                  className="h-9 text-xs uppercase font-mono"
-                  aria-invalid={Boolean(errors.currency)}
-                  aria-describedby={errors.currency ? 'currency-error' : 'currency-helper'}
-                  data-testid="sale-currency-input"
-                />
-                {errors.currency && (
-                  <p id="currency-error" className="text-xs text-destructive">
-                    {errors.currency.message}
-                  </p>
-                )}
-                <p id="currency-helper" className="text-[11px] text-muted-foreground">
-                  3-letter uppercase currency code (e.g. USD, CAD, EUR).
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 4. Commercial Origin Source Selection */}
-        <Card className="border-border bg-card">
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Tag className="h-4 w-4 text-primary" />
-              Origin Source Reference
-            </CardTitle>
-            <CardDescription className="text-xs">
-              Specify whether this sale originates from an upstream catalog entity or a walk-in
-              retail session.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-4 text-xs">
-              <label className="flex items-center gap-2 cursor-pointer font-medium">
-                <input
-                  type="radio"
-                  name="originType"
-                  checked={!hasSourceReference}
-                  onChange={() => {
-                    setHasSourceReference(false);
-                    setValue('hasSourceReference', false, { shouldValidate: true });
-                  }}
-                  className="h-4 w-4 text-primary"
-                  data-testid="origin-walkin-radio"
-                />
-                <span>Walk-in / Point of Sale Checkout</span>
-              </label>
-
-              <label className="flex items-center gap-2 cursor-pointer font-medium">
-                <input
-                  type="radio"
-                  name="originType"
-                  checked={hasSourceReference}
-                  onChange={() => {
-                    setHasSourceReference(true);
-                    setValue('hasSourceReference', true, { shouldValidate: true });
-                  }}
-                  className="h-4 w-4 text-primary"
-                  data-testid="origin-source-radio"
-                />
-                <span>Upstream Entity Reference (Catalog / Appointment / Plan)</span>
-              </label>
-            </div>
-
-            {hasSourceReference && (
-              <div
-                className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-lg border border-border bg-muted/20"
-                data-testid="source-reference-fields"
-              >
-                <div className="space-y-1">
-                  <label htmlFor="source-type" className="text-xs font-medium">
-                    Source Type *
-                  </label>
-                  <select
-                    id="source-type"
-                    {...register('sourceReference.type')}
-                    className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
-                    data-testid="source-type-select"
-                  >
-                    {VALID_SALE_SOURCE_TYPES.map((type) => (
-                      <option key={type} value={type}>
-                        {SOURCE_TYPE_LABELS[type] || type.replace(/_/g, ' ')}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label htmlFor="source-ref-id" className="text-xs font-medium">
-                    Reference ID *
-                  </label>
-                  <Input
-                    id="source-ref-id"
-                    placeholder="e.g. inv_item_123 or session_456"
-                    {...register('sourceReference.referenceId')}
-                    className="h-8 text-xs"
-                    aria-required="true"
-                    aria-invalid={Boolean(errors.sourceReference?.referenceId)}
-                    aria-describedby={
-                      errors.sourceReference?.referenceId ? 'source-ref-id-error' : undefined
-                    }
-                    data-testid="source-reference-id-input"
-                  />
-                  {errors.sourceReference?.referenceId && (
-                    <p
-                      id="source-ref-id-error"
-                      role="alert"
-                      className="text-[11px] text-destructive"
-                    >
-                      {errors.sourceReference.referenceId.message}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-1">
-                  <label htmlFor="source-ref-code" className="text-xs font-medium">
-                    Order / Reference Code
-                  </label>
-                  <Input
-                    id="source-ref-code"
-                    placeholder="e.g. SKU or order tag"
-                    {...register('sourceReference.referenceCode')}
-                    className="h-8 text-xs"
-                    data-testid="source-reference-code-input"
-                  />
-                </div>
-
-                <div className="col-span-1 sm:col-span-3 pt-1 text-[11px] text-muted-foreground">
-                  {watchedSourceType === 'TREATMENT_SESSION' && (
-                    <p data-testid="source-eligibility-hint">
-                      <strong>Kinesiology Session Rule:</strong> Target session must be completed
-                      and unbilled. Reference ID should match the session identifier.
-                    </p>
-                  )}
-                  {watchedSourceType === 'MEMBERSHIP_PLAN' && (
-                    <p data-testid="source-eligibility-hint">
-                      <strong>Gym Membership Rule:</strong> Membership plan must be active in
-                      catalog. Reference ID should match the plan or subscription identifier.
-                    </p>
-                  )}
-                  {watchedSourceType === 'ROOM_RENTAL' && (
-                    <p data-testid="source-eligibility-hint">
-                      <strong>Room Rental Rule:</strong> Room booking reservation must be confirmed
-                      in scheduling. Reference ID should match the booking identifier.
-                    </p>
-                  )}
-                  {(watchedSourceType === 'FOOD' || watchedSourceType === 'DRINK') && (
-                    <p data-testid="source-eligibility-hint">
-                      <strong>Food & Drink Rule:</strong> Item must have available stock in
-                      food/beverage inventory. Reference ID should match the inventory SKU.
-                    </p>
-                  )}
-                </div>
-              </div>
+        {/* 2. Server Error / Duplicate Conflict Alert */}
+        {serverError && (
+          <div
+            className={`flex items-start gap-3 p-4 rounded-lg border text-sm ${
+              serverError.isConflict
+                ? 'border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                : 'border-destructive/30 bg-destructive/10 text-destructive'
+            }`}
+            data-testid="sale-create-error"
+            role="alert"
+          >
+            {serverError.isConflict ? (
+              <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5" />
+            ) : (
+              <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
             )}
-          </CardContent>
-        </Card>
-
-        {/* 5. Line Items */}
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <div>
-              <CardTitle className="text-base">Line Items</CardTitle>
-              <CardDescription className="text-xs">
-                Add catalog items or services to this checkout session.
-              </CardDescription>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              disabled={isPending}
-              onClick={() =>
-                append({
-                  sourceType: 'INVENTORY_ITEM',
-                  sourceId: `item_${Date.now()}`,
-                  description: '',
-                  skuOrCode: '',
-                  unitPrice: 0.0,
-                  quantity: 1,
-                })
-              }
-              className="h-8 text-xs gap-1.5"
-              data-testid="add-line-item-btn"
-            >
-              <Plus className="h-3.5 w-3.5" /> Add Item
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {errors.items?.message && (
-              <p className="text-xs text-destructive font-medium" role="alert">
-                {errors.items.message}
+            <div className="space-y-1">
+              <p className="font-semibold">
+                {serverError.isConflict
+                  ? 'Duplicate Sale Transaction Detected'
+                  : 'Sale Initialization Failed'}
               </p>
-            )}
+              <p className="text-xs">{serverError.message}</p>
+              {serverError.isConflict && (
+                <p className="text-xs opacity-90">
+                  To prevent duplicate charges or repeated billing of the same entity, the system
+                  prohibits creating duplicate sales for the same upstream reference.
+                </p>
+              )}
+              {serverError.isAmbiguous && (
+                <p className="text-xs opacity-90 mt-1">
+                  A network interruption occurred. Because the server may have already processed
+                  this agreement, please check the{' '}
+                  <Link
+                    to={SALES_ROUTES.list()}
+                    className="underline font-semibold hover:text-foreground"
+                  >
+                    Sales Directory
+                  </Link>{' '}
+                  before resubmitting. If resubmitting, your original idempotency token is safely
+                  preserved.
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
-            {fields.map((field, index) => (
-              <div
-                key={field.id}
-                className="p-3.5 border border-border rounded-lg bg-muted/15 space-y-3"
-                data-testid={`line-item-row-${index}`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Line Item #{index + 1}
-                  </span>
-                  {fields.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      disabled={isPending}
-                      onClick={() => remove(index)}
-                      className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
-                      aria-label={`Remove line item ${index + 1}`}
-                      data-testid={`remove-line-item-${index}`}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
-                    </Button>
-                  )}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+          {/* 3. Customer & Currency Settings */}
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <ShoppingBag className="h-4 w-4 text-primary" />
+                Customer & Currency
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Assign this agreement to a registered client or record it as an anonymous walk-in.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Client ID */}
+                <div className="space-y-1.5">
+                  <label htmlFor="clientId" className="text-xs font-medium text-foreground">
+                    Client ID{' '}
+                    <span className="text-muted-foreground font-normal">
+                      (Optional for Walk-in)
+                    </span>
+                  </label>
+                  <Input
+                    id="clientId"
+                    placeholder="e.g. client_123 (Leave empty for Walk-in)"
+                    {...register('clientId')}
+                    className="h-9 text-xs"
+                    aria-describedby="client-id-helper"
+                    data-testid="sale-client-id-input"
+                  />
+                  <p id="client-id-helper" className="text-[11px] text-muted-foreground">
+                    If left blank, this checkout will be tracked as an anonymous Walk-in customer.
+                  </p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
-                  {/* Description */}
-                  <div className="space-y-1 sm:col-span-2">
-                    <label htmlFor={`item-desc-${index}`} className="text-xs font-medium">
-                      Description *
-                    </label>
-                    <Input
-                      id={`item-desc-${index}`}
-                      placeholder="e.g. Whey Protein 1kg"
-                      {...register(`items.${index}.description` as const)}
-                      className="h-8 text-xs"
-                      aria-required="true"
-                      aria-invalid={Boolean(errors.items?.[index]?.description)}
-                      aria-describedby={
-                        errors.items?.[index]?.description ? `item-desc-error-${index}` : undefined
-                      }
-                      data-testid={`item-desc-${index}`}
-                    />
-                    {errors.items?.[index]?.description && (
-                      <p
-                        id={`item-desc-error-${index}`}
-                        role="alert"
-                        className="text-[11px] text-destructive"
-                      >
-                        {errors.items[index]?.description?.message}
-                      </p>
-                    )}
-                  </div>
+                {/* Currency */}
+                <div className="space-y-1.5">
+                  <label htmlFor="currency" className="text-xs font-medium text-foreground">
+                    Currency Code (ISO-4217) *
+                  </label>
+                  <Input
+                    id="currency"
+                    defaultValue="USD"
+                    maxLength={3}
+                    {...register('currency')}
+                    className="h-9 text-xs uppercase font-mono"
+                    aria-invalid={Boolean(errors.currency)}
+                    aria-describedby={errors.currency ? 'currency-error' : 'currency-helper'}
+                    data-testid="sale-currency-input"
+                  />
+                  {errors.currency && (
+                    <p id="currency-error" className="text-xs text-destructive">
+                      {errors.currency.message}
+                    </p>
+                  )}
+                  <p id="currency-helper" className="text-[11px] text-muted-foreground">
+                    3-letter uppercase currency code (e.g. USD, CAD, EUR).
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
-                  {/* SKU / Code */}
-                  <div className="space-y-1">
-                    <label htmlFor={`item-sku-${index}`} className="text-xs font-medium">
-                      SKU / Code
-                    </label>
-                    <Input
-                      id={`item-sku-${index}`}
-                      placeholder="e.g. PROT-01"
-                      {...register(`items.${index}.skuOrCode` as const)}
-                      className="h-8 text-xs font-mono"
-                      data-testid={`item-sku-${index}`}
-                    />
-                  </div>
+          {/* 4. Commercial Origin Source Selection */}
+          <Card className="border-border bg-card">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Tag className="h-4 w-4 text-primary" />
+                Origin Source Reference
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Specify whether this sale originates from an upstream catalog entity or a walk-in
+                retail session.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center gap-4 text-xs">
+                <label className="flex items-center gap-2 cursor-pointer font-medium">
+                  <input
+                    type="radio"
+                    name="originType"
+                    checked={!hasSourceReference}
+                    onChange={() => {
+                      setHasSourceReference(false);
+                      setValue('hasSourceReference', false, { shouldValidate: true });
+                    }}
+                    className="h-4 w-4 text-primary"
+                    data-testid="origin-walkin-radio"
+                  />
+                  <span>Walk-in / Point of Sale Checkout</span>
+                </label>
 
-                  {/* Category */}
+                <label className="flex items-center gap-2 cursor-pointer font-medium">
+                  <input
+                    type="radio"
+                    name="originType"
+                    checked={hasSourceReference}
+                    onChange={() => {
+                      setHasSourceReference(true);
+                      setValue('hasSourceReference', true, { shouldValidate: true });
+                    }}
+                    className="h-4 w-4 text-primary"
+                    data-testid="origin-source-radio"
+                  />
+                  <span>Upstream Entity Reference (Catalog / Appointment / Plan)</span>
+                </label>
+              </div>
+
+              {hasSourceReference && (
+                <div
+                  className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-lg border border-border bg-muted/20"
+                  data-testid="source-reference-fields"
+                >
                   <div className="space-y-1">
-                    <label htmlFor={`item-source-type-${index}`} className="text-xs font-medium">
-                      Category
+                    <label htmlFor="source-type" className="text-xs font-medium">
+                      Source Type *
                     </label>
                     <select
-                      id={`item-source-type-${index}`}
-                      {...register(`items.${index}.sourceType` as const)}
+                      id="source-type"
+                      {...register('sourceReference.type')}
                       className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
-                      data-testid={`item-source-type-${index}`}
+                      data-testid="source-type-select"
                     >
                       {VALID_SALE_SOURCE_TYPES.map((type) => (
                         <option key={type} value={type}>
@@ -680,231 +711,432 @@ export const SaleCreatePage: React.FC = () => {
                     </select>
                   </div>
 
-                  {/* Unit Price */}
                   <div className="space-y-1">
-                    <label htmlFor={`item-price-${index}`} className="text-xs font-medium">
-                      Unit Price ({watchedCurrency}) *
+                    <label htmlFor="source-ref-id" className="text-xs font-medium">
+                      Reference ID *
                     </label>
                     <Input
-                      id={`item-price-${index}`}
+                      id="source-ref-id"
+                      placeholder="e.g. inv_item_123 or session_456"
+                      {...register('sourceReference.referenceId')}
+                      className="h-8 text-xs"
+                      aria-required="true"
+                      aria-invalid={Boolean(errors.sourceReference?.referenceId)}
+                      aria-describedby={
+                        errors.sourceReference?.referenceId ? 'source-ref-id-error' : undefined
+                      }
+                      data-testid="source-reference-id-input"
+                    />
+                    {errors.sourceReference?.referenceId && (
+                      <p
+                        id="source-ref-id-error"
+                        role="alert"
+                        className="text-[11px] text-destructive"
+                      >
+                        {errors.sourceReference.referenceId.message}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="source-ref-code" className="text-xs font-medium">
+                      Order / Reference Code
+                    </label>
+                    <Input
+                      id="source-ref-code"
+                      placeholder="e.g. SKU or order tag"
+                      {...register('sourceReference.referenceCode')}
+                      className="h-8 text-xs"
+                      data-testid="source-reference-code-input"
+                    />
+                  </div>
+
+                  <div className="col-span-1 sm:col-span-3 pt-1 text-[11px] text-muted-foreground">
+                    {watchedSourceType === 'TREATMENT_SESSION' && (
+                      <p data-testid="source-eligibility-hint">
+                        <strong>Kinesiology Session Rule:</strong> Target session must be completed
+                        and unbilled. Reference ID should match the session identifier.
+                      </p>
+                    )}
+                    {watchedSourceType === 'MEMBERSHIP_PLAN' && (
+                      <p data-testid="source-eligibility-hint">
+                        <strong>Gym Membership Rule:</strong> Membership plan must be active in
+                        catalog. Reference ID should match the plan or subscription identifier.
+                      </p>
+                    )}
+                    {watchedSourceType === 'ROOM_RENTAL' && (
+                      <p data-testid="source-eligibility-hint">
+                        <strong>Room Rental Rule:</strong> Room booking reservation must be
+                        confirmed in scheduling. Reference ID should match the booking identifier.
+                      </p>
+                    )}
+                    {(watchedSourceType === 'FOOD' || watchedSourceType === 'DRINK') && (
+                      <p data-testid="source-eligibility-hint">
+                        <strong>Food & Drink Rule:</strong> Item must have available stock in
+                        food/beverage inventory. Reference ID should match the inventory SKU.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* 5. Line Items */}
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <div>
+                <CardTitle className="text-base">Line Items</CardTitle>
+                <CardDescription className="text-xs">
+                  Add catalog items or services to this checkout session.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isPending}
+                onClick={() =>
+                  append({
+                    sourceType: 'INVENTORY_ITEM',
+                    sourceId: `item_${Date.now()}`,
+                    description: '',
+                    skuOrCode: '',
+                    unitPrice: 0.0,
+                    quantity: 1,
+                  })
+                }
+                className="h-8 text-xs gap-1.5"
+                data-testid="add-line-item-btn"
+              >
+                <Plus className="h-3.5 w-3.5" /> Add Item
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {errors.items?.message && (
+                <p className="text-xs text-destructive font-medium" role="alert">
+                  {errors.items.message}
+                </p>
+              )}
+
+              {fields.map((field, index) => (
+                <div
+                  key={field.id}
+                  className="p-3.5 border border-border rounded-lg bg-muted/15 space-y-3"
+                  data-testid={`line-item-row-${index}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Line Item #{index + 1}
+                    </span>
+                    {fields.length > 1 && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={isPending}
+                        onClick={() => remove(index)}
+                        className="h-7 px-2 text-xs text-destructive hover:bg-destructive/10"
+                        aria-label={`Remove line item ${index + 1}`}
+                        data-testid={`remove-line-item-${index}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 mr-1" /> Remove
+                      </Button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                    {/* Description */}
+                    <div className="space-y-1 sm:col-span-2">
+                      <label htmlFor={`item-desc-${index}`} className="text-xs font-medium">
+                        Description *
+                      </label>
+                      <Input
+                        id={`item-desc-${index}`}
+                        placeholder="e.g. Whey Protein 1kg"
+                        {...register(`items.${index}.description` as const)}
+                        className="h-8 text-xs"
+                        aria-required="true"
+                        aria-invalid={Boolean(errors.items?.[index]?.description)}
+                        aria-describedby={
+                          errors.items?.[index]?.description
+                            ? `item-desc-error-${index}`
+                            : undefined
+                        }
+                        data-testid={`item-desc-${index}`}
+                      />
+                      {errors.items?.[index]?.description && (
+                        <p
+                          id={`item-desc-error-${index}`}
+                          role="alert"
+                          className="text-[11px] text-destructive"
+                        >
+                          {errors.items[index]?.description?.message}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* SKU / Code */}
+                    <div className="space-y-1">
+                      <label htmlFor={`item-sku-${index}`} className="text-xs font-medium">
+                        SKU / Code
+                      </label>
+                      <Input
+                        id={`item-sku-${index}`}
+                        placeholder="e.g. PROT-01"
+                        {...register(`items.${index}.skuOrCode` as const)}
+                        className="h-8 text-xs font-mono"
+                        data-testid={`item-sku-${index}`}
+                      />
+                    </div>
+
+                    {/* Category */}
+                    <div className="space-y-1">
+                      <label htmlFor={`item-source-type-${index}`} className="text-xs font-medium">
+                        Category
+                      </label>
+                      <select
+                        id={`item-source-type-${index}`}
+                        {...register(`items.${index}.sourceType` as const)}
+                        className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                        data-testid={`item-source-type-${index}`}
+                      >
+                        {VALID_SALE_SOURCE_TYPES.map((type) => (
+                          <option key={type} value={type}>
+                            {SOURCE_TYPE_LABELS[type] || type.replace(/_/g, ' ')}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Unit Price */}
+                    <div className="space-y-1">
+                      <label htmlFor={`item-price-${index}`} className="text-xs font-medium">
+                        Unit Price ({watchedCurrency}) *
+                      </label>
+                      <Input
+                        id={`item-price-${index}`}
+                        type="number"
+                        step="0.01"
+                        min={0}
+                        autoComplete="off"
+                        placeholder="0.00"
+                        {...register(`items.${index}.unitPrice` as const, { valueAsNumber: true })}
+                        className="h-8 text-xs font-mono"
+                        aria-required="true"
+                        aria-invalid={Boolean(errors.items?.[index]?.unitPrice)}
+                        aria-describedby={
+                          errors.items?.[index]?.unitPrice ? `item-price-error-${index}` : undefined
+                        }
+                        data-testid={`item-price-${index}`}
+                      />
+                      {errors.items?.[index]?.unitPrice && (
+                        <p
+                          id={`item-price-error-${index}`}
+                          role="alert"
+                          className="text-[11px] text-destructive"
+                        >
+                          {errors.items[index]?.unitPrice?.message}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Quantity */}
+                    <div className="space-y-1">
+                      <label htmlFor={`item-quantity-${index}`} className="text-xs font-medium">
+                        Quantity *
+                      </label>
+                      <Input
+                        id={`item-quantity-${index}`}
+                        type="number"
+                        step="1"
+                        min={0.001}
+                        autoComplete="off"
+                        defaultValue={1}
+                        {...register(`items.${index}.quantity` as const, { valueAsNumber: true })}
+                        className="h-8 text-xs font-mono"
+                        aria-required="true"
+                        aria-invalid={Boolean(errors.items?.[index]?.quantity)}
+                        aria-describedby={
+                          errors.items?.[index]?.quantity
+                            ? `item-quantity-error-${index}`
+                            : undefined
+                        }
+                        data-testid={`item-quantity-${index}`}
+                      />
+                      {errors.items?.[index]?.quantity && (
+                        <p
+                          id={`item-quantity-error-${index}`}
+                          role="alert"
+                          className="text-[11px] text-destructive"
+                        >
+                          {errors.items[index]?.quantity?.message}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          {/* 6. Order Discount (Optional) */}
+          <Card className="border-border bg-card">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Percent className="h-4 w-4 text-primary" />
+                  Order-Level Discount
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Optionally apply a fixed or percentage discount to the entire sale agreement.
+                </CardDescription>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setHasOrderDiscount(!hasOrderDiscount)}
+                className="h-7 text-xs"
+                data-testid="toggle-order-discount-btn"
+              >
+                {hasOrderDiscount ? 'Remove Discount' : 'Add Discount'}
+              </Button>
+            </CardHeader>
+            {hasOrderDiscount && (
+              <CardContent className="space-y-3 pt-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label htmlFor="order-discount-type" className="text-xs font-medium">
+                      Discount Type
+                    </label>
+                    <select
+                      id="order-discount-type"
+                      {...register('orderDiscount.type')}
+                      className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
+                      data-testid="order-discount-type-select"
+                    >
+                      <option value="PERCENTAGE">Percentage (%)</option>
+                      <option value="FIXED">Fixed Amount ({watchedCurrency})</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label htmlFor="order-discount-value" className="text-xs font-medium">
+                      Discount Value *
+                    </label>
+                    <Input
+                      id="order-discount-value"
                       type="number"
                       step="0.01"
                       min={0}
                       autoComplete="off"
                       placeholder="0.00"
-                      {...register(`items.${index}.unitPrice` as const, { valueAsNumber: true })}
+                      {...register('orderDiscount.value', { valueAsNumber: true })}
                       className="h-8 text-xs font-mono"
-                      aria-required="true"
-                      aria-invalid={Boolean(errors.items?.[index]?.unitPrice)}
+                      aria-invalid={Boolean(errors.orderDiscount?.value)}
                       aria-describedby={
-                        errors.items?.[index]?.unitPrice ? `item-price-error-${index}` : undefined
+                        errors.orderDiscount?.value ? 'order-discount-value-error' : undefined
                       }
-                      data-testid={`item-price-${index}`}
+                      data-testid="order-discount-value-input"
                     />
-                    {errors.items?.[index]?.unitPrice && (
+                    {errors.orderDiscount?.value && (
                       <p
-                        id={`item-price-error-${index}`}
+                        id="order-discount-value-error"
                         role="alert"
                         className="text-[11px] text-destructive"
                       >
-                        {errors.items[index]?.unitPrice?.message}
+                        {errors.orderDiscount.value.message}
                       </p>
                     )}
                   </div>
 
-                  {/* Quantity */}
                   <div className="space-y-1">
-                    <label htmlFor={`item-quantity-${index}`} className="text-xs font-medium">
-                      Quantity *
+                    <label htmlFor="order-discount-reason" className="text-xs font-medium">
+                      Reason / Authorization
                     </label>
                     <Input
-                      id={`item-quantity-${index}`}
-                      type="number"
-                      step="1"
-                      min={0.001}
-                      autoComplete="off"
-                      defaultValue={1}
-                      {...register(`items.${index}.quantity` as const, { valueAsNumber: true })}
-                      className="h-8 text-xs font-mono"
-                      aria-required="true"
-                      aria-invalid={Boolean(errors.items?.[index]?.quantity)}
-                      aria-describedby={
-                        errors.items?.[index]?.quantity ? `item-quantity-error-${index}` : undefined
-                      }
-                      data-testid={`item-quantity-${index}`}
+                      id="order-discount-reason"
+                      placeholder="e.g. Promotional coupon, Manager override"
+                      {...register('orderDiscount.reason')}
+                      className="h-8 text-xs"
+                      data-testid="order-discount-reason-input"
                     />
-                    {errors.items?.[index]?.quantity && (
-                      <p
-                        id={`item-quantity-error-${index}`}
-                        role="alert"
-                        className="text-[11px] text-destructive"
-                      >
-                        {errors.items[index]?.quantity?.message}
-                      </p>
-                    )}
                   </div>
                 </div>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
+              </CardContent>
+            )}
+          </Card>
 
-        {/* 6. Order Discount (Optional) */}
-        <Card className="border-border bg-card">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <div>
-              <CardTitle className="text-base flex items-center gap-2">
-                <Percent className="h-4 w-4 text-primary" />
-                Order-Level Discount
+          {/* 7. Client-Side Calculation Preview & Financial Disclosure */}
+          <Card className="border-border bg-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm flex items-center justify-between">
+                <span>Estimated Calculation Preview</span>
+                <span className="text-xs font-normal text-muted-foreground">
+                  Subject to server-side precision verification
+                </span>
               </CardTitle>
-              <CardDescription className="text-xs">
-                Optionally apply a fixed or percentage discount to the entire sale agreement.
-              </CardDescription>
-            </div>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setHasOrderDiscount(!hasOrderDiscount)}
-              className="h-7 text-xs"
-              data-testid="toggle-order-discount-btn"
-            >
-              {hasOrderDiscount ? 'Remove Discount' : 'Add Discount'}
-            </Button>
-          </CardHeader>
-          {hasOrderDiscount && (
-            <CardContent className="space-y-3 pt-2">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <label htmlFor="order-discount-type" className="text-xs font-medium">
-                    Discount Type
-                  </label>
-                  <select
-                    id="order-discount-type"
-                    {...register('orderDiscount.type')}
-                    className="w-full h-8 rounded-md border border-input bg-background px-2 text-xs"
-                    data-testid="order-discount-type-select"
-                  >
-                    <option value="PERCENTAGE">Percentage (%)</option>
-                    <option value="FIXED">Fixed Amount ({watchedCurrency})</option>
-                  </select>
-                </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex items-start gap-2.5 p-3 rounded-md border border-border bg-muted/30 text-xs text-muted-foreground">
+                <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+                <span>
+                  <strong>Authoritative Totals Policy:</strong> In accordance with Kinergy financial
+                  safety rules, browser calculations shown below are estimates only. Authoritative
+                  monetary precision, fractional rounding, and tax allocations are strictly computed
+                  by the backend domain aggregate upon submission.
+                </span>
+              </div>
 
-                <div className="space-y-1">
-                  <label htmlFor="order-discount-value" className="text-xs font-medium">
-                    Discount Value *
-                  </label>
-                  <Input
-                    id="order-discount-value"
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    autoComplete="off"
-                    placeholder="0.00"
-                    {...register('orderDiscount.value', { valueAsNumber: true })}
-                    className="h-8 text-xs font-mono"
-                    aria-invalid={Boolean(errors.orderDiscount?.value)}
-                    aria-describedby={
-                      errors.orderDiscount?.value ? 'order-discount-value-error' : undefined
-                    }
-                    data-testid="order-discount-value-input"
-                  />
-                  {errors.orderDiscount?.value && (
-                    <p
-                      id="order-discount-value-error"
-                      role="alert"
-                      className="text-[11px] text-destructive"
-                    >
-                      {errors.orderDiscount.value.message}
-                    </p>
-                  )}
+              <div className="space-y-1.5 text-xs">
+                <div className="flex justify-between py-1 border-b border-border">
+                  <span className="text-muted-foreground">Estimated Subtotal:</span>
+                  <span className="font-mono font-medium" data-testid="preview-subtotal">
+                    {watchedCurrency} {previewTotals.subtotal.toFixed(2)}
+                  </span>
                 </div>
-
-                <div className="space-y-1">
-                  <label htmlFor="order-discount-reason" className="text-xs font-medium">
-                    Reason / Authorization
-                  </label>
-                  <Input
-                    id="order-discount-reason"
-                    placeholder="e.g. Promotional coupon, Manager override"
-                    {...register('orderDiscount.reason')}
-                    className="h-8 text-xs"
-                    data-testid="order-discount-reason-input"
-                  />
+                {hasOrderDiscount && (
+                  <div className="flex justify-between py-1 border-b border-border text-emerald-600 dark:text-emerald-400">
+                    <span>Estimated Discount:</span>
+                    <span className="font-mono font-medium" data-testid="preview-discount">
+                      - {watchedCurrency} {previewTotals.discountTotal.toFixed(2)}
+                    </span>
+                  </div>
+                )}
+                <div className="flex justify-between py-1.5 font-bold text-sm text-foreground">
+                  <span>Estimated Net Total:</span>
+                  <span className="font-mono text-primary" data-testid="preview-total">
+                    {watchedCurrency} {previewTotals.total.toFixed(2)}
+                  </span>
                 </div>
               </div>
             </CardContent>
-          )}
-        </Card>
+          </Card>
 
-        {/* 7. Client-Side Calculation Preview & Financial Disclosure */}
-        <Card className="border-border bg-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center justify-between">
-              <span>Estimated Calculation Preview</span>
-              <span className="text-xs font-normal text-muted-foreground">
-                Subject to server-side precision verification
-              </span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-start gap-2.5 p-3 rounded-md border border-border bg-muted/30 text-xs text-muted-foreground">
-              <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
-              <span>
-                <strong>Authoritative Totals Policy:</strong> In accordance with Kinergy financial
-                safety rules, browser calculations shown below are estimates only. Authoritative
-                monetary precision, fractional rounding, and tax allocations are strictly computed
-                by the backend domain aggregate upon submission.
-              </span>
-            </div>
+          {/* 8. Action Buttons */}
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="h-9 px-4 text-xs"
+              data-testid="cancel-create-sale-btn"
+            >
+              <Link to={SALES_ROUTES.list()}>Cancel</Link>
+            </Button>
 
-            <div className="space-y-1.5 text-xs">
-              <div className="flex justify-between py-1 border-b border-border">
-                <span className="text-muted-foreground">Estimated Subtotal:</span>
-                <span className="font-mono font-medium" data-testid="preview-subtotal">
-                  {watchedCurrency} {previewTotals.subtotal.toFixed(2)}
-                </span>
-              </div>
-              {hasOrderDiscount && (
-                <div className="flex justify-between py-1 border-b border-border text-emerald-600 dark:text-emerald-400">
-                  <span>Estimated Discount:</span>
-                  <span className="font-mono font-medium" data-testid="preview-discount">
-                    - {watchedCurrency} {previewTotals.discountTotal.toFixed(2)}
-                  </span>
-                </div>
-              )}
-              <div className="flex justify-between py-1.5 font-bold text-sm text-foreground">
-                <span>Estimated Net Total:</span>
-                <span className="font-mono text-primary" data-testid="preview-total">
-                  {watchedCurrency} {previewTotals.total.toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 8. Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-2">
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="h-9 px-4 text-xs"
-            data-testid="cancel-create-sale-btn"
-          >
-            <Link to={SALES_ROUTES.list()}>Cancel</Link>
-          </Button>
-
-          <Button
-            type="submit"
-            disabled={isPending}
-            className="h-9 px-5 text-xs font-medium gap-1.5"
-            data-testid="submit-create-sale-btn"
-          >
-            {isPending ? 'Initializing Draft Sale...' : 'Initialize Draft Sale'}
-          </Button>
-        </div>
-      </form>
+            <Button
+              type="submit"
+              disabled={isPending}
+              className="h-9 px-5 text-xs font-medium gap-1.5"
+              data-testid="submit-create-sale-btn"
+            >
+              {isPending ? 'Initializing Draft Sale...' : 'Initialize Draft Sale'}
+            </Button>
+          </div>
+        </form>
+      </div>
 
       <ConfirmDiscardDialog
         open={isBlocked}

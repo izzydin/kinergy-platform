@@ -105,6 +105,8 @@ export const clientEnvSchema = z
 
 export type ClientEnv = z.infer<typeof clientEnvSchema>;
 
+declare const __CLIENT_ENV__: Record<string, unknown> | undefined;
+
 /**
  * Safely extracts client-scoped environment variables (VITE_*, MODE, DEV, PROD) across Vite browser runtime
  * and Jest/Node test execution environments without exposing raw Node process.env system variables.
@@ -112,15 +114,9 @@ export type ClientEnv = z.infer<typeof clientEnvSchema>;
 export function getRawEnv(): Record<string, unknown> {
   const source: Record<string, unknown> = (typeof process !== 'undefined' && process.env) || {};
 
-  try {
-    // Function constructor prevents TS1343 module syntax error in CJS jest compilation
-    const fetchMetaEnv = new Function('try { return import.meta.env; } catch { return {}; }');
-    const metaEnv = fetchMetaEnv();
-    if (metaEnv && typeof metaEnv === 'object' && Object.keys(metaEnv).length > 0) {
-      Object.assign(source, metaEnv);
-    }
-  } catch {
-    // Fallback to process.env if import.meta is unavailable
+  // 1. In Vite runtime (dev server or production build), __CLIENT_ENV__ is statically inlined by Vite define
+  if (typeof __CLIENT_ENV__ !== 'undefined' && __CLIENT_ENV__) {
+    Object.assign(source, __CLIENT_ENV__);
   }
 
   const clientEnv: Record<string, unknown> = {};

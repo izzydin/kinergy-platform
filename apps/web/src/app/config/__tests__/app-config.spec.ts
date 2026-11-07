@@ -3,6 +3,7 @@ import {
   clientEnvSchema,
   FORBIDDEN_SERVER_SECRET_PATTERNS,
   getAppConfig,
+  getRawEnv,
   resetAppConfigCache,
   validateClientEnv,
 } from '../index';
@@ -81,6 +82,29 @@ describe('Step A6.1 — Frontend Environment Configuration Architecture', () => 
         VITE_API_BASE_URL: 'http://localhost:3000/api/v1',
       });
       expect(parsed.success).toBe(true);
+    });
+
+    it('correctly resolves __CLIENT_ENV__ when statically defined in Vite production build', () => {
+      (globalThis as unknown as { __CLIENT_ENV__: Record<string, unknown> }).__CLIENT_ENV__ = {
+        MODE: 'production',
+        VITE_API_BASE_URL: '/api/v1',
+        VITE_APP_TITLE: 'Kinergy Demo',
+      };
+
+      try {
+        const raw = getRawEnv();
+        expect(raw.MODE).toBe('production');
+        expect(raw.VITE_API_BASE_URL).toBe('/api/v1');
+        expect(raw.VITE_APP_TITLE).toBe('Kinergy Demo');
+
+        const config = getAppConfig();
+        expect(config.isProd).toBe(true);
+        expect(config.apiBaseUrl).toBe('/api/v1');
+      } finally {
+        delete (globalThis as unknown as { __CLIENT_ENV__?: Record<string, unknown> })
+          .__CLIENT_ENV__;
+        resetAppConfigCache();
+      }
     });
   });
 

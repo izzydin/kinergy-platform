@@ -36,7 +36,7 @@ export class ConfigCorsConfiguration implements ICorsConfiguration {
   getAllowedHeaders(): string[] {
     const raw = this.configService?.get<string>(
       'CORS_ALLOWED_HEADERS',
-      'Content-Type,Authorization,X-Requested-With,Accept,Origin,X-Tenant-ID',
+      'Content-Type,Authorization,X-Requested-With,Accept,Origin,X-Tenant-ID,X-Idempotency-Key,Idempotency-Key,X-Retry-Attempt',
     );
     if (!raw)
       return [
@@ -46,6 +46,9 @@ export class ConfigCorsConfiguration implements ICorsConfiguration {
         'Accept',
         'Origin',
         'X-Tenant-ID',
+        'X-Idempotency-Key',
+        'Idempotency-Key',
+        'X-Retry-Attempt',
       ];
     return raw
       .split(',')

@@ -8,3 +8,4 @@ export * from './record-payment-dialog';
 export * from './settle-payment-dialog';
 export * from './sales-filter-bar';
 export * from './sales-list-table';
+export * from './pos';
