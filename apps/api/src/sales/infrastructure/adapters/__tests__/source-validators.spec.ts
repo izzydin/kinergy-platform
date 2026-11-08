@@ -340,6 +340,18 @@ describe('Source Validation Hexagonal Adapters (ADR-0139)', () => {
       expect(result.errorMessage).toContain('Available: 45, Requested: 50');
     });
 
+    it('should validate pos_checkout_terminal as valid walk-in retail terminal without querying inventory database', async () => {
+      const result = await adapter.validate({
+        sourceType: SaleSourceType.DRINK,
+        sourceId: 'pos_checkout_terminal',
+      });
+
+      expect(result.isValid).toBe(true);
+      expect(result.exists).toBe(true);
+      expect(result.actualContext).toBe('resources');
+      expect(mockGetItemHandler.execute).not.toHaveBeenCalled();
+    });
+
     it('should reject an INACTIVE inventory item', async () => {
       const inactiveItem: InventoryItemDTO = {
         ...baseItem,

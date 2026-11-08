@@ -524,37 +524,83 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 
 ---
 
-### 8.4 Journey 4: Commercial Sales, QR Payment Settlement & Receipts
+### 8.4 Journey 4: Commercial Sales, POS Station & Multi-Tender Workflows
 
 > [!NOTE]
-> **Formal Acceptance**: Fully verified in [Milestone 11.7 Inventory & Financial MVP Acceptance Report](../demo/MILESTONE-11-7-INVENTORY-FINANCIAL-ACCEPTANCE.md) (**100% PASS** across 70 sales, payment, and receipting scenarios).
+> **Formal Acceptance**: Fully verified in [Milestone 11.7 Inventory & Financial MVP Acceptance Report](../demo/MILESTONE-11-7-INVENTORY-FINANCIAL-ACCEPTANCE.md) and Task 84265 POS Stabilization (**100% PASS** across sales lifecycle, payment settlement, receipting, and post-settlement membership fulfillment).
 
 - **Presenter Persona**: Receptionist / Cashier (`reception.demo@kinergy.platform`)
 
-#### Step-by-Step Walkthrough
+#### 8.4.1 Workflow A: Immediate Membership Purchase via CASH Tender
+
+1. **Access POS Station**:
+   - Sign in as `reception.demo@kinergy.platform` / `DemoPass123!`.
+   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`).
+   - The interactive Point of Sale interface loads with client selector, category filter buttons, catalog grid, and active cart.
+2. **Select Client & Gym Membership**:
+   - In the **Client Selector**, search and choose an active client without an existing conflicting membership (e.g. `Jane Doe`).
+   - Click the **Gym Memberships** category filter.
+   - Click **Add to Cart** on **Silver Monthly** ($60.00).
+   - Verify cart subtotal, tax ($0.00), and grand total ($60.00) calculated with exact integer cents.
+3. **Execute Immediate CASH Tender**:
+   - Select **Cash** tender.
+   - In **Amount Tendered**, enter `$60.00` (or `$100.00` to preview automated change calculation).
+   - Click **Complete Sale ($60.00)**.
+4. **Automated Settlement & Fulfillment**:
+   - The POS creates the sale in `DRAFT`, transitions it cleanly to `PENDING_PAYMENT`, registers the CASH tender, and settles the transaction immediately.
+   - The sale status transitions to `PAID`.
+   - An immutable sequential receipt (`REC-YYYY-XXXXX`) is issued automatically.
+   - Upon payment settlement (`SalePaidEvent`), the backend triggers `ActivateOrRenewMembershipHandler` to activate the gym membership contract with a 30-day validity window without requiring pre-sale side effects or violating billing invariants.
+   - The interface displays the completed confirmation dialog with a one-click button to view the official receipt.
+
+#### 8.4.2 Workflow B: Pay Later Draft Flow & Resumed Settlement
+
+1. **Compose Draft Order**:
+   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`).
+   - Select a customer (e.g. `Maria Gonzalez`).
+   - Add **Silver Monthly** ($60.00) or retail products to the cart.
+2. **Save as Draft (Pay Later)**:
+   - Click **Save as Draft** (or Pay Later).
+   - Invariants guaranteed:
+     - The sale is persisted in `DRAFT` status.
+     - **Zero payments** are created.
+     - **No receipt** is generated (`404 Not Found`).
+     - **No inventory decrements** occur for retail items while in draft.
+     - **No premature gym membership activation** occurs.
+     - Terminal origin (`pos_checkout_terminal`) is recognized without triggering phantom inventory catalog lookups.
+3. **Resume and Settle from Sales Management**:
+   - Navigate to `/sales` (`http://localhost:8080/sales`).
+   - Filter by status `DRAFT`.
+   - Locate the saved draft order and click to view or resume payment.
+   - Finalize the order: transitions cleanly from `DRAFT` to `PENDING_PAYMENT` (idempotent replay protection ensures subsequent retries do not trigger state transition errors).
+   - Tender payment (e.g. CASH or QR) and confirm settlement.
+   - The sale transitions to `PAID`, receipt voucher is issued, and membership is activated / renewed gaplessly.
+
+#### 8.4.3 Workflow C: QR Digital Tender & Asynchronous Settle Workflow
 
 1. **Compose Sale at POS Station**:
    - Navigate to `/sales/new` (`http://localhost:8080/sales/new`).
    - In **Purchase Categories**, click **Drinks & Products**.
-   - Browse the retail items and click **Add to Cart** for 1 **Organic Whey Protein Bar** ($5.50).
-   - Review the integer-cents calculated total ($5.50 USD) in the transaction cart.
+   - Browse retail items and click **Add to Cart** for 1 **Organic Whey Protein Bar** ($5.50).
+   - Review integer-cents total ($5.50 USD) in the transaction cart.
 2. **Initiate QR Digital Tender at Checkout**:
    - In the **Payment Tender** panel, select **QR Digital**.
-   - Enter customer payment reference `QR-REF-8841`.
+   - Enter customer payment reference (e.g., `QR-REF-8841`).
+     _(Note: Do not enter 13-19 digit card numbers or raw timestamps in payment reference fields; the PCI-DSS PAN guard strictly blocks PAN-like strings)._
    - Click **Complete Sale ($5.50)**.
 3. **Verify Pending Status (Financial Safety Rule)**:
-   - Notice that the checkout completes with tender status **`PENDING`** (not `COMPLETED`).
-   - Because funds have not settled, the commercial receipt voucher is withheld in accordance with accounting invariants.
+   - The checkout completes with tender status **`PENDING`** (not `COMPLETED`).
+   - Commercial receipt voucher is withheld until funds settle.
    - Click **Sale Agreement** on the confirmation voucher to view the sale in `PENDING_PAYMENT` status.
 4. **Confirm External Funds & Settle Payment**:
-   - Click on the pending payment ID to navigate to `/payments/:id` (`http://localhost:8080/payments/:id`).
+   - Navigate to `/payments/:id` (`http://localhost:8080/payments/:id`).
    - Click **Settle Payment**.
    - The `SettlePaymentDialog` displays an authoritative financial breakdown.
    - Enter bank confirmation code `BANK-TXN-90210` and click **Confirm Settlement**.
-   - The payment transitions to `COMPLETED` with an authoritative `paidAt` timestamp.
-   - The sale transitions to `PAID`.
+   - Payment transitions to `COMPLETED` with an authoritative `paidAt` timestamp.
+   - Sale transitions to `PAID`.
 5. **Issue Receipt Voucher**:
-   - Click **View Receipt** (or `/sales/:id/receipt`). Print or inspect the official proof-of-payment receipt voucher.
+   - Click **View Receipt** (or `/sales/:id/receipt`). Print or inspect the official proof-of-payment receipt voucher (`REC-YYYY-XXXXX`).
 
 ---
 
@@ -566,7 +612,10 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 4. **Payment State Machine**:
    - `CASH` tenders can be settled immediately at the register.
    - `QR` and `TRANSFER` tenders are created in `PENDING` status and require explicit settlement confirmation via the API endpoint `POST /api/v1/payments/:id/complete`.
-5. **Receipt Immutability**: Receipts are strictly generated only for sales with settled payments and receive a gapless sequence number (`REC-YYYY-XXXXX`).
+5. **Receipt Immutability**: Receipts are strictly generated only for sales with settled payments and receive a gapless sequence number (`REC-YYYY-XXXXX`). Attempting to fetch a receipt for a `DRAFT` or `PENDING_PAYMENT` sale returns HTTP 404.
+6. **PCI-DSS Anti-PAN Security Guard**: All payment references are validated via `PaymentReference` value object. Strings matching payment card primary account numbers (13-19 consecutive digits) are rejected with HTTP 400. System-generated references must not interpolate millisecond timestamps (`Date.now()`) directly into tender references.
+7. **Gym Membership Overlap Invariant**: `MembershipOverlapPolicy` strictly prohibits concurrent active memberships under different plans for the same client. Purchasing an identical plan extends the validity window gaplessly from `endDate + 1 day`, while purchasing a different plan when an active membership exists is rejected with a domain invariant exception.
+8. **Sale State Transition Immutability**: Commercial sales follow a strict lifecycle: `DRAFT` -> `PENDING_PAYMENT` -> `PAID` (or `CANCELLED`). Finalization can only occur from `DRAFT`; idempotent retries when already in `PENDING_PAYMENT` succeed without altering state. Drafts incur no inventory decrements, zero payments, and no premature membership activations.
 
 ---
 

@@ -4,10 +4,15 @@ import {
   PaymentCancelledEvent,
   PaymentFailedEvent,
   SaleFinalizedEvent,
+  SalePaidEvent,
   SaleCancelledEvent,
   ReceiptIssuedEvent,
   ReceiptReprintedEvent,
   SalesEventPublisherPort,
+  SaleRepositoryPort,
+  SaleSourceType,
+  SourceType,
+  ActivateOrRenewMembershipHandler,
 } from '@kinergy-platform/core';
 import {
   AUDIT_EVENT_PUBLISHER,
@@ -20,6 +25,7 @@ import {
 } from '../../platform/audit';
 import { REQUEST_CONTEXT_ACCESSOR, IRequestContextAccessor } from '../../platform/identity/context';
 import { RequestContext } from '../../platform/identity/request-context';
+import { SALE_REPOSITORY_TOKEN } from '../sales.tokens';
 
 type SalesDomainEventList = Parameters<SalesEventPublisherPort['publish']>[0];
 type SalesDomainEvent = SalesDomainEventList[number];
@@ -48,17 +54,55 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
     @Inject(REQUEST_CONTEXT_ACCESSOR)
     @Optional()
     private readonly contextAccessor?: IRequestContextAccessor,
+    @Inject(ActivateOrRenewMembershipHandler)
+    @Optional()
+    private readonly activateOrRenewHandler?: ActivateOrRenewMembershipHandler,
+    @Inject(SALE_REPOSITORY_TOKEN)
+    @Optional()
+    private readonly saleRepository?: SaleRepositoryPort,
   ) {}
 
   public async publish(events: SalesDomainEventList): Promise<void> {
-    if (!this.auditPublisher || !events || events.length === 0) {
-      return;
+    if (this.auditPublisher && events && events.length > 0) {
+      for (const event of events) {
+        const auditRecord = this.mapDomainEventToAuditEvent(event);
+        if (auditRecord) {
+          await this.auditPublisher.publish(auditRecord);
+        }
+      }
     }
 
-    for (const event of events) {
-      const auditRecord = this.mapDomainEventToAuditEvent(event);
-      if (auditRecord) {
-        await this.auditPublisher.publish(auditRecord);
+    // Post-payment commercial fulfillment orchestration (ADR-0139)
+    if (this.activateOrRenewHandler && this.saleRepository && events && events.length > 0) {
+      for (const event of events) {
+        if (event instanceof SalePaidEvent) {
+          try {
+            const sale = await this.saleRepository.findById(event.payload.saleId);
+            if (sale && sale.clientId) {
+              const gymItem = sale.items.find(
+                (it) =>
+                  String(it.source.sourceType) === String(SaleSourceType.GYM_MEMBERSHIP) ||
+                  String(it.source.sourceType) === String(SourceType.MEMBERSHIP_PLAN),
+              );
+              const isSaleGymSource =
+                sale.source &&
+                (String(sale.source.sourceType) === String(SaleSourceType.GYM_MEMBERSHIP) ||
+                  String(sale.source.sourceType) === String(SourceType.MEMBERSHIP_PLAN));
+
+              const planId = isSaleGymSource ? sale.source.sourceId : gymItem?.source.sourceId;
+
+              if (planId) {
+                await this.activateOrRenewHandler.activateOrRenew({
+                  clientId: sale.clientId,
+                  planId,
+                  paymentRef: sale.id.value,
+                });
+              }
+            }
+          } catch (fulfillmentErr) {
+            console.warn('Membership post-payment fulfillment advisory:', fulfillmentErr);
+          }
+        }
       }
     }
   }

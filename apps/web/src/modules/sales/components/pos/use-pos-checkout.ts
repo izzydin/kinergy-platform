@@ -93,41 +93,10 @@ export function usePosCheckout({
       if (cartItems.length === 1 && cartItems[0]) {
         const single = cartItems[0];
         if (single.category === 'GYM_MEMBERSHIP') {
-          let linkedMembershipId = single.metadata?.membershipId as string | undefined;
-
-          // If a registered client is selected and no membership agreement was pre-linked,
-          // ensure the membership agreement exists or initialize through existing domain workflow
-          if (!linkedMembershipId && !isWalkIn && selectedClientId) {
-            try {
-              const activeMemberships = await membershipsApi.listMemberships({
-                clientId: selectedClientId,
-                planId: single.sourceId,
-                status: 'ACTIVE',
-              });
-
-              if (
-                activeMemberships?.items &&
-                activeMemberships.items.length > 0 &&
-                activeMemberships.items[0]
-              ) {
-                linkedMembershipId = activeMemberships.items[0].id;
-              } else {
-                setStatusMessage('Initializing gym membership agreement...');
-                const newMembership = await membershipsApi.createMembership({
-                  clientId: selectedClientId,
-                  planId: single.sourceId,
-                });
-                linkedMembershipId = newMembership.id;
-              }
-            } catch (memErr) {
-              console.warn('Membership agreement resolution advisory:', memErr);
-            }
-          }
-
           sourceReference = {
             type: 'GYM_MEMBERSHIP',
             referenceId: single.sourceId,
-            referenceCode: linkedMembershipId || single.skuOrCode,
+            referenceCode: undefined,
           };
         } else if (single.category === 'KINESIOLOGY') {
           sourceReference = {
@@ -170,8 +139,11 @@ export function usePosCheckout({
       const createdSale = await salesApi.createSale(saleInput, idempotencyKey);
 
       // Step 2: Finalize Commercial Terms (DRAFT -> PENDING_PAYMENT)
-      setStatusMessage('Step 2/4: Finalizing commercial agreement...');
-      const finalizedSale = await salesApi.finalizeSale(createdSale.id);
+      let finalizedSale = createdSale;
+      if (createdSale.status === 'DRAFT') {
+        setStatusMessage('Step 2/4: Finalizing commercial agreement...');
+        finalizedSale = await salesApi.finalizeSale(createdSale.id);
+      }
 
       // Step 3: Record Payment Tender
       setStatusMessage(
@@ -189,12 +161,36 @@ export function usePosCheckout({
         reference:
           reference?.trim() ||
           (isCash
-            ? `CASH-TENDER-${Date.now()}`
+            ? undefined
             : `QR-REF-${Math.random().toString(36).substring(2, 9).toUpperCase()}`),
         idempotencyKey: `pay_${idempotencyKey}`,
       };
 
       await salesApi.recordPayment(finalizedSale.id, paymentInput);
+
+      // Step 3.5: Activate or fulfill Gym Membership through domain workflow post-settlement
+      if (
+        cartItems.length === 1 &&
+        cartItems[0]?.category === 'GYM_MEMBERSHIP' &&
+        selectedClientId &&
+        !isWalkIn
+      ) {
+        try {
+          const clientMemberships = await membershipsApi.listMemberships({
+            clientId: selectedClientId,
+            planId: cartItems[0].sourceId,
+            status: 'ACTIVE',
+          });
+          if (!clientMemberships?.items || clientMemberships.items.length === 0) {
+            await membershipsApi.createMembership({
+              clientId: selectedClientId,
+              planId: cartItems[0].sourceId,
+            });
+          }
+        } catch (mErr) {
+          console.warn('Membership activation assurance advisory:', mErr);
+        }
+      }
 
       // Step 4: Issue Official Proof-of-Purchase Receipt (for COMPLETED payments)
       let issuedReceipt: { id: string; receiptNumber?: string } | undefined = undefined;
@@ -274,9 +270,37 @@ export function usePosCheckout({
     setStatusMessage('Saving sale agreement as DRAFT...');
 
     try {
+      // Determine primary upstream source reference for draft agreement
+      let sourceReference:
+        { type: string; referenceId: string; referenceCode?: string } | undefined = undefined;
+
+      if (cartItems.length === 1 && cartItems[0]) {
+        const single = cartItems[0];
+        if (single.category === 'GYM_MEMBERSHIP') {
+          sourceReference = {
+            type: 'GYM_MEMBERSHIP',
+            referenceId: single.sourceId,
+            referenceCode: undefined,
+          };
+        } else if (single.category === 'KINESIOLOGY') {
+          sourceReference = {
+            type: 'KINESIOLOGY_SESSION',
+            referenceId: single.sourceId,
+            referenceCode: single.skuOrCode,
+          };
+        } else if (single.category === 'ROOM_RENTAL') {
+          sourceReference = {
+            type: 'ROOM_RENTAL',
+            referenceId: single.sourceId,
+            referenceCode: single.skuOrCode,
+          };
+        }
+      }
+
       const saleInput = {
         currency: currency.toUpperCase(),
         clientId: !isWalkIn && selectedClientId ? selectedClientId.trim() : undefined,
+        sourceReference,
         items: cartItems.map((item) => ({
           description: item.name,
           skuOrCode: item.skuOrCode || undefined,

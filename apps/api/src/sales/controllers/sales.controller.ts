@@ -256,6 +256,17 @@ export class SalesController {
         sourceId: (s.referenceId ?? s.sourceId) as string,
         sourceCode: ((s.referenceCode ?? s.sourceCode) as string | null) ?? null,
       };
+    } else if (
+      dto.items &&
+      dto.items.length > 0 &&
+      dto.items[0]?.sourceType &&
+      dto.items[0]?.sourceId
+    ) {
+      sourcePayload = {
+        sourceType: dto.items[0].sourceType,
+        sourceId: dto.items[0].sourceId,
+        sourceCode: dto.items[0].skuOrCode ?? null,
+      };
     } else {
       allowWalkInWithoutSource = true;
     }

@@ -473,7 +473,7 @@ describe('POS Station Experience (/sales/new)', () => {
       refundedAt: null,
     };
 
-    it('orchestrates 4-step CASH checkout and shows confirmation voucher with change', async () => {
+    it('orchestrates 4-step CASH checkout without sending sensitive card PAN timestamps', async () => {
       (salesApi.createSale as jest.Mock).mockResolvedValue(mockCreatedSaleDTO);
       (salesApi.finalizeSale as jest.Mock).mockResolvedValue({
         ...mockCreatedSaleDTO,
@@ -511,7 +511,7 @@ describe('POS Station Experience (/sales/new)', () => {
       const checkoutBtn = screen.getByTestId('pos-complete-sale-btn');
       fireEvent.click(checkoutBtn);
 
-      // Verify all 4 orchestration calls were executed in proper order
+      // Verify all 4 orchestration calls were executed in proper order and reference is undefined (not Date.now())
       await waitFor(() => {
         expect(salesApi.createSale).toHaveBeenCalledTimes(1);
         expect(salesApi.finalizeSale).toHaveBeenCalledWith('sale_pos_uuid_001');
@@ -521,6 +521,7 @@ describe('POS Station Experience (/sales/new)', () => {
             method: 'CASH',
             status: 'COMPLETED',
             amount: 65.0,
+            reference: undefined,
           }),
         );
         expect(salesApi.issueReceipt).toHaveBeenCalledWith('sale_pos_uuid_001');
@@ -540,6 +541,38 @@ describe('POS Station Experience (/sales/new)', () => {
       // Returns to clean POS station ready for next client
       expect(screen.getByTestId('pos-item-browser')).toBeInTheDocument();
       expect(screen.getByTestId('pos-empty-cart')).toBeInTheDocument();
+    });
+
+    it('skips duplicate finalization when sale is already in PENDING_PAYMENT status', async () => {
+      (salesApi.createSale as jest.Mock).mockResolvedValue({
+        ...mockCreatedSaleDTO,
+        status: 'PENDING_PAYMENT',
+      });
+      (salesApi.recordPayment as jest.Mock).mockResolvedValue({
+        id: 'pay_002',
+        saleId: 'sale_pos_uuid_001',
+        amount: { amount: 65.0, currency: 'USD' },
+        method: 'CASH',
+        status: 'COMPLETED',
+      });
+      (salesApi.issueReceipt as jest.Mock).mockResolvedValue({
+        id: 'rcpt_002',
+        receiptNumber: 'RCPT-2026-0002',
+        saleId: 'sale_pos_uuid_001',
+        issuedAt: '2026-11-06T12:00:05.000Z',
+      });
+
+      renderPOS();
+
+      fireEvent.click(screen.getByTestId('add-plan-btn-plan_monthly_pro'));
+      fireEvent.click(screen.getByTestId('pos-complete-sale-btn'));
+
+      await waitFor(() => {
+        expect(salesApi.createSale).toHaveBeenCalledTimes(1);
+        // Should NOT call finalizeSale because it was already PENDING_PAYMENT
+        expect(salesApi.finalizeSale).not.toHaveBeenCalled();
+        expect(salesApi.recordPayment).toHaveBeenCalledTimes(1);
+      });
     });
 
     it('orchestrates QR tender payment in PENDING status without immediate receipt', async () => {
@@ -602,7 +635,20 @@ describe('POS Station Experience (/sales/new)', () => {
       fireEvent.click(saveDraftBtn);
 
       await waitFor(() => {
-        expect(salesApi.createSale).toHaveBeenCalledTimes(1);
+        expect(salesApi.createSale).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sourceReference: {
+              type: 'GYM_MEMBERSHIP',
+              referenceId: 'plan_monthly_pro',
+              referenceCode: undefined,
+            },
+          }),
+          expect.any(String),
+        );
+        expect(salesApi.finalizeSale).not.toHaveBeenCalled();
+        expect(salesApi.recordPayment).not.toHaveBeenCalled();
+        expect(salesApi.issueReceipt).not.toHaveBeenCalled();
+        expect(membershipsApi.createMembership).not.toHaveBeenCalled();
         expect(mockNavigate).toHaveBeenCalledWith('/sales/sale_pos_uuid_001');
       });
     });
@@ -649,14 +695,14 @@ describe('POS Station Experience (/sales/new)', () => {
           }),
         );
 
-        // createSale should receive sourceReference with referenceCode pointing to the membership agreement ID
+        // createSale should receive sourceReference for gym membership
         expect(salesApi.createSale).toHaveBeenCalledWith(
           expect.objectContaining({
             clientId: 'cli_seed_carlos',
             sourceReference: {
               type: 'GYM_MEMBERSHIP',
               referenceId: 'plan_monthly_pro',
-              referenceCode: 'mem_auto_created_01',
+              referenceCode: undefined,
             },
             items: expect.arrayContaining([
               expect.objectContaining({

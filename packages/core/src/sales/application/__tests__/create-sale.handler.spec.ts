@@ -176,6 +176,24 @@ describe('CreateSaleHandler Specification (Milestone 7.11 & ADR-0132)', () => {
       expect(persisted?.getUncommittedEvents()).toHaveLength(0);
     });
 
+    it('bypasses upstream domain entity validation when sourceId is pos_checkout_terminal', async () => {
+      let validatorCalled = false;
+      sourceValidator.handler = async () => {
+        validatorCalled = true;
+        return { isValid: false, exists: false, errorMessage: 'Item not found in DB' };
+      };
+
+      const command = new CreateSaleCommand({
+        allowWalkInWithoutSource: true,
+        currency: 'USD',
+      });
+
+      const result = await handler.execute(command);
+      expect(result.isSuccess).toBe(true);
+      expect(result.getValue().source.sourceId).toBe('pos_checkout_terminal');
+      expect(validatorCalled).toBe(false);
+    });
+
     it('creates a sale with explicit SaleSource and tenant context', async () => {
       const command = new CreateSaleCommand({
         tenantId: 'tenant_kinergy_alpha',

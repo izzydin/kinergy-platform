@@ -55,6 +55,16 @@ export class ResourcesSourceValidatorAdapter {
       };
     }
 
+    // Standardized POS Terminal origin for walk-ins does not correspond to an inventory SKU
+    if (itemId === 'pos_checkout_terminal') {
+      return {
+        isValid: true,
+        exists: true,
+        belongsToContext: true,
+        actualContext: 'resources',
+      };
+    }
+
     if (!this.getItemByIdHandler) {
       return {
         isValid: false,

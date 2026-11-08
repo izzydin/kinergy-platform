@@ -119,7 +119,8 @@ export class CreateSaleHandler implements SalesCommandHandler<
         import('../ports/sale-source-validator.port').SourceCommercialDetails | undefined;
 
       // 4. Source Existence & Context Ownership Validation (if configured)
-      if (this.sourceValidator) {
+      // Standardized walk-in retail origin (pos_checkout_terminal) represents front-desk counter terminal, not an upstream database entity.
+      if (this.sourceValidator && sourceInput.sourceId.trim() !== 'pos_checkout_terminal') {
         const validation = await this.sourceValidator.validateSource({
           sourceType: rawSourceType,
           sourceId: sourceInput.sourceId.trim(),
