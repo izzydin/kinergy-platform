@@ -289,6 +289,14 @@ export class ListInventoryItemsQueryDto {
   sortOrder?: 'asc' | 'desc' = 'asc';
 }
 
+export class InventoryMoneyDto {
+  @ApiProperty({ description: 'Monetary amount', example: 5.5 })
+  amount!: number;
+
+  @ApiProperty({ description: 'ISO 4217 Currency Code', example: 'USD' })
+  currency!: string;
+}
+
 export class InventoryItemResponseDto {
   @ApiProperty({ description: 'Unique Inventory Item ID' })
   id!: string;
@@ -314,8 +322,8 @@ export class InventoryItemResponseDto {
   @ApiPropertyOptional({ description: 'Purchase unit cost currency' })
   purchaseCostCurrency?: string;
 
-  @ApiPropertyOptional({ description: 'Purchase unit cost (legacy alias)' })
-  unitCost?: number;
+  @ApiPropertyOptional({ description: 'Purchase unit cost (structured object or legacy amount)' })
+  unitCost?: InventoryMoneyDto | number;
 
   @ApiPropertyOptional({ description: 'Retail selling price amount' })
   sellingPriceAmount?: number;
@@ -323,11 +331,14 @@ export class InventoryItemResponseDto {
   @ApiPropertyOptional({ description: 'Retail selling price currency' })
   sellingPriceCurrency?: string;
 
-  @ApiPropertyOptional({ description: 'Retail selling price (legacy alias)' })
-  sellingPrice?: number;
+  @ApiPropertyOptional({ description: 'Retail selling price (structured object or legacy amount)' })
+  sellingPrice?: InventoryMoneyDto | number;
 
   @ApiProperty({ description: 'Physical quantity on hand' })
   quantityOnHand!: number;
+
+  @ApiPropertyOptional({ description: 'Physical quantity on hand alias' })
+  currentStock?: number;
 
   @ApiProperty({ description: 'Reorder trigger threshold' })
   reorderThreshold!: number;

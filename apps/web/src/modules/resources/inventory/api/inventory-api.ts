@@ -93,20 +93,67 @@ function mapRawInventoryItem(item: RawLowStockItemResponse): InventoryProductVM 
   const isLowStock = currentStock <= reorderThreshold;
   const isOutOfStock = currentStock === 0;
 
+  // Resolve selling price cleanly without assuming 0 is valid configured price
+  let sellingPrice: MoneyVM;
+  if (
+    item.sellingPrice &&
+    typeof item.sellingPrice === 'object' &&
+    typeof item.sellingPrice.amount === 'number' &&
+    !Number.isNaN(item.sellingPrice.amount)
+  ) {
+    sellingPrice = {
+      amount: item.sellingPrice.amount,
+      currency: item.sellingPrice.currency || item.sellingPriceCurrency || 'USD',
+    };
+  } else if (
+    typeof item.sellingPriceAmount === 'number' &&
+    !Number.isNaN(item.sellingPriceAmount)
+  ) {
+    sellingPrice = {
+      amount: item.sellingPriceAmount,
+      currency: item.sellingPriceCurrency || 'USD',
+    };
+  } else {
+    sellingPrice = {
+      amount: 0,
+      currency: item.sellingPriceCurrency || 'USD',
+    };
+  }
+
+  let unitCost: MoneyVM;
+  if (
+    item.unitCost &&
+    typeof item.unitCost === 'object' &&
+    typeof item.unitCost.amount === 'number' &&
+    !Number.isNaN(item.unitCost.amount)
+  ) {
+    unitCost = {
+      amount: item.unitCost.amount,
+      currency: item.unitCost.currency || item.purchaseCostCurrency || 'USD',
+    };
+  } else if (
+    typeof item.purchaseCostAmount === 'number' &&
+    !Number.isNaN(item.purchaseCostAmount)
+  ) {
+    unitCost = {
+      amount: item.purchaseCostAmount,
+      currency: item.purchaseCostCurrency || 'USD',
+    };
+  } else {
+    unitCost = {
+      amount: 0,
+      currency: item.purchaseCostCurrency || 'USD',
+    };
+  }
+
   return {
     id: item.id,
     sku: item.sku,
     name: item.name,
     description: item.description ?? null,
     category: item.category as InventoryCategory,
-    unitCost: item.unitCost || {
-      amount: item.purchaseCostAmount ?? 0,
-      currency: item.purchaseCostCurrency ?? 'USD',
-    },
-    sellingPrice: item.sellingPrice || {
-      amount: item.sellingPriceAmount ?? 0,
-      currency: item.sellingPriceCurrency ?? 'USD',
-    },
+    unitCost,
+    sellingPrice,
     currentStock,
     reorderThreshold,
     unitOfMeasure: item.unitOfMeasure || item.unit || 'unit',
@@ -185,7 +232,15 @@ export const inventoryApi = {
    * Lists inventory catalog items with multi-criteria filtering and server pagination
    */
   async listItems(params?: ListInventoryFilterParams): Promise<PaginatedInventoryVM> {
-    return httpClient.get<PaginatedInventoryVM>('/api/v1/resources/inventory', {
+    const response = await httpClient.get<{
+      items: RawLowStockItemResponse[];
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+      hasNextPage?: boolean;
+      hasPreviousPage?: boolean;
+    }>('/api/v1/resources/inventory', {
       params: {
         search: params?.search,
         category: params?.category,
@@ -198,6 +253,15 @@ export const inventoryApi = {
         sortOrder: params?.sortOrder,
       },
     });
+
+    const items = (response.items || []).map(mapRawInventoryItem);
+    return {
+      items,
+      total: response.total ?? items.length,
+      page: response.page ?? 1,
+      limit: response.limit ?? 20,
+      totalPages: response.totalPages ?? (items.length > 0 ? 1 : 0),
+    };
   },
 
   /**
@@ -210,46 +274,7 @@ export const inventoryApi = {
     >('/api/v1/resources/inventory/low-stock');
 
     const rawList = Array.isArray(response) ? response : response?.items || [];
-    return rawList.map((item): InventoryProductVM => {
-      const currentStock =
-        typeof item.quantityOnHand === 'number'
-          ? item.quantityOnHand
-          : typeof item.currentStock === 'number'
-            ? item.currentStock
-            : 0;
-      const reorderThreshold =
-        typeof item.minimumStock === 'number'
-          ? item.minimumStock
-          : typeof item.reorderThreshold === 'number'
-            ? item.reorderThreshold
-            : 0;
-      const isLowStock = currentStock <= reorderThreshold;
-      const isOutOfStock = currentStock === 0;
-
-      return {
-        id: item.id,
-        sku: item.sku,
-        name: item.name,
-        description: item.description ?? null,
-        category: item.category as InventoryCategory,
-        unitCost: item.unitCost || {
-          amount: item.purchaseCostAmount ?? 0,
-          currency: item.purchaseCostCurrency ?? 'USD',
-        },
-        sellingPrice: item.sellingPrice || {
-          amount: item.sellingPriceAmount ?? 0,
-          currency: item.sellingPriceCurrency ?? 'USD',
-        },
-        currentStock,
-        reorderThreshold,
-        unitOfMeasure: item.unitOfMeasure || item.unit || 'unit',
-        status: (item.status as InventoryItemStatus) || InventoryItemStatus.ACTIVE,
-        isLowStock,
-        isOutOfStock,
-        createdAt: item.createdAt || new Date().toISOString(),
-        updatedAt: item.updatedAt || new Date().toISOString(),
-      };
-    });
+    return rawList.map(mapRawInventoryItem);
   },
 
   /**
@@ -263,9 +288,10 @@ export const inventoryApi = {
    * Retrieves single inventory product by ID
    */
   async getItemById(id: string): Promise<InventoryProductVM> {
-    return httpClient.get<InventoryProductVM>(
+    const raw = await httpClient.get<RawLowStockItemResponse>(
       `/api/v1/resources/inventory/${encodeURIComponent(id)}`,
     );
+    return mapRawInventoryItem(raw);
   },
 
   /**

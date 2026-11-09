@@ -19,6 +19,17 @@ export class InventoryItemMapper {
       purchaseCostCurrency: item.purchaseCost.currency,
       sellingPriceAmount: item.sellingPrice.amount,
       sellingPriceCurrency: item.sellingPrice.currency,
+      sellingPrice: {
+        amount: item.sellingPrice.amount,
+        currency: item.sellingPrice.currency,
+      },
+      unitCost: {
+        amount: item.purchaseCost.amount,
+        currency: item.purchaseCost.currency,
+      },
+      currentStock: item.quantityOnHand.value,
+      unitOfMeasure: item.unit,
+      reorderThreshold: item.minimumStock.value,
       status: item.status,
       locationRef: item.locationRef?.getValue(),
       version: item.version,

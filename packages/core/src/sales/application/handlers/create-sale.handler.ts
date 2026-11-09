@@ -349,53 +349,115 @@ export class CreateSaleHandler implements SalesCommandHandler<
           }
         }
 
-        let items = input.items?.map((itemInput) => {
-          let itemDiscount: Discount | null = null;
-          if (itemInput.discount) {
-            const typeStr = itemInput.discount.type?.toUpperCase();
-            if (typeStr === 'PERCENTAGE') {
-              itemDiscount = Discount.percentage(
-                itemInput.discount.value,
-                itemInput.discount.reason,
-              );
-            } else if (typeStr === 'FIXED') {
-              itemDiscount = Discount.fixed(itemInput.discount.value, itemInput.discount.reason);
-            } else {
-              itemDiscount = Discount.create({
-                type: itemInput.discount.type as unknown as DiscountType,
-                value: itemInput.discount.value,
-                reason: itemInput.discount.reason,
-              });
-            }
-          }
+        let items: Array<{
+          source: SaleSource | SourceReference;
+          description: string;
+          skuOrCode: string | null;
+          quantity: number;
+          unitPrice: Money;
+          discount: Discount | null;
+        }> = [];
 
-          let itemSource = source;
-          if (itemInput.source && itemInput.source.sourceType && itemInput.source.sourceId) {
-            const rawItemType = itemInput.source.sourceType;
-            if (isValidSaleSourceType(rawItemType)) {
-              itemSource = SaleSource.create(
-                rawItemType as SaleSourceType,
-                itemInput.source.sourceId.trim(),
-                itemInput.source.sourceCode?.trim() ?? null,
-              );
-            } else {
-              itemSource = SourceReference.create({
-                sourceType: rawItemType as SourceType,
-                sourceId: itemInput.source.sourceId.trim(),
-                sourceCode: itemInput.source.sourceCode?.trim() ?? null,
-              });
+        if (input.items && input.items.length > 0) {
+          for (const itemInput of input.items) {
+            let itemDiscount: Discount | null = null;
+            if (itemInput.discount) {
+              const typeStr = itemInput.discount.type?.toUpperCase();
+              if (typeStr === 'PERCENTAGE') {
+                itemDiscount = Discount.percentage(
+                  itemInput.discount.value,
+                  itemInput.discount.reason,
+                );
+              } else if (typeStr === 'FIXED') {
+                itemDiscount = Discount.fixed(itemInput.discount.value, itemInput.discount.reason);
+              } else {
+                itemDiscount = Discount.create({
+                  type: itemInput.discount.type as unknown as DiscountType,
+                  value: itemInput.discount.value,
+                  reason: itemInput.discount.reason,
+                });
+              }
             }
-          }
 
-          return {
-            source: itemSource,
-            description: itemInput.description,
-            skuOrCode: itemInput.skuOrCode ?? null,
-            quantity: itemInput.quantity,
-            unitPrice: Money.create(itemInput.unitPriceAmount, currency),
-            discount: itemDiscount,
-          };
-        });
+            let itemSource = source;
+            if (itemInput.source && itemInput.source.sourceType && itemInput.source.sourceId) {
+              const rawItemType = itemInput.source.sourceType;
+              if (isValidSaleSourceType(rawItemType)) {
+                itemSource = SaleSource.create(
+                  rawItemType as SaleSourceType,
+                  itemInput.source.sourceId.trim(),
+                  itemInput.source.sourceCode?.trim() ?? null,
+                );
+              } else {
+                itemSource = SourceReference.create({
+                  sourceType: rawItemType as SourceType,
+                  sourceId: itemInput.source.sourceId.trim(),
+                  sourceCode: itemInput.source.sourceCode?.trim() ?? null,
+                });
+              }
+            }
+
+            let resolvedUnitPriceAmount = itemInput.unitPriceAmount;
+
+            // Resolve authoritative catalog price if sourceValidator is configured (ADR-0139)
+            const itemSourceId =
+              itemInput.source?.sourceId?.trim() || (itemSource ? itemSource.sourceId : undefined);
+            const itemSourceType =
+              itemInput.source?.sourceType || (itemSource ? itemSource.sourceType : undefined);
+
+            if (
+              this.sourceValidator &&
+              itemSourceId &&
+              itemSourceId !== 'pos_checkout_terminal' &&
+              itemSourceType
+            ) {
+              try {
+                const itemValidation = await this.sourceValidator.validateSource({
+                  sourceType: itemSourceType,
+                  sourceId: itemSourceId,
+                  sourceCode: itemInput.source?.sourceCode ?? null,
+                  tenantId: input.tenantId?.trim(),
+                  requestedQuantity: itemInput.quantity,
+                });
+
+                if (
+                  itemValidation.isValid &&
+                  itemValidation.commercialDetails?.unitPriceCents !== undefined
+                ) {
+                  resolvedUnitPriceAmount = itemValidation.commercialDetails.unitPriceCents / 100;
+                }
+              } catch {
+                // Keep input price if secondary source validation encounters an issue
+              }
+            } else if (
+              sourceCommercialDetails?.unitPriceCents !== undefined &&
+              input.items.length === 1
+            ) {
+              resolvedUnitPriceAmount = sourceCommercialDetails.unitPriceCents / 100;
+            }
+
+            if (
+              resolvedUnitPriceAmount === undefined ||
+              resolvedUnitPriceAmount === null ||
+              resolvedUnitPriceAmount === 0
+            ) {
+              return SalesApplicationResult.fail(
+                new InvalidSaleStateException(
+                  `This product does not have a valid selling price configured. Please contact an administrator. (${itemInput.description || itemInput.skuOrCode || 'item'})`,
+                ),
+              );
+            }
+
+            items.push({
+              source: itemSource,
+              description: itemInput.description,
+              skuOrCode: itemInput.skuOrCode ?? null,
+              quantity: itemInput.quantity,
+              unitPrice: Money.create(resolvedUnitPriceAmount, currency),
+              discount: itemDiscount,
+            });
+          }
+        }
 
         // Auto-populate authoritative line item from commercial details if items were omitted
         if (
@@ -403,6 +465,13 @@ export class CreateSaleHandler implements SalesCommandHandler<
           sourceCommercialDetails?.unitPriceCents !== undefined
         ) {
           const unitPriceAmount = sourceCommercialDetails.unitPriceCents / 100;
+          if (unitPriceAmount <= 0) {
+            return SalesApplicationResult.fail(
+              new InvalidSaleStateException(
+                'This product does not have a valid selling price configured. Please contact an administrator.',
+              ),
+            );
+          }
           const description =
             sourceCommercialDetails.description ?? `${String(rawSourceType)} item`;
           items = [

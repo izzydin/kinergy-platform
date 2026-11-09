@@ -203,6 +203,11 @@ describe('Product Lifecycle Application Use Cases', () => {
       expect(dto.minimumStock).toBe(10);
       expect(dto.purchaseCostAmount).toBe(8.5);
       expect(dto.sellingPriceAmount).toBe(15.0);
+      expect(dto.sellingPrice).toEqual({ amount: 15.0, currency: 'USD' });
+      expect(dto.unitCost).toEqual({ amount: 8.5, currency: 'USD' });
+      expect(dto.currentStock).toBe(25);
+      expect(dto.unitOfMeasure).toBe(UnitOfMeasure.ROLLS);
+      expect(dto.reorderThreshold).toBe(10);
       expect(dto.status).toBe(InventoryItemStatus.ACTIVE);
 
       // Verify persistence & movements

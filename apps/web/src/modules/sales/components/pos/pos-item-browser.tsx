@@ -411,15 +411,21 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {filteredFood.map((item) => {
-                  const priceAmount = item.sellingPrice?.amount ?? 0;
-                  const priceCents = toCents(item.sellingPrice);
+                  const hasValidPrice =
+                    item.sellingPrice !== undefined &&
+                    item.sellingPrice !== null &&
+                    typeof item.sellingPrice.amount === 'number' &&
+                    item.sellingPrice.amount > 0 &&
+                    !Number.isNaN(item.sellingPrice.amount);
+                  const priceAmount = hasValidPrice ? item.sellingPrice.amount : 0;
+                  const priceCents = hasValidPrice ? toCents(item.sellingPrice) : 0;
                   const isOutOfStock = item.currentStock <= 0 || item.isOutOfStock;
 
                   return (
                     <div
                       key={item.id}
                       className={`p-3.5 rounded-lg border transition-colors flex flex-col justify-between space-y-2.5 ${
-                        isOutOfStock
+                        isOutOfStock || !hasValidPrice
                           ? 'border-border bg-muted/30 opacity-70'
                           : 'border-border bg-card hover:border-primary/50'
                       }`}
@@ -430,13 +436,34 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
                           <Badge variant="outline" className="text-[10px] font-mono">
                             {item.sku}
                           </Badge>
-                          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
-                            ${priceAmount.toFixed(2)} {item.sellingPrice?.currency || 'USD'}
-                          </span>
+                          {hasValidPrice ? (
+                            <span
+                              className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 font-mono"
+                              data-testid={`pos-food-price-${item.id}`}
+                            >
+                              ${priceAmount.toFixed(2)} {item.sellingPrice?.currency || 'USD'}
+                            </span>
+                          ) : (
+                            <span
+                              className="text-[11px] font-semibold text-destructive font-mono"
+                              data-testid={`pos-food-price-error-${item.id}`}
+                            >
+                              No Price
+                            </span>
+                          )}
                         </div>
                         <h4 className="text-sm font-semibold text-foreground leading-tight">
                           {item.name}
                         </h4>
+                        {!hasValidPrice && (
+                          <p className="text-[11px] text-destructive flex items-start gap-1 mt-1 leading-snug">
+                            <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
+                            <span>
+                              This product does not have a valid selling price configured. Please
+                              contact an administrator.
+                            </span>
+                          </p>
+                        )}
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="text-muted-foreground">
                             {item.unitOfMeasure || 'portion'}
@@ -456,7 +483,7 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
                       <Button
                         type="button"
                         size="sm"
-                        disabled={disabled || isOutOfStock}
+                        disabled={disabled || isOutOfStock || !hasValidPrice}
                         onClick={() =>
                           onAddToCart({
                             sourceType: 'INVENTORY_ITEM',
@@ -475,7 +502,11 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
                         data-testid={`add-food-btn-${item.id}`}
                       >
                         <Plus className="h-3.5 w-3.5" />{' '}
-                        {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+                        {!hasValidPrice
+                          ? 'Unpriced'
+                          : isOutOfStock
+                            ? 'Out of Stock'
+                            : 'Add to Cart'}
                       </Button>
                     </div>
                   );
@@ -514,15 +545,21 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 {filteredDrinksAndProducts.map((item) => {
-                  const priceAmount = item.sellingPrice?.amount ?? 0;
-                  const priceCents = toCents(item.sellingPrice);
+                  const hasValidPrice =
+                    item.sellingPrice !== undefined &&
+                    item.sellingPrice !== null &&
+                    typeof item.sellingPrice.amount === 'number' &&
+                    item.sellingPrice.amount > 0 &&
+                    !Number.isNaN(item.sellingPrice.amount);
+                  const priceAmount = hasValidPrice ? item.sellingPrice.amount : 0;
+                  const priceCents = hasValidPrice ? toCents(item.sellingPrice) : 0;
                   const isOutOfStock = item.currentStock <= 0 || item.isOutOfStock;
 
                   return (
                     <div
                       key={item.id}
                       className={`p-3.5 rounded-lg border transition-colors flex flex-col justify-between space-y-2.5 ${
-                        isOutOfStock
+                        isOutOfStock || !hasValidPrice
                           ? 'border-border bg-muted/30 opacity-70'
                           : 'border-border bg-card hover:border-primary/50'
                       }`}
@@ -533,13 +570,34 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
                           <Badge variant="outline" className="text-[10px] font-mono">
                             {item.sku}
                           </Badge>
-                          <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 font-mono">
-                            ${priceAmount.toFixed(2)} {item.sellingPrice?.currency || 'USD'}
-                          </span>
+                          {hasValidPrice ? (
+                            <span
+                              className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 font-mono"
+                              data-testid={`pos-drink-price-${item.id}`}
+                            >
+                              ${priceAmount.toFixed(2)} {item.sellingPrice?.currency || 'USD'}
+                            </span>
+                          ) : (
+                            <span
+                              className="text-[11px] font-semibold text-destructive font-mono"
+                              data-testid={`pos-drink-price-error-${item.id}`}
+                            >
+                              No Price
+                            </span>
+                          )}
                         </div>
                         <h4 className="text-sm font-semibold text-foreground leading-tight">
                           {item.name}
                         </h4>
+                        {!hasValidPrice && (
+                          <p className="text-[11px] text-destructive flex items-start gap-1 mt-1 leading-snug">
+                            <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
+                            <span>
+                              This product does not have a valid selling price configured. Please
+                              contact an administrator.
+                            </span>
+                          </p>
+                        )}
                         <div className="flex items-center justify-between text-[11px]">
                           <span className="text-muted-foreground">
                             {item.category.replace(/_/g, ' ')}
@@ -559,7 +617,7 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
                       <Button
                         type="button"
                         size="sm"
-                        disabled={disabled || isOutOfStock}
+                        disabled={disabled || isOutOfStock || !hasValidPrice}
                         onClick={() =>
                           onAddToCart({
                             sourceType: 'INVENTORY_ITEM',
@@ -578,7 +636,11 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
                         data-testid={`add-drink-btn-${item.id}`}
                       >
                         <Plus className="h-3.5 w-3.5" />{' '}
-                        {isOutOfStock ? 'Out of Stock' : 'Add to Cart'}
+                        {!hasValidPrice
+                          ? 'Unpriced'
+                          : isOutOfStock
+                            ? 'Out of Stock'
+                            : 'Add to Cart'}
                       </Button>
                     </div>
                   );

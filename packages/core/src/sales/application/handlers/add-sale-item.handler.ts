@@ -107,6 +107,18 @@ export class AddSaleItemHandler implements SalesCommandHandler<
           source = sale.source as SaleSource | SourceReference;
         }
 
+        if (
+          input.unitPriceAmount === undefined ||
+          input.unitPriceAmount === null ||
+          input.unitPriceAmount === 0
+        ) {
+          return SalesApplicationResult.fail(
+            new InvalidSaleStateException(
+              'This product does not have a valid selling price configured. Please contact an administrator.',
+            ),
+          );
+        }
+
         const unitPrice = Money.create(input.unitPriceAmount, sale.currency);
 
         let discount: Discount | null = null;

@@ -12,6 +12,19 @@ export interface InventoryItemDTO {
   purchaseCostCurrency: string;
   sellingPriceAmount: number;
   sellingPriceCurrency: string;
+  // Canonical structured value representations
+  sellingPrice?: {
+    amount: number;
+    currency: string;
+  };
+  unitCost?: {
+    amount: number;
+    currency: string;
+  };
+  // Aliases for consumer compatibility
+  currentStock?: number;
+  unitOfMeasure?: string;
+  reorderThreshold?: number;
   status: string;
   locationRef?: {
     facilityId: string;

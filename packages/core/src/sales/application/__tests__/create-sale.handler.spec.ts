@@ -585,6 +585,28 @@ describe('CreateSaleHandler Specification (Milestone 7.11 & ADR-0132)', () => {
       expect(getErrorMessage(result)).toContain('cannot be negative');
     });
 
+    it('fails when item unit price is zero or unconfigured', async () => {
+      const command = new CreateSaleCommand({
+        allowWalkInWithoutSource: true,
+        currency: 'USD',
+        items: [
+          {
+            description: 'Unpriced Item',
+            quantity: 1,
+            unitPriceAmount: 0,
+          },
+        ],
+      });
+
+      const result = await handler.execute(command);
+
+      expect(result.isSuccess).toBe(false);
+      expect(result.getError()).toBeInstanceOf(InvalidSaleStateException);
+      expect(getErrorMessage(result)).toContain(
+        'This product does not have a valid selling price configured. Please contact an administrator.',
+      );
+    });
+
     it('fails when item quantity is zero or negative', async () => {
       const commandZero = new CreateSaleCommand({
         allowWalkInWithoutSource: true,

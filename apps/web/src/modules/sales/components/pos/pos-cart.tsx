@@ -8,7 +8,7 @@ import {
   Input,
   Badge,
 } from '@kinergy-platform/ui';
-import { ShoppingCart, Trash2, Percent, Tag } from 'lucide-react';
+import { ShoppingCart, Trash2, Percent, Tag, AlertCircle } from 'lucide-react';
 import type { PosCartItem, PosDiscount } from './pos-types';
 import { PosCartItemRow } from './pos-cart-item';
 import { formatMoneyCents } from '../../utils/financial-math';
@@ -55,6 +55,9 @@ export const PosCart: React.FC<PosCartProps> = ({
   }
 
   const netTotalCents = Math.max(0, subtotalCents - discountCents);
+  const hasInvalidPriceItem = items.some(
+    (it) => !it.unitPriceAmount || it.unitPriceAmount <= 0 || it.unitPriceCents <= 0,
+  );
 
   const handleApplyDiscount = () => {
     if (discountValue <= 0) {
@@ -129,6 +132,19 @@ export const PosCart: React.FC<PosCartProps> = ({
                 disabled={disabled}
               />
             ))}
+          </div>
+        )}
+
+        {hasInvalidPriceItem && (
+          <div
+            className="p-2.5 rounded-md border border-destructive/30 bg-destructive/10 text-destructive text-xs flex items-start gap-1.5"
+            data-testid="pos-cart-price-warning"
+          >
+            <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <span>
+              This product does not have a valid selling price configured. Please contact an
+              administrator.
+            </span>
           </div>
         )}
 

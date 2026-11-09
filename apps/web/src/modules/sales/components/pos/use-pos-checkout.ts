@@ -82,6 +82,26 @@ export function usePosCheckout({
     const netTotalCents = Math.max(0, subtotalCents - discountCents);
     const netTotalAmount = centsToDecimal(netTotalCents);
 
+    // Validate that all cart items have a valid selling price (> 0)
+    const invalidPriceItem = cartItems.find(
+      (it) => !it.unitPriceAmount || it.unitPriceAmount <= 0 || it.unitPriceCents <= 0,
+    );
+    if (invalidPriceItem) {
+      setErrorMessage(
+        'This product does not have a valid selling price configured. Please contact an administrator.',
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (netTotalAmount <= 0 || netTotalCents <= 0) {
+      setErrorMessage(
+        'This product does not have a valid selling price configured. Please contact an administrator.',
+      );
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       // Step 1: Create Commercial Sale Agreement in DRAFT status
       setStatusMessage('Step 1/4: Initializing sale agreement...');
@@ -276,6 +296,17 @@ export function usePosCheckout({
    */
   const executeSaveDraft = async () => {
     if (cartItems.length === 0 || isSubmitting) return;
+
+    // Validate that all cart items have a valid selling price (> 0)
+    const invalidPriceItem = cartItems.find(
+      (it) => !it.unitPriceAmount || it.unitPriceAmount <= 0 || it.unitPriceCents <= 0,
+    );
+    if (invalidPriceItem) {
+      setErrorMessage(
+        'This product does not have a valid selling price configured. Please contact an administrator.',
+      );
+      return;
+    }
 
     setIsSubmitting(true);
     setErrorMessage(null);

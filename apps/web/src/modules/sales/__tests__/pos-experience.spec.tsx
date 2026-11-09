@@ -137,8 +137,20 @@ const mockInventoryData = {
       isOutOfStock: true,
       status: 'ACTIVE',
     },
+    {
+      id: 'inv_unpriced_snack',
+      sku: 'FOOD-SNK-01',
+      name: 'Unpriced Protein Bar',
+      category: InventoryCategory.HEALTHY_MEALS,
+      sellingPrice: { amount: 0, currency: 'USD' },
+      costPrice: { amount: 1.0, currency: 'USD' },
+      currentStock: 20,
+      minStockAlert: 5,
+      isOutOfStock: false,
+      status: 'ACTIVE',
+    },
   ],
-  total: 3,
+  total: 4,
 };
 
 const mockRoomsData = [
@@ -866,6 +878,19 @@ describe('POS Station Experience (/sales/new)', () => {
       expect(screen.getByTestId('pos-drinks-permission-notice')).toHaveTextContent(
         /inventory\.read/,
       );
+    });
+
+    it('disables add to cart and alerts user when a food item lacks a valid selling price', () => {
+      renderPOS();
+
+      fireEvent.click(screen.getByTestId('pos-category-tab-food'));
+
+      expect(screen.getByTestId('pos-food-card-inv_unpriced_snack')).toBeInTheDocument();
+      expect(screen.getByTestId('pos-food-card-inv_unpriced_snack')).toHaveTextContent(
+        'This product does not have a valid selling price configured. Please contact an administrator.',
+      );
+      expect(screen.getByTestId('add-food-btn-inv_unpriced_snack')).toBeDisabled();
+      expect(screen.getByTestId('add-food-btn-inv_unpriced_snack')).toHaveTextContent('Unpriced');
     });
   });
 });
