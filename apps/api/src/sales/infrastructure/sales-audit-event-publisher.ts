@@ -85,6 +85,7 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
           try {
             const sale = await this.saleRepository.findById(event.payload.saleId);
             if (sale) {
+              // 1. Gym Membership Fulfillment
               if (sale.clientId && this.activateOrRenewHandler) {
                 const gymItem = sale.items.find(
                   (it) =>

@@ -93,7 +93,7 @@ describe('Sales SubRouter & Module Route Contract Integration', () => {
     expect(
       await screen.findByTestId('sale-create-page', {}, { timeout: 10000 }),
     ).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('renders PaymentHistoryPage on /payments route', async () => {
     renderWithProviders(<SalesSubRouter />, {

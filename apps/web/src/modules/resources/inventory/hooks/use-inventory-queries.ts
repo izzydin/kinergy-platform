@@ -16,12 +16,16 @@ export function useInventoryCategories() {
 /**
  * Retrieves paginated consumable inventory catalog items with multi-criteria filters
  */
-export function useInventoryList(params?: ListInventoryFilterParams) {
+export function useInventoryList(
+  params?: ListInventoryFilterParams,
+  options?: { enabled?: boolean },
+) {
   return useQuery({
     queryKey: inventoryQueryKeys.list(params),
     queryFn: () => inventoryApi.listItems(params),
     staleTime: 30 * 1000, // 30 seconds
     placeholderData: keepPreviousData,
+    enabled: options?.enabled,
   });
 }
 

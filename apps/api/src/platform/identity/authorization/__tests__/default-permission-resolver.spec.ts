@@ -57,7 +57,7 @@ describe('DefaultPermissionResolver', () => {
     it('should grant Receptionist approved point-of-sale, payment, and receipt capabilities', async () => {
       const resolved = await resolver.resolvePermissions('usr_recep', ['Receptionist'], []);
 
-      expect(resolved.length).toBe(16);
+      expect(resolved.length).toBe(17);
 
       // Phase 7 approved permissions
       expect(resolved).toContain('sales.read');
@@ -68,6 +68,10 @@ describe('DefaultPermissionResolver', () => {
       expect(resolved).toContain('payments.manage');
       expect(resolved).toContain('receipts.read');
       expect(resolved).toContain('receipts.manage');
+
+      // Consumable inventory catalog reading (food and drinks POS sales)
+      expect(resolved).toContain('inventory.read');
+      expect(resolved).not.toContain('inventory.write');
 
       // Unrelated Phase 1 permissions preserved
       expect(resolved).toContain('clients.read');

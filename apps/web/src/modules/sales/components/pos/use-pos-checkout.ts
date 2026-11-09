@@ -110,6 +110,18 @@ export function usePosCheckout({
             referenceId: single.sourceId,
             referenceCode: single.skuOrCode,
           };
+        } else if (single.category === 'FOOD') {
+          sourceReference = {
+            type: 'FOOD',
+            referenceId: single.sourceId,
+            referenceCode: single.skuOrCode,
+          };
+        } else if (single.category === 'DRINKS_PRODUCTS') {
+          sourceReference = {
+            type: 'DRINK',
+            referenceId: single.sourceId,
+            referenceCode: single.skuOrCode,
+          };
         }
       }
 
@@ -291,6 +303,18 @@ export function usePosCheckout({
         } else if (single.category === 'ROOM_RENTAL') {
           sourceReference = {
             type: 'ROOM_RENTAL',
+            referenceId: single.sourceId,
+            referenceCode: single.skuOrCode,
+          };
+        } else if (single.category === 'FOOD') {
+          sourceReference = {
+            type: 'FOOD',
+            referenceId: single.sourceId,
+            referenceCode: single.skuOrCode,
+          };
+        } else if (single.category === 'DRINKS_PRODUCTS') {
+          sourceReference = {
+            type: 'DRINK',
             referenceId: single.sourceId,
             referenceCode: single.skuOrCode,
           };

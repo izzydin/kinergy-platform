@@ -7,6 +7,11 @@ export interface CreateSaleItemInput {
   skuOrCode?: string | null;
   quantity: number;
   unitPriceAmount: number;
+  source?: {
+    sourceType: SourceType | SaleSourceType | string;
+    sourceId: string;
+    sourceCode?: string | null;
+  } | null;
   discount?: {
     type: string;
     value: number;

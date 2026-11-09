@@ -132,6 +132,8 @@ describe('Identity Database Seed Specification', () => {
       expect(receptionist?.permissionCodes).toContain('payments.manage');
       expect(receptionist?.permissionCodes).toContain('receipts.read');
       expect(receptionist?.permissionCodes).toContain('receipts.manage');
+      expect(receptionist?.permissionCodes).toContain('inventory.read');
+      expect(receptionist?.permissionCodes).not.toContain('inventory.write');
       expect(receptionist?.permissionCodes).not.toContain('sales.manage'); // Manager/Owner only
 
       // Kitchen Staff: POS food checkout and tender capture only

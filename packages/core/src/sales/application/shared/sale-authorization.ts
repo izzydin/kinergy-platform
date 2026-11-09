@@ -205,3 +205,144 @@ export function enforceSaleOwnershipBoundary(sale: Sale, currentUser?: SaleCurre
     'Access denied: user is not authorized to access this sale record.',
   );
 }
+
+/**
+ * Authoritative category definitions for commercial operations.
+ */
+export enum CommercialCategory {
+  FOOD_DRINK = 'FOOD_DRINK',
+  MEMBERSHIP = 'MEMBERSHIP',
+  CLINICAL = 'CLINICAL',
+  ROOM_RENTAL = 'ROOM_RENTAL',
+  GENERIC_RETAIL = 'GENERIC_RETAIL',
+}
+
+/**
+ * Maps arbitrary upstream domain source types, category strings, or enum identifiers
+ * to their corresponding canonical CommercialCategory.
+ */
+export function resolveCommercialCategory(rawType?: string | null): CommercialCategory {
+  if (!rawType) return CommercialCategory.GENERIC_RETAIL;
+  const t = String(rawType).toUpperCase().trim();
+  if (
+    t === 'FOOD' ||
+    t === 'DRINK' ||
+    t === 'INVENTORY_ITEM' ||
+    t === 'HEALTHY_MEALS' ||
+    t === 'HEALTHY_DRINKS' ||
+    t === 'SUPPLEMENTS' ||
+    t === 'RETAIL_PRODUCTS'
+  ) {
+    return CommercialCategory.FOOD_DRINK;
+  }
+  if (t === 'GYM_MEMBERSHIP' || t === 'MEMBERSHIP_PLAN') {
+    return CommercialCategory.MEMBERSHIP;
+  }
+  if (t === 'KINESIOLOGY_SESSION' || t === 'TREATMENT_SESSION' || t === 'KINESIOLOGY') {
+    return CommercialCategory.CLINICAL;
+  }
+  if (t === 'ROOM_RENTAL' || t === 'CUSTOM_SERVICE') {
+    return CommercialCategory.ROOM_RENTAL;
+  }
+  return CommercialCategory.GENERIC_RETAIL;
+}
+
+/**
+ * Mixed Cart Authorization Guard (ADR-0135 / Least Privilege):
+ * If a mixed cart contains Food/Drinks and another category, the user must be
+ * authorized for every included category. Do not allow an unauthorized category
+ * to be processed simply because the cart contains Food or Drink.
+ */
+export function assertSaleCategoriesAuthorized(
+  currentUser?: SaleCurrentUser,
+  categories: (string | null | undefined)[] = [],
+): void {
+  if (!currentUser) {
+    return; // System or trusted context
+  }
+
+  const permissions = (currentUser.permissions ?? []).map((p) => p.replace(/:/g, '.'));
+  const roles = currentUser.roles ?? [];
+
+  const isSuperUser =
+    roles.some(
+      (r) =>
+        r.includes('Owner') ||
+        r.includes('Manager') ||
+        r === 'Platform Admin' ||
+        r === 'SUPER_ADMIN' ||
+        r === 'ADMIN',
+    ) || permissions.some((p) => p === '*' || p === '*:*:*' || p === '*.*.*' || p === 'sales.*');
+
+  if (isSuperUser) {
+    return;
+  }
+
+  const normCategories = Array.from(
+    new Set(
+      categories
+        .filter((c): c is string => typeof c === 'string' && c.trim().length > 0)
+        .map((c) => resolveCommercialCategory(c)),
+    ),
+  );
+
+  for (const cat of normCategories) {
+    switch (cat) {
+      case CommercialCategory.FOOD_DRINK: {
+        const canSellFoodDrink =
+          permissions.includes('inventory.read') ||
+          permissions.includes('inventory.write') ||
+          permissions.includes('kitchen.read') ||
+          roles.includes('Kitchen Staff') ||
+          roles.includes('Receptionist') ||
+          roles.includes('RECEPTIONIST') ||
+          roles.some((r) => r.toLowerCase().includes('reception'));
+        if (!canSellFoodDrink) {
+          throw new SaleUnauthorizedException(
+            'User is not authorized to sell Food and Drink items (requires inventory.read permission).',
+          );
+        }
+        break;
+      }
+      case CommercialCategory.MEMBERSHIP: {
+        const canSellMembership =
+          !roles.includes('Kitchen Staff') &&
+          (roles.includes('Receptionist') ||
+            permissions.includes('billing.write') ||
+            permissions.includes('billing.manage') ||
+            permissions.some((p) => p.startsWith('gym.')));
+        if (!canSellMembership) {
+          throw new SaleUnauthorizedException('User is not authorized to sell Gym Memberships.');
+        }
+        break;
+      }
+      case CommercialCategory.CLINICAL: {
+        const canSellClinical =
+          !roles.includes('Kitchen Staff') &&
+          (roles.includes('Receptionist') ||
+            permissions.includes('appointments.create') ||
+            permissions.includes('appointments.update') ||
+            permissions.includes('billing.write'));
+        if (!canSellClinical) {
+          throw new SaleUnauthorizedException(
+            'User is not authorized to sell Clinical/Kinesiology Sessions.',
+          );
+        }
+        break;
+      }
+      case CommercialCategory.ROOM_RENTAL: {
+        const canSellRoom =
+          !roles.includes('Kitchen Staff') &&
+          (roles.includes('Receptionist') ||
+            permissions.includes('billing.write') ||
+            permissions.some((p) => p.startsWith('scheduling.')));
+        if (!canSellRoom) {
+          throw new SaleUnauthorizedException('User is not authorized to sell Room Rentals.');
+        }
+        break;
+      }
+      default:
+        break;
+    }
+  }
+}

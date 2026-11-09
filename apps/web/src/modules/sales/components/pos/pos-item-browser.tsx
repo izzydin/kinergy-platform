@@ -12,6 +12,7 @@ import {
   InventoryItemStatus,
 } from '../../../resources/inventory/types/inventory.types';
 import { SessionStatus } from '@kinergy-platform/core';
+import { useAuth } from '../../../../app/providers/auth-provider';
 
 export interface PosItemBrowserProps {
   selectedCategory: PosCategory;
@@ -34,6 +35,20 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
   const [drinkSubcategory, setDrinkSubcategory] = useState<string>('ALL');
   const [roomHours, setRoomHours] = useState<Record<string, number>>({});
 
+  let canReadInventory = true;
+  try {
+    const auth = useAuth();
+    if (auth && (typeof auth.hasPermission === 'function' || auth.currentUser)) {
+      canReadInventory = Boolean(
+        typeof auth.hasPermission === 'function'
+          ? auth.hasPermission('inventory.read')
+          : auth.currentUser?.permissions?.includes('inventory.read'),
+      );
+    }
+  } catch {
+    canReadInventory = true;
+  }
+
   // 1. Gym Plans Query
   const {
     data: plansData,
@@ -53,7 +68,7 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
     data: inventoryData,
     isLoading: isLoadingInventory,
     error: inventoryError,
-  } = useInventoryList({ status: InventoryItemStatus.ACTIVE });
+  } = useInventoryList({ status: InventoryItemStatus.ACTIVE }, { enabled: canReadInventory });
 
   // 4. Rooms Query
   const {
@@ -370,7 +385,18 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
         {/* 3. FOOD & MEALS */}
         {selectedCategory === 'FOOD' && (
           <div className="space-y-3" data-testid="pos-browser-food">
-            {isLoadingInventory ? (
+            {!canReadInventory ? (
+              <div
+                className="p-4 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-md border border-amber-200 dark:border-amber-800/50 flex items-center gap-2"
+                data-testid="pos-food-permission-notice"
+              >
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>
+                  You do not possess permission (<code>inventory.read</code>) to browse or sell
+                  kitchen food items.
+                </span>
+              </div>
+            ) : isLoadingInventory ? (
               <div className="py-8 flex items-center justify-center text-xs text-muted-foreground gap-2">
                 <Spinner className="h-4 w-4" /> Loading kitchen food catalog...
               </div>
@@ -462,7 +488,18 @@ export const PosItemBrowser: React.FC<PosItemBrowserProps> = ({
         {/* 4. DRINKS & PRODUCTS */}
         {selectedCategory === 'DRINKS_PRODUCTS' && (
           <div className="space-y-3" data-testid="pos-browser-drinks">
-            {isLoadingInventory ? (
+            {!canReadInventory ? (
+              <div
+                className="p-4 text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 rounded-md border border-amber-200 dark:border-amber-800/50 flex items-center gap-2"
+                data-testid="pos-drinks-permission-notice"
+              >
+                <AlertCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                <span>
+                  You do not possess permission (<code>inventory.read</code>) to browse or sell
+                  beverages and retail products.
+                </span>
+              </div>
+            ) : isLoadingInventory ? (
               <div className="py-8 flex items-center justify-center text-xs text-muted-foreground gap-2">
                 <Spinner className="h-4 w-4" /> Loading beverage and retail catalog...
               </div>

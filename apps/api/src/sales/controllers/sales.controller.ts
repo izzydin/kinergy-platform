@@ -280,19 +280,41 @@ export class SalesController {
       currentUser: this.mapCurrentUser(user),
       source: sourcePayload,
       allowWalkInWithoutSource,
-      items: dto.items?.map((item) => ({
-        description: item.description,
-        skuOrCode: item.skuOrCode,
-        quantity: item.quantity,
-        unitPriceAmount: item.unitPriceAmount,
-        discount: item.discount
-          ? {
-              type: item.discount.type,
-              value: item.discount.value,
-              reason: item.discount.reason,
-            }
-          : undefined,
-      })),
+      items: dto.items?.map((item) => {
+        let itemSource:
+          { sourceType: string; sourceId: string; sourceCode?: string | null } | undefined =
+          undefined;
+        const incomingItemSource = item.sourceReference ?? item.source;
+        if (incomingItemSource) {
+          const s = incomingItemSource as unknown as Record<string, unknown>;
+          itemSource = {
+            sourceType: (s.type ?? s.sourceType) as string,
+            sourceId: (s.referenceId ?? s.sourceId) as string,
+            sourceCode: ((s.referenceCode ?? s.sourceCode) as string | null) ?? null,
+          };
+        } else if (item.sourceType && item.sourceId) {
+          itemSource = {
+            sourceType: item.sourceType,
+            sourceId: item.sourceId,
+            sourceCode: item.skuOrCode ?? null,
+          };
+        }
+
+        return {
+          description: item.description,
+          skuOrCode: item.skuOrCode,
+          quantity: item.quantity,
+          unitPriceAmount: item.unitPriceAmount,
+          source: itemSource,
+          discount: item.discount
+            ? {
+                type: item.discount.type,
+                value: item.discount.value,
+                reason: item.discount.reason,
+              }
+            : undefined,
+        };
+      }),
       orderDiscount: dto.orderDiscount
         ? {
             type: dto.orderDiscount.type,

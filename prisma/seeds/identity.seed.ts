@@ -164,6 +164,7 @@ export const SYSTEM_ROLE_DEFINITIONS = [
       'appointments.delete',
       'billing.read',
       'billing.write',
+      'inventory.read',
       'sales.read',
       'sales.create',
       'sales.cancel',

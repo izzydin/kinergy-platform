@@ -602,6 +602,28 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 5. **Issue Receipt Voucher**:
    - Click **View Receipt** (or `/sales/:id/receipt`). Print or inspect the official proof-of-payment receipt voucher (`REC-YYYY-XXXXX`).
 
+#### 8.4.4 Workflow D: Front Desk Food & Drink Retail Sale (Receptionist Role / Least Privilege)
+
+1. **Role Scope & Invariants**:
+   - The Receptionist role (`reception.demo@kinergy.platform`) is granted `inventory.read` along with `sales.create` and front-desk billing permissions.
+   - This enables front-desk staff to browse food, beverage, and retail catalogs and complete checkouts through the POS Station.
+   - **Least-Privilege Enforcement**: Receptionist is strictly **denied** `inventory.write`. Receptionist cannot execute stock receiving, manual inventory adjustments, stock scrapping, product creation, or product catalog edits, and cannot access confidential cost/valuation reports.
+   - **Mixed Cart Authorization Guard**: If a checkout contains mixed items (e.g. Food plus Gym Membership), the user must be authorized for _all_ included categories. Roles restricted to kitchen sales (e.g. `Kitchen Staff`) cannot process gym memberships or therapy sessions simply by bundling them with food.
+2. **Execute Food & Drink Checkout**:
+   - Sign in as `reception.demo@kinergy.platform` / `DemoPass123!`.
+   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`).
+   - Select customer (e.g. `Carlos Rivera`) or toggle **Walk-in Guest** mode.
+   - Click **Food & Meals**: browse prepared food and add **Organic Whey Protein Bar** ($5.50).
+   - Click **Drinks & Products**: browse beverages and add **Electrolyte Hydration Drink** ($3.00).
+   - Review integer-cents total ($8.50 USD) in the active cart.
+   - Select **Cash** tender and enter `$10.00` (change: `$1.50`).
+   - Click **Complete Sale ($8.50)**.
+3. **Automated Stock Decrement & Ledger Audit**:
+   - Upon payment settlement (`SalePaidEvent`), the backend orchestrator triggers `SellStockHandler` for each consumable line item.
+   - Physical inventory balances on hand decrement automatically ($42 $\to$ 41 for protein bars, $36 $\to$ 35 for electrolyte drinks).
+   - An append-only `SALE` movement record is written to `stock_movements` with external transaction reference `${saleId}:${itemId}`.
+   - Duplicate events or retries are deduplicated idempotently by reference ID without double stock deductions.
+
 ---
 
 ## 9. Financial & Payment Integrity Rules

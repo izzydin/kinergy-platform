@@ -67,7 +67,7 @@ const mockCashierUser: AuthUser = {
   email: 'cashier@kinergy.test',
   name: 'Front Desk Cashier',
   roles: ['Receptionist'],
-  permissions: ['sales.read', 'sales.create'],
+  permissions: ['sales.read', 'sales.create', 'inventory.read'],
   tenantId: 'tenant_1',
 };
 
@@ -231,10 +231,10 @@ describe('POS Station Experience (/sales/new)', () => {
     });
   });
 
-  const renderPOS = () => {
+  const renderPOS = (userOverride?: AuthUser) => {
     return renderWithProviders(<SaleCreatePage />, {
       queryClient,
-      initialSessionOverride: mockCashierUser,
+      initialSessionOverride: userOverride ?? mockCashierUser,
     });
   };
 
@@ -720,6 +720,152 @@ describe('POS Station Experience (/sales/new)', () => {
         expect(screen.getByText('Sale Completed Successfully')).toBeInTheDocument();
         expect(screen.getByTestId('pos-view-receipt-btn')).toBeInTheDocument();
       });
+    });
+
+    it('enables Receptionist holding inventory.read to sell Food with CASH tender', async () => {
+      (salesApi.createSale as jest.Mock).mockResolvedValue(mockCreatedSaleDTO);
+      (salesApi.finalizeSale as jest.Mock).mockResolvedValue({
+        ...mockCreatedSaleDTO,
+        status: 'PENDING_PAYMENT',
+      });
+      (salesApi.recordPayment as jest.Mock).mockResolvedValue({
+        id: 'pay_pos_food_001',
+        saleId: 'sale_pos_uuid_001',
+        amount: 12.0,
+        currency: 'USD',
+        status: 'COMPLETED',
+        method: 'CASH',
+      });
+      (salesApi.issueReceipt as jest.Mock).mockResolvedValue({
+        id: 'rec_food_001',
+        receiptNumber: 'REC-2026-00088',
+        saleId: 'sale_pos_uuid_001',
+        pdfUrl: 'http://localhost:3000/api/v1/receipts/rec_food_001/pdf',
+      });
+
+      renderPOS();
+
+      // Switch to Food & Meals
+      fireEvent.click(screen.getByTestId('pos-category-tab-food'));
+
+      // Add Grilled Chicken Caesar Bowl ($12.00)
+      const addFoodBtn = screen.getByTestId('add-food-btn-inv_chicken_salad');
+      fireEvent.click(addFoodBtn);
+
+      expect(screen.getByTestId('pos-net-total')).toHaveTextContent(/12\.00/);
+
+      // Select CASH Tender
+      fireEvent.click(screen.getByTestId('pos-pay-cash-btn'));
+
+      // Enter Tendered Amount $15.00
+      const tenderInput = screen.getByTestId('pos-tender-input');
+      fireEvent.change(tenderInput, { target: { value: '15.00' } });
+
+      // Change due: $3.00
+      expect(screen.getByTestId('pos-change-display')).toHaveTextContent(/3\.00/);
+
+      // Complete Sale
+      fireEvent.click(screen.getByTestId('pos-complete-sale-btn'));
+
+      await waitFor(() => {
+        expect(salesApi.createSale).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sourceReference: {
+              type: 'FOOD',
+              referenceId: 'inv_chicken_salad',
+              referenceCode: 'FOOD-SALAD-01',
+            },
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                sourceType: 'INVENTORY_ITEM',
+                sourceId: 'inv_chicken_salad',
+              }),
+            ]),
+          }),
+          expect.any(String),
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pos-confirmation-view')).toBeInTheDocument();
+      });
+    });
+
+    it('enables Receptionist holding inventory.read to sell Drinks with QR tender', async () => {
+      (salesApi.createSale as jest.Mock).mockResolvedValue(mockCreatedSaleDTO);
+      (salesApi.finalizeSale as jest.Mock).mockResolvedValue({
+        ...mockCreatedSaleDTO,
+        status: 'PENDING_PAYMENT',
+      });
+      (salesApi.recordPayment as jest.Mock).mockResolvedValue({
+        id: 'pay_pos_drink_001',
+        saleId: 'sale_pos_uuid_001',
+        amount: 6.5,
+        currency: 'USD',
+        status: 'PENDING',
+        method: 'QR',
+      });
+
+      renderPOS();
+
+      // Switch to Drinks & Products
+      fireEvent.click(screen.getByTestId('pos-category-tab-drinks_products'));
+
+      // Add Whey Protein Shake ($6.50)
+      const addDrinkBtn = screen.getByTestId('add-drink-btn-inv_protein_shake');
+      fireEvent.click(addDrinkBtn);
+
+      expect(screen.getByTestId('pos-net-total')).toHaveTextContent(/6\.50/);
+
+      // Select QR Tender
+      fireEvent.click(screen.getByTestId('pos-pay-qr-btn'));
+
+      // Complete Sale
+      fireEvent.click(screen.getByTestId('pos-complete-sale-btn'));
+
+      await waitFor(() => {
+        expect(salesApi.createSale).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sourceReference: {
+              type: 'DRINK',
+              referenceId: 'inv_protein_shake',
+              referenceCode: 'BEV-SHAKE-01',
+            },
+            items: expect.arrayContaining([
+              expect.objectContaining({
+                sourceType: 'INVENTORY_ITEM',
+                sourceId: 'inv_protein_shake',
+              }),
+            ]),
+          }),
+          expect.any(String),
+        );
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pos-confirmation-view')).toBeInTheDocument();
+      });
+    });
+
+    it('displays permission alert when user lacks inventory.read for food/drinks', () => {
+      const unprivilegedUser: AuthUser = {
+        ...mockCashierUser,
+        permissions: ['sales.read', 'sales.create'], // lacks inventory.read
+      };
+
+      renderPOS(unprivilegedUser);
+
+      // Switch to Food
+      fireEvent.click(screen.getByTestId('pos-category-tab-food'));
+      expect(screen.getByTestId('pos-food-permission-notice')).toBeInTheDocument();
+      expect(screen.getByTestId('pos-food-permission-notice')).toHaveTextContent(/inventory\.read/);
+
+      // Switch to Drinks
+      fireEvent.click(screen.getByTestId('pos-category-tab-drinks_products'));
+      expect(screen.getByTestId('pos-drinks-permission-notice')).toBeInTheDocument();
+      expect(screen.getByTestId('pos-drinks-permission-notice')).toHaveTextContent(
+        /inventory\.read/,
+      );
     });
   });
 });

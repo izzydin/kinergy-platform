@@ -26,6 +26,7 @@ import { Clock, SystemClock } from '../../domain/shared/clock';
 import {
   checkSaleAuthorization,
   enforceSaleTenantIsolation,
+  assertSaleCategoriesAuthorized,
   SALE_MUTATION_ROLES,
 } from '../shared/sale-authorization';
 
@@ -87,6 +88,13 @@ export class CreateSaleHandler implements SalesCommandHandler<
           );
         }
       }
+
+      // 2b. Mixed Cart & Category Authorization Check (ADR-0135 / Least Privilege)
+      const allCategorySources = [
+        sourceInput.sourceType,
+        ...(input.items?.map((it) => it.source?.sourceType) ?? []),
+      ];
+      assertSaleCategoriesAuthorized(input.currentUser, allCategorySources);
 
       if (
         !sourceInput.sourceId ||
@@ -361,8 +369,26 @@ export class CreateSaleHandler implements SalesCommandHandler<
             }
           }
 
+          let itemSource = source;
+          if (itemInput.source && itemInput.source.sourceType && itemInput.source.sourceId) {
+            const rawItemType = itemInput.source.sourceType;
+            if (isValidSaleSourceType(rawItemType)) {
+              itemSource = SaleSource.create(
+                rawItemType as SaleSourceType,
+                itemInput.source.sourceId.trim(),
+                itemInput.source.sourceCode?.trim() ?? null,
+              );
+            } else {
+              itemSource = SourceReference.create({
+                sourceType: rawItemType as SourceType,
+                sourceId: itemInput.source.sourceId.trim(),
+                sourceCode: itemInput.source.sourceCode?.trim() ?? null,
+              });
+            }
+          }
+
           return {
-            source,
+            source: itemSource,
             description: itemInput.description,
             skuOrCode: itemInput.skuOrCode ?? null,
             quantity: itemInput.quantity,

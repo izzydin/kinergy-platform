@@ -19,6 +19,7 @@ import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-
 import {
   checkSaleAuthorization,
   enforceSaleTenantIsolation,
+  assertSaleCategoriesAuthorized,
   SALE_MUTATION_ROLES,
 } from '../shared/sale-authorization';
 
@@ -74,6 +75,11 @@ export class AddSaleItemHandler implements SalesCommandHandler<
 
         // Caller authorization check: sales.create (ADR-0135)
         checkSaleAuthorization(input.currentUser, ['sales.create'], SALE_MUTATION_ROLES);
+
+        // Category Authorization Check (ADR-0135 / Least Privilege)
+        const itemCategory =
+          input.source?.sourceType ?? (sale.source ? String(sale.source.sourceType) : undefined);
+        assertSaleCategoriesAuthorized(input.currentUser, [itemCategory]);
 
         // 3. Construct appropriate domain value objects
         let source: SaleSource | SourceReference;

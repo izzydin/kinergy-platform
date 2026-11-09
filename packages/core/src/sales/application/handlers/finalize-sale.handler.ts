@@ -12,6 +12,7 @@ import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-
 import {
   checkSaleAuthorization,
   enforceSaleTenantIsolation,
+  assertSaleCategoriesAuthorized,
   SALE_MUTATION_ROLES,
 } from '../shared/sale-authorization';
 
@@ -48,6 +49,13 @@ export class FinalizeSaleHandler implements SalesCommandHandler<
 
       // Caller authorization check: sales.create (ADR-0135)
       checkSaleAuthorization(input.currentUser, ['sales.create'], SALE_MUTATION_ROLES);
+
+      // Category & Mixed Cart authorization check (ADR-0135 / Least Privilege)
+      const allCategories = [
+        sale.source ? String(sale.source.sourceType) : undefined,
+        ...(sale.items?.map((it) => (it.source ? String(it.source.sourceType) : undefined)) ?? []),
+      ];
+      assertSaleCategoriesAuthorized(input.currentUser, allCategories);
 
       sale.finalize(this.clock);
 
