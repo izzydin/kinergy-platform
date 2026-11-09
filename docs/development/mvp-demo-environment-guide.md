@@ -624,6 +624,36 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
    - An append-only `SALE` movement record is written to `stock_movements` with external transaction reference `${saleId}:${itemId}`.
    - Duplicate events or retries are deduplicated idempotently by reference ID without double stock deductions.
 
+#### 8.4.5 Workflow E: Repeat Purchases for Same Customer (Sale Immutability & Independent Checkouts)
+
+1. **Business Invariants & Scope**:
+   - Repeat retail purchases (such as food, beverages, consumables, or recurring services) by the same customer must each create an entirely independent `Sale` transaction with a unique Sale ID.
+   - A `PAID` sale is strictly immutable with respect to further payments; it must never be reopened or returned to the POS station to accommodate a new purchase.
+   - Idempotency protections are scoped strictly to the specific checkout session (`idempotencyKey`), not to the combination of `clientId` and product SKU.
+   - Every completed checkout generates its own distinct payment record and sequential commercial receipt voucher (`REC-YYYY-XXXXX`).
+   - Physical inventory is decremented for each purchase according to stock movement rules.
+2. **Execute Repeat Purchase Sequence**:
+   - **Purchase 1 (Carlos Rivera - Protein Bar)**:
+     - Navigate to `/sales/new` (`http://localhost:8080/sales/new`).
+     - Select customer `Carlos Rivera` (`CLI-2026-00001`).
+     - Add **Organic Whey Protein Bar** ($5.50) to the cart.
+     - Select **Cash** tender, enter `$10.00`, and click **Complete Sale ($5.50)**.
+     - Authoritative settlement transitions Sale 1 to `PAID`, produces Payment 1, decrements stock ($41 $\to$ 40), and displays receipt confirmation `REC-2026-XXXXX`.
+   - **Station Transition Options**:
+     - The POS Confirmation station presents two options:
+       - **Start Next Sale**: Clears cart and unselects customer for walk-in or new customer ingress.
+       - **Keep Customer (Carlos Rivera)**: Preserves customer selection while regenerating the station idempotency key and clearing cart items.
+   - **Purchase 2 (Carlos Rivera - Protein Bar Again)**:
+     - Click **Keep Customer (Carlos Rivera)** or click **Start Next Sale** and re-select `Carlos Rivera`.
+     - Add **Organic Whey Protein Bar** ($5.50) again.
+     - Select **Cash** tender, enter `$10.00`, and click **Complete Sale ($5.50)**.
+     - **Verification**: The transaction creates a distinct new `Sale` (Sale 2 $\neq$ Sale 1), transitions from `DRAFT` to `PENDING_PAYMENT` to `PAID`, generates Payment 2, decrements stock ($40 $\to$ 39), and issues Receipt 2. Historical Sale 1 remains immutable in `PAID` status.
+   - **Purchase 3 (Carlos Rivera - Drink)**:
+     - Re-select `Carlos Rivera` (or click **Keep Customer**).
+     - Add **Electrolyte Hydration Drink** ($3.00).
+     - Tender Cash `$5.00` and complete the sale.
+     - Distinct Sale 3 is created, settled, and issued Receipt 3.
+
 ---
 
 ## 9. Financial & Payment Integrity Rules

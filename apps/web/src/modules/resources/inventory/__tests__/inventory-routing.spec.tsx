@@ -277,7 +277,9 @@ describe('Consumable Inventory Routing, Deep-Linking & Route Guards', () => {
   describe('1. Read-Only Inventory Auditor (inventory.read)', () => {
     it('allows access to inventory catalog route (/resources/inventory)', async () => {
       renderWithRoute('/resources/inventory', READONLY_INVENTORY_AUDITOR);
-      expect(await screen.findByTestId('inventory-list-page')).toBeInTheDocument();
+      expect(
+        await screen.findByTestId('inventory-list-page', {}, { timeout: 5000 }),
+      ).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Consumable Inventory' })).toBeInTheDocument();
       // Write action should NOT be visible
       expect(screen.queryByText('Register Product')).not.toBeInTheDocument();

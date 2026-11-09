@@ -8,7 +8,7 @@ import { formatMoneyCents, toCents } from '../../utils/financial-math';
 
 export interface PosConfirmationProps {
   summary: PosCompletedSaleSummary;
-  onStartNewSale: () => void;
+  onStartNewSale: (preserveClient?: boolean) => void;
 }
 
 export const PosConfirmation: React.FC<PosConfirmationProps> = ({ summary, onStartNewSale }) => {
@@ -126,12 +126,25 @@ export const PosConfirmation: React.FC<PosConfirmationProps> = ({ summary, onSta
             <Button
               type="button"
               variant="default"
-              onClick={onStartNewSale}
+              onClick={() => onStartNewSale(false)}
               className="w-full sm:flex-1 h-9 text-xs gap-1.5"
               data-testid="pos-new-sale-btn"
             >
               <PlusCircle className="h-4 w-4" /> Start Next Sale
             </Button>
+
+            {summary.clientId && !summary.isWalkIn && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => onStartNewSale(true)}
+                className="w-full sm:flex-1 h-9 text-xs gap-1.5"
+                data-testid="pos-new-sale-same-client-btn"
+              >
+                <PlusCircle className="h-4 w-4" /> Keep Customer (
+                {summary.clientName || 'Same Client'})
+              </Button>
+            )}
 
             {summary.receiptId && (
               <Button

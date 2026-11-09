@@ -398,6 +398,7 @@ export function usePosCheckout({
     setCompletedSummary(null);
     setErrorMessage(null);
     setStatusMessage('');
+    regenerateIdempotencyKey();
   };
 
   return {
@@ -405,6 +406,8 @@ export function usePosCheckout({
     statusMessage,
     errorMessage,
     completedSummary,
+    idempotencyKey,
+    regenerateIdempotencyKey,
     executeCheckout,
     executeSaveDraft,
     resetPos,

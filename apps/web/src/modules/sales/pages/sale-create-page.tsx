@@ -240,12 +240,15 @@ export const SaleCreatePage: React.FC = () => {
     setPosCartItems([]);
   };
 
-  const handleStartNewSale = () => {
+  const handleStartNewSale = (preserveClient: boolean = false) => {
     posCheckout.resetPos();
     setPosCartItems([]);
-    setPosClientId('');
-    setPosSelectedClient(null);
-    setPosIsWalkIn(false);
+    if (!preserveClient) {
+      setPosClientId('');
+      setPosSelectedClient(null);
+      setPosIsWalkIn(false);
+      setValue('clientId', '', { shouldDirty: true });
+    }
     setPosOrderDiscount(undefined);
   };
 

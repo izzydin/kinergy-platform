@@ -318,6 +318,16 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
           }
 
           // Invariant SALE-010: External Order Reference Uniqueness (non-generic POS terminal tag)
+          const isRepeatableCategory =
+            sale.source.sourceType === SaleSourceType.FOOD ||
+            sale.source.sourceType === SaleSourceType.DRINK ||
+            sale.source.sourceType === SourceType.INVENTORY_ITEM ||
+            sale.source.sourceType === SaleSourceType.GYM_MEMBERSHIP ||
+            (sale.source.sourceType as unknown) === 'FOOD' ||
+            (sale.source.sourceType as unknown) === 'DRINK' ||
+            (sale.source.sourceType as unknown) === 'INVENTORY_ITEM' ||
+            (sale.source.sourceType as unknown) === 'GYM_MEMBERSHIP';
+
           if (
             sale.source.sourceCode &&
             sale.source.sourceCode !== 'POS_REGISTER' &&
@@ -328,7 +338,9 @@ export class PrismaSaleRepository implements SaleRepositoryPort {
               where: {
                 sourceCode: sale.source.sourceCode,
                 ...(sale.tenantId ? { tenantId: sale.tenantId } : {}),
-                status: { not: 'CANCELLED' as PrismaSaleStatus },
+                status: isRepeatableCategory
+                  ? ({ notIn: ['CANCELLED', 'PAID'] } as unknown as PrismaSaleStatus)
+                  : ({ not: 'CANCELLED' } as unknown as PrismaSaleStatus),
                 NOT: { id: saleData.id },
               },
               select: { id: true },

@@ -10,6 +10,8 @@ import {
 import { ClientFacadePort, ClientSummaryPayload } from '../ports/client-facade.port';
 import { Sale } from '../../domain/sale.aggregate';
 import { SaleId } from '../../domain/value-objects/sale-id.vo';
+import { SaleItemId } from '../../domain/value-objects/sale-item-id.vo';
+import { Money } from '../../domain/value-objects/money.vo';
 import { SaleSource } from '../../domain/value-objects/sale-source.vo';
 import { SourceReference } from '../../domain/value-objects/source-reference.vo';
 import { SaleStatus } from '../../domain/enums/sale-status.enum';
@@ -859,6 +861,155 @@ describe('CreateSaleHandler Specification (Milestone 7.11 & ADR-0132)', () => {
       expect(dto.subtotalAmount).toBe(99.99);
       expect(dto.totalAmount).toBe(99.99);
       expect(dto.status).toBe(SaleStatus.DRAFT);
+    });
+  });
+
+  describe('9. Repeat Purchases & Idempotency Boundary Integrity (Task 84268)', () => {
+    beforeEach(() => {
+      clientFacade.clients.set('client_carlos_01', {
+        id: 'client_carlos_01',
+        fullName: 'Carlos Rivera',
+      });
+    });
+
+    it('allows same client to purchase the same food product twice when previous sale is PAID', async () => {
+      // 1. Initial purchase created and paid
+      const firstSale = Sale.create(
+        {
+          id: SaleId.create('sale_repeat_food_001'),
+          tenantId: 'tenant_kinergy',
+          clientId: 'client_carlos_01',
+          currency: 'USD',
+          source: SaleSource.create(SaleSourceType.FOOD, 'inv_protein_bar', 'SKU-SNK-BAR-01'),
+        },
+        clock,
+      );
+      firstSale.addItem(
+        {
+          id: SaleItemId.create('item_initial_01'),
+          description: 'Protein Bar',
+          quantity: 1,
+          unitPrice: Money.create(5.5, 'USD'),
+          source: SaleSource.create(SaleSourceType.FOOD, 'inv_protein_bar', 'SKU-SNK-BAR-01'),
+        },
+        clock,
+      );
+      // Simulate finalization and full settlement
+      firstSale.finalize(clock);
+      firstSale.markPaid(clock);
+      expect(firstSale.status).toBe(SaleStatus.PAID);
+      saleRepo.store.set(firstSale.id.value, firstSale);
+
+      // 2. Second independent purchase of the same product by the same client
+      const secondCommand = new CreateSaleCommand({
+        id: 'sale_repeat_food_002',
+        tenantId: 'tenant_kinergy',
+        clientId: 'client_carlos_01',
+        currency: 'USD',
+        source: {
+          sourceType: SaleSourceType.FOOD,
+          sourceId: 'inv_protein_bar',
+          sourceCode: 'SKU-SNK-BAR-01',
+        },
+        items: [
+          {
+            description: 'Organic Whey Protein Bar 60g',
+            quantity: 1,
+            unitPriceAmount: 5.5,
+          },
+        ],
+      });
+
+      const secondResult = await handler.execute(secondCommand);
+
+      expect(secondResult.isSuccess).toBe(true);
+      const secondSaleDTO = secondResult.getValue();
+      expect(secondSaleDTO.id).toBe('sale_repeat_food_002');
+      expect(secondSaleDTO.id).not.toBe(firstSale.id.value);
+      expect(secondSaleDTO.status).toBe(SaleStatus.DRAFT);
+      // Confirms first sale remains PAID and undisturbed
+      expect(saleRepo.store.get('sale_repeat_food_001')!.status).toBe(SaleStatus.PAID);
+      expect(saleRepo.store.size).toBe(2);
+    });
+
+    it('generates distinct sales when a new idempotencyKey is supplied for identical repeat purchase', async () => {
+      const commandA = new CreateSaleCommand({
+        idempotencyKey: 'pos_session_aaa',
+        tenantId: 'tenant_kinergy',
+        clientId: 'client_carlos_01',
+        currency: 'USD',
+        source: {
+          sourceType: SaleSourceType.DRINK,
+          sourceId: 'inv_electrolyte_drink',
+          sourceCode: 'SKU-DRK-ELEC-01',
+        },
+        items: [
+          {
+            description: 'Electrolyte Hydration Drink',
+            quantity: 1,
+            unitPriceAmount: 3.0,
+          },
+        ],
+      });
+
+      const resA = await handler.execute(commandA);
+      expect(resA.isSuccess).toBe(true);
+      const saleA = resA.getValue();
+
+      // Simulate completion
+      const loadedSaleA = saleRepo.store.get(saleA.id)!;
+      loadedSaleA.finalize(clock);
+      loadedSaleA.markPaid(clock);
+
+      // Now create a new purchase with new idempotency key
+      const commandB = new CreateSaleCommand({
+        idempotencyKey: 'pos_session_bbb',
+        tenantId: 'tenant_kinergy',
+        clientId: 'client_carlos_01',
+        currency: 'USD',
+        source: {
+          sourceType: SaleSourceType.DRINK,
+          sourceId: 'inv_electrolyte_drink',
+          sourceCode: 'SKU-DRK-ELEC-01',
+        },
+        items: [
+          {
+            description: 'Electrolyte Hydration Drink',
+            quantity: 1,
+            unitPriceAmount: 3.0,
+          },
+        ],
+      });
+
+      const resB = await handler.execute(commandB);
+      expect(resB.isSuccess).toBe(true);
+      const saleB = resB.getValue();
+
+      expect(saleB.id).not.toBe(saleA.id);
+      expect(saleB.status).toBe(SaleStatus.DRAFT);
+      expect(saleRepo.store.size).toBe(2);
+    });
+
+    it('returns original sale on identical retry with the same idempotencyKey (network replay)', async () => {
+      const command = new CreateSaleCommand({
+        idempotencyKey: 'pos_retry_same_key',
+        tenantId: 'tenant_kinergy',
+        clientId: 'client_carlos_01',
+        currency: 'USD',
+        source: {
+          sourceType: SaleSourceType.FOOD,
+          sourceId: 'inv_protein_bar',
+        },
+        items: [{ description: 'Bar', quantity: 1, unitPriceAmount: 5.0 }],
+      });
+
+      const first = await handler.execute(command);
+      expect(first.isSuccess).toBe(true);
+
+      const replay = await handler.execute(command);
+      expect(replay.isSuccess).toBe(true);
+      expect(replay.getValue().id).toBe(first.getValue().id);
+      expect(saleRepo.store.size).toBe(1);
     });
   });
 });

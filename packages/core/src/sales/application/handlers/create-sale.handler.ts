@@ -11,6 +11,7 @@ import { SourceReference } from '../../domain/value-objects/source-reference.vo'
 import { SaleSource } from '../../domain/value-objects/sale-source.vo';
 import { SourceType, isValidSourceType } from '../../domain/enums/source-type.enum';
 import { SaleSourceType, isValidSaleSourceType } from '../../domain/enums/sale-source-type.enum';
+import { SaleStatus } from '../../domain/enums/sale-status.enum';
 import { DuplicateSaleException } from '../../domain/exceptions/duplicate-sale.exception';
 import { InvalidSaleSourceException } from '../../domain/exceptions/invalid-sale-source.exception';
 import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
@@ -293,23 +294,52 @@ export class CreateSaleHandler implements SalesCommandHandler<
                 return SalesApplicationResult.ok(SaleMapper.toDTO(existingForCode));
               }
 
-              const isMatch =
-                (existingForCode.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
-                (existingForCode.clientId ?? '') === (resolvedClientId ?? '') &&
-                existingForCode.currency === currency &&
-                existingForCode.source.sourceId === sourceInput.sourceId.trim();
+              // A completed / PAID sale cannot accept payments or be reused for a new purchase.
+              // For repeatable retail goods (FOOD, DRINK, etc.) or subsequent checkouts, a past paid sale
+              // must not prevent legitimate subsequent purchases or be returned to accept payments.
+              const isPastPaidSale =
+                existingForCode.status === SaleStatus.PAID ||
+                (existingForCode.status as unknown) === 'PAID';
 
-              if (isMatch) {
-                return SalesApplicationResult.ok(SaleMapper.toDTO(existingForCode));
+              if (isPastPaidSale) {
+                const isRepeatableCategory =
+                  sourceInput.sourceType === SaleSourceType.FOOD ||
+                  sourceInput.sourceType === SaleSourceType.DRINK ||
+                  sourceInput.sourceType === SourceType.INVENTORY_ITEM ||
+                  sourceInput.sourceType === SaleSourceType.GYM_MEMBERSHIP ||
+                  (sourceInput.sourceType as unknown) === 'FOOD' ||
+                  (sourceInput.sourceType as unknown) === 'DRINK' ||
+                  (sourceInput.sourceType as unknown) === 'INVENTORY_ITEM' ||
+                  (sourceInput.sourceType as unknown) === 'GYM_MEMBERSHIP';
+
+                if (!isRepeatableCategory) {
+                  return SalesApplicationResult.fail(
+                    new DuplicateSaleException(
+                      `An active Sale ('${existingForCode.id.value}') already exists with order reference '${trimmedCode}'. Duplicate sale creation is prohibited.`,
+                      existingForCode.id.value,
+                      input.tenantId,
+                    ),
+                  );
+                }
+              } else {
+                const isMatch =
+                  (existingForCode.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
+                  (existingForCode.clientId ?? '') === (resolvedClientId ?? '') &&
+                  existingForCode.currency === currency &&
+                  existingForCode.source.sourceId === sourceInput.sourceId.trim();
+
+                if (isMatch && !effectiveId) {
+                  return SalesApplicationResult.ok(SaleMapper.toDTO(existingForCode));
+                }
+
+                return SalesApplicationResult.fail(
+                  new DuplicateSaleException(
+                    `An active Sale ('${existingForCode.id.value}') already exists with order reference '${trimmedCode}'. Duplicate sale creation is prohibited.`,
+                    existingForCode.id.value,
+                    input.tenantId,
+                  ),
+                );
               }
-
-              return SalesApplicationResult.fail(
-                new DuplicateSaleException(
-                  `An active Sale ('${existingForCode.id.value}') already exists with order reference '${trimmedCode}'. Duplicate sale creation is prohibited.`,
-                  existingForCode.id.value,
-                  input.tenantId,
-                ),
-              );
             }
           }
         }

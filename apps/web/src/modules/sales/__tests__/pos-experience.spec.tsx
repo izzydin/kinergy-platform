@@ -893,4 +893,177 @@ describe('POS Station Experience (/sales/new)', () => {
       expect(screen.getByTestId('add-food-btn-inv_unpriced_snack')).toHaveTextContent('Unpriced');
     });
   });
+
+  describe('6. Repeat Purchase Integrity & Station Reset Lifecycle (Task 84268)', () => {
+    const mockSaleTemplate: SaleDTO = {
+      id: 'sale_pos_uuid_001',
+      tenantId: 'tenant_1',
+      clientId: null,
+      currency: 'USD',
+      status: 'DRAFT',
+      sourceReference: {
+        type: 'FOOD',
+        referenceId: 'inv_chicken_salad',
+        referenceCode: 'FOOD-SALAD-01',
+      },
+      subtotal: { amount: 5.5, currency: 'USD', formatted: '$5.50' },
+      discountTotal: { amount: 0, currency: 'USD', formatted: '$0.00' },
+      total: { amount: 5.5, currency: 'USD', formatted: '$5.50' },
+      subtotalAmount: 5.5,
+      discountTotalAmount: 0,
+      totalAmount: 5.5,
+      itemCount: 1,
+      items: [],
+      version: 1,
+      createdAt: '2026-11-06T12:00:00.000Z',
+      updatedAt: '2026-11-06T12:00:00.000Z',
+      completedAt: null,
+      cancelledAt: null,
+      cancellationReason: null,
+      refundedAt: null,
+    };
+
+    it('completes sale, resets station via Start Next Sale, and purchases the exact same product as an independent transaction', async () => {
+      let saleCounter = 1;
+      const idempotencyKeysUsed: string[] = [];
+
+      (salesApi.createSale as jest.Mock).mockImplementation((_input, idemKey) => {
+        idempotencyKeysUsed.push(idemKey);
+        const currentSaleId = `sale_pos_seq_${saleCounter++}`;
+        return Promise.resolve({
+          ...mockSaleTemplate,
+          id: currentSaleId,
+          status: 'DRAFT',
+          totalAmount: 5.5,
+          total: { amount: 5.5, currency: 'USD', formatted: '5.50', cents: 550 },
+        });
+      });
+
+      (salesApi.finalizeSale as jest.Mock).mockImplementation((saleId) =>
+        Promise.resolve({
+          ...mockSaleTemplate,
+          id: saleId,
+          status: 'PENDING_PAYMENT',
+        }),
+      );
+
+      (salesApi.recordPayment as jest.Mock).mockImplementation((saleId) =>
+        Promise.resolve({
+          id: `pay_${saleId}`,
+          saleId,
+          amount: 5.5,
+          currency: 'USD',
+          status: 'COMPLETED',
+          method: 'CASH',
+        }),
+      );
+
+      (salesApi.issueReceipt as jest.Mock).mockImplementation((saleId) =>
+        Promise.resolve({
+          id: `rcpt_${saleId}`,
+          receiptNumber: `RCPT-${saleId}`,
+          saleId,
+          issuedAt: new Date().toISOString(),
+        }),
+      );
+
+      renderPOS();
+
+      // --- Purchase 1: Add Food item and complete sale ---
+      fireEvent.click(screen.getByTestId('pos-category-tab-food'));
+      fireEvent.click(screen.getByTestId('add-food-btn-inv_chicken_salad'));
+      fireEvent.click(screen.getByTestId('pos-pay-cash-btn'));
+      fireEvent.click(screen.getByTestId('pos-complete-sale-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pos-confirmation-view')).toBeInTheDocument();
+        expect(screen.getByText('Sale Completed Successfully')).toBeInTheDocument();
+      });
+
+      expect(salesApi.createSale).toHaveBeenCalledTimes(1);
+      const firstSaleIdSubmitted = (salesApi.finalizeSale as jest.Mock).mock.calls[0][0];
+      expect(firstSaleIdSubmitted).toBe('sale_pos_seq_1');
+
+      // --- Click "Start Next Sale" to reset station ---
+      fireEvent.click(screen.getByTestId('pos-new-sale-btn'));
+
+      // Verify station is reset: empty cart, item browser visible
+      expect(screen.getByTestId('pos-empty-cart')).toBeInTheDocument();
+      expect(screen.getByTestId('pos-item-browser')).toBeInTheDocument();
+
+      // --- Purchase 2: Add the exact same product again ---
+      fireEvent.click(screen.getByTestId('pos-category-tab-food'));
+      fireEvent.click(screen.getByTestId('add-food-btn-inv_chicken_salad'));
+      fireEvent.click(screen.getByTestId('pos-pay-cash-btn'));
+      fireEvent.click(screen.getByTestId('pos-complete-sale-btn'));
+
+      await waitFor(() => {
+        expect(salesApi.createSale).toHaveBeenCalledTimes(2);
+      });
+
+      const secondSaleIdSubmitted = (salesApi.finalizeSale as jest.Mock).mock.calls[1][0];
+      expect(secondSaleIdSubmitted).toBe('sale_pos_seq_2');
+      expect(secondSaleIdSubmitted).not.toBe(firstSaleIdSubmitted);
+
+      // Verify two distinct idempotency keys were generated
+      expect(idempotencyKeysUsed).toHaveLength(2);
+      expect(idempotencyKeysUsed[0]).not.toBe(idempotencyKeysUsed[1]);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pos-confirmation-view')).toBeInTheDocument();
+      });
+    });
+
+    it('allows retaining the selected client across successive sales via Keep Customer button', async () => {
+      let saleCounter = 10;
+      (salesApi.createSale as jest.Mock).mockImplementation(() =>
+        Promise.resolve({
+          ...mockSaleTemplate,
+          id: `sale_keep_client_${saleCounter++}`,
+          status: 'DRAFT',
+        }),
+      );
+      (salesApi.finalizeSale as jest.Mock).mockImplementation((saleId) =>
+        Promise.resolve({
+          ...mockSaleTemplate,
+          id: saleId,
+          status: 'PENDING_PAYMENT',
+        }),
+      );
+      (salesApi.recordPayment as jest.Mock).mockImplementation((saleId) =>
+        Promise.resolve({
+          id: `pay_${saleId}`,
+          saleId,
+          amount: 5.5,
+          currency: 'USD',
+          status: 'COMPLETED',
+          method: 'CASH',
+        }),
+      );
+
+      renderPOS();
+
+      // 1. Initial sale with registered client Carlos
+      const clientInput = screen.getByTestId('input-client-id');
+      fireEvent.change(clientInput, { target: { value: 'cli_seed_carlos' } });
+
+      fireEvent.click(screen.getByTestId('pos-category-tab-food'));
+      fireEvent.click(screen.getByTestId('add-food-btn-inv_chicken_salad'));
+      fireEvent.click(screen.getByTestId('pos-pay-cash-btn'));
+      fireEvent.click(screen.getByTestId('pos-complete-sale-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('pos-confirmation-view')).toBeInTheDocument();
+        expect(screen.getByTestId('pos-new-sale-same-client-btn')).toBeInTheDocument();
+      });
+
+      // 2. Click "Keep Customer" to start next sale for Carlos
+      fireEvent.click(screen.getByTestId('pos-new-sale-same-client-btn'));
+
+      // Verify cart is cleared, but Carlos Rivera remains selected in client combobox
+      expect(screen.getByTestId('pos-empty-cart')).toBeInTheDocument();
+      expect(screen.getByTestId('selected-client-card')).toBeInTheDocument();
+      expect(screen.getByTestId('selected-client-card')).toHaveTextContent(/cli_seed_carlos/);
+    });
+  });
 });

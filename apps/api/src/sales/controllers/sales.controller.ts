@@ -265,7 +265,7 @@ export class SalesController {
       sourcePayload = {
         sourceType: dto.items[0].sourceType,
         sourceId: dto.items[0].sourceId,
-        sourceCode: dto.items[0].skuOrCode ?? null,
+        sourceCode: null,
       };
     } else {
       allowWalkInWithoutSource = true;
