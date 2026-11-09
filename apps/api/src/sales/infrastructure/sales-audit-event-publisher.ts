@@ -13,7 +13,10 @@ import {
   SaleSourceType,
   SourceType,
   ActivateOrRenewMembershipHandler,
+  MembershipRepository,
+  MembershipStatus,
 } from '@kinergy-platform/core';
+import { MEMBERSHIP_REPOSITORY_TOKEN } from '../../gym/gym.module';
 import {
   AUDIT_EVENT_PUBLISHER,
   IAuditEventPublisher,
@@ -60,6 +63,9 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
     @Inject(SALE_REPOSITORY_TOKEN)
     @Optional()
     private readonly saleRepository?: SaleRepositoryPort,
+    @Inject(MEMBERSHIP_REPOSITORY_TOKEN)
+    @Optional()
+    private readonly membershipRepository?: MembershipRepository,
   ) {}
 
   public async publish(events: SalesDomainEventList): Promise<void> {
@@ -73,34 +79,62 @@ export class SalesAuditEventPublisher implements SalesEventPublisherPort {
     }
 
     // Post-payment commercial fulfillment orchestration (ADR-0139)
-    if (this.activateOrRenewHandler && this.saleRepository && events && events.length > 0) {
+    if (this.saleRepository && events && events.length > 0) {
       for (const event of events) {
         if (event instanceof SalePaidEvent) {
           try {
             const sale = await this.saleRepository.findById(event.payload.saleId);
-            if (sale && sale.clientId) {
-              const gymItem = sale.items.find(
-                (it) =>
-                  String(it.source.sourceType) === String(SaleSourceType.GYM_MEMBERSHIP) ||
-                  String(it.source.sourceType) === String(SourceType.MEMBERSHIP_PLAN),
-              );
-              const isSaleGymSource =
-                sale.source &&
-                (String(sale.source.sourceType) === String(SaleSourceType.GYM_MEMBERSHIP) ||
-                  String(sale.source.sourceType) === String(SourceType.MEMBERSHIP_PLAN));
+            if (sale) {
+              if (sale.clientId && this.activateOrRenewHandler) {
+                const gymItem = sale.items.find(
+                  (it) =>
+                    String(it.source.sourceType) === String(SaleSourceType.GYM_MEMBERSHIP) ||
+                    String(it.source.sourceType) === String(SourceType.MEMBERSHIP_PLAN),
+                );
+                const isSaleGymSource =
+                  sale.source &&
+                  (String(sale.source.sourceType) === String(SaleSourceType.GYM_MEMBERSHIP) ||
+                    String(sale.source.sourceType) === String(SourceType.MEMBERSHIP_PLAN));
 
-              const planId = isSaleGymSource ? sale.source.sourceId : gymItem?.source.sourceId;
+                const planId = isSaleGymSource ? sale.source.sourceId : gymItem?.source.sourceId;
 
-              if (planId) {
-                await this.activateOrRenewHandler.activateOrRenew({
-                  clientId: sale.clientId,
-                  planId,
-                  paymentRef: sale.id.value,
-                });
+                // Check if the sale was created to invoice/pay for an already-enrolled membership agreement.
+                // When an existing membership agreement is pre-enrolled (sourceCode / referenceCode),
+                // paying the commercial invoice settles the obligation without triggering an accidental renewal.
+                const sourceCode =
+                  sale.source?.sourceCode?.trim() || gymItem?.source?.sourceCode?.trim();
+
+                let isPreEnrolled = false;
+                if (
+                  sourceCode &&
+                  sourceCode !== 'pos_checkout_terminal' &&
+                  sourceCode !== 'POS_REGISTER'
+                ) {
+                  if (this.membershipRepository) {
+                    const existingMembership = await this.membershipRepository.findById(sourceCode);
+                    if (existingMembership) {
+                      isPreEnrolled = true;
+                      if (existingMembership.status === MembershipStatus.PENDING) {
+                        existingMembership.activate();
+                        await this.membershipRepository.save(existingMembership);
+                      }
+                    }
+                  } else {
+                    isPreEnrolled = true;
+                  }
+                }
+
+                if (planId && !isPreEnrolled) {
+                  await this.activateOrRenewHandler.activateOrRenew({
+                    clientId: sale.clientId,
+                    planId,
+                    paymentRef: sale.id.value,
+                  });
+                }
               }
             }
           } catch (fulfillmentErr) {
-            console.warn('Membership post-payment fulfillment advisory:', fulfillmentErr);
+            console.warn('Commercial post-payment fulfillment advisory:', fulfillmentErr);
           }
         }
       }
