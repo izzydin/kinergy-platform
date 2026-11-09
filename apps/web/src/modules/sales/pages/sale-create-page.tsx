@@ -22,6 +22,9 @@ import {
   ShoppingBag,
   Percent,
   Tag,
+  CheckCircle2,
+  Receipt,
+  X,
 } from 'lucide-react';
 import { createSaleSchema, type CreateSaleFormData } from '../schemas/create-sale.schema';
 import { useCreateSale } from '../hooks/use-sales-mutations';
@@ -29,6 +32,7 @@ import { VALID_SALE_SOURCE_TYPES } from '../types/sales.types';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { SALES_ROUTES } from '../routes/sales-routes';
+import { formatMoneyCents, toCents } from '../utils/financial-math';
 import { useDirtyGuard, ConfirmDiscardDialog, useApplyServerErrors } from '../../../shared/forms';
 import { ValidationError } from '../../../shared/query';
 import {
@@ -422,6 +426,59 @@ export const SaleCreatePage: React.FC = () => {
           className={viewMode === 'pos' ? 'block space-y-6' : 'hidden'}
           data-testid="pos-station-view"
         >
+          {/* Previous Completed Sale Alert Banner */}
+          {posCheckout.lastCompletedSale && (
+            <div
+              className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 flex flex-wrap items-center justify-between gap-2 text-xs"
+              data-testid="pos-last-completed-sale-banner"
+            >
+              <div className="flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                <span>
+                  <strong className="text-foreground">Previous Transaction:</strong> Sale{' '}
+                  <span className="font-mono font-medium">
+                    {posCheckout.lastCompletedSale.saleId}
+                  </span>
+                  {posCheckout.lastCompletedSale.receiptNumber && (
+                    <span className="text-muted-foreground ml-1 font-mono">
+                      ({posCheckout.lastCompletedSale.receiptNumber})
+                    </span>
+                  )}
+                  {' — '}
+                  {posCheckout.lastCompletedSale.clientName || 'Walk-in Guest'}
+                  {' ('}
+                  {formatMoneyCents(
+                    toCents(posCheckout.lastCompletedSale.totalAmount),
+                    posCheckout.lastCompletedSale.currency,
+                  )}
+                  {')'}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button asChild variant="outline" size="sm" className="h-7 text-xs gap-1">
+                  <Link
+                    to={SALES_ROUTES.receipt(posCheckout.lastCompletedSale.saleId)}
+                    state={{ from: '/sales/new' }}
+                    data-testid="pos-view-last-receipt-btn"
+                  >
+                    <Receipt className="h-3.5 w-3.5" /> View Receipt
+                  </Link>
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={posCheckout.dismissLastCompletedSale}
+                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                  aria-label="Dismiss previous transaction notification"
+                  data-testid="pos-dismiss-last-sale-btn"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
             {/* Left Column: Customer + Category + Catalog Browser */}
             <div className="lg:col-span-7 xl:col-span-8 space-y-4">

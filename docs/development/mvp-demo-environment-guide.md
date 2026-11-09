@@ -654,6 +654,35 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
      - Tender Cash `$5.00` and complete the sale.
      - Distinct Sale 3 is created, settled, and issued Receipt 3.
 
+### 8.5 Journey 5: POS Receipt Viewing, Persistent Lifecycle & Thermal Output Verification
+
+> **Formal Acceptance**: Verified in Task 84269 POS Receipt Viewing Regression (**100% PASS** across POS confirmation, persistent session banner, sales directory lookup, dual-identifier routing, and thermal print formats).
+
+1. **Immediate Receipt Viewing Post-Checkout**:
+   - Upon completing any sale (Food, Drink, Gym Membership, or Treatment Session), the POS Confirmation station renders the green confirmation card with order summary and a prominent **View Receipt** button (`data-testid="pos-view-receipt-btn"`).
+   - Clicking **View Receipt** routes directly to `/sales/:saleId/receipt` (with state `{ from: '/sales/new' }`), loading the authoritative receipt from `GET /api/v1/sales/:saleId/receipt`.
+
+2. **Persistent Receipt Accessibility Across Next Sale & Navigation**:
+   - When the cashier clicks **Start Next Sale** (`data-testid="pos-new-sale-btn"`), the cart and client selection are cleared for the next transaction, but the previous sale metadata is retained in `sessionStorage` (`kinergy_pos_last_completed_sale`).
+   - A persistent banner (`data-testid="pos-last-completed-sale-banner"`) appears at the top of the POS workstation displaying the previous sale ID, total, client name, and a one-click **View Receipt** button (`data-testid="pos-view-last-receipt-btn"`).
+   - The banner persists across page refreshes and module navigation (e.g. visiting Clients or Memberships and returning to POS), and can be dismissed at any time with the close button (`data-testid="dismiss-last-sale-banner-btn"`).
+
+3. **Receipt Retrieval from Sales Directory**:
+   - In the Sales Directory (`/sales/list`), all settled transactions in `PAID` status feature a dedicated **Receipt** action button (`data-testid="row-receipt-btn-${sale.id}"`).
+   - Receptionists and managers can open receipts for any historical sale at any time without entering the checkout station.
+
+4. **Dual-Identifier Receipt Resolution**:
+   - The Receipt View Page (`/sales/:identifier/receipt`) automatically detects whether the route parameter is a `saleId` or a direct `receiptId` (`rec_...` / `REC-YYYY-XXXXX`).
+   - If a `receiptId` is passed, it queries `GET /api/v1/receipts/:id` and authoritatively extracts the corresponding `saleId` for full context and "Back to Sale" navigation.
+   - If a `saleId` is passed, it queries `GET /api/v1/sales/:saleId/receipt`.
+
+5. **Print and Thermal Receipt Output**:
+   - The Receipt view page provides a **Print** button (`data-testid="print-receipt-btn"`) invoking `window.print()`.
+   - Print media queries (`@media print`) and layout modes support:
+     - **Standard Paper**: Clean multi-column A4/Letter invoice format.
+     - **80mm Thermal POS**: Formatted 3-inch receipt width with compact line items, store header, tax breakdown, and barcode/QR area.
+     - **58mm Thermal POS**: Ultra-compact 2-inch receipt width optimized for mini handheld terminals.
+
 ---
 
 ## 9. Financial & Payment Integrity Rules

@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
 import { Badge, Button } from '@kinergy-platform/ui';
-import { Eye, PlusCircle } from 'lucide-react';
+import { Eye, PlusCircle, Receipt } from 'lucide-react';
 import { DataTable, DataTableColumnHeader } from '../../../shared/table';
 import { SaleStatusBadge } from './sale-status-badge';
 import { MoneyDisplay } from './money-display';
@@ -164,8 +164,22 @@ export const SalesListTable: React.FC<SalesListTableProps> = ({
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => {
           const id = row.original.id;
+          const isPaid = row.original.status === 'PAID';
           return (
-            <div className="flex justify-end">
+            <div className="flex justify-end items-center gap-1">
+              {isPaid && (
+                <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs gap-1">
+                  <Link
+                    to={`/sales/${id}/receipt`}
+                    state={{ from: location.pathname + location.search }}
+                    aria-label={`View receipt for sale ${id}`}
+                    data-testid={`row-receipt-btn-${id}`}
+                  >
+                    <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="hidden sm:inline">Receipt</span>
+                  </Link>
+                </Button>
+              )}
               <Button asChild variant="ghost" size="sm" className="h-8 px-2 text-xs gap-1">
                 <Link
                   to={`/sales/${id}`}

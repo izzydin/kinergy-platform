@@ -146,14 +146,14 @@ export const PosConfirmation: React.FC<PosConfirmationProps> = ({ summary, onSta
               </Button>
             )}
 
-            {summary.receiptId && (
+            {summary.saleId && (
               <Button
                 asChild
                 variant="outline"
                 className="w-full sm:w-auto h-9 text-xs gap-1.5"
                 data-testid="pos-view-receipt-btn"
               >
-                <Link to={SALES_ROUTES.receipt(summary.receiptId)}>
+                <Link to={SALES_ROUTES.receipt(summary.saleId)} state={{ from: '/sales/new' }}>
                   <Receipt className="h-4 w-4" /> View Receipt
                 </Link>
               </Button>

@@ -731,6 +731,10 @@ describe('POS Station Experience (/sales/new)', () => {
         expect(screen.getByTestId('pos-confirmation-view')).toBeInTheDocument();
         expect(screen.getByText('Sale Completed Successfully')).toBeInTheDocument();
         expect(screen.getByTestId('pos-view-receipt-btn')).toBeInTheDocument();
+        expect(screen.getByTestId('pos-view-receipt-btn')).toHaveAttribute(
+          'href',
+          '/sales/sale_pos_uuid_001/receipt',
+        );
       });
     });
 
@@ -1064,6 +1068,98 @@ describe('POS Station Experience (/sales/new)', () => {
       expect(screen.getByTestId('pos-empty-cart')).toBeInTheDocument();
       expect(screen.getByTestId('selected-client-card')).toBeInTheDocument();
       expect(screen.getByTestId('selected-client-card')).toHaveTextContent(/cli_seed_carlos/);
+    });
+  });
+
+  describe('7. Receipt Viewing & Persistent Lifecycle (Task 84269)', () => {
+    const mockReceiptSaleDTO: SaleDTO = {
+      id: 'sale_pos_receipt_001',
+      tenantId: 'tenant_kinergy',
+      clientId: null,
+      currency: 'USD',
+      status: 'DRAFT',
+      sourceReference: {
+        type: 'FOOD',
+        referenceId: 'inv_protein_bar',
+        referenceCode: 'SKU-SNK-BAR-01',
+      },
+      subtotal: { amount: 5.5, currency: 'USD', formatted: '$5.50' },
+      discountTotal: { amount: 0, currency: 'USD', formatted: '$0.00' },
+      total: { amount: 5.5, currency: 'USD', formatted: '$5.50' },
+      subtotalAmount: 5.5,
+      discountTotalAmount: 0,
+      totalAmount: 5.5,
+      itemCount: 1,
+      items: [],
+      version: 1,
+      createdAt: '2026-11-06T12:00:00.000Z',
+      updatedAt: '2026-11-06T12:00:00.000Z',
+      completedAt: null,
+      cancelledAt: null,
+      cancellationReason: null,
+      refundedAt: null,
+    };
+
+    it('links View Receipt button directly to sale ID and persists last completed sale banner across station reset', async () => {
+      (salesApi.createSale as jest.Mock).mockResolvedValue({
+        ...mockReceiptSaleDTO,
+        id: 'sale_pos_receipt_001',
+      });
+      (salesApi.finalizeSale as jest.Mock).mockResolvedValue({
+        ...mockReceiptSaleDTO,
+        id: 'sale_pos_receipt_001',
+        status: 'PENDING_PAYMENT',
+      });
+      (salesApi.recordPayment as jest.Mock).mockResolvedValue({
+        id: 'pay_pos_receipt_001',
+        saleId: 'sale_pos_receipt_001',
+        amount: 5.5,
+        currency: 'USD',
+        status: 'COMPLETED',
+        method: 'CASH',
+      });
+      (salesApi.issueReceipt as jest.Mock).mockResolvedValue({
+        id: 'rec_pos_receipt_001',
+        saleId: 'sale_pos_receipt_001',
+        receiptNumber: 'REC-2026-000777',
+        issuedAt: new Date().toISOString(),
+      });
+
+      renderPOS();
+
+      // Walk-in purchase of Chicken Salad
+      fireEvent.click(screen.getByTestId('pos-mode-walkin-btn'));
+      fireEvent.click(screen.getByTestId('pos-category-tab-food'));
+      fireEvent.click(screen.getByTestId('add-food-btn-inv_chicken_salad'));
+      fireEvent.click(screen.getByTestId('pos-pay-cash-btn'));
+      fireEvent.click(screen.getByTestId('pos-complete-sale-btn'));
+
+      // 1. Confirmation displays with View Receipt pointing to sale ID (/sales/sale_pos_receipt_001/receipt)
+      await waitFor(() => {
+        expect(screen.getByTestId('pos-confirmation-view')).toBeInTheDocument();
+        const receiptBtn = screen.getByTestId('pos-view-receipt-btn');
+        expect(receiptBtn).toBeInTheDocument();
+        expect(receiptBtn).toHaveAttribute('href', '/sales/sale_pos_receipt_001/receipt');
+      });
+
+      // 2. Click Start Next Sale to reset station
+      fireEvent.click(screen.getByTestId('pos-new-sale-btn'));
+
+      // 3. Workstation is active, AND last completed sale banner is visible with receipt link
+      await waitFor(() => {
+        expect(screen.getByTestId('pos-station-view')).toBeInTheDocument();
+        expect(screen.getByTestId('pos-last-completed-sale-banner')).toBeInTheDocument();
+        expect(screen.getByTestId('pos-last-completed-sale-banner')).toHaveTextContent(
+          /sale_pos_receipt_001/,
+        );
+        const lastReceiptBtn = screen.getByTestId('pos-view-last-receipt-btn');
+        expect(lastReceiptBtn).toBeInTheDocument();
+        expect(lastReceiptBtn).toHaveAttribute('href', '/sales/sale_pos_receipt_001/receipt');
+      });
+
+      // 4. Dismiss banner removes it from workstation
+      fireEvent.click(screen.getByTestId('pos-dismiss-last-sale-btn'));
+      expect(screen.queryByTestId('pos-last-completed-sale-banner')).not.toBeInTheDocument();
     });
   });
 });

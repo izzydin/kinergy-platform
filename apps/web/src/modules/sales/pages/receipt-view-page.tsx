@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from '@kinergy-platform/ui';
 import { ArrowLeft, Printer, CheckCircle2, RefreshCw, Copy, AlertCircle } from 'lucide-react';
-import { useReceiptBySale, useSaleDetail } from '../hooks/use-sales-queries';
+import { useReceiptBySale, useSaleDetail, useReceiptDetail } from '../hooks/use-sales-queries';
 import { useIssueReceipt, useReprintReceipt } from '../hooks/use-sales-mutations';
 import { MoneyDisplay } from '../components/money-display';
 import { PaymentMethodBadge } from '../components/payment-method-badge';
@@ -21,10 +21,6 @@ export const ReceiptViewPage: React.FC = () => {
   const [printFormat, setPrintFormat] = useState<ReceiptPrintFormat>('standard');
   const [issueError, setIssueError] = useState<string | null>(null);
 
-  const backTo =
-    (location.state as { from?: string } | null)?.from ||
-    (saleId ? SALES_ROUTES.detail(saleId) : SALES_ROUTES.list());
-
   // Permission verification: receipts.read & receipts.manage
   const canRead = Boolean(
     typeof auth.hasPermission === 'function'
@@ -38,16 +34,42 @@ export const ReceiptViewPage: React.FC = () => {
       : auth.currentUser?.permissions?.includes('receipts.manage'),
   );
 
+  // Handle both sale ID (pos_..., sale_...) and direct receipt identifier (rec_..., REC-...)
+  const isDirectReceiptId = Boolean(
+    saleId && (saleId.startsWith('rec_') || saleId.startsWith('REC-')),
+  );
+
   const {
-    data: receipt,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useReceiptBySale(saleId, {
-    enabled: canRead,
+    data: receiptBySale,
+    isLoading: isLoadingSale,
+    isError: isErrorSale,
+    error: errorSale,
+    refetch: refetchSale,
+  } = useReceiptBySale(isDirectReceiptId ? undefined : saleId, {
+    enabled: canRead && !isDirectReceiptId,
   });
-  const { data: relatedSale } = useSaleDetail(saleId);
+
+  const {
+    data: receiptById,
+    isLoading: isLoadingId,
+    isError: isErrorId,
+    error: errorId,
+    refetch: refetchId,
+  } = useReceiptDetail(isDirectReceiptId ? saleId : undefined);
+
+  const receipt = isDirectReceiptId ? receiptById : (receiptBySale ?? receiptById);
+  const isLoading = isDirectReceiptId ? isLoadingId : isLoadingSale;
+  const isError = isDirectReceiptId ? isErrorId : isErrorSale;
+  const error = isDirectReceiptId ? errorId : errorSale;
+  const refetch = isDirectReceiptId ? refetchId : refetchSale;
+
+  const resolvedSaleId = receipt?.saleId || (isDirectReceiptId ? undefined : saleId);
+  const { data: relatedSale } = useSaleDetail(resolvedSaleId);
+
+  const backTo =
+    (location.state as { from?: string } | null)?.from ||
+    (resolvedSaleId ? SALES_ROUTES.detail(resolvedSaleId) : SALES_ROUTES.list());
+
   const issueReceiptMutation = useIssueReceipt();
   const reprintMutation = useReprintReceipt();
 
@@ -58,10 +80,11 @@ export const ReceiptViewPage: React.FC = () => {
   }
 
   const handleIssueReceipt = async () => {
-    if (!canManageReceipts || !saleId || issueReceiptMutation.isPending) return;
+    const targetSaleId = receipt?.saleId || (isDirectReceiptId ? undefined : saleId);
+    if (!canManageReceipts || !targetSaleId || issueReceiptMutation.isPending) return;
     setIssueError(null);
     try {
-      await issueReceiptMutation.mutateAsync({ saleId });
+      await issueReceiptMutation.mutateAsync({ saleId: targetSaleId });
       refetch();
     } catch (err: unknown) {
       const errorObj = err as Record<string, unknown>;

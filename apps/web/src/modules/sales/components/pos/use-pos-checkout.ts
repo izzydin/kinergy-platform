@@ -24,6 +24,34 @@ export interface UsePosCheckoutProps {
   onClearCart: () => void;
 }
 
+const POS_LAST_SALE_KEY = 'kinergy_pos_last_completed_sale';
+
+function getStoredLastSale(): PosCompletedSaleSummary | null {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const raw = window.sessionStorage.getItem(POS_LAST_SALE_KEY);
+      return raw ? (JSON.parse(raw) as PosCompletedSaleSummary) : null;
+    }
+  } catch {
+    // Ignore storage reading errors
+  }
+  return null;
+}
+
+function setStoredLastSale(summary: PosCompletedSaleSummary | null): void {
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      if (summary) {
+        window.sessionStorage.setItem(POS_LAST_SALE_KEY, JSON.stringify(summary));
+      } else {
+        window.sessionStorage.removeItem(POS_LAST_SALE_KEY);
+      }
+    }
+  } catch {
+    // Ignore storage writing errors
+  }
+}
+
 export function usePosCheckout({
   currency,
   selectedClientId,
@@ -41,6 +69,9 @@ export function usePosCheckout({
   const [statusMessage, setStatusMessage] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [completedSummary, setCompletedSummary] = useState<PosCompletedSaleSummary | null>(null);
+  const [lastCompletedSale, setLastCompletedSale] = useState<PosCompletedSaleSummary | null>(() =>
+    getStoredLastSale(),
+  );
 
   // Generate a deterministic idempotency key for this transaction session
   const [idempotencyKey, setIdempotencyKey] = useState(
@@ -253,7 +284,7 @@ export function usePosCheckout({
       notification.success(`Sale ${finalizedSale.id} completed successfully via ${paymentMethod}!`);
 
       // Transition to confirmation state
-      setCompletedSummary({
+      const summaryPayload: PosCompletedSaleSummary = {
         saleId: finalizedSale.id,
         receiptId: issuedReceipt?.id,
         receiptNumber: issuedReceipt?.receiptNumber,
@@ -270,7 +301,11 @@ export function usePosCheckout({
         completedAt: new Date().toISOString(),
         tenderAmount: isCash && tenderAmount !== undefined ? tenderAmount : netTotalAmount,
         changeAmount: isCash ? changeAmountVal : 0,
-      });
+      };
+
+      setCompletedSummary(summaryPayload);
+      setLastCompletedSale(summaryPayload);
+      setStoredLastSale(summaryPayload);
 
       // Clear local cart
       onClearCart();
@@ -401,11 +436,18 @@ export function usePosCheckout({
     regenerateIdempotencyKey();
   };
 
+  const dismissLastCompletedSale = () => {
+    setLastCompletedSale(null);
+    setStoredLastSale(null);
+  };
+
   return {
     isSubmitting,
     statusMessage,
     errorMessage,
     completedSummary,
+    lastCompletedSale,
+    dismissLastCompletedSale,
     idempotencyKey,
     regenerateIdempotencyKey,
     executeCheckout,
