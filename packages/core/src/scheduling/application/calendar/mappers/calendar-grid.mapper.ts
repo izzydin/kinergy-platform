@@ -70,7 +70,10 @@ export class CalendarGridMapper {
   /**
    * Converts a single Appointment aggregate into a pure CalendarSlotDTO.
    */
-  public static mapAppointmentToSlot(appointment: Appointment): CalendarSlotDTO {
+  public static mapAppointmentToSlot(
+    appointment: Appointment,
+    clientName?: string,
+  ): CalendarSlotDTO {
     return {
       id: `slot-appt-${appointment.id.getValue()}`,
       startTime: appointment.timeRange.start.toISOString(),
@@ -80,7 +83,8 @@ export class CalendarGridMapper {
       therapistId: appointment.therapistId,
       roomId: appointment.roomId,
       clientId: appointment.clientId,
-      clientName: `Client ${appointment.clientId}`,
+      clientName:
+        clientName ?? (appointment.clientId ? `Client ${appointment.clientId}` : undefined),
       serviceType: appointment.type.getValue(),
       hasConflict: false,
       overlapCount: 1,

@@ -146,11 +146,13 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
   });
 
   const clientTitle =
-    'clientName' in appointment && appointment.clientName
-      ? appointment.clientName
-      : appointment.clientId
-        ? `Client: ${appointment.clientId}`
-        : 'Unspecified Client';
+    'client' in appointment && appointment.client?.fullName
+      ? appointment.client.fullName
+      : 'clientName' in appointment && appointment.clientName
+        ? appointment.clientId && appointment.clientName === `Client ${appointment.clientId}`
+          ? 'Client information unavailable'
+          : appointment.clientName
+        : 'Client information unavailable';
 
   const serviceLabel =
     'serviceType' in appointment && appointment.serviceType
@@ -279,6 +281,23 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
               </div>
             </div>
           )}
+
+          {/* Client Identification Card */}
+          <div
+            className="rounded-lg border border-border p-3.5 bg-card shadow-xs space-y-1"
+            data-testid="appointment-client-section"
+          >
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+              <User className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+              <span>Client</span>
+            </div>
+            <div
+              className="text-base font-bold text-foreground break-words"
+              data-testid="appointment-client-name"
+            >
+              {clientTitle}
+            </div>
+          </div>
 
           {/* Core Info Card */}
           <div className="rounded-lg border border-border p-3 space-y-2.5 bg-muted/20">

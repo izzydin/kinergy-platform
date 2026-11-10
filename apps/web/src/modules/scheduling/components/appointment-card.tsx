@@ -2,7 +2,7 @@ import React from 'react';
 import { formatFacilityTime } from '../utils/calendar-date.utils';
 import { CalendarStatusBadge, ConflictBadge } from './calendar-status-badge';
 import type { AppointmentModel, CalendarSlotDTO } from '../types/scheduling.types';
-import { MapPin, User, Stethoscope } from 'lucide-react';
+import { MapPin, Stethoscope } from 'lucide-react';
 
 export interface AppointmentCardProps {
   appointment: AppointmentModel | CalendarSlotDTO;
@@ -24,11 +24,13 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   const timeDisplay = `${startTimeLabel} – ${endTimeLabel}`;
 
   const clientTitle =
-    'clientName' in appointment && appointment.clientName
-      ? appointment.clientName
-      : appointment.clientId
-        ? `Client: ${appointment.clientId.slice(0, 8)}`
-        : 'Unspecified Client';
+    'client' in appointment && appointment.client?.fullName
+      ? appointment.client.fullName
+      : 'clientName' in appointment && appointment.clientName
+        ? appointment.clientId && appointment.clientName === `Client ${appointment.clientId}`
+          ? 'Client information unavailable'
+          : appointment.clientName
+        : 'Client information unavailable';
 
   const serviceLabel =
     'serviceType' in appointment && appointment.serviceType
@@ -36,6 +38,11 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
       : 'type' in appointment && appointment.type
         ? appointment.type
         : 'Standard Session';
+
+  const assessmentSummary =
+    'notes' in appointment && Array.isArray(appointment.notes) && appointment.notes.length > 0
+      ? appointment.notes[0]?.content || appointment.notes[0]?.noteText
+      : undefined;
 
   const hasConflict = Boolean('hasConflict' in appointment && appointment.hasConflict);
 
@@ -54,16 +61,25 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
         onClick={() => onSelect?.(appointment)}
         onKeyDown={handleKeyDown}
         style={style}
-        className={`w-full text-left rounded px-1.5 py-0.5 text-xs font-medium transition-colors flex items-center justify-between gap-1 overflow-hidden truncate focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
+        title={`${startTimeLabel} – ${clientTitle} (${serviceLabel})`}
+        className={`w-full text-left rounded px-1.5 py-0.5 text-xs font-medium transition-colors flex items-center gap-1.5 overflow-hidden truncate focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring ${
           hasConflict
             ? 'bg-rose-100 text-rose-900 border border-rose-300 dark:bg-rose-950/40 dark:text-rose-200'
             : 'bg-primary/10 text-primary-900 dark:text-primary-100 hover:bg-primary/20 border border-primary/20'
         } ${className}`}
-        aria-label={`${timeDisplay}, ${serviceLabel}, ${clientTitle}, Status: ${appointment.status}`}
+        aria-label={`${timeDisplay}, ${clientTitle}, ${serviceLabel}, Status: ${appointment.status}`}
       >
-        <span className="truncate font-semibold shrink-0">{startTimeLabel}</span>
-        <span className="truncate">{serviceLabel}</span>
-        {hasConflict && <ConflictBadge size="sm" className="ml-auto" />}
+        <span className="font-semibold shrink-0 text-[11px]">{startTimeLabel}</span>
+        <span
+          className="truncate font-semibold text-slate-900 dark:text-slate-100 flex-1"
+          data-testid="month-chip-client-name"
+        >
+          {clientTitle}
+        </span>
+        <span className="truncate text-muted-foreground text-[10px] hidden sm:inline shrink-0">
+          {serviceLabel}
+        </span>
+        {hasConflict && <ConflictBadge size="sm" className="ml-auto shrink-0" />}
       </button>
     );
   }
@@ -81,9 +97,9 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
           ? 'border-rose-400 bg-rose-50/90 text-rose-950 dark:bg-rose-950/30 dark:border-rose-700/60 dark:text-rose-100'
           : 'border-slate-200 bg-white/95 text-slate-900 dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-100 hover:border-primary/50 hover:shadow-md'
       } ${variant === 'compact' ? 'p-1.5 text-xs' : 'p-2.5 text-xs'} ${className}`}
-      aria-label={`Appointment: ${serviceLabel} for ${clientTitle} at ${timeDisplay}. Status: ${appointment.status}`}
+      aria-label={`Appointment: ${timeDisplay}, ${clientTitle}, ${serviceLabel}. Status: ${appointment.status}`}
     >
-      {/* Top Header: Time & Badges */}
+      {/* 1. Top Header: Time & Badges */}
       <div className="flex items-center justify-between gap-1 mb-1">
         <span className="font-semibold text-slate-800 dark:text-slate-200 tracking-tight">
           {timeDisplay}
@@ -94,18 +110,28 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
         </div>
       </div>
 
-      {/* Service Type & Client */}
-      <div className="font-semibold text-slate-900 dark:text-white truncate text-xs mb-1">
+      {/* 2. Client Full Name */}
+      <div
+        className="font-bold text-slate-950 dark:text-slate-50 truncate text-xs leading-snug tracking-tight mb-0.5"
+        data-testid="appointment-card-client-name"
+      >
+        {clientTitle}
+      </div>
+
+      {/* 3. Service or Appointment Type */}
+      <div className="font-medium text-primary-800 dark:text-primary-300 truncate text-[11px] mb-1">
         {serviceLabel}
       </div>
 
-      {/* Metadata items */}
-      <div className="space-y-0.5 text-muted-foreground text-[11px]">
-        <div className="flex items-center gap-1 truncate">
-          <User className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
-          <span className="truncate">{clientTitle}</span>
+      {/* 4. Assessment Summary / Note (Detailed view) */}
+      {variant === 'detailed' && assessmentSummary && (
+        <div className="text-[11px] text-slate-600 dark:text-slate-400 italic truncate mb-1 line-clamp-1">
+          Assessment: {assessmentSummary}
         </div>
+      )}
 
+      {/* 5. Resource Metadata */}
+      <div className="space-y-0.5 text-muted-foreground text-[11px]">
         {appointment.therapistId && (
           <div className="flex items-center gap-1 truncate">
             <Stethoscope className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />

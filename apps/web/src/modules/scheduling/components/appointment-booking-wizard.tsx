@@ -548,7 +548,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Client:</span>
                   <span className="font-semibold text-foreground">
-                    {formData.clientName || createdAppointment.clientId}
+                    {formData.clientName || 'Client information unavailable'}
                   </span>
                 </div>
               </div>
@@ -1262,7 +1262,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
                         <span>Client:</span>
                       </span>
                       <span className="font-semibold text-foreground">
-                        {formData.clientName || formData.clientId}
+                        {formData.clientName || 'Client information unavailable'}
                       </span>
                     </div>
 

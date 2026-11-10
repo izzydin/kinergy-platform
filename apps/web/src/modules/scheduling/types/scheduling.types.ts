@@ -41,11 +41,20 @@ export interface AppointmentNoteModel {
   readonly createdAt: string;
 }
 
+export interface AppointmentClientSummaryDTO {
+  readonly id: string;
+  readonly firstName?: string;
+  readonly lastName?: string;
+  readonly fullName: string;
+}
+
 export interface AppointmentModel {
   readonly id: string;
   readonly status: AppointmentStatus;
   readonly type: string;
   readonly clientId: string;
+  readonly client?: AppointmentClientSummaryDTO;
+  readonly clientName?: string;
   readonly therapistId: string;
   readonly roomId: string;
   readonly startTime: string; // UTC ISO 8601 (e.g. 2026-10-24T14:00:00.000Z)

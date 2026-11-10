@@ -24,6 +24,7 @@ import { AuthenticationGuard } from '../../platform/identity/guards/authenticati
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
 import { Permissions, Roles } from '../../platform/identity/decorators';
 import { AuthenticatedUserContext } from '../../platform/identity/context/authenticated-user-context';
+import { PrismaService } from '../../platform/persistence/prisma/prisma.service';
 import {
   CreateAppointmentCommand,
   RescheduleAppointmentCommand,
@@ -57,6 +58,9 @@ import {
   AppointmentMapper,
   AppointmentDTO,
   AppointmentType,
+  CalendarSlotDTO,
+  DailyAgendaDTO,
+  WeeklyAgendaDTO,
   TimeRange,
   Duration,
   Clock,
@@ -66,6 +70,13 @@ import { PrismaAppointmentRepository } from '@kinergy-platform/core/server';
 import { SchedulingExceptionFilter } from '../filters/scheduling-exception.filter';
 
 export const SCHEDULING_CLOCK_TOKEN = 'SCHEDULING_CLOCK_TOKEN';
+
+function formatClientFullName(firstName?: string | null, lastName?: string | null): string {
+  const parts = [firstName, lastName]
+    .filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
+    .map((s) => s.trim());
+  return parts.length > 0 ? parts.join(' ') : 'Client information unavailable';
+}
 
 @ApiTags('Scheduling & Appointments')
 @ApiBearerAuth()
@@ -95,6 +106,8 @@ export class AppointmentsController {
     @Optional()
     @Inject(SCHEDULING_CLOCK_TOKEN)
     clock?: Clock,
+    @Optional()
+    private readonly prisma?: PrismaService,
   ) {
     this.clock = clock ?? new SystemClock();
   }
@@ -136,7 +149,7 @@ export class AppointmentsController {
       throw new BadRequestException(result.getError());
     }
 
-    return result.getValue().map((dto) => this.enrichAppointmentDto(dto));
+    return await this.enrichAppointmentDtos(result.getValue());
   }
 
   @Get('appointments/:id')
@@ -156,7 +169,7 @@ export class AppointmentsController {
       throw new NotFoundException(result.getError());
     }
 
-    return this.enrichAppointmentDto(result.getValue());
+    return await this.enrichAppointmentDto(result.getValue());
   }
 
   @Post('appointments')
@@ -225,7 +238,7 @@ export class AppointmentsController {
       }
     }
 
-    return this.enrichAppointmentDto(createdDto);
+    return await this.enrichAppointmentDto(createdDto);
   }
 
   @Patch('appointments/:id/reschedule')
@@ -260,7 +273,7 @@ export class AppointmentsController {
       this.throwMappedError(result.getError());
     }
 
-    return this.enrichAppointmentDto(result.getValue());
+    return await this.enrichAppointmentDto(result.getValue());
   }
 
   @Post('appointments/:id/cancel')
@@ -287,7 +300,7 @@ export class AppointmentsController {
       this.throwMappedError(result.getError());
     }
 
-    return this.enrichAppointmentDto(result.getValue());
+    return await this.enrichAppointmentDto(result.getValue());
   }
 
   @Post('appointments/:id/confirm')
@@ -309,7 +322,7 @@ export class AppointmentsController {
       this.throwMappedError(result.getError());
     }
 
-    return this.enrichAppointmentDto(result.getValue());
+    return await this.enrichAppointmentDto(result.getValue());
   }
 
   @Post('appointments/:id/check-in')
@@ -331,7 +344,7 @@ export class AppointmentsController {
       this.throwMappedError(result.getError());
     }
 
-    return this.enrichAppointmentDto(result.getValue());
+    return await this.enrichAppointmentDto(result.getValue());
   }
 
   @Post('appointments/:id/start')
@@ -354,7 +367,7 @@ export class AppointmentsController {
     try {
       appointment.start(this.clock);
       await this.appointmentRepository.save(appointment);
-      return this.enrichAppointmentDto(AppointmentMapper.toDTO(appointment));
+      return await this.enrichAppointmentDto(AppointmentMapper.toDTO(appointment));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       this.throwMappedError(message);
@@ -380,7 +393,7 @@ export class AppointmentsController {
       this.throwMappedError(result.getError());
     }
 
-    return this.enrichAppointmentDto(result.getValue());
+    return await this.enrichAppointmentDto(result.getValue());
   }
 
   @Post('appointments/:id/no-show')
@@ -404,7 +417,7 @@ export class AppointmentsController {
       this.throwMappedError(result.getError());
     }
 
-    return this.enrichAppointmentDto(result.getValue());
+    return await this.enrichAppointmentDto(result.getValue());
   }
 
   @Post('appointments/:id/notes')
@@ -448,7 +461,7 @@ export class AppointmentsController {
       this.throwMappedError(result.getError());
     }
 
-    return this.enrichAppointmentDto(result.getValue());
+    return await this.enrichAppointmentDto(result.getValue());
   }
 
   @Post('availability/check-conflict')
@@ -605,7 +618,7 @@ export class AppointmentsController {
       if (!result.isSuccess) {
         throw new BadRequestException(result.getError());
       }
-      return result.getValue();
+      return await this.enrichAgenda(result.getValue());
     }
 
     const result = await this.getDailyAgendaHandler.execute(
@@ -619,7 +632,7 @@ export class AppointmentsController {
     if (!result.isSuccess) {
       throw new BadRequestException(result.getError());
     }
-    return result.getValue();
+    return await this.enrichAgenda(result.getValue());
   }
 
   @Get('service-types')
@@ -678,14 +691,148 @@ export class AppointmentsController {
     return existingResult.getValue().version;
   }
 
-  private enrichAppointmentDto(dto: AppointmentDTO) {
-    return {
-      ...dto,
-      notes: (dto.notes ?? []).map((note) => ({
-        ...note,
-        content: note.noteText,
-      })),
-    };
+  private async enrichAppointmentDtos(dtos: AppointmentDTO[]): Promise<AppointmentDTO[]> {
+    if (!dtos || dtos.length === 0) {
+      return [];
+    }
+
+    const clientIds = Array.from(
+      new Set(
+        dtos
+          .map((d) => d.clientId)
+          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+      ),
+    );
+
+    const clientMap = new Map<
+      string,
+      { id: string; firstName?: string; lastName?: string; fullName: string }
+    >();
+
+    if (this.prisma && clientIds.length > 0) {
+      try {
+        const clients = await this.prisma.client.findMany({
+          where: { id: { in: clientIds } },
+          select: { id: true, firstName: true, lastName: true },
+        });
+
+        for (const c of clients) {
+          const trimmedFirst = c.firstName ? c.firstName.trim() : undefined;
+          const trimmedLast = c.lastName ? c.lastName.trim() : undefined;
+          clientMap.set(c.id, {
+            id: c.id,
+            firstName: trimmedFirst,
+            lastName: trimmedLast,
+            fullName: formatClientFullName(trimmedFirst, trimmedLast),
+          });
+        }
+      } catch {
+        // Fall back gracefully if Prisma is disconnected or unavailable in isolated unit tests
+      }
+    }
+
+    return dtos.map((dto) => {
+      const clientSummary = dto.clientId ? clientMap.get(dto.clientId) : undefined;
+      const clientFullName =
+        clientSummary?.fullName ??
+        (dto.clientName && dto.clientName !== `Client ${dto.clientId}`
+          ? dto.clientName
+          : 'Client information unavailable');
+
+      return {
+        ...dto,
+        client:
+          clientSummary ??
+          (dto.clientId ? { id: dto.clientId, fullName: clientFullName } : undefined),
+        clientName: clientFullName,
+        notes: (dto.notes ?? []).map((note) => ({
+          ...note,
+          content: note.noteText,
+        })),
+      };
+    });
+  }
+
+  private async enrichAppointmentDto(dto: AppointmentDTO): Promise<AppointmentDTO> {
+    const [enriched] = await this.enrichAppointmentDtos([dto]);
+    return enriched!;
+  }
+
+  private async enrichAgenda<T extends DailyAgendaDTO | WeeklyAgendaDTO>(agenda: T): Promise<T> {
+    if (!this.prisma) {
+      return agenda;
+    }
+
+    try {
+      const isWeekly = 'dailyAgendas' in agenda;
+      const dailyAgendas = isWeekly
+        ? (agenda as WeeklyAgendaDTO).dailyAgendas
+        : [agenda as DailyAgendaDTO];
+
+      const clientIds = new Set<string>();
+      for (const daily of dailyAgendas) {
+        for (const slot of daily.slots ?? []) {
+          if (slot.clientId) {
+            clientIds.add(slot.clientId);
+          }
+        }
+      }
+
+      if (clientIds.size === 0) {
+        return agenda;
+      }
+
+      const clients = await this.prisma.client.findMany({
+        where: { id: { in: Array.from(clientIds) } },
+        select: { id: true, firstName: true, lastName: true },
+      });
+
+      const nameMap = new Map<string, string>();
+      for (const c of clients) {
+        nameMap.set(c.id, formatClientFullName(c.firstName, c.lastName));
+      }
+
+      const enrichSlot = (slot: CalendarSlotDTO): CalendarSlotDTO => {
+        if (!slot.clientId) return slot;
+        const name = nameMap.get(slot.clientId) ?? 'Client information unavailable';
+        return {
+          ...slot,
+          clientName: name,
+        };
+      };
+
+      const enrichDaily = (daily: DailyAgendaDTO): DailyAgendaDTO => {
+        const enrichedSlots = (daily.slots ?? []).map(enrichSlot);
+        const mapSlotsRecord = (
+          rec: Record<string, CalendarSlotDTO[]> | undefined,
+        ): Record<string, CalendarSlotDTO[]> | undefined => {
+          if (!rec) return rec;
+          const updated: Record<string, CalendarSlotDTO[]> = {};
+          for (const [k, v] of Object.entries(rec)) {
+            updated[k] = v.map(enrichSlot);
+          }
+          return updated;
+        };
+
+        return {
+          ...daily,
+          slots: enrichedSlots,
+          appointmentsByTherapist: mapSlotsRecord(daily.appointmentsByTherapist) ?? {},
+          appointmentsByRoom: mapSlotsRecord(daily.appointmentsByRoom) ?? {},
+        };
+      };
+
+      if (isWeekly) {
+        return {
+          ...agenda,
+          dailyAgendas: (agenda as WeeklyAgendaDTO).dailyAgendas.map(enrichDaily),
+        } as T;
+      }
+
+      return enrichDaily(agenda as DailyAgendaDTO) as T;
+    } catch {
+      return agenda;
+    }
   }
 
   private throwMappedError(errorMessage: string): never {

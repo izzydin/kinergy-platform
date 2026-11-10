@@ -1,6 +1,16 @@
 import { AppointmentNoteDTO } from './appointment-note.dto';
 
 /**
+ * Lightweight client summary DTO attached to Appointment read models.
+ */
+export interface AppointmentClientSummaryDTO {
+  readonly id: string;
+  readonly firstName?: string;
+  readonly lastName?: string;
+  readonly fullName: string;
+}
+
+/**
  * Read model DTO representation of an Appointment entity.
  */
 export interface AppointmentDTO {
@@ -8,6 +18,8 @@ export interface AppointmentDTO {
   readonly status: string;
   readonly type: string;
   readonly clientId: string;
+  readonly client?: AppointmentClientSummaryDTO;
+  readonly clientName?: string;
   readonly therapistId: string;
   readonly roomId: string;
   readonly startTime: string;

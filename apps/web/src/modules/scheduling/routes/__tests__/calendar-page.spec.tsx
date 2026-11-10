@@ -42,6 +42,13 @@ const mockAppointments: AppointmentModel[] = [
     status: 'SCHEDULED',
     type: 'Kinesiology Consultation',
     clientId: 'client_101',
+    client: {
+      id: 'client_101',
+      firstName: 'Sarah',
+      lastName: 'Connor',
+      fullName: 'Sarah Connor',
+    },
+    clientName: 'Sarah Connor',
     therapistId: 'therapist_sarah',
     roomId: 'room_1',
     startTime: '2026-10-24T14:00:00.000Z', // 10:00 AM EDT
@@ -56,6 +63,13 @@ const mockAppointments: AppointmentModel[] = [
     status: 'CONFIRMED',
     type: 'Massage Therapy',
     clientId: 'client_102',
+    client: {
+      id: 'client_102',
+      firstName: 'John',
+      lastName: 'Connor',
+      fullName: 'John Connor',
+    },
+    clientName: 'John Connor',
     therapistId: 'therapist_mike',
     roomId: 'room_2',
     startTime: '2026-10-24T16:00:00.000Z', // 12:00 PM EDT
@@ -235,7 +249,7 @@ describe('CalendarPage Route Integration', () => {
 
     // Click on appointment card
     const apptCard = screen.getAllByRole('button', {
-      name: /Appointment: Kinesiology Consultation/i,
+      name: /Appointment:.*Kinesiology Consultation/i,
     })[0]!;
     fireEvent.click(apptCard);
 
