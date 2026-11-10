@@ -44,15 +44,18 @@ export class CreateSaleHandler implements SalesCommandHandler<
   ) {}
 
   public async execute(command: CreateSaleCommand): Promise<SalesApplicationResult<SaleDTO>> {
+    if (!command || !command.input) {
+      return SalesApplicationResult.fail(
+        new InvalidSaleSourceException('CreateSaleCommand input cannot be null or undefined.'),
+      );
+    }
+
+    const { input } = command;
+    const effectiveId = input.id?.trim() || input.idempotencyKey?.trim();
+    let resolvedClientId: string | undefined = undefined;
+    let currency: string = Money.DEFAULT_CURRENCY;
+
     try {
-      if (!command || !command.input) {
-        return SalesApplicationResult.fail(
-          new InvalidSaleSourceException('CreateSaleCommand input cannot be null or undefined.'),
-        );
-      }
-
-      const { input } = command;
-
       // 0. Authorization check: sales.create (ADR-0135)
       checkSaleAuthorization(input.currentUser, ['sales.create'], SALE_MUTATION_ROLES);
 
@@ -71,24 +74,25 @@ export class CreateSaleHandler implements SalesCommandHandler<
       }
 
       // 2. Request Structure & Source Reference Validation
-      let sourceInput = input.source;
-      if (!sourceInput) {
-        if (input.allowWalkInWithoutSource === true) {
-          // Permitted walk-in retail origin: Default to standardized POS terminal origin
-          sourceInput = {
-            sourceType: SaleSourceType.DRINK,
-            sourceId: 'pos_checkout_terminal',
-            sourceCode: null,
-          };
-        } else {
-          return SalesApplicationResult.fail(
-            new InvalidSaleSourceException(
-              'SaleSource reference is required. To create a walk-in sale without an upstream source, set allowWalkInWithoutSource to true.',
-              'MISSING_SOURCE_REFERENCE',
-            ),
-          );
-        }
+      const rawSource =
+        input.source ??
+        (input.allowWalkInWithoutSource === true
+          ? {
+              sourceType: SaleSourceType.DRINK,
+              sourceId: 'pos_checkout_terminal',
+              sourceCode: null,
+            }
+          : null);
+
+      if (!rawSource) {
+        return SalesApplicationResult.fail(
+          new InvalidSaleSourceException(
+            'SaleSource reference is required. To create a walk-in sale without an upstream source, set allowWalkInWithoutSource to true.',
+            'MISSING_SOURCE_REFERENCE',
+          ),
+        );
       }
+      const sourceInput = rawSource;
 
       // 2b. Mixed Cart & Category Authorization Check (ADR-0135 / Least Privilege)
       const allCategorySources = [
@@ -172,7 +176,6 @@ export class CreateSaleHandler implements SalesCommandHandler<
       }
 
       // 5. Precondition Validation & Resolution: Client (with ADR-0139 Authoritative Resolution & Mismatch Check)
-      let resolvedClientId: string | undefined = undefined;
       const inputClientTrimmed =
         input.clientId !== undefined && input.clientId !== null ? input.clientId.trim() : undefined;
 
@@ -211,9 +214,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
           new InvalidSaleStateException(`Invalid ISO-4217 currency code '${input.currency}'.`),
         );
       }
-      const currency = rawCurrency.trim().toUpperCase();
-
-      const effectiveId = input.id?.trim() || input.idempotencyKey?.trim();
+      currency = rawCurrency.trim().toUpperCase();
 
       const runInTx = this.saleRepository.withTransaction
         ? (fn: (repo: SaleRepositoryPort) => Promise<SalesApplicationResult<SaleDTO>>) =>
@@ -284,44 +285,41 @@ export class CreateSaleHandler implements SalesCommandHandler<
         }
 
         // 9. External Order Reference Uniqueness: sourceCode (non-generic POS terminal tag)
-        if (sourceInput.sourceCode && repo.findBySourceCode) {
-          const trimmedCode = sourceInput.sourceCode.trim();
-          if (trimmedCode !== 'POS_REGISTER' && trimmedCode !== 'pos_checkout_terminal') {
-            const existingForCode = await repo.findBySourceCode(trimmedCode, input.tenantId);
+        const isRepeatableCategory =
+          sourceInput.sourceType === SaleSourceType.FOOD ||
+          sourceInput.sourceType === SaleSourceType.DRINK ||
+          sourceInput.sourceType === SourceType.INVENTORY_ITEM ||
+          sourceInput.sourceType === SaleSourceType.GYM_MEMBERSHIP ||
+          (sourceInput.sourceType as unknown) === 'FOOD' ||
+          (sourceInput.sourceType as unknown) === 'DRINK' ||
+          (sourceInput.sourceType as unknown) === 'INVENTORY_ITEM' ||
+          (sourceInput.sourceType as unknown) === 'GYM_MEMBERSHIP';
+
+        const trimmedSourceCode = sourceInput.sourceCode?.trim();
+        const isProductSkuAsSourceCode =
+          Boolean(trimmedSourceCode) &&
+          isRepeatableCategory &&
+          (trimmedSourceCode?.startsWith('SKU-') ||
+            trimmedSourceCode === sourceInput.sourceId.trim() ||
+            Boolean(input.items?.some((it) => it.skuOrCode === trimmedSourceCode)));
+
+        if (trimmedSourceCode && repo.findBySourceCode && !isProductSkuAsSourceCode) {
+          if (
+            trimmedSourceCode !== 'POS_REGISTER' &&
+            trimmedSourceCode !== 'pos_checkout_terminal'
+          ) {
+            const existingForCode = await repo.findBySourceCode(trimmedSourceCode, input.tenantId);
 
             if (existingForCode) {
               if (effectiveId && existingForCode.id.value === effectiveId) {
                 return SalesApplicationResult.ok(SaleMapper.toDTO(existingForCode));
               }
 
-              // A completed / PAID sale cannot accept payments or be reused for a new purchase.
-              // For repeatable retail goods (FOOD, DRINK, etc.) or subsequent checkouts, a past paid sale
-              // must not prevent legitimate subsequent purchases or be returned to accept payments.
               const isPastPaidSale =
                 existingForCode.status === SaleStatus.PAID ||
                 (existingForCode.status as unknown) === 'PAID';
 
-              if (isPastPaidSale) {
-                const isRepeatableCategory =
-                  sourceInput.sourceType === SaleSourceType.FOOD ||
-                  sourceInput.sourceType === SaleSourceType.DRINK ||
-                  sourceInput.sourceType === SourceType.INVENTORY_ITEM ||
-                  sourceInput.sourceType === SaleSourceType.GYM_MEMBERSHIP ||
-                  (sourceInput.sourceType as unknown) === 'FOOD' ||
-                  (sourceInput.sourceType as unknown) === 'DRINK' ||
-                  (sourceInput.sourceType as unknown) === 'INVENTORY_ITEM' ||
-                  (sourceInput.sourceType as unknown) === 'GYM_MEMBERSHIP';
-
-                if (!isRepeatableCategory) {
-                  return SalesApplicationResult.fail(
-                    new DuplicateSaleException(
-                      `An active Sale ('${existingForCode.id.value}') already exists with order reference '${trimmedCode}'. Duplicate sale creation is prohibited.`,
-                      existingForCode.id.value,
-                      input.tenantId,
-                    ),
-                  );
-                }
-              } else {
+              if (!isPastPaidSale) {
                 const isMatch =
                   (existingForCode.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
                   (existingForCode.clientId ?? '') === (resolvedClientId ?? '') &&
@@ -334,7 +332,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
 
                 return SalesApplicationResult.fail(
                   new DuplicateSaleException(
-                    `An active Sale ('${existingForCode.id.value}') already exists with order reference '${trimmedCode}'. Duplicate sale creation is prohibited.`,
+                    `An active Sale ('${existingForCode.id.value}') already exists with order reference '${trimmedSourceCode}'. Duplicate sale creation is prohibited.`,
                     existingForCode.id.value,
                     input.tenantId,
                   ),
@@ -345,18 +343,26 @@ export class CreateSaleHandler implements SalesCommandHandler<
         }
 
         // 10. Construct Domain Value Objects
+        // For repeatable retail goods (FOOD, DRINK, INVENTORY_ITEM, GYM_MEMBERSHIP),
+        // any product SKU passed as referenceCode represents item-level catalog metadata, not an external order reference.
+        // We normalize sourceCode on the Sale aggregate to 'POS_REGISTER' so it does not collide
+        // with ADR-0140's uq_sales_source_code_active index, while preserving skuOrCode on SaleItems.
+        const normalizedSourceCode = isProductSkuAsSourceCode
+          ? 'POS_REGISTER'
+          : (trimmedSourceCode ?? null);
+
         let source: SaleSource | SourceReference;
         if (isSaleSourceType) {
           source = SaleSource.create(
             rawSourceType as SaleSourceType,
             sourceInput.sourceId.trim(),
-            sourceInput.sourceCode?.trim() ?? null,
+            normalizedSourceCode,
           );
         } else {
           source = SourceReference.create({
             sourceType: rawSourceType as SourceType,
             sourceId: sourceInput.sourceId.trim(),
-            sourceCode: sourceInput.sourceCode?.trim() ?? null,
+            sourceCode: normalizedSourceCode,
           });
         }
 
@@ -531,27 +537,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
         );
 
         // 12. Persist through Repository (ensures atomic persistence of Sale and all nested SaleItems)
-        try {
-          await repo.save(sale);
-        } catch (saveError: unknown) {
-          if (saveError instanceof DuplicateSaleException && effectiveId) {
-            // Concurrent race resolution: Check if the already committed sale matches our parameters
-            const committedSale = await repo.findById(effectiveId);
-            if (committedSale) {
-              const isMatch =
-                (committedSale.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
-                (committedSale.clientId ?? '') === (resolvedClientId ?? '') &&
-                committedSale.currency === currency &&
-                committedSale.source.sourceType === sourceInput.sourceType &&
-                committedSale.source.sourceId === sourceInput.sourceId.trim();
-
-              if (isMatch) {
-                return SalesApplicationResult.ok(SaleMapper.toDTO(committedSale));
-              }
-            }
-          }
-          throw saveError;
-        }
+        await repo.save(sale);
 
         // Capture uncommitted domain events to dispatch only after successful transaction commit
         eventsToPublish = sale.getUncommittedEvents();
@@ -568,6 +554,28 @@ export class CreateSaleHandler implements SalesCommandHandler<
 
       return result;
     } catch (err: unknown) {
+      if (err instanceof DuplicateSaleException && effectiveId) {
+        // Concurrent race resolution: Check outside the aborted transaction using non-transactional repository
+        try {
+          const committedSale = await this.saleRepository.findById(effectiveId);
+          if (committedSale) {
+            const expectedSourceType = input.source?.sourceType ?? SaleSourceType.DRINK;
+            const expectedSourceId = input.source?.sourceId?.trim() ?? 'pos_checkout_terminal';
+            const isMatch =
+              (committedSale.tenantId ?? '') === (input.tenantId?.trim() ?? '') &&
+              (committedSale.clientId ?? '') === (resolvedClientId ?? '') &&
+              committedSale.currency === currency &&
+              committedSale.source.sourceType === expectedSourceType &&
+              committedSale.source.sourceId === expectedSourceId;
+
+            if (isMatch) {
+              return SalesApplicationResult.ok(SaleMapper.toDTO(committedSale));
+            }
+          }
+        } catch {
+          // If fallback check encounters an issue, proceed with original error
+        }
+      }
       const error = err instanceof Error ? err : new Error(String(err));
       return SalesApplicationResult.fail(error);
     }
