@@ -237,6 +237,61 @@ describe('Appointment to TreatmentSession Integration End-to-End', () => {
       expect(result.getError()).toContain("Appointment is in 'COMPLETED' status");
     });
 
+    it('should successfully orchestrate TreatmentSession creation from a valid RESCHEDULED appointment using new schedule', async () => {
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
+      const newRange = TimeRange.create(
+        new Date('2026-08-19T14:00:00.000Z'),
+        new Date('2026-08-19T15:00:00.000Z'),
+      );
+      appt.reschedule(newRange, clock);
+      await appointmentRepository.save(appt);
+
+      const command = new CreateTreatmentSessionFromAppointmentCommand({
+        appointmentId: appt.id.getValue(),
+        initialNotes: 'Rescheduled session proceeding at new scheduled time.',
+        autoStart: true,
+      });
+
+      const result = await createSessionHandler.execute(command);
+
+      expect(result.isSuccess).toBe(true);
+      const sessionDTO = result.getValue();
+      expect(sessionDTO.appointmentId).toBe(appt.id.getValue());
+      expect(sessionDTO.clientId).toBe('client_uuid_100');
+      expect(sessionDTO.therapistId).toBe('therapist_uuid_200');
+      expect(sessionDTO.status).toBe('IN_PROGRESS');
+      expect(sessionDTO.notes.rawText).toBe(
+        'Rescheduled session proceeding at new scheduled time.',
+      );
+
+      const persisted = await sessionRepository.findByAppointmentId(appt.id.getValue());
+      expect(persisted).not.toBeNull();
+      expect(persisted?.status).toBe('IN_PROGRESS');
+    });
+
+    it('should reject session creation when a rescheduled appointment was subsequently cancelled in Scheduling', async () => {
+      const appt = await createSchedulingAppointment(AppointmentTypeEnum.TREATMENT);
+      const newRange = TimeRange.create(
+        new Date('2026-08-19T14:00:00.000Z'),
+        new Date('2026-08-19T15:00:00.000Z'),
+      );
+      appt.reschedule(newRange, clock);
+      appt.cancel('Patient requested cancellation after rescheduling', clock);
+      await appointmentRepository.save(appt);
+
+      const command = new CreateTreatmentSessionFromAppointmentCommand({
+        appointmentId: appt.id.getValue(),
+      });
+
+      const result = await createSessionHandler.execute(command);
+
+      expect(result.isFailure).toBe(true);
+      expect(result.getError()).toContain("Appointment is in 'CANCELLED' status");
+
+      const persisted = await sessionRepository.findByAppointmentId(appt.id.getValue());
+      expect(persisted).toBeNull();
+    });
+
     it('should reject session creation for non-clinical appointment types (e.g. RENTAL and GROUP_CLASS)', async () => {
       const appt = await createSchedulingAppointment(AppointmentTypeEnum.RENTAL);
 

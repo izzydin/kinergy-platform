@@ -120,6 +120,57 @@ describe('SchedulingAppointmentLookupAdapter', () => {
     expect(ref?.ineligibilityReason).toContain("Appointment is in 'CANCELLED' status");
   });
 
+  it('should return eligible reference for a valid RESCHEDULED appointment and use the new scheduled time', async () => {
+    const oldStart = new Date('2026-08-17T10:00:00.000Z');
+    const newStart = new Date('2026-08-18T14:00:00.000Z');
+    const newEnd = new Date('2026-08-18T15:00:00.000Z');
+
+    const appt = createAppointment(AppointmentTypeEnum.TREATMENT);
+    appt.reschedule(TimeRange.create(newStart, newEnd), clock);
+    await repository.save(appt);
+
+    const ref = await adapter.getAppointmentReference(appt.id.getValue());
+
+    expect(ref).not.toBeNull();
+    expect(ref?.isEligibleForSession).toBe(true);
+    expect(ref?.ineligibilityReason).toBeUndefined();
+    expect(ref?.scheduledAt).toEqual(newStart);
+    expect(ref?.scheduledAt).not.toEqual(oldStart);
+  });
+
+  it('should return eligible reference when appointment was CONFIRMED before being RESCHEDULED', async () => {
+    const newStart = new Date('2026-08-19T09:00:00.000Z');
+    const newEnd = new Date('2026-08-19T10:00:00.000Z');
+
+    const appt = createAppointment(AppointmentTypeEnum.ASSESSMENT);
+    appt.confirm(clock);
+    appt.reschedule(TimeRange.create(newStart, newEnd), clock);
+    await repository.save(appt);
+
+    const ref = await adapter.getAppointmentReference(appt.id.getValue());
+
+    expect(ref).not.toBeNull();
+    expect(ref?.isEligibleForSession).toBe(true);
+    expect(ref?.ineligibilityReason).toBeUndefined();
+    expect(ref?.scheduledAt).toEqual(newStart);
+  });
+
+  it('should return ineligible reference when a rescheduled appointment was subsequently CANCELLED', async () => {
+    const newStart = new Date('2026-08-19T09:00:00.000Z');
+    const newEnd = new Date('2026-08-19T10:00:00.000Z');
+
+    const appt = createAppointment(AppointmentTypeEnum.TREATMENT);
+    appt.reschedule(TimeRange.create(newStart, newEnd), clock);
+    appt.cancel('Client requested final cancellation', clock);
+    await repository.save(appt);
+
+    const ref = await adapter.getAppointmentReference(appt.id.getValue());
+
+    expect(ref).not.toBeNull();
+    expect(ref?.isEligibleForSession).toBe(false);
+    expect(ref?.ineligibilityReason).toContain("Appointment is in 'CANCELLED' status");
+  });
+
   it('should return null when appointment ID is not found', async () => {
     const ref = await adapter.getAppointmentReference('appt_nonexistent');
     expect(ref).toBeNull();

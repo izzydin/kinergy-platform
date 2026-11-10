@@ -47,6 +47,30 @@ describe('StartTreatmentFromAppointment Component Unit Tests', () => {
     expect(button).not.toBeDisabled();
   });
 
+  it('renders enabled Start Treatment button for a valid RESCHEDULED appointment and shows updated time', () => {
+    const rescheduledAppt: AppointmentData = {
+      ...baseAppointment,
+      status: 'RESCHEDULED',
+      startTime: '2026-08-18T14:30:00.000Z',
+      clientName: 'Carlos Rivera',
+    };
+
+    render(
+      <MemoryRouter>
+        <StartTreatmentFromAppointment appointment={rescheduledAppt} />
+      </MemoryRouter>,
+    );
+
+    const button = screen.getByRole('button', { name: /Start Treatment/i });
+    expect(button).toBeInTheDocument();
+    expect(button).not.toBeDisabled();
+
+    fireEvent.click(button);
+
+    expect(screen.getByText('Initiate Treatment Session')).toBeInTheDocument();
+    expect(screen.getByTestId('client-reference-name')).toHaveTextContent('Carlos Rivera');
+  });
+
   it('disables Start Treatment button for a CANCELLED appointment', () => {
     const cancelledAppt: AppointmentData = {
       ...baseAppointment,

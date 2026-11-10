@@ -320,6 +320,29 @@ describe('TreatmentSessionsController HTTP Integration & Security Contract', () 
         .send({ appointmentId: 'appt-duplicate' });
       expect(second.status).toBe(409);
     });
+
+    it('returns 201 Created for a valid RESCHEDULED appointment and uses the new scheduled date/time', async () => {
+      asTreatUser();
+      const newScheduledTime = new Date('2026-11-15T15:00:00Z');
+      appointmentLookup.setAppointment({
+        appointmentId: 'appt-rescheduled-1',
+        clientId: 'client-resched',
+        therapistId: 'therapist-resched',
+        scheduledAt: newScheduledTime,
+        isEligibleForSession: true,
+      });
+
+      const res = await request(app.getHttpServer()).post('/api/v1/kinesiology/sessions').send({
+        appointmentId: 'appt-rescheduled-1',
+        initialNotes: 'Client attending rescheduled appointment at new time',
+        autoStart: true,
+      });
+
+      expect(res.status).toBe(201);
+      expect(res.body.id).toBeDefined();
+      expect(res.body.appointmentId).toBe('appt-rescheduled-1');
+      expect(res.body.status).toBe('IN_PROGRESS');
+    });
   });
 
   describe('GET /api/v1/kinesiology/sessions/:id', () => {

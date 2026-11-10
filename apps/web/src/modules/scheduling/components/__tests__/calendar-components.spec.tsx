@@ -308,5 +308,24 @@ describe('Calendar Components', () => {
 
       expect(screen.getByRole('button', { name: /^Start Treatment$/i })).toBeInTheDocument();
     });
+
+    it('renders "Start Treatment" for eligible RESCHEDULED appointment when no session exists', () => {
+      const rescheduledAppt: AppointmentModel = {
+        ...mockAppointment,
+        status: 'RESCHEDULED',
+        treatmentSessionId: undefined,
+      };
+      renderWithQuery(
+        <AppointmentDetailDrawer
+          appointment={rescheduledAppt}
+          isOpen={true}
+          onClose={jest.fn()}
+          canTreatKinesiology={true}
+          canReadKinesiology={true}
+        />,
+      );
+
+      expect(screen.getByRole('button', { name: /^Start Treatment$/i })).toBeInTheDocument();
+    });
   });
 });

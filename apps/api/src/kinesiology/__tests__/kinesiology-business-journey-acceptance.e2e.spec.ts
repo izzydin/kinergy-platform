@@ -1167,6 +1167,91 @@ describe('Milestone 9.4 — Kinesiology Business Journey End-to-End Acceptance (
       expect(cancelledSessionRes.body.error.message).toContain('CANCELLED');
     });
 
+    it('2.2b allows treatment session creation for a valid RESCHEDULED appointment and verifies state synchronization', async () => {
+      // 1. Book an appointment
+      const bookRes = await request(app.getHttpServer())
+        .post('/api/v1/scheduling/appointments')
+        .set('Authorization', `Bearer ${receptionistToken}`)
+        .send({
+          clientId: secondaryClientId,
+          therapistId: SECONDARY_THERAPIST_ID,
+          roomId: primaryRoomId,
+          type: 'TREATMENT',
+          startTime: '2026-11-05T09:00:00.000Z',
+          endTime: '2026-11-05T09:45:00.000Z',
+        })
+        .expect(201);
+
+      const reschedApptId = bookRes.body.id;
+
+      // 2. Reschedule it to a new time window
+      const reschedRes = await request(app.getHttpServer())
+        .patch(`/api/v1/scheduling/appointments/${reschedApptId}/reschedule`)
+        .set('Authorization', `Bearer ${receptionistToken}`)
+        .send({
+          newStartTime: '2026-11-05T14:00:00.000Z',
+          newEndTime: '2026-11-05T14:45:00.000Z',
+        })
+        .expect(200);
+
+      expect(reschedRes.body.status).toBe('RESCHEDULED');
+      expect(reschedRes.body.startTime).toBe('2026-11-05T14:00:00.000Z');
+
+      // 3. Initiate treatment session for the RESCHEDULED appointment
+      const sessionRes = await request(app.getHttpServer())
+        .post('/api/v1/kinesiology/sessions')
+        .set('Authorization', `Bearer ${therapistToken}`)
+        .send({
+          appointmentId: reschedApptId,
+          initialNotes: 'Rescheduled appointment session initiated at new time window',
+          autoStart: true,
+        })
+        .expect(201);
+
+      expect(sessionRes.body.id).toBeDefined();
+      expect(sessionRes.body.appointmentId).toBe(reschedApptId);
+      expect(sessionRes.body.status).toBe('IN_PROGRESS');
+
+      // 4. Verify appointment transitioned to IN_PROGRESS
+      const getApptRes = await request(app.getHttpServer())
+        .get(`/api/v1/scheduling/appointments/${reschedApptId}`)
+        .set('Authorization', `Bearer ${therapistToken}`)
+        .expect(200);
+
+      expect(getApptRes.body.status).toBe('IN_PROGRESS');
+      if (getApptRes.body.treatmentSessionId) {
+        expect(getApptRes.body.treatmentSessionId).toBe(sessionRes.body.id);
+      }
+
+      // 5. Prevent duplicate session creation while session is active (409 Conflict)
+      await request(app.getHttpServer())
+        .post('/api/v1/kinesiology/sessions')
+        .set('Authorization', `Bearer ${therapistToken}`)
+        .send({ appointmentId: reschedApptId })
+        .expect(409);
+
+      // 6. Complete session
+      await request(app.getHttpServer())
+        .post(`/api/v1/kinesiology/sessions/${sessionRes.body.id}/complete`)
+        .set('Authorization', `Bearer ${therapistToken}`)
+        .expect(200);
+
+      // 7. Verify appointment transitioned to COMPLETED
+      const finalApptRes = await request(app.getHttpServer())
+        .get(`/api/v1/scheduling/appointments/${reschedApptId}`)
+        .set('Authorization', `Bearer ${therapistToken}`)
+        .expect(200);
+
+      expect(finalApptRes.body.status).toBe('COMPLETED');
+
+      // 8. Re-attempting creation on a COMPLETED appointment is rejected (422 Unprocessable Entity)
+      await request(app.getHttpServer())
+        .post('/api/v1/kinesiology/sessions')
+        .set('Authorization', `Bearer ${therapistToken}`)
+        .send({ appointmentId: reschedApptId })
+        .expect(422);
+    });
+
     it('2.3 creates a TreatmentSession linked to the eligible appointment and prevents duplicate sessions (409)', async () => {
       const createRes = await request(app.getHttpServer())
         .post('/api/v1/kinesiology/sessions')

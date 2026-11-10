@@ -16,6 +16,7 @@ const ACTIVE_APPOINTMENT_STATUSES = new Set([
   'CONFIRMED',
   'CHECKED_IN',
   'IN_PROGRESS',
+  'RESCHEDULED',
 ]);
 
 /**
