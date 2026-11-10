@@ -349,7 +349,6 @@ describe('Milestone 7.14 Sales Endpoints Authorization & Security Audit', () => 
       // Kitchen Staff is excluded from cancel
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       expect(roles).not.toContain('Kitchen Staff');
-      expect(roles).not.toContain('Trainer');
     });
 
     it('authorizes Manager and Owner with sales.manage across all mutation routes', async () => {

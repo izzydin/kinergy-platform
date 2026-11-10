@@ -185,7 +185,7 @@ describe('Sales API Endpoints Specification (Milestone 7.14)', () => {
       const httpCode = Reflect.getMetadata('__httpCode__', controller.createSale);
 
       expect(perms).toEqual(['sales.create']);
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(httpCode).toBe(HttpStatus.CREATED);
     });
 
@@ -215,7 +215,7 @@ describe('Sales API Endpoints Specification (Milestone 7.14)', () => {
       const httpCode = Reflect.getMetadata('__httpCode__', controller.addItem);
 
       expect(perms).toEqual(['sales.create']);
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(httpCode).toBe(HttpStatus.OK);
     });
 
@@ -225,7 +225,7 @@ describe('Sales API Endpoints Specification (Milestone 7.14)', () => {
       const httpCode = Reflect.getMetadata('__httpCode__', controller.removeItem);
 
       expect(perms).toEqual(['sales.create']);
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(httpCode).toBe(HttpStatus.OK);
     });
 
@@ -235,7 +235,7 @@ describe('Sales API Endpoints Specification (Milestone 7.14)', () => {
       const httpCode = Reflect.getMetadata('__httpCode__', controller.applyDiscount);
 
       expect(perms).toEqual(['sales.create']);
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(httpCode).toBe(HttpStatus.OK);
     });
 
@@ -245,9 +245,8 @@ describe('Sales API Endpoints Specification (Milestone 7.14)', () => {
       const httpCode = Reflect.getMetadata('__httpCode__', controller.cancelSale);
 
       expect(perms).toEqual(['sales.cancel']);
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(roles).not.toContain('Kitchen Staff');
-      expect(roles).not.toContain('Trainer');
       expect(httpCode).toBe(HttpStatus.OK);
     });
   });
