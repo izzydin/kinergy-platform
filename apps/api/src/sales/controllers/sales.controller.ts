@@ -219,7 +219,7 @@ export class SalesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('sales.create')
   @ApiOperation({
     summary: 'Create a new commercial checkout session in DRAFT status',
@@ -697,7 +697,7 @@ export class SalesController {
 
   @Post(':id/source')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer')
   @Permissions('sales.create')
   @ApiOperation({
     summary: 'Assign or update commercial origin source reference',
@@ -745,7 +745,7 @@ export class SalesController {
 
   @Post(':id/items')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('sales.create')
   @ApiOperation({
     summary: 'Add a line item to a draft sale with unit price and optional discount',
@@ -816,7 +816,7 @@ export class SalesController {
 
   @Delete(':id/items/:itemId')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('sales.create')
   @ApiOperation({
     summary: 'Remove a line item from a draft sale',
@@ -863,7 +863,7 @@ export class SalesController {
 
   @Post(':id/discount')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('sales.create')
   @ApiOperation({
     summary: 'Apply an order-level discount to a draft sale',
@@ -914,7 +914,7 @@ export class SalesController {
 
   @Delete(':id/discount')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('sales.create')
   @ApiOperation({
     summary: 'Remove the order-level discount from a draft sale',
@@ -950,7 +950,7 @@ export class SalesController {
 
   @Post([':id/finalize', ':id/submit-for-payment'])
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('sales.create')
   @ApiOperation({
     summary: 'Submit sale for payment and freeze commercial terms permanently',
@@ -986,7 +986,7 @@ export class SalesController {
 
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer')
   @Permissions('sales.cancel')
   @ApiOperation({
     summary: 'Cancel an active sale order (DRAFT, PENDING_PAYMENT, or PARTIALLY_PAID)',
@@ -1038,7 +1038,7 @@ export class SalesController {
 
   @Post(':id/coordinate-payment')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer')
   @Permissions('sales.create', 'payments.manage')
   @ApiOperation({
     summary: 'Coordinate verified Payment settlement against the Sale',

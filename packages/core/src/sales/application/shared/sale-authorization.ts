@@ -17,6 +17,7 @@ export const SALE_MUTATION_ROLES: string[] = [
   'Gym Manager',
   'Platform Admin',
   'Receptionist',
+  'Trainer',
   'Kitchen Staff',
 ];
 
@@ -27,6 +28,7 @@ export const SALE_CANCELLATION_ROLES: string[] = [
   'Gym Manager',
   'Platform Admin',
   'Receptionist',
+  'Trainer',
 ];
 
 /**
@@ -177,9 +179,10 @@ export function enforceSaleOwnershipBoundary(sale: Sale, currentUser?: SaleCurre
         r === 'Gym Manager' ||
         r === 'Platform Admin' ||
         r === 'Receptionist' ||
+        r === 'Trainer' ||
         r === 'Kitchen Staff',
     ) ||
-    (!roles.includes('Client') && !roles.includes('Member') && !roles.includes('Trainer'));
+    (!roles.includes('Client') && !roles.includes('Member'));
 
   if (isPrivilegedStaff) {
     return;
@@ -296,6 +299,8 @@ export function assertSaleCategoriesAuthorized(
           roles.includes('Kitchen Staff') ||
           roles.includes('Receptionist') ||
           roles.includes('RECEPTIONIST') ||
+          roles.includes('Trainer') ||
+          roles.includes('TRAINER') ||
           roles.some((r) => r.toLowerCase().includes('reception'));
         if (!canSellFoodDrink) {
           throw new SaleUnauthorizedException(
@@ -308,6 +313,9 @@ export function assertSaleCategoriesAuthorized(
         const canSellMembership =
           !roles.includes('Kitchen Staff') &&
           (roles.includes('Receptionist') ||
+            roles.includes('RECEPTIONIST') ||
+            roles.includes('Trainer') ||
+            roles.includes('TRAINER') ||
             permissions.includes('billing.write') ||
             permissions.includes('billing.manage') ||
             permissions.some((p) => p.startsWith('gym.')));
@@ -320,6 +328,9 @@ export function assertSaleCategoriesAuthorized(
         const canSellClinical =
           !roles.includes('Kitchen Staff') &&
           (roles.includes('Receptionist') ||
+            roles.includes('RECEPTIONIST') ||
+            roles.includes('Trainer') ||
+            roles.includes('TRAINER') ||
             permissions.includes('appointments.create') ||
             permissions.includes('appointments.update') ||
             permissions.includes('billing.write'));
@@ -334,6 +345,9 @@ export function assertSaleCategoriesAuthorized(
         const canSellRoom =
           !roles.includes('Kitchen Staff') &&
           (roles.includes('Receptionist') ||
+            roles.includes('RECEPTIONIST') ||
+            roles.includes('Trainer') ||
+            roles.includes('TRAINER') ||
             permissions.includes('billing.write') ||
             permissions.some((p) => p.startsWith('scheduling.')));
         if (!canSellRoom) {

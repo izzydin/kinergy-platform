@@ -71,14 +71,16 @@ export class AuthenticatedUserContext {
 
     if (
       ['THERAPIST', 'TRAINER', 'PRACTITIONER'].includes(targetUpper) &&
-      userRolesUpper.some((r) => ['THERAPIST', 'TRAINER', 'PRACTITIONER'].includes(r))
+      userRolesUpper.some((r) =>
+        ['THERAPIST', 'TRAINER', 'PRACTITIONER', 'RECEPTIONIST'].includes(r),
+      )
     ) {
       return true;
     }
 
     if (
       ['RECEPTIONIST', 'FRONT_DESK'].includes(targetUpper) &&
-      userRolesUpper.some((r) => ['RECEPTIONIST', 'FRONT_DESK', 'MANAGER'].includes(r))
+      userRolesUpper.some((r) => ['RECEPTIONIST', 'FRONT_DESK', 'MANAGER', 'TRAINER'].includes(r))
     ) {
       return true;
     }

@@ -17,6 +17,7 @@ export const PAYMENT_MUTATION_ROLES: string[] = [
   'Gym Manager',
   'Platform Admin',
   'Receptionist',
+  'Trainer',
   'Kitchen Staff',
 ];
 

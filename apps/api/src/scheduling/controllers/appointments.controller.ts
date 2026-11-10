@@ -101,7 +101,7 @@ export class AppointmentsController {
 
   @Get('appointments')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.read')
   @ApiOperation({ summary: 'List appointments within a UTC date range with optional filters' })
   @ApiResponse({ status: 200, description: 'Appointments retrieved successfully.' })
@@ -141,7 +141,7 @@ export class AppointmentsController {
 
   @Get('appointments/:id')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.read')
   @ApiOperation({ summary: 'Retrieve a single appointment by ID' })
   @ApiParam({ name: 'id', description: 'Unique Appointment ID' })
@@ -161,7 +161,7 @@ export class AppointmentsController {
 
   @Post('appointments')
   @HttpCode(HttpStatus.CREATED)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
   @ApiOperation({
     summary: 'Book a new appointment with 4D conflict detection and policy enforcement',
@@ -230,7 +230,7 @@ export class AppointmentsController {
 
   @Patch('appointments/:id/reschedule')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
   @ApiOperation({ summary: 'Reschedule an existing appointment to a new time window' })
   public async rescheduleAppointment(
@@ -265,7 +265,7 @@ export class AppointmentsController {
 
   @Post('appointments/:id/cancel')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
   @ApiOperation({ summary: 'Cancel an active appointment with a mandatory reason' })
   public async cancelAppointment(@Param('id') id: string, @Body() dto: Record<string, unknown>) {
@@ -292,7 +292,7 @@ export class AppointmentsController {
 
   @Post('appointments/:id/confirm')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
   @ApiOperation({ summary: 'Confirm a scheduled appointment' })
   public async confirmAppointment(@Param('id') id: string, @Body() dto?: Record<string, unknown>) {
@@ -314,7 +314,7 @@ export class AppointmentsController {
 
   @Post('appointments/:id/check-in')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
   @ApiOperation({ summary: 'Check in client upon arrival for scheduled/confirmed appointment' })
   public async checkInAppointment(@Param('id') id: string, @Body() dto?: Record<string, unknown>) {
@@ -336,7 +336,7 @@ export class AppointmentsController {
 
   @Post('appointments/:id/start')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
   @ApiOperation({ summary: 'Start an appointment (CHECKED_IN -> IN_PROGRESS)' })
   public async startAppointment(@Param('id') id: string, @Body() dto?: Record<string, unknown>) {
@@ -363,7 +363,7 @@ export class AppointmentsController {
 
   @Post('appointments/:id/complete')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
   @ApiOperation({ summary: 'Mark an in-progress appointment as completed' })
   public async completeAppointment(@Param('id') id: string, @Body() dto?: Record<string, unknown>) {
@@ -385,7 +385,7 @@ export class AppointmentsController {
 
   @Post('appointments/:id/no-show')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
   @ApiOperation({ summary: 'Mark a scheduled or confirmed appointment as NO_SHOW' })
   public async markNoShow(@Param('id') id: string, @Body() dto?: Record<string, unknown>) {
@@ -409,7 +409,7 @@ export class AppointmentsController {
 
   @Post('appointments/:id/notes')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
   @ApiOperation({ summary: 'Append an operational note to an appointment' })
   public async addAppointmentNote(
@@ -453,7 +453,7 @@ export class AppointmentsController {
 
   @Post('availability/check-conflict')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.read')
   @ApiOperation({ summary: 'Evaluate 4D scheduling conflicts for a proposed appointment window' })
   public async checkConflict(@Body() dto: Record<string, unknown>) {
@@ -503,7 +503,7 @@ export class AppointmentsController {
 
   @Get('availability/slots')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.read')
   @ApiOperation({ summary: 'Find available unconflicted time slots for a date and service type' })
   public async findAvailableSlots(
@@ -581,7 +581,7 @@ export class AppointmentsController {
 
   @Get('calendar/agenda')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.read')
   @ApiOperation({ summary: 'Retrieve daily or weekly calendar agenda projection' })
   public async getCalendarAgenda(
@@ -624,7 +624,7 @@ export class AppointmentsController {
 
   @Get('service-types')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.read')
   @ApiOperation({
     summary: 'List supported clinical and scheduling service types with duration policies',

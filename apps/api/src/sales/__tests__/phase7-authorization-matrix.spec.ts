@@ -347,6 +347,7 @@ describe('Phase 7 Authorization Test Suite & Matrix (ADR-0135, ADR-0111, ADR-011
         'Owner',
         'Manager',
         'Receptionist',
+        'Trainer',
         'Kitchen Staff',
       ]);
       expect(reflector.get<string[]>(PERMISSIONS_KEY, saleCreateHandler)).toEqual(['sales.create']);
@@ -364,6 +365,7 @@ describe('Phase 7 Authorization Test Suite & Matrix (ADR-0135, ADR-0111, ADR-011
         'Owner',
         'Manager',
         'Receptionist',
+        'Trainer',
         'Kitchen Staff',
       ]);
       expect(reflector.get<string[]>(PERMISSIONS_KEY, receiptIssueHandler)).toEqual([
@@ -527,8 +529,8 @@ describe('Phase 7 Authorization Test Suite & Matrix (ADR-0135, ADR-0111, ADR-011
     });
 
     it('throws ForbiddenException with clean reason for missing role', async () => {
-      // User has Trainer role, route cancelSale requires Owner or Manager
-      const context = createSalesContext('cancelSale', trainerPrincipal);
+      // User has Trainer role, route cancelPayment requires Owner or Manager
+      const context = createPaymentsContext('cancelPayment', trainerPrincipal);
 
       try {
         await guard.canActivate(context);
@@ -823,14 +825,14 @@ describe('Phase 7 Authorization Test Suite & Matrix (ADR-0135, ADR-0111, ADR-011
         });
       }).toThrow(ReceiptUnauthorizedException);
 
-      // 3. Denied: trainer without client ownership
+      // 3. Permitted: trainer has staff operational access to view receipt
       expect(() => {
         enforceReceiptOwnershipBoundary(receipt, {
           userId: trainerPrincipal.userId,
           roles: [...trainerPrincipal.roles],
           permissions: [...trainerPrincipal.permissions],
         });
-      }).toThrow(ReceiptUnauthorizedException);
+      }).not.toThrow();
     });
 
     it('enforces cross-tenant denial when foreign tenant manager attempts operations on target tenant', () => {

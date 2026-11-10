@@ -639,17 +639,16 @@ describe('Receipts Read Operations Authorization Specification (receipts:read / 
       ).rejects.toThrow(ReceiptUnauthorizedException);
     });
 
-    it('strictly forbids Trainer from viewing general facility receipts (ADR-0074)', async () => {
-      await expect(
-        controller.getReceiptById(receiptAliceId, {
-          id: trainerUser.userId,
-          email: trainerUser.email,
-          status: trainerUser.status,
-          roles: [...trainerUser.roles],
-          permissions: [...trainerUser.permissions],
-          tenantId: trainerUser.tenantId,
-        }),
-      ).rejects.toThrow(ReceiptUnauthorizedException);
+    it('allows Trainer with receipts.read to view general facility receipts with operational access', async () => {
+      const result = await controller.getReceiptById(receiptAliceId, {
+        id: trainerUser.userId,
+        email: trainerUser.email,
+        status: trainerUser.status,
+        roles: [...trainerUser.roles],
+        permissions: [...trainerUser.permissions],
+        tenantId: trainerUser.tenantId,
+      });
+      expect(result.id).toBe(receiptAliceId);
     });
 
     it('strictly enforces multi-tenant boundary on receipt retrieval', async () => {

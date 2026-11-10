@@ -356,9 +356,15 @@ describe('Principal Payments Authorization & Financial Consistency Specification
       const aliasRoles = reflector.get<string[]>(ROLES_KEY, aliasHandler);
       const aliasPerms = reflector.get<string[]>(PERMISSIONS_KEY, aliasHandler);
 
-      expect(primaryRoles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(primaryRoles).toEqual([
+        'Owner',
+        'Manager',
+        'Receptionist',
+        'Trainer',
+        'Kitchen Staff',
+      ]);
       expect(primaryPerms).toEqual(['payments.create']);
-      expect(aliasRoles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(aliasRoles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(aliasPerms).toEqual(['payments.create']);
     });
 
@@ -371,9 +377,9 @@ describe('Principal Payments Authorization & Financial Consistency Specification
       const settleRoles = reflector.get<string[]>(ROLES_KEY, settleHandler);
       const settlePerms = reflector.get<string[]>(PERMISSIONS_KEY, settleHandler);
 
-      expect(completeRoles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(completeRoles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(completePerms).toEqual(['payments.create', 'payments.manage']);
-      expect(settleRoles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(settleRoles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(settlePerms).toEqual(['payments.create', 'payments.manage']);
     });
 
@@ -382,7 +388,7 @@ describe('Principal Payments Authorization & Financial Consistency Specification
       const roles = reflector.get<string[]>(ROLES_KEY, failHandler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, failHandler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(permissions).toEqual(['payments.create', 'payments.manage']);
     });
 

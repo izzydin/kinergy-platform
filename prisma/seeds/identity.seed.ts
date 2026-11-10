@@ -109,6 +109,30 @@ export const PERMISSION_CATALOG: Record<string, PermissionDefinition[]> = {
 };
 
 /**
+ * Shared Baseline Operational Permission Codes
+ * Conforming to Prompt 84303: Trainer and Receptionist have equivalent operational permissions.
+ */
+export const SHARED_OPERATIONAL_PERMISSION_CODES: string[] = [
+  'clients.read',
+  'clients.write',
+  'appointments.read',
+  'appointments.create',
+  'appointments.update',
+  'appointments.delete',
+  'billing.read',
+  'billing.write',
+  'inventory.read',
+  'sales.read',
+  'sales.create',
+  'sales.cancel',
+  'payments.read',
+  'payments.create',
+  'payments.manage',
+  'receipts.read',
+  'receipts.manage',
+];
+
+/**
  * System Roles and Permission Assignment Mappings (Least Privilege)
  */
 export const SYSTEM_ROLE_DEFINITIONS = [
@@ -123,18 +147,10 @@ export const SYSTEM_ROLE_DEFINITIONS = [
   },
   {
     name: 'Trainer',
-    description: 'Training staff managing client progress and class schedules.',
+    description:
+      'Training and clinical staff managing client progress, appointments, POS sales, and check-ins.',
     type: RoleType.SYSTEM,
-    permissionCodes: [
-      'clients.read',
-      'clients.write',
-      'appointments.read',
-      'appointments.create',
-      'appointments.update',
-      'reports.read',
-      'sales.read',
-      'receipts.read',
-    ],
+    permissionCodes: [...SHARED_OPERATIONAL_PERMISSION_CODES, 'reports.read'],
   },
   {
     name: 'Kitchen Staff',
@@ -155,25 +171,7 @@ export const SYSTEM_ROLE_DEFINITIONS = [
     name: 'Receptionist',
     description: 'Front desk staff handling appointments, client intake, and billing.',
     type: RoleType.SYSTEM,
-    permissionCodes: [
-      'clients.read',
-      'clients.write',
-      'appointments.read',
-      'appointments.create',
-      'appointments.update',
-      'appointments.delete',
-      'billing.read',
-      'billing.write',
-      'inventory.read',
-      'sales.read',
-      'sales.create',
-      'sales.cancel',
-      'payments.read',
-      'payments.create',
-      'payments.manage',
-      'receipts.read',
-      'receipts.manage',
-    ],
+    permissionCodes: [...SHARED_OPERATIONAL_PERMISSION_CODES],
   },
 ];
 

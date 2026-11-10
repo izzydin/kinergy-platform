@@ -537,9 +537,8 @@ describe('Sales API Compatibility & Milestone 7.14 Verification Suite', () => {
       expect(permissions).toEqual(['sales.cancel']);
 
       const roles = Reflect.getMetadata('roles', cancelMethod);
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(roles).not.toContain('Kitchen Staff');
-      expect(roles).not.toContain('Trainer');
     });
   });
 

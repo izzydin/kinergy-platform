@@ -1013,13 +1013,12 @@ describe('Receipt HTTP API Architecture, Security & Exception Spec', () => {
       );
     });
 
-    it('strictly forbids Trainer even with receipts.read from viewing general facility receipts', async () => {
+    it('allows Trainer with receipts.read to retrieve general facility receipts with operational access', async () => {
       const { sale } = createSettledSale(primaryTenantId, 80.0, 'USD', 'client_other');
       const issued = await controller.issueReceipt(sale.id.value, {}, receptionistUser);
 
-      await expect(controller.getReceiptById(issued.id, trainerWithReadUser)).rejects.toThrow(
-        ReceiptUnauthorizedException,
-      );
+      const receipt = await controller.getReceiptById(issued.id, trainerWithReadUser);
+      expect(receipt.id).toBe(issued.id);
     });
 
     it('ensures API responses do not expose sensitive cardholder data, PAN, CVV, or internal secrets', async () => {

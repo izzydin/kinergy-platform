@@ -88,7 +88,7 @@ export class ReceiptsController {
 
   @Post('sales/:saleId/receipt')
   @HttpCode(HttpStatus.CREATED)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('receipts.manage')
   @ApiOperation({
     summary: 'Issue an immutable customer receipt voucher for an already-settled sale',
@@ -151,7 +151,7 @@ export class ReceiptsController {
 
   @Post('receipts')
   @HttpCode(HttpStatus.CREATED)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('receipts.manage')
   @ApiOperation({
     summary: 'Issue receipt voucher specifying saleId in the request body',
@@ -358,6 +358,7 @@ export class ReceiptsController {
     'Gym Manager',
     'Platform Admin',
     'Receptionist',
+    'Trainer',
     'Kitchen Staff',
   )
   @Permissions('receipts.manage')

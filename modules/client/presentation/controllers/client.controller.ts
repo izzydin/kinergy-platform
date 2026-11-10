@@ -255,6 +255,7 @@ export class ClientController {
         normRoles.includes('ADMIN') ||
         normRoles.includes('OWNER') ||
         normRoles.includes('RECEPTIONIST') ||
+        normRoles.includes('TRAINER') ||
         normRoles.includes('STAFF');
       if (!isAuthorizedWrite) {
         throw new ForbiddenException("Access denied: missing required permission 'clients.write'.");

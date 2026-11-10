@@ -122,36 +122,44 @@ describe('DefaultPermissionResolver', () => {
       expect(resolved).not.toContain('billing.read');
     });
 
-    it('should grant Trainer session verification read-only capabilities only', async () => {
+    it('should grant Trainer equivalent operational capabilities to Receptionist plus reports.read', async () => {
       const resolved = await resolver.resolvePermissions('usr_trainer', ['Trainer'], []);
 
-      expect(resolved.length).toBe(8);
+      expect(resolved.length).toBe(18);
 
-      // Phase 7 approved permissions (Read-only verification)
+      // Operational POS, sales, payments, receipts capabilities (aligned with Receptionist)
       expect(resolved).toContain('sales.read');
+      expect(resolved).toContain('sales.create');
+      expect(resolved).toContain('sales.cancel');
+      expect(resolved).toContain('payments.read');
+      expect(resolved).toContain('payments.create');
+      expect(resolved).toContain('payments.manage');
       expect(resolved).toContain('receipts.read');
+      expect(resolved).toContain('receipts.manage');
 
-      // Unrelated Phase 1 permissions preserved
+      // Consumable inventory catalog reading (food and drinks POS sales)
+      expect(resolved).toContain('inventory.read');
+      expect(resolved).not.toContain('inventory.write');
+
+      // Clients, appointments, billing operational capabilities
       expect(resolved).toContain('clients.read');
       expect(resolved).toContain('clients.write');
       expect(resolved).toContain('appointments.read');
       expect(resolved).toContain('appointments.create');
       expect(resolved).toContain('appointments.update');
+      expect(resolved).toContain('appointments.delete');
+      expect(resolved).toContain('billing.read');
+      expect(resolved).toContain('billing.write');
+
+      // Trainer-specific capability preserved
       expect(resolved).toContain('reports.read');
 
-      // Explicit Denial: Trainer has ZERO mutation or payment capabilities
-      expect(resolved).not.toContain('sales.create');
+      // Explicit Denial: Trainer cannot perform administrative sales overrides or user administration
       expect(resolved).not.toContain('sales.manage');
-      expect(resolved).not.toContain('sales.cancel');
-      expect(resolved).not.toContain('payments.read');
-      expect(resolved).not.toContain('payments.create');
-      expect(resolved).not.toContain('payments.manage');
-      expect(resolved).not.toContain('receipts.manage');
-
-      // Explicit Denial: Unrelated operational modules
-      expect(resolved).not.toContain('kitchen.read');
-      expect(resolved).not.toContain('inventory.read');
-      expect(resolved).not.toContain('billing.write');
+      expect(resolved).not.toContain('users.write');
+      expect(resolved).not.toContain('users.delete');
+      expect(resolved).not.toContain('settings.write');
+      expect(resolved).not.toContain('identity.roles.write');
     });
   });
 
@@ -192,13 +200,15 @@ describe('DefaultPermissionResolver', () => {
         [],
       );
 
-      // Trainer (8) + Kitchen Staff (8) - overlapping ('sales.read', 'receipts.read')
+      // Trainer (18) + Kitchen Staff (8) - unioned and deduplicated
       expect(resolved).toContain('sales.read');
       expect(resolved).toContain('receipts.read');
       expect(resolved).toContain('kitchen.read');
       expect(resolved).toContain('clients.read');
       expect(resolved).toContain('payments.create');
-      expect(resolved).not.toContain('payments.manage');
+      expect(resolved).toContain('payments.manage');
+      expect(resolved).not.toContain('sales.manage');
+      expect(resolved).not.toContain('users.write');
       expect(new Set(resolved).size).toBe(resolved.length);
     });
   });

@@ -173,7 +173,7 @@ export class PaymentsController {
 
   @Post(['sales/:saleId/payments', 'payments'])
   @HttpCode(HttpStatus.CREATED)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('payments.create')
   @ApiOperation({
     summary: 'Record payment tender against a finalized commercial sale order',
@@ -268,7 +268,7 @@ export class PaymentsController {
 
   @Get(['sales/:saleId/payments', 'sales/:saleId/payments/history'])
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('payments.read')
   @ApiOperation({
     summary: 'List all payment transactions associated with a commercial sale',
@@ -381,7 +381,7 @@ export class PaymentsController {
 
   @Get(['payments/:id', 'payments/:paymentId'])
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('payments.read')
   @ApiOperation({
     summary: 'Retrieve individual payment transaction by identifier',
@@ -480,7 +480,7 @@ export class PaymentsController {
 
   @Get('payments')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer')
   @Permissions('payments.read')
   @ApiOperation({
     summary: 'List payment transactions with pagination, filtering, and sorting',
@@ -529,7 +529,7 @@ export class PaymentsController {
 
   @Post('sales/:saleId/payments/create')
   @HttpCode(HttpStatus.CREATED)
-  @Roles('Owner', 'Manager', 'Receptionist', 'Kitchen Staff')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff')
   @Permissions('payments.create')
   @ApiOperation({
     summary:
@@ -547,7 +547,7 @@ export class PaymentsController {
 
   @Get('payments/:paymentId/detail')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer')
   @Permissions('payments.read')
   @ApiOperation({
     summary: 'Retrieve individual payment transaction by identifier (alias for getPaymentById)',
@@ -566,7 +566,7 @@ export class PaymentsController {
 
   @Get('sales/:saleId/payments/history')
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer')
   @Permissions('payments.read')
   @ApiOperation({
     summary:
@@ -602,7 +602,7 @@ export class PaymentsController {
     'sales/:saleId/payments/:id/complete',
   ])
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer')
   @Permissions('payments.create', 'payments.manage')
   @ApiOperation({
     summary: 'Confirm completion/settlement of an unsettled pending payment transaction',
@@ -705,7 +705,7 @@ export class PaymentsController {
 
   @Post(['payments/:id/settle', ':saleId/payments/:id/settle', 'sales/:saleId/payments/:id/settle'])
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer')
   @Permissions('payments.create', 'payments.manage')
   @ApiOperation({
     summary:
@@ -808,7 +808,7 @@ export class PaymentsController {
 
   @Post(['payments/:id/fail', ':saleId/payments/:id/fail', 'sales/:saleId/payments/:id/fail'])
   @HttpCode(HttpStatus.OK)
-  @Roles('Owner', 'Manager', 'Receptionist')
+  @Roles('Owner', 'Manager', 'Receptionist', 'Trainer')
   @Permissions('payments.create', 'payments.manage')
   @ApiOperation({
     summary: 'Mark an unsettled pending payment transaction as failed',

@@ -228,31 +228,31 @@ describe('Payments Read Operations Authorization Specification (payments:read / 
       {
         name: 'GetPaymentById (GET /payments/:paymentId)',
         handler: 'getPaymentById',
-        roles: ['Owner', 'Manager', 'Receptionist', 'Kitchen Staff'],
+        roles: ['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff'],
         permissions: ['payments.read'],
       },
       {
         name: 'GetPayment (GET /payments/:paymentId/detail)',
         handler: 'getPayment',
-        roles: ['Owner', 'Manager', 'Receptionist'],
+        roles: ['Owner', 'Manager', 'Receptionist', 'Trainer'],
         permissions: ['payments.read'],
       },
       {
         name: 'ListPayments (GET /payments)',
         handler: 'listPayments',
-        roles: ['Owner', 'Manager', 'Receptionist'],
+        roles: ['Owner', 'Manager', 'Receptionist', 'Trainer'],
         permissions: ['payments.read'],
       },
       {
         name: 'GetPaymentsBySaleId (GET /sales/:saleId/payments)',
         handler: 'getPaymentsBySaleId',
-        roles: ['Owner', 'Manager', 'Receptionist', 'Kitchen Staff'],
+        roles: ['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff'],
         permissions: ['payments.read'],
       },
       {
         name: 'GetSalePaymentHistory (GET /sales/:saleId/payments/history)',
         handler: 'getSalePaymentHistory',
-        roles: ['Owner', 'Manager', 'Receptionist'],
+        roles: ['Owner', 'Manager', 'Receptionist', 'Trainer'],
         permissions: ['payments.read'],
       },
     ];

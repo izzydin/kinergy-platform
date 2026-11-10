@@ -165,7 +165,7 @@ describe('Sale Application Authorization & RBAC Security Specification', () => {
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(permissions).toEqual(['sales.create']);
     });
 
@@ -174,7 +174,7 @@ describe('Sale Application Authorization & RBAC Security Specification', () => {
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(permissions).toEqual(['sales.create']);
     });
 
@@ -183,7 +183,7 @@ describe('Sale Application Authorization & RBAC Security Specification', () => {
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(permissions).toEqual(['sales.create']);
     });
 
@@ -192,7 +192,7 @@ describe('Sale Application Authorization & RBAC Security Specification', () => {
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(permissions).toEqual(['sales.create']);
     });
 
@@ -229,9 +229,8 @@ describe('Sale Application Authorization & RBAC Security Specification', () => {
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
       // Least privilege: Kitchen Staff cannot void sales transactions
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(roles).not.toContain('Kitchen Staff');
-      expect(roles).not.toContain('Trainer');
       expect(permissions).toEqual(['sales.cancel']);
     });
   });

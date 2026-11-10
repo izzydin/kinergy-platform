@@ -187,7 +187,7 @@ describe('Payment Application Authorization & RBAC Security Specification', () =
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(permissions).toEqual(['payments.create']);
     });
 
@@ -196,18 +196,17 @@ describe('Payment Application Authorization & RBAC Security Specification', () =
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Kitchen Staff']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer', 'Kitchen Staff']);
       expect(permissions).toEqual(['payments.create']);
     });
 
-    it('verifies CompletePayment requires payments.create, payments.manage and excludes Kitchen Staff & Trainer', () => {
+    it('verifies CompletePayment requires payments.create, payments.manage and excludes Kitchen Staff', () => {
       const handler = PaymentsController.prototype.completePayment;
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(roles).not.toContain('Kitchen Staff');
-      expect(roles).not.toContain('Trainer');
       expect(permissions).toEqual(['payments.create', 'payments.manage']);
     });
 
@@ -216,7 +215,7 @@ describe('Payment Application Authorization & RBAC Security Specification', () =
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(permissions).toEqual(['payments.create', 'payments.manage']);
     });
 
@@ -225,9 +224,8 @@ describe('Payment Application Authorization & RBAC Security Specification', () =
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(roles).not.toContain('Kitchen Staff');
-      expect(roles).not.toContain('Trainer');
       expect(permissions).toEqual(['payments.create', 'payments.manage']);
     });
 
@@ -263,9 +261,8 @@ describe('Payment Application Authorization & RBAC Security Specification', () =
       const roles = reflector.get<string[]>(ROLES_KEY, handler);
       const permissions = reflector.get<string[]>(PERMISSIONS_KEY, handler);
 
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(roles).not.toContain('Kitchen Staff');
-      expect(roles).not.toContain('Trainer');
       expect(permissions).toEqual(['payments.read']);
     });
   });

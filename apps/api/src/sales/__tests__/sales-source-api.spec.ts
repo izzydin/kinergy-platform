@@ -425,7 +425,7 @@ describe('SaleSource API Specification (ADR-0121)', () => {
 
     it('enforces required roles on assignSource endpoint', () => {
       const roles = reflector.get<string[]>(ROLES_KEY, controller.assignSource);
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(roles).not.toContain('Member');
       expect(roles).not.toContain('Guest');
     });

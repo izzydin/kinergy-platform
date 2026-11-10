@@ -363,9 +363,8 @@ describe('POST /sales/:id/cancel Contract Specification (Milestone 7.14 & ADR-01
 
       const roles = reflector.get<string[]>(ROLES_KEY, SalesController.prototype.cancelSale);
       expect(roles).toBeDefined();
-      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist']);
+      expect(roles).toEqual(['Owner', 'Manager', 'Receptionist', 'Trainer']);
       expect(roles).not.toContain('Kitchen Staff');
-      expect(roles).not.toContain('Trainer');
     });
 
     it('rejects Kitchen Staff user attempting cancellation at application layer', async () => {
