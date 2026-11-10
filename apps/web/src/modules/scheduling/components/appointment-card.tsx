@@ -1,5 +1,6 @@
 import React from 'react';
 import { formatFacilityTime } from '../utils/calendar-date.utils';
+import { formatAppointmentTypeLabel } from '../utils/appointment-type.utils';
 import { CalendarStatusBadge, ConflictBadge } from './calendar-status-badge';
 import type { AppointmentModel, CalendarSlotDTO } from '../types/scheduling.types';
 import { MapPin, User, Stethoscope } from 'lucide-react';
@@ -30,12 +31,14 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
         ? `Client: ${appointment.clientId.slice(0, 8)}`
         : 'Unspecified Client';
 
-  const serviceLabel =
+  const rawService =
     'serviceType' in appointment && appointment.serviceType
       ? appointment.serviceType
       : 'type' in appointment && appointment.type
         ? appointment.type
-        : 'Standard Session';
+        : undefined;
+
+  const serviceLabel = formatAppointmentTypeLabel(rawService);
 
   const hasConflict = Boolean('hasConflict' in appointment && appointment.hasConflict);
 

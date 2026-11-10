@@ -486,7 +486,8 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       clientId: 'cli-seed-jane-01',
       therapistId: therapistUserId,
       roomId: 'room-seed-kinesio-01',
-      type: 'KINESIOLOGY_ASSESSMENT',
+      // Authoritative domain type: AppointmentTypeEnum.ASSESSMENT
+      type: 'ASSESSMENT',
       status: AppointmentStatus.COMPLETED,
       startTime: new Date('2026-10-02T10:00:00.000Z'),
       endTime: new Date('2026-10-02T11:00:00.000Z'),
@@ -497,7 +498,8 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       clientId: 'cli-seed-jane-01',
       therapistId: therapistUserId,
       roomId: 'room-seed-kinesio-01',
-      type: 'KINESIOLOGY_TREATMENT',
+      // Authoritative domain type: AppointmentTypeEnum.TREATMENT
+      type: 'TREATMENT',
       status: AppointmentStatus.SCHEDULED,
       startTime: new Date('2026-11-03T10:00:00.000Z'),
       endTime: new Date('2026-11-03T11:00:00.000Z'),
@@ -508,7 +510,8 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       clientId: 'cli-seed-maria-04',
       therapistId: therapistUserId,
       roomId: 'room-seed-consult-02',
-      type: 'KINESIOLOGY_TREATMENT',
+      // Authoritative domain type: AppointmentTypeEnum.TREATMENT
+      type: 'TREATMENT',
       status: AppointmentStatus.SCHEDULED,
       startTime: new Date('2026-11-04T14:00:00.000Z'),
       endTime: new Date('2026-11-04T15:00:00.000Z'),

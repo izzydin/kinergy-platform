@@ -34,6 +34,18 @@ export const APPOINTMENT_STATUSES: readonly AppointmentStatus[] = [
   'RESCHEDULED',
 ] as const;
 
+export type AppointmentType =
+  'ASSESSMENT' | 'FOLLOW_UP' | 'TREATMENT' | 'EVALUATION' | 'RENTAL' | 'GROUP_CLASS';
+
+export const APPOINTMENT_TYPES: readonly AppointmentType[] = [
+  'ASSESSMENT',
+  'FOLLOW_UP',
+  'TREATMENT',
+  'EVALUATION',
+  'RENTAL',
+  'GROUP_CLASS',
+] as const;
+
 export interface AppointmentNoteModel {
   readonly id: string;
   readonly authorId: string;
@@ -44,7 +56,7 @@ export interface AppointmentNoteModel {
 export interface AppointmentModel {
   readonly id: string;
   readonly status: AppointmentStatus;
-  readonly type: string;
+  readonly type: AppointmentType | string;
   readonly clientId: string;
   readonly therapistId: string;
   readonly roomId: string;

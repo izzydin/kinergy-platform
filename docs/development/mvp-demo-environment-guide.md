@@ -229,6 +229,7 @@ The 14 migrations deployed to `kinergy_dev` are:
 12. `20261002000000_optimize_phase_7_financial_indexes`: High-throughput reporting indices.
 13. `20261016000000_add_phase_7_concurrency_and_single_billing_indexes`: Concurrency locks.
 14. `20261104000000_align_treatment_sessions_and_scheduling_schema`: Clinical session alignment.
+15. `20261110000000_normalize_legacy_kinesiology_appointment_types`: Normalize legacy appointment types in fixtures and scheduling.
 
 ---
 

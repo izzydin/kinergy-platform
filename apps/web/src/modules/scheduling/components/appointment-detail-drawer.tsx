@@ -24,6 +24,7 @@ import {
   formatFacilityTime,
   FACILITY_TIMEZONE,
 } from '../utils/calendar-date.utils';
+import { formatAppointmentTypeLabel } from '../utils/appointment-type.utils';
 import { CalendarStatusBadge, ConflictBadge } from './calendar-status-badge';
 import type { AppointmentModel, CalendarSlotDTO, RoomModel } from '../types/scheduling.types';
 import {
@@ -152,12 +153,14 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
         ? `Client: ${appointment.clientId}`
         : 'Unspecified Client';
 
-  const serviceLabel =
+  const rawService =
     'serviceType' in appointment && appointment.serviceType
       ? appointment.serviceType
       : 'type' in appointment && appointment.type
         ? appointment.type
-        : 'Standard Appointment';
+        : undefined;
+
+  const serviceLabel = formatAppointmentTypeLabel(rawService);
 
   const hasConflict = Boolean('hasConflict' in appointment && appointment.hasConflict);
 
