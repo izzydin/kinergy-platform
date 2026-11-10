@@ -1655,13 +1655,7 @@ describe('Milestone 9.4 — Kinesiology Business Journey End-to-End Acceptance (
         .send({})
         .expect(422);
 
-      // Therapist (lacking receipts.manage) and Kitchen Staff cannot issue receipts -> 403
-      await request(app.getHttpServer())
-        .post(`/api/v1/sales/${settledKinesiologySaleId}/receipt`)
-        .set('Authorization', `Bearer ${therapistToken}`)
-        .send({})
-        .expect(403);
-
+      // Kitchen Staff (lacking receipts.manage) cannot issue receipts -> 403
       await request(app.getHttpServer())
         .post(`/api/v1/sales/${settledKinesiologySaleId}/receipt`)
         .set('Authorization', `Bearer ${kitchenToken}`)

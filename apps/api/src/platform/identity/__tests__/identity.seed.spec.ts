@@ -147,16 +147,16 @@ describe('Identity Database Seed Specification', () => {
       expect(kitchen?.permissionCodes).not.toContain('payments.manage');
       expect(kitchen?.permissionCodes).not.toContain('receipts.manage');
 
-      // Trainer: Read-only session validation only
+      // Trainer: Shared operational baseline (conforming to Prompt 84303)
       expect(trainer?.permissionCodes).toContain('sales.read');
+      expect(trainer?.permissionCodes).toContain('sales.create');
+      expect(trainer?.permissionCodes).toContain('sales.cancel');
+      expect(trainer?.permissionCodes).toContain('payments.read');
+      expect(trainer?.permissionCodes).toContain('payments.create');
+      expect(trainer?.permissionCodes).toContain('payments.manage');
       expect(trainer?.permissionCodes).toContain('receipts.read');
-      expect(trainer?.permissionCodes).not.toContain('sales.create');
+      expect(trainer?.permissionCodes).toContain('receipts.manage');
       expect(trainer?.permissionCodes).not.toContain('sales.manage');
-      expect(trainer?.permissionCodes).not.toContain('sales.cancel');
-      expect(trainer?.permissionCodes).not.toContain('payments.read');
-      expect(trainer?.permissionCodes).not.toContain('payments.create');
-      expect(trainer?.permissionCodes).not.toContain('payments.manage');
-      expect(trainer?.permissionCodes).not.toContain('receipts.manage');
     });
 
     it('should restrict permissions for non-owner roles according to least privilege across unrelated modules', () => {
@@ -165,7 +165,9 @@ describe('Identity Database Seed Specification', () => {
       const receptionist = SYSTEM_ROLE_DEFINITIONS.find((r) => r.name === 'Receptionist');
 
       expect(trainer?.permissionCodes).toContain('clients.read');
-      expect(trainer?.permissionCodes).not.toContain('billing.write');
+      expect(trainer?.permissionCodes).toContain('billing.write');
+      expect(trainer?.permissionCodes).not.toContain('settings.write');
+      expect(trainer?.permissionCodes).not.toContain('inventory.write');
 
       expect(kitchen?.permissionCodes).toContain('kitchen.read');
       expect(kitchen?.permissionCodes).not.toContain('users.delete');
