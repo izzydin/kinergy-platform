@@ -455,6 +455,10 @@ describe('Recurrence Management & Occurrence Exceptions', () => {
 
       mockedSchedulingApi.getServiceTypes.mockResolvedValue(mockServiceTypes);
       mockedSchedulingApi.listRooms.mockResolvedValue(mockRooms);
+      mockedSchedulingApi.checkRoomAvailability.mockResolvedValue({
+        isAvailable: true,
+        availableRooms: mockRooms,
+      });
       mockedSchedulingApi.checkConflict.mockResolvedValue({
         hasConflict: false,
         conflicts: [],

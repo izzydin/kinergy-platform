@@ -71,7 +71,7 @@ export class RoomsController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('settings.read')
   @ApiOperation({
     summary: 'List all rooms and schedulable spatial resources',
@@ -103,7 +103,7 @@ export class RoomsController {
 
   @Get('availability')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.read')
   @ApiOperation({
     summary: 'Check room availability or list available room candidates for a target time window',
@@ -125,7 +125,7 @@ export class RoomsController {
       startTime: queryDto.startTime,
       endTime: queryDto.endTime,
       roomId: queryDto.roomId,
-      requiredFeatures: queryDto.requiredFeatures,
+      requiredFeatures: queryDto.requiredFeatures ?? queryDto.features,
       requiredCapacity: queryDto.requiredCapacity,
     });
 
@@ -144,7 +144,7 @@ export class RoomsController {
 
   @Get(':id')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('settings.read')
   @ApiOperation({
     summary: 'Get room details by identifier',

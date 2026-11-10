@@ -60,7 +60,7 @@ The demonstration environment executes the real NestJS API and React 18 SPA, per
                                                                                       ┌─────────────────────────────────────────┐
                                                                                       │           PostgreSQL 16 / 18            │
                                                                                       │             (kinergy_dev)               │
-                                                                                      │       (14 Relational Migrations)        │
+                                                                                      │       (16 Relational Migrations)        │
                                                                                       └─────────────────────────────────────────┘
 ```
 
@@ -71,7 +71,7 @@ The demonstration environment executes the real NestJS API and React 18 SPA, per
 - **Core Domain Kernel (`packages/core`)**: Pure domain aggregates, Value Objects, repository ports, application use cases.
 - **Client Bounded Context (`modules/client`)**: Hexagonal client profile, trigram search, timeline event projections.
 - **UI Primitives (`packages/ui`)**: Shared accessible design system components.
-- **Persistence (`prisma/`)**: Canonical schema, 14 migrations, deterministic seed orchestrator.
+- **Persistence (`prisma/`)**: Canonical schema, 16 migrations, deterministic seed orchestrator.
 
 ---
 
@@ -198,13 +198,13 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 ### 5.2 Schema Migration Deployment
 
-Apply all **14 schema migrations** and synchronize the Prisma Client:
+Apply all **16 schema migrations** and synchronize the Prisma Client:
 
 ```powershell
 # 1. Verify connection status
 pnpm db:status
 
-# 2. Deploy all 14 migrations deterministically
+# 2. Deploy all 16 migrations deterministically
 pnpm prisma:migrate:deploy
 
 # 3. Generate latest Prisma Client types
@@ -213,7 +213,7 @@ pnpm prisma:generate
 
 ### 5.3 Deterministic Schema Migrations Inventory
 
-The 14 migrations deployed to `kinergy_dev` are:
+The 16 migrations deployed to `kinergy_dev` are:
 
 1. `20260729000000_init_base_tables`: Users, roles, permissions, clients, tokens.
 2. `20260730000000_add_client_search_trgm_indexes`: PostgreSQL trigram extensions and indices.
@@ -229,6 +229,8 @@ The 14 migrations deployed to `kinergy_dev` are:
 12. `20261002000000_optimize_phase_7_financial_indexes`: High-throughput reporting indices.
 13. `20261016000000_add_phase_7_concurrency_and_single_billing_indexes`: Concurrency locks.
 14. `20261104000000_align_treatment_sessions_and_scheduling_schema`: Clinical session alignment.
+15. `20261110010000_align_trainer_receptionist_permissions`: Operational scheduling RBAC parity for Receptionist and Trainer roles.
+16. `20261110020000_normalize_room_feature_tags`: Normalized lowercase room feature tags for deterministic containment queries.
 
 ---
 
@@ -932,7 +934,7 @@ Verify all items before commencing a client demonstration:
 |  [ ]  | **Host Node & pnpm**             | `node -v` ($\ge 20$), `pnpm -v` ($\ge 10$)                                                               |    Verified     |
 |  [ ]  | **PostgreSQL Engine Running**    | `pg_isready -h 127.0.0.1 -p 5433` reports accepting connections                                          | Pending Startup |
 |  [ ]  | **CORS Configuration Verified**  | `.env` includes `CORS_ORIGINS=http://localhost:5173,http://localhost:4200`                               |    Required     |
-|  [ ]  | **Migrations Applied**           | `pnpm prisma:migrate:status` reports all 14 migrations applied                                           |    Required     |
+|  [ ]  | **Migrations Applied**           | `pnpm prisma:migrate:status` reports all 16 migrations applied                                           |    Required     |
 |  [ ]  | **Baseline Seed Data Present**   | `pnpm db:seed` completed successfully                                                                    |    Required     |
 |  [ ]  | **API Healthy**                  | `http://localhost:3000/api/v1/health` returns `{"status":"ok"}`                                          |    Required     |
 |  [ ]  | **Swagger Docs Accessible**      | `http://localhost:3000/api/docs` renders OpenAPI spec                                                    |    Required     |

@@ -127,7 +127,10 @@ export function useRoomAvailability(
 ) {
   return useQuery({
     queryKey: schedulingQueryKeys.roomAvailability(params),
-    queryFn: () => schedulingApi.checkRoomAvailability(params),
+    queryFn: async () => {
+      const res = await schedulingApi.checkRoomAvailability(params);
+      return res ?? { isAvailable: true, availableRooms: [] };
+    },
     enabled: Boolean(params.startTime && params.endTime) && (options?.enabled ?? true),
     staleTime: 20 * 1000,
   });

@@ -140,6 +140,16 @@ describe('DefaultAuthorizationEvaluator', () => {
       }),
     );
     expect(decision.isAuthorized).toBe(true);
+
+    // appointments.read implies settings.read for spatial room directory lookups
+    mockPermissionResolver.resolvePermissions.mockResolvedValueOnce(['appointments.read']);
+    decision = await evaluator.evaluate(
+      defaultUserContext,
+      new AuthorizationRequirements({
+        requiredPermissions: ['settings.read'],
+      }),
+    );
+    expect(decision.isAuthorized).toBe(true);
   });
 
   describe('Colon-Notation Normalization & Safe Denial (ADR-0135)', () => {

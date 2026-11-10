@@ -138,6 +138,10 @@ describe('Milestone 4: Scheduling Reliability and Cross-Feature Hardening', () =
     mockedClientApi.searchClients.mockResolvedValue(mockClients);
     mockedSchedulingApi.getServiceTypes.mockResolvedValue(mockServiceTypes);
     mockedSchedulingApi.listRooms.mockResolvedValue(mockRooms);
+    mockedSchedulingApi.checkRoomAvailability.mockResolvedValue({
+      isAvailable: true,
+      availableRooms: mockRooms,
+    });
     mockedSchedulingApi.checkConflict.mockResolvedValue({
       hasConflict: false,
       conflicts: [],

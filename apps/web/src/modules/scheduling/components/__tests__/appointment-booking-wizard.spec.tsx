@@ -133,6 +133,10 @@ describe('AppointmentBookingWizard', () => {
     mockedClientApi.searchClients.mockResolvedValue(mockClients);
     mockedSchedulingApi.getServiceTypes.mockResolvedValue(mockServiceTypes);
     mockedSchedulingApi.listRooms.mockResolvedValue(mockRooms);
+    mockedSchedulingApi.checkRoomAvailability.mockResolvedValue({
+      isAvailable: true,
+      availableRooms: [mockRooms[0]!],
+    });
     mockedSchedulingApi.checkConflict.mockResolvedValue({ hasConflict: false, conflicts: [] });
   });
 
@@ -349,5 +353,111 @@ describe('AppointmentBookingWizard', () => {
     expect(
       screen.getByText(/Room Alpha is reserved for routine equipment maintenance/i),
     ).toBeInTheDocument();
+  });
+
+  describe('Prompt 84307: Room Availability & UX Edge Cases', () => {
+    const navigateToRoomStep = async () => {
+      renderWizard();
+      await waitFor(() => expect(screen.getByText('Alice Smith')).toBeInTheDocument());
+      fireEvent.click(screen.getByText('Alice Smith'));
+      fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+      await waitFor(() =>
+        expect(screen.getByText('Initial Kinesiology Assessment')).toBeInTheDocument(),
+      );
+      fireEvent.click(screen.getByText('Initial Kinesiology Assessment'));
+      fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+      await waitFor(() =>
+        expect(screen.getByLabelText(/Therapist Identifier/i)).toBeInTheDocument(),
+      );
+      fireEvent.change(screen.getByLabelText(/Therapist Identifier/i), {
+        target: { value: 'therapist_dr_jane' },
+      });
+      fireEvent.click(screen.getByRole('button', { name: /Next/i }));
+
+      await waitFor(() => expect(screen.getByText('4. Select Room')).toBeInTheDocument());
+    };
+
+    it('displays API error alert and retry button when availability query fails', async () => {
+      mockedSchedulingApi.checkRoomAvailability.mockRejectedValueOnce(
+        new Error('Network error connecting to scheduling service.'),
+      );
+
+      await navigateToRoomStep();
+
+      await waitFor(() => {
+        expect(screen.getByText('Availability Query Failed')).toBeInTheDocument();
+      });
+      expect(
+        screen.getByText('Network error connecting to scheduling service.'),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Retry Availability Check/i })).toBeInTheDocument();
+    });
+
+    it('displays distinct informative message when all active rooms are occupied for requested time', async () => {
+      // Return 0 available rooms for the queried time window
+      mockedSchedulingApi.checkRoomAvailability.mockResolvedValueOnce({
+        isAvailable: false,
+        availableRooms: [],
+      });
+
+      await navigateToRoomStep();
+
+      await waitFor(() => {
+        expect(screen.getByText('No Rooms Available for Selected Time')).toBeInTheDocument();
+      });
+      expect(screen.getByText(/OCCUPIED AT THIS TIME/i)).toBeInTheDocument();
+    });
+
+    it('displays distinct alert when no rooms are registered in facility', async () => {
+      mockedSchedulingApi.listRooms.mockResolvedValueOnce([]);
+      mockedSchedulingApi.checkRoomAvailability.mockResolvedValueOnce({
+        isAvailable: false,
+        availableRooms: [],
+      });
+
+      await navigateToRoomStep();
+
+      await waitFor(() => {
+        expect(screen.getByText('No Rooms Configured')).toBeInTheDocument();
+      });
+    });
+
+    it('displays distinct alert when all registered rooms are marked inactive', async () => {
+      mockedSchedulingApi.listRooms.mockResolvedValueOnce([
+        {
+          ...mockRooms[0]!,
+          status: 'UNAVAILABLE',
+        },
+        mockRooms[1]!,
+      ]);
+      mockedSchedulingApi.checkRoomAvailability.mockResolvedValueOnce({
+        isAvailable: false,
+        availableRooms: [],
+      });
+
+      await navigateToRoomStep();
+
+      await waitFor(() => {
+        expect(screen.getByText('All Configured Rooms Inactive')).toBeInTheDocument();
+      });
+    });
+
+    it('refreshes room availability when target date or time is modified in Step 4', async () => {
+      await navigateToRoomStep();
+
+      await waitFor(() => {
+        expect(mockedSchedulingApi.checkRoomAvailability).toHaveBeenCalledTimes(1);
+      });
+
+      // Change time via inline selector
+      const timeSelect = screen.getByLabelText('Target Time');
+      fireEvent.change(timeSelect, { target: { value: '14:30' } });
+
+      await waitFor(() => {
+        expect(mockedSchedulingApi.checkRoomAvailability).toHaveBeenCalledTimes(2);
+      });
+    });
   });
 });

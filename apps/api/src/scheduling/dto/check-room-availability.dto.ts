@@ -44,6 +44,22 @@ export class CheckRoomAvailabilityQueryDto {
   requiredFeatures?: string[];
 
   @ApiPropertyOptional({
+    description: 'Alias for requiredFeatures',
+    example: ['hydrotherapy_tub'],
+    type: [String],
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      return value.split(',').map((s) => s.trim());
+    }
+    return value;
+  })
+  @IsArray()
+  @IsString({ each: true })
+  features?: string[];
+
+  @ApiPropertyOptional({
     description: 'Optional minimum client capacity required',
     example: 1,
     minimum: 1,

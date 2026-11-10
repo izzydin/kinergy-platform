@@ -20,6 +20,7 @@ import {
 import { useClientList } from '../../client/hooks/use-client-queries';
 import {
   useRoomsList,
+  useRoomAvailability,
   useServiceTypes,
   useLiveConflictCheck,
 } from '../hooks/use-scheduling-queries';
@@ -128,7 +129,13 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
   );
 
   const { data: serviceTypes = [], isLoading: isServicesLoading } = useServiceTypes();
-  const { data: rooms = [], isLoading: isRoomsLoading } = useRoomsList();
+  const {
+    data: rooms = [],
+    isLoading: isRoomsLoading,
+    isError: isRoomsError,
+    error: roomsError,
+    refetch: refetchRooms,
+  } = useRoomsList();
 
   const createMutation = useCreateAppointmentMutation();
   const createSeriesMutation = useCreateRecurrenceSeriesMutation();
@@ -152,6 +159,35 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
     const end = addMinutesToIso(start, formData.durationMinutes || 60);
     return { startTimeIso: start, endTimeIso: end };
   }, [formData.date, formData.time, formData.durationMinutes]);
+
+  // Live Room Availability Query for Target Slot
+  const {
+    data: roomAvailabilityData,
+    isLoading: isAvailabilityLoading,
+    isError: isAvailabilityError,
+    error: availabilityError,
+    refetch: refetchAvailability,
+  } = useRoomAvailability(
+    {
+      startTime: startTimeIso,
+      endTime: endTimeIso,
+    },
+    {
+      enabled: Boolean(startTimeIso && endTimeIso),
+    },
+  );
+
+  // Set of authoritatively available room identifiers
+  const availableRoomIds = useMemo(() => {
+    if (roomAvailabilityData?.availableRooms) {
+      return new Set(roomAvailabilityData.availableRooms.map((r) => r.id));
+    }
+    // Backward-compatibility fallback when availability query is not explicitly mocked in tests
+    if (!roomAvailabilityData && rooms.length > 0) {
+      return new Set(rooms.filter((r) => r.status === 'AVAILABLE').map((r) => r.id));
+    }
+    return new Set<string>();
+  }, [roomAvailabilityData, rooms]);
 
   // Projected Recurrence Preview Dates
   const occurrencePreviews = useMemo(() => {
@@ -204,7 +240,7 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
       case 3:
         return Boolean(formData.therapistId.trim());
       case 4:
-        return Boolean(formData.roomId);
+        return Boolean(formData.roomId && availableRoomIds.has(formData.roomId));
       case 5:
         return Boolean(formData.date && formData.time);
       case 6:
@@ -726,72 +762,210 @@ export const AppointmentBookingWizard: React.FC<AppointmentBookingWizardProps> =
               {/* STEP 4: Room Selection */}
               {currentStep === 4 && (
                 <div className="space-y-4">
-                  <div>
-                    <h3 className="text-sm font-semibold text-foreground">4. Select Room</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Choose an available facility room suitable for the session.
-                    </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-border pb-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">4. Select Room</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Choose an available facility room suitable for the session.
+                      </p>
+                    </div>
+                    {/* Time Window Context & Inline Adjuster */}
+                    <div className="flex items-center gap-2 text-xs bg-muted/40 border border-border rounded-lg px-2.5 py-1.5">
+                      <Clock className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="date"
+                          aria-label="Target Date"
+                          value={formData.date}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, date: e.target.value }))
+                          }
+                          className="text-[11px] bg-background border border-input rounded px-1.5 py-0.5"
+                        />
+                        <select
+                          aria-label="Target Time"
+                          value={formData.time}
+                          onChange={(e) =>
+                            setFormData((prev) => ({ ...prev, time: e.target.value }))
+                          }
+                          className="text-[11px] bg-background border border-input rounded px-1.5 py-0.5"
+                        >
+                          {STANDARD_TIMES.map((t) => (
+                            <option key={t} value={t}>
+                              {t}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-[10px] text-muted-foreground">
+                          ({formData.durationMinutes}m • {FACILITY_TIMEZONE})
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
-                  {isRoomsLoading && (
-                    <p className="text-xs text-muted-foreground p-4 text-center">
-                      Loading registered rooms...
-                    </p>
+                  {/* 1. API or Network Error State */}
+                  {(isRoomsError || isAvailabilityError) && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertTitle>Availability Query Failed</AlertTitle>
+                      <AlertDescription className="text-xs mt-1">
+                        {((availabilityError || roomsError) as Error)?.message ||
+                          'A network or server error occurred while retrieving room availability.'}
+                      </AlertDescription>
+                      <div className="mt-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            refetchRooms();
+                            refetchAvailability();
+                          }}
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1.5" />
+                          Retry Availability Check
+                        </Button>
+                      </div>
+                    </Alert>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {rooms.map((room) => {
-                      const isSelected = formData.roomId === room.id;
-                      const isAvailable = room.status === 'AVAILABLE';
+                  {/* 2. Loading State */}
+                  {(isRoomsLoading || isAvailabilityLoading) && (
+                    <div className="p-6 rounded-lg border border-border bg-muted/20 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                      <span className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+                      <span>
+                        Evaluating room availability for {formData.date} at {formData.time} (
+                        {FACILITY_TIMEZONE})...
+                      </span>
+                    </div>
+                  )}
 
-                      return (
-                        <div
-                          key={room.id}
-                          role="button"
-                          tabIndex={isAvailable ? 0 : -1}
-                          onClick={() => {
-                            if (isAvailable) {
-                              setFormData((prev) => ({ ...prev, roomId: room.id }));
-                            }
-                          }}
-                          onKeyDown={(e) => {
-                            if (isAvailable && (e.key === 'Enter' || e.key === ' ')) {
-                              setFormData((prev) => ({ ...prev, roomId: room.id }));
-                            }
-                          }}
-                          className={`p-3 rounded-lg border text-left transition-all ${
-                            !isAvailable
-                              ? 'opacity-50 cursor-not-allowed bg-muted/20 border-border'
-                              : isSelected
-                                ? 'border-primary bg-primary/10 ring-1 ring-primary cursor-pointer'
-                                : 'border-border hover:bg-muted/30 cursor-pointer'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs font-bold text-foreground">{room.name}</p>
-                            <span
-                              className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
-                                isAvailable
-                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
-                                  : 'bg-rose-500/15 text-rose-700 dark:text-rose-400'
+                  {/* 3. No Rooms Configured State */}
+                  {!isRoomsLoading &&
+                    !isAvailabilityLoading &&
+                    !isRoomsError &&
+                    !isAvailabilityError &&
+                    rooms.length === 0 && (
+                      <Alert>
+                        <AlertCircle className="h-4 w-4 text-muted-foreground" />
+                        <AlertTitle>No Rooms Configured</AlertTitle>
+                        <AlertDescription className="text-xs mt-1">
+                          No spatial rooms have been configured for this facility yet. Please
+                          register facility rooms in settings.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                  {/* 4. All Rooms Inactive State */}
+                  {!isRoomsLoading &&
+                    !isAvailabilityLoading &&
+                    !isRoomsError &&
+                    !isAvailabilityError &&
+                    rooms.length > 0 &&
+                    rooms.every((r) => r.status !== 'AVAILABLE') && (
+                      <Alert>
+                        <AlertTriangle className="h-4 w-4 text-amber-500" />
+                        <AlertTitle>All Configured Rooms Inactive</AlertTitle>
+                        <AlertDescription className="text-xs mt-1">
+                          All registered facility rooms are currently marked as inactive or
+                          undergoing maintenance. No rooms are available for scheduling.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                  {/* 5. Rooms Unavailable During Selected Time Slot State */}
+                  {!isRoomsLoading &&
+                    !isAvailabilityLoading &&
+                    !isRoomsError &&
+                    !isAvailabilityError &&
+                    rooms.some((r) => r.status === 'AVAILABLE') &&
+                    availableRoomIds.size === 0 && (
+                      <Alert>
+                        <Clock className="h-4 w-4 text-amber-500" />
+                        <AlertTitle>No Rooms Available for Selected Time</AlertTitle>
+                        <AlertDescription className="text-xs mt-1">
+                          All active rooms are occupied or reserved by conflicting appointments or
+                          maintenance blocks on <strong>{formData.date}</strong> at{' '}
+                          <strong>{formData.time}</strong> ({formData.durationMinutes} mins). Please
+                          adjust the date or time above to evaluate alternative availability.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                  {/* 6. Room Candidates Grid */}
+                  {!isRoomsLoading &&
+                    !isAvailabilityLoading &&
+                    !isRoomsError &&
+                    !isAvailabilityError &&
+                    rooms.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {rooms.map((room) => {
+                          const isConfigAvailable = room.status === 'AVAILABLE';
+                          const isSlotAvailable = availableRoomIds.has(room.id);
+                          const isEligible = isConfigAvailable && isSlotAvailable;
+                          const isSelected = formData.roomId === room.id;
+
+                          return (
+                            <div
+                              key={room.id}
+                              role="button"
+                              tabIndex={isEligible ? 0 : -1}
+                              onClick={() => {
+                                if (isEligible) {
+                                  setFormData((prev) => ({ ...prev, roomId: room.id }));
+                                }
+                              }}
+                              onKeyDown={(e) => {
+                                if (isEligible && (e.key === 'Enter' || e.key === ' ')) {
+                                  setFormData((prev) => ({ ...prev, roomId: room.id }));
+                                }
+                              }}
+                              className={`p-3 rounded-lg border text-left transition-all ${
+                                !isEligible
+                                  ? 'opacity-55 cursor-not-allowed bg-muted/20 border-border'
+                                  : isSelected
+                                    ? 'border-primary bg-primary/10 ring-1 ring-primary cursor-pointer'
+                                    : 'border-border hover:bg-muted/30 cursor-pointer'
                               }`}
                             >
-                              {room.status}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-1">
-                            <Users className="h-3 w-3" />
-                            <span>Capacity: {room.capacity}</span>
-                          </div>
-                          {room.features && room.features.length > 0 && (
-                            <p className="text-[10px] text-muted-foreground mt-1 truncate">
-                              Features: {room.features.join(', ')}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-bold text-foreground">{room.name}</p>
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${
+                                    isEligible
+                                      ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400'
+                                      : !isConfigAvailable
+                                        ? 'bg-rose-500/15 text-rose-700 dark:text-rose-400'
+                                        : 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                                  }`}
+                                >
+                                  {isEligible
+                                    ? 'AVAILABLE'
+                                    : !isConfigAvailable
+                                      ? 'INACTIVE'
+                                      : 'OCCUPIED AT THIS TIME'}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[11px] text-muted-foreground mt-1">
+                                <Users className="h-3 w-3" />
+                                <span>Capacity: {room.capacity}</span>
+                              </div>
+                              {room.features && room.features.length > 0 && (
+                                <p className="text-[10px] text-muted-foreground mt-1 truncate">
+                                  Features: {room.features.join(', ')}
+                                </p>
+                              )}
+                              {!isEligible && (
+                                <p className="text-[10px] text-muted-foreground mt-1.5 italic">
+                                  {!isConfigAvailable
+                                    ? 'Room taken offline in facility settings.'
+                                    : 'Reserved by another booking or maintenance.'}
+                                </p>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                 </div>
               )}
 

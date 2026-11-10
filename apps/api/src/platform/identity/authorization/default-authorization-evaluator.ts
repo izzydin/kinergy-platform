@@ -178,6 +178,15 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
       return true;
     }
 
+    // Scheduling room lookup: appointments.read / appointments.create permits settings.read for room inspection
+    if (
+      (normResolved.includes('appointments.read') ||
+        normResolved.includes('appointments.create')) &&
+      normRequired === 'settings.read'
+    ) {
+      return true;
+    }
+
     if (
       normResolved.includes('settings.write') &&
       normResolved.includes('users.write') &&

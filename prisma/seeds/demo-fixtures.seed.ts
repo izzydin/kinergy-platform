@@ -160,7 +160,7 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       capacity: 1,
       status: RoomStatus.AVAILABLE,
       resourceType: ResourceType.ROOM,
-      features: ['Therapy Bed', 'Ultrasound', 'Rehab Resistance Bands'],
+      features: ['therapy bed', 'ultrasound', 'rehab resistance bands'],
     },
     {
       id: 'room-seed-consult-02',
@@ -168,7 +168,7 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       capacity: 1,
       status: RoomStatus.AVAILABLE,
       resourceType: ResourceType.ROOM,
-      features: ['Evaluation Desk', 'Clinical Goniometers', 'Spine Models'],
+      features: ['evaluation desk', 'clinical goniometers', 'spine models'],
     },
     {
       id: 'studio-b-facility',
@@ -176,7 +176,7 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       capacity: 20,
       status: RoomStatus.AVAILABLE,
       resourceType: ResourceType.ROOM,
-      features: ['Mats', 'Pilates Reformers', 'Wall Bars'],
+      features: ['mats', 'pilates reformers', 'wall bars'],
     },
   ];
 
