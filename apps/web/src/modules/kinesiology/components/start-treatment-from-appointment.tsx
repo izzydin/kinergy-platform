@@ -15,6 +15,7 @@ import type { TreatmentSessionModel } from '../types';
 export interface AppointmentData {
   id: string;
   clientId: string;
+  clientName?: string;
   therapistId?: string;
   status: string; // e.g. 'CONFIRMED', 'SCHEDULED', 'COMPLETED', 'CANCELLED'
   startTime: string;
@@ -145,7 +146,12 @@ export const StartTreatmentFromAppointment: React.FC<StartTreatmentFromAppointme
             <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-md border border-slate-100 text-xs">
               <div>
                 <span className="text-slate-500">Client Reference:</span>
-                <p className="font-mono font-medium text-slate-800">{appointment.clientId}</p>
+                <p className="font-medium text-slate-800" data-testid="client-reference-name">
+                  {appointment.clientName &&
+                  appointment.clientName !== `Client ${appointment.clientId}`
+                    ? appointment.clientName
+                    : 'Client information unavailable'}
+                </p>
               </div>
               <div>
                 <span className="text-slate-500">Scheduled Time:</span>

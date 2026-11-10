@@ -26,6 +26,7 @@ import {
 } from '../utils/calendar-date.utils';
 import { CalendarStatusBadge, ConflictBadge } from './calendar-status-badge';
 import type { AppointmentModel, CalendarSlotDTO, RoomModel } from '../types/scheduling.types';
+import { useAppointmentDetail } from '../hooks/use-scheduling-queries';
 import {
   useCancelAppointmentMutation,
   useCheckInAppointmentMutation,
@@ -54,7 +55,7 @@ export interface AppointmentDetailDrawerProps {
 }
 
 export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = ({
-  appointment,
+  appointment: propAppointment,
   isOpen,
   onClose,
   canManageAppointments = true,
@@ -62,6 +63,18 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
   canReadKinesiology,
   canTreatKinesiology,
 }) => {
+  const targetApptId =
+    propAppointment && 'appointmentId' in propAppointment && propAppointment.appointmentId
+      ? propAppointment.appointmentId
+      : propAppointment?.id;
+
+  const { data: remoteAppointment } = useAppointmentDetail(targetApptId, {
+    enabled: isOpen && Boolean(targetApptId),
+  });
+
+  const appointment = remoteAppointment
+    ? ({ ...propAppointment, ...remoteAppointment } as AppointmentModel | CalendarSlotDTO)
+    : propAppointment;
   let navigate: ReturnType<typeof useNavigate> | undefined;
   try {
     navigate = useNavigate();
@@ -132,9 +145,9 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
   }
 
   const apptId =
-    'appointmentId' in appointment && appointment.appointmentId
+    ('appointmentId' in appointment && appointment.appointmentId
       ? appointment.appointmentId
-      : appointment.id;
+      : appointment.id) || '';
 
   const startTimeLabel = formatFacilityTime(appointment.startTime);
   const endTimeLabel = formatFacilityTime(appointment.endTime);
@@ -508,6 +521,7 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
                         appointment={{
                           id: apptId,
                           clientId: appointment.clientId ?? '',
+                          clientName: clientTitle,
                           therapistId: appointment.therapistId,
                           status: appointment.status,
                           startTime: appointment.startTime,

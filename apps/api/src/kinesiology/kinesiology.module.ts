@@ -23,10 +23,12 @@ import {
   TREATMENT_SESSION_REPOSITORY_TOKEN,
   SCHEDULING_APPOINTMENT_LOOKUP_PORT_TOKEN,
   KINESIOLOGY_CLOCK_TOKEN,
+  KINESIOLOGY_DOMAIN_EVENT_PUBLISHER_TOKEN,
 } from './kinesiology.tokens';
 import {
   PrismaTreatmentSessionRepository,
   InMemoryTreatmentSessionRepository,
+  KinesiologyEventPublisherAdapter,
 } from './infrastructure';
 import { SchedulingModule } from '../scheduling';
 
@@ -35,6 +37,11 @@ import { SchedulingModule } from '../scheduling';
   controllers: [TreatmentSessionsController],
   providers: [
     PrismaTreatmentSessionRepository,
+    KinesiologyEventPublisherAdapter,
+    {
+      provide: KINESIOLOGY_DOMAIN_EVENT_PUBLISHER_TOKEN,
+      useExisting: KinesiologyEventPublisherAdapter,
+    },
     {
       provide: TREATMENT_SESSION_REPOSITORY_TOKEN,
       useExisting: PrismaTreatmentSessionRepository,
@@ -56,11 +63,19 @@ import { SchedulingModule } from '../scheduling';
         lookupPort: ISchedulingAppointmentLookupPort,
         sessionRepo: ITreatmentSessionRepository,
         clock: Clock,
-      ) => new CreateTreatmentSessionFromAppointmentHandler(lookupPort, sessionRepo, clock),
+        eventPublisher: KinesiologyEventPublisherAdapter,
+      ) =>
+        new CreateTreatmentSessionFromAppointmentHandler(
+          lookupPort,
+          sessionRepo,
+          clock,
+          eventPublisher,
+        ),
       inject: [
         SCHEDULING_APPOINTMENT_LOOKUP_PORT_TOKEN,
         TREATMENT_SESSION_REPOSITORY_TOKEN,
         KINESIOLOGY_CLOCK_TOKEN,
+        KINESIOLOGY_DOMAIN_EVENT_PUBLISHER_TOKEN,
       ],
     },
     {
@@ -71,9 +86,16 @@ import { SchedulingModule } from '../scheduling';
     },
     {
       provide: StartTreatmentSessionHandler,
-      useFactory: (sessionRepo: ITreatmentSessionRepository, clock: Clock) =>
-        new StartTreatmentSessionHandler(sessionRepo, undefined, clock),
-      inject: [TREATMENT_SESSION_REPOSITORY_TOKEN, KINESIOLOGY_CLOCK_TOKEN],
+      useFactory: (
+        sessionRepo: ITreatmentSessionRepository,
+        clock: Clock,
+        eventPublisher: KinesiologyEventPublisherAdapter,
+      ) => new StartTreatmentSessionHandler(sessionRepo, eventPublisher, clock),
+      inject: [
+        TREATMENT_SESSION_REPOSITORY_TOKEN,
+        KINESIOLOGY_CLOCK_TOKEN,
+        KINESIOLOGY_DOMAIN_EVENT_PUBLISHER_TOKEN,
+      ],
     },
     {
       provide: AssignTherapistToSessionHandler,
@@ -89,9 +111,16 @@ import { SchedulingModule } from '../scheduling';
     },
     {
       provide: CompleteTreatmentSessionHandler,
-      useFactory: (sessionRepo: ITreatmentSessionRepository, clock: Clock) =>
-        new CompleteTreatmentSessionHandler(sessionRepo, undefined, clock),
-      inject: [TREATMENT_SESSION_REPOSITORY_TOKEN, KINESIOLOGY_CLOCK_TOKEN],
+      useFactory: (
+        sessionRepo: ITreatmentSessionRepository,
+        clock: Clock,
+        eventPublisher: KinesiologyEventPublisherAdapter,
+      ) => new CompleteTreatmentSessionHandler(sessionRepo, eventPublisher, clock),
+      inject: [
+        TREATMENT_SESSION_REPOSITORY_TOKEN,
+        KINESIOLOGY_CLOCK_TOKEN,
+        KINESIOLOGY_DOMAIN_EVENT_PUBLISHER_TOKEN,
+      ],
     },
     {
       provide: CancelTreatmentSessionHandler,
@@ -112,7 +141,9 @@ import { SchedulingModule } from '../scheduling';
     GetClientTreatmentHistoryHandler,
     TREATMENT_SESSION_REPOSITORY_TOKEN,
     SCHEDULING_APPOINTMENT_LOOKUP_PORT_TOKEN,
+    KINESIOLOGY_DOMAIN_EVENT_PUBLISHER_TOKEN,
     PrismaTreatmentSessionRepository,
+    KinesiologyEventPublisherAdapter,
   ],
 })
 export class KinesiologyModule {}
@@ -120,6 +151,8 @@ export {
   TREATMENT_SESSION_REPOSITORY_TOKEN,
   SCHEDULING_APPOINTMENT_LOOKUP_PORT_TOKEN,
   KINESIOLOGY_CLOCK_TOKEN,
+  KINESIOLOGY_DOMAIN_EVENT_PUBLISHER_TOKEN,
   PrismaTreatmentSessionRepository,
   InMemoryTreatmentSessionRepository,
+  KinesiologyEventPublisherAdapter,
 };

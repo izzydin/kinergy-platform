@@ -30,6 +30,8 @@ export interface AppointmentDTO {
   readonly occurrenceIndex?: number;
   readonly isDetachedFromSeries?: boolean;
   readonly notes?: ReadonlyArray<AppointmentNoteDTO>;
+  readonly treatmentSessionId?: string;
+  readonly treatmentSessionStatus?: string;
   readonly version: number;
   readonly createdAt: string;
   readonly updatedAt: string;

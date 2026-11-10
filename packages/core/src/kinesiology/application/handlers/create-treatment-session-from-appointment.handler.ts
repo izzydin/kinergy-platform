@@ -8,6 +8,7 @@ import { ITreatmentSessionRepository } from '../../domain/repositories/treatment
 import { TreatmentSession } from '../../domain/treatment-session/treatment-session.aggregate';
 import { SessionNotes } from '../../domain/treatment-session/session-notes.vo';
 import { Clock } from '../../domain/shared/clock';
+import { DomainEventPublisher } from '../ports/domain-event-publisher.port';
 
 /**
  * CQRS Command Handler orchestrating cross-context appointment lookup,
@@ -21,6 +22,7 @@ export class CreateTreatmentSessionFromAppointmentHandler implements CommandHand
     private readonly appointmentLookupPort: ISchedulingAppointmentLookupPort,
     private readonly sessionRepository: ITreatmentSessionRepository,
     private readonly clock: Clock,
+    private readonly eventPublisher?: DomainEventPublisher,
   ) {}
 
   /**
@@ -86,7 +88,19 @@ export class CreateTreatmentSessionFromAppointmentHandler implements CommandHand
       // 6. Persistence
       await this.sessionRepository.save(session);
 
-      // 7. Return Result DTO
+      // 7. Publish recorded events (e.g. TreatmentSessionStartedEvent if autoStart was enabled)
+      if (this.eventPublisher && typeof session.pullEvents === 'function') {
+        const events = session.pullEvents();
+        for (const event of events) {
+          try {
+            await this.eventPublisher.publish(event);
+          } catch (pubErr) {
+            console.error('Failed to publish domain event:', pubErr);
+          }
+        }
+      }
+
+      // 8. Return Result DTO
       return ApplicationResult.ok(TreatmentSessionMapper.toDTO(session));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);

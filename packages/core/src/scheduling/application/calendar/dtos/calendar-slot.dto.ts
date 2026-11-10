@@ -26,4 +26,5 @@ export interface CalendarSlotDTO {
   readonly hasConflict?: boolean;
   readonly overlapCount?: number;
   readonly operationalStatus?: 'PAST' | 'CURRENT_NOW' | 'UPCOMING';
+  readonly treatmentSessionId?: string;
 }

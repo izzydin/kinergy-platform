@@ -709,22 +709,42 @@ export class AppointmentsController {
       { id: string; firstName?: string; lastName?: string; fullName: string }
     >();
 
-    if (this.prisma && clientIds.length > 0) {
-      try {
-        const clients = await this.prisma.client.findMany({
-          where: { id: { in: clientIds } },
-          select: { id: true, firstName: true, lastName: true },
-        });
+    const appointmentIds = dtos.map((d) => d.id);
+    const sessionMap = new Map<string, { id: string; status: string }>();
 
-        for (const c of clients) {
-          const trimmedFirst = c.firstName ? c.firstName.trim() : undefined;
-          const trimmedLast = c.lastName ? c.lastName.trim() : undefined;
-          clientMap.set(c.id, {
-            id: c.id,
-            firstName: trimmedFirst,
-            lastName: trimmedLast,
-            fullName: formatClientFullName(trimmedFirst, trimmedLast),
+    if (this.prisma) {
+      try {
+        if (clientIds.length > 0 && typeof this.prisma.client?.findMany === 'function') {
+          const clients = await this.prisma.client.findMany({
+            where: { id: { in: clientIds } },
+            select: { id: true, firstName: true, lastName: true },
           });
+
+          for (const c of clients) {
+            const trimmedFirst = c.firstName ? c.firstName.trim() : undefined;
+            const trimmedLast = c.lastName ? c.lastName.trim() : undefined;
+            clientMap.set(c.id, {
+              id: c.id,
+              firstName: trimmedFirst,
+              lastName: trimmedLast,
+              fullName: formatClientFullName(trimmedFirst, trimmedLast),
+            });
+          }
+        }
+
+        if (
+          appointmentIds.length > 0 &&
+          typeof this.prisma.treatmentSession?.findMany === 'function'
+        ) {
+          const sessions =
+            (await this.prisma.treatmentSession.findMany({
+              where: { appointmentId: { in: appointmentIds } },
+              select: { id: true, appointmentId: true, status: true },
+            })) ?? [];
+
+          for (const s of sessions) {
+            sessionMap.set(s.appointmentId, { id: s.id, status: s.status });
+          }
         }
       } catch {
         // Fall back gracefully if Prisma is disconnected or unavailable in isolated unit tests
@@ -739,8 +759,12 @@ export class AppointmentsController {
           ? dto.clientName
           : 'Client information unavailable');
 
+      const linkedSession = sessionMap.get(dto.id);
+
       return {
         ...dto,
+        treatmentSessionId: linkedSession?.id ?? dto.treatmentSessionId,
+        treatmentSessionStatus: linkedSession?.status ?? dto.treatmentSessionStatus,
         client:
           clientSummary ??
           (dto.clientId ? { id: dto.clientId, fullName: clientFullName } : undefined),
@@ -770,34 +794,58 @@ export class AppointmentsController {
         : [agenda as DailyAgendaDTO];
 
       const clientIds = new Set<string>();
+      const apptIds = new Set<string>();
       for (const daily of dailyAgendas) {
         for (const slot of daily.slots ?? []) {
           if (slot.clientId) {
             clientIds.add(slot.clientId);
           }
+          const aid = slot.appointmentId ?? slot.id.replace('slot-appt-', '');
+          if (aid) {
+            apptIds.add(aid);
+          }
         }
       }
 
-      if (clientIds.size === 0) {
+      if (clientIds.size === 0 && apptIds.size === 0) {
         return agenda;
       }
 
-      const clients = await this.prisma.client.findMany({
-        where: { id: { in: Array.from(clientIds) } },
-        select: { id: true, firstName: true, lastName: true },
-      });
-
       const nameMap = new Map<string, string>();
-      for (const c of clients) {
-        nameMap.set(c.id, formatClientFullName(c.firstName, c.lastName));
+      if (clientIds.size > 0 && typeof this.prisma.client?.findMany === 'function') {
+        const clients = await this.prisma.client.findMany({
+          where: { id: { in: Array.from(clientIds) } },
+          select: { id: true, firstName: true, lastName: true },
+        });
+
+        for (const c of clients) {
+          nameMap.set(c.id, formatClientFullName(c.firstName, c.lastName));
+        }
+      }
+
+      const sessionMap = new Map<string, string>();
+      if (apptIds.size > 0 && typeof this.prisma.treatmentSession?.findMany === 'function') {
+        const sessions =
+          (await this.prisma.treatmentSession.findMany({
+            where: { appointmentId: { in: Array.from(apptIds) } },
+            select: { id: true, appointmentId: true },
+          })) ?? [];
+
+        for (const s of sessions) {
+          sessionMap.set(s.appointmentId, s.id);
+        }
       }
 
       const enrichSlot = (slot: CalendarSlotDTO): CalendarSlotDTO => {
-        if (!slot.clientId) return slot;
-        const name = nameMap.get(slot.clientId) ?? 'Client information unavailable';
+        const aid = slot.appointmentId ?? slot.id.replace('slot-appt-', '');
+        const name = slot.clientId
+          ? (nameMap.get(slot.clientId) ?? 'Client information unavailable')
+          : slot.clientName;
+        const sessionId = aid ? sessionMap.get(aid) : undefined;
         return {
           ...slot,
           clientName: name,
+          treatmentSessionId: sessionId ?? slot.treatmentSessionId,
         };
       };
 

@@ -6,6 +6,7 @@ import { AppointmentMapper } from '../mappers/appointment.mapper';
 import { AppointmentRepository } from '../../../domain/repositories/appointment.repository';
 import { Clock } from '../../../domain/shared/clock';
 import { AppointmentId } from '../../../domain/appointment/appointment-id.vo';
+import { AppointmentStatus } from '../../../domain/value-objects/appointment-status.enum';
 
 /**
  * CQRS Command Handler executing appointment completion transitions.
@@ -30,6 +31,10 @@ export class CompleteAppointmentHandler implements CommandHandler<
 
       if (!appointment) {
         return ApplicationResult.fail(`Appointment with ID '${input.appointmentId}' not found.`);
+      }
+
+      if (appointment.status === AppointmentStatus.COMPLETED) {
+        return ApplicationResult.ok(AppointmentMapper.toDTO(appointment));
       }
 
       if (appointment.version !== input.expectedVersion) {

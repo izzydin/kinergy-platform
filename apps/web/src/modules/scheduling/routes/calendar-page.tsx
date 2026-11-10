@@ -117,6 +117,20 @@ export const CalendarPage: React.FC = () => {
     setIsBookingModalOpen(true);
   };
 
+  const activeSelectedAppointment = useMemo(() => {
+    if (!selectedAppointment) return null;
+    const selectedId =
+      'appointmentId' in selectedAppointment && selectedAppointment.appointmentId
+        ? selectedAppointment.appointmentId
+        : selectedAppointment.id;
+    const fresh = appointments.find(
+      (a) =>
+        a.id === selectedId ||
+        ('appointmentId' in a && (a as CalendarSlotDTO).appointmentId === selectedId),
+    );
+    return fresh ? { ...selectedAppointment, ...fresh } : selectedAppointment;
+  }, [selectedAppointment, appointments]);
+
   return (
     <div
       className="flex flex-col flex-1 h-full min-h-[calc(100vh-4rem)] p-4 sm:p-6 space-y-4 max-w-[1600px] mx-auto w-full"
@@ -230,7 +244,7 @@ export const CalendarPage: React.FC = () => {
 
       {/* Appointment Detail & Lifecycle Management Drawer */}
       <AppointmentDetailDrawer
-        appointment={selectedAppointment}
+        appointment={activeSelectedAppointment}
         isOpen={isDrawerOpen}
         onClose={handleCloseDrawer}
         canManageAppointments={canManageAppointments}

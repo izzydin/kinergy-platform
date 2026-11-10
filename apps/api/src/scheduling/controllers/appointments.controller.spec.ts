@@ -22,7 +22,10 @@ import { PrismaService } from '../../platform/persistence/prisma/prisma.service'
 
 describe('AppointmentsController — Client Name Enrichment & Privacy', () => {
   let controller: AppointmentsController;
-  let mockPrisma: { client: { findMany: jest.Mock } };
+  let mockPrisma: {
+    client: { findMany: jest.Mock };
+    treatmentSession: { findMany: jest.Mock };
+  };
   let mockFindAppointmentsByRangeHandler: { execute: jest.Mock };
   let mockGetAppointmentByIdHandler: { execute: jest.Mock };
   let mockGetDailyAgendaHandler: { execute: jest.Mock };
@@ -54,7 +57,10 @@ describe('AppointmentsController — Client Name Enrichment & Privacy', () => {
   beforeEach(() => {
     mockPrisma = {
       client: {
-        findMany: jest.fn(),
+        findMany: jest.fn().mockResolvedValue([]),
+      },
+      treatmentSession: {
+        findMany: jest.fn().mockResolvedValue([]),
       },
     };
 
@@ -224,5 +230,30 @@ describe('AppointmentsController — Client Name Enrichment & Privacy', () => {
       slots: { clientName?: string }[];
     };
     expect(agenda.slots[0]?.clientName).toBe('Carlos Rivera');
+  });
+
+  it('enriches listed appointments and agenda slots with treatmentSessionId when linked session exists', async () => {
+    mockPrisma.client.findMany.mockResolvedValueOnce([
+      {
+        id: 'cli-seed-carlos-03',
+        firstName: 'Carlos',
+        lastName: 'Rivera',
+      },
+    ]);
+    mockPrisma.treatmentSession.findMany.mockResolvedValueOnce([
+      {
+        id: 'sess-seed-carlos-99',
+        appointmentId: 'appt_101',
+        status: 'COMPLETED',
+      },
+    ]);
+
+    const result = await controller.listAppointments(
+      '2026-10-24T00:00:00.000Z',
+      '2026-10-24T23:59:59.999Z',
+    );
+
+    expect(result[0]!.treatmentSessionId).toBe('sess-seed-carlos-99');
+    expect(result[0]!.treatmentSessionStatus).toBe('COMPLETED');
   });
 });

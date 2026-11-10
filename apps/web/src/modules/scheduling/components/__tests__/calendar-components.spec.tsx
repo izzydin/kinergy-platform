@@ -244,5 +244,69 @@ describe('Calendar Components', () => {
       fireEvent.click(screen.getByRole('button', { name: /Close appointment details/i }));
       expect(onClose).toHaveBeenCalled();
     });
+
+    it('renders "Open Treatment Session" and does NOT render "Start Treatment" when treatmentSessionId is present', () => {
+      const apptWithSession: AppointmentModel = {
+        ...mockAppointment,
+        treatmentSessionId: 'sess-12345',
+      };
+      renderWithQuery(
+        <AppointmentDetailDrawer
+          appointment={apptWithSession}
+          isOpen={true}
+          onClose={jest.fn()}
+          canTreatKinesiology={true}
+          canReadKinesiology={true}
+        />,
+      );
+
+      expect(
+        screen.getByRole('button', { name: /Open treatment session sess-12345/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /Start clinical kinesiology treatment session/i }),
+      ).toBeNull();
+      expect(screen.queryByRole('button', { name: /^Start Treatment$/i })).toBeNull();
+    });
+
+    it('displays completed state and does NOT render "Start Treatment" when appointment is COMPLETED', () => {
+      const completedAppt: AppointmentModel = {
+        ...mockAppointment,
+        status: 'COMPLETED',
+        treatmentSessionId: undefined,
+      };
+      renderWithQuery(
+        <AppointmentDetailDrawer
+          appointment={completedAppt}
+          isOpen={true}
+          onClose={jest.fn()}
+          canTreatKinesiology={true}
+        />,
+      );
+
+      expect(
+        screen.getByText(/No clinical session was linked to this appointment prior to completion/i),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Start Treatment$/i })).toBeNull();
+    });
+
+    it('renders "Start Treatment" for eligible CONFIRMED appointment when no session exists', () => {
+      const activeAppt: AppointmentModel = {
+        ...mockAppointment,
+        status: 'CONFIRMED',
+        treatmentSessionId: undefined,
+      };
+      renderWithQuery(
+        <AppointmentDetailDrawer
+          appointment={activeAppt}
+          isOpen={true}
+          onClose={jest.fn()}
+          canTreatKinesiology={true}
+          canReadKinesiology={true}
+        />,
+      );
+
+      expect(screen.getByRole('button', { name: /^Start Treatment$/i })).toBeInTheDocument();
+    });
   });
 });

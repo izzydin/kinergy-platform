@@ -114,4 +114,54 @@ describe('StartTreatmentFromAppointment Component Unit Tests', () => {
       });
     });
   });
+
+  it('displays the client full name prominently in the initiation modal instead of raw client ID', async () => {
+    const appointmentWithClientName: AppointmentData = {
+      ...baseAppointment,
+      clientId: 'cli-seed-carlos-03',
+      clientName: 'Carlos Rivera',
+    };
+
+    render(
+      <MemoryRouter>
+        <StartTreatmentFromAppointment appointment={appointmentWithClientName} />
+      </MemoryRouter>,
+    );
+
+    const startBtn = screen.getByRole('button', { name: /Start Treatment/i });
+    fireEvent.click(startBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Initiate Treatment Session')).toBeInTheDocument();
+    });
+
+    const clientRefEl = screen.getByTestId('client-reference-name');
+    expect(clientRefEl).toHaveTextContent('Carlos Rivera');
+    expect(screen.queryByText('cli-seed-carlos-03')).not.toBeInTheDocument();
+  });
+
+  it('falls back to "Client information unavailable" in modal when clientName is omitted', async () => {
+    const appointmentWithoutName: AppointmentData = {
+      ...baseAppointment,
+      clientId: 'cli-seed-unknown',
+      clientName: undefined,
+    };
+
+    render(
+      <MemoryRouter>
+        <StartTreatmentFromAppointment appointment={appointmentWithoutName} />
+      </MemoryRouter>,
+    );
+
+    const startBtn = screen.getByRole('button', { name: /Start Treatment/i });
+    fireEvent.click(startBtn);
+
+    await waitFor(() => {
+      expect(screen.getByText('Initiate Treatment Session')).toBeInTheDocument();
+    });
+
+    const clientRefEl = screen.getByTestId('client-reference-name');
+    expect(clientRefEl).toHaveTextContent('Client information unavailable');
+    expect(screen.queryByText('cli-seed-unknown')).not.toBeInTheDocument();
+  });
 });
