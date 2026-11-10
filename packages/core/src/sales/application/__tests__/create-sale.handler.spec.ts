@@ -1011,5 +1011,32 @@ describe('CreateSaleHandler Specification (Milestone 7.11 & ADR-0132)', () => {
       expect(replay.getValue().id).toBe(first.getValue().id);
       expect(saleRepo.store.size).toBe(1);
     });
+
+    it('normalizes product SKU in sourceReference.sourceCode to POS_REGISTER for FOOD sales (Task 84301)', async () => {
+      const command = new CreateSaleCommand({
+        tenantId: 'tenant_kinergy',
+        clientId: 'client_carlos_01',
+        currency: 'USD',
+        source: {
+          sourceType: SaleSourceType.FOOD,
+          sourceId: 'inv-seed-bar-protein',
+          sourceCode: 'SKU-SNK-BAR-01',
+        },
+        items: [
+          {
+            description: 'Organic Whey Protein Bar 60g',
+            skuOrCode: 'SKU-SNK-BAR-01',
+            quantity: 1,
+            unitPriceAmount: 5.5,
+          },
+        ],
+      });
+
+      const res = await handler.execute(command);
+      expect(res.isSuccess).toBe(true);
+      const sale = res.getValue();
+      expect(sale.source.sourceCode).toBe('POS_REGISTER');
+      expect(sale.items?.[0]?.skuOrCode).toBe('SKU-SNK-BAR-01');
+    });
   });
 });

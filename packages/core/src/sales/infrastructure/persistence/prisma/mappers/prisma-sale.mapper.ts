@@ -84,6 +84,29 @@ export class PrismaSaleMapper {
     sale: Omit<PrismaSaleModel, 'createdAt' | 'updatedAt'>;
     items: Omit<PrismaSaleItemModel, 'createdAt' | 'updatedAt'>[];
   } {
+    const isRepeatableCategory =
+      sale.source.sourceType === SaleSourceType.FOOD ||
+      sale.source.sourceType === SaleSourceType.DRINK ||
+      sale.source.sourceType === SourceType.INVENTORY_ITEM ||
+      sale.source.sourceType === SaleSourceType.GYM_MEMBERSHIP ||
+      (sale.source.sourceType as unknown) === 'FOOD' ||
+      (sale.source.sourceType as unknown) === 'DRINK' ||
+      (sale.source.sourceType as unknown) === 'INVENTORY_ITEM' ||
+      (sale.source.sourceType as unknown) === 'GYM_MEMBERSHIP';
+
+    let persistedSourceCode = sale.source.sourceCode ?? null;
+    if (
+      isRepeatableCategory &&
+      persistedSourceCode &&
+      persistedSourceCode !== 'POS_REGISTER' &&
+      persistedSourceCode !== 'pos_checkout_terminal' &&
+      (persistedSourceCode.startsWith('SKU-') ||
+        persistedSourceCode === sale.source.sourceId ||
+        sale.items.some((it) => it.skuOrCode === persistedSourceCode))
+    ) {
+      persistedSourceCode = 'POS_REGISTER';
+    }
+
     const saleData: Omit<PrismaSaleModel, 'createdAt' | 'updatedAt'> = {
       id: sale.id.value,
       tenantId: sale.tenantId ?? null,
@@ -92,7 +115,7 @@ export class PrismaSaleMapper {
       currency: sale.currency,
       sourceType: sale.source.sourceType,
       sourceId: sale.source.sourceId,
-      sourceCode: sale.source.sourceCode ?? null,
+      sourceCode: persistedSourceCode,
       subtotalAmount: PrismaMoneyMapper.toDecimal(sale.subtotal),
       discountTotalAmount: PrismaMoneyMapper.toDecimal(sale.discountTotal),
       totalAmount: PrismaMoneyMapper.toDecimal(sale.total),
