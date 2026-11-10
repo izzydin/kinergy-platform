@@ -91,22 +91,22 @@ The following matrix documents the exact permissions assigned to each system rol
 | `appointments.read`         |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
 | `appointments.create`       |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
 | `appointments.update`       |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
-| `appointments.delete`       |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
+| `appointments.delete`       |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
 | `kitchen.read`              |             ✅             |          ✅           |   ❌    |      ✅       |      ❌      |
 | `kitchen.orders.manage`     |             ✅             |          ✅           |   ❌    |      ✅       |      ❌      |
-| `inventory.read`            |             ✅             |          ✅           |   ❌    |      ✅       |      ❌      |
+| `inventory.read`            |             ✅             |          ✅           |   ✅    |      ✅       |      ✅      |
 | `inventory.write`           |             ✅             |          ✅           |   ❌    |      ✅       |      ❌      |
-| `billing.read` (legacy)     |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
-| `billing.write` (legacy)    |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
+| `billing.read` (legacy)     |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
+| `billing.write` (legacy)    |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
 | `sales.read`                |             ✅             |          ✅           |   ✅    |      ✅       |      ✅      |
-| `sales.create`              |             ✅             |          ✅           |   ❌    |      ✅       |      ✅      |
+| `sales.create`              |             ✅             |          ✅           |   ✅    |      ✅       |      ✅      |
 | `sales.manage`              |             ✅             |          ✅           |   ❌    |      ❌       |      ❌      |
-| `sales.cancel`              |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
-| `payments.read`             |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
-| `payments.create`           |             ✅             |          ✅           |   ❌    |      ✅       |      ✅      |
-| `payments.manage`           |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
+| `sales.cancel`              |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
+| `payments.read`             |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
+| `payments.create`           |             ✅             |          ✅           |   ✅    |      ✅       |      ✅      |
+| `payments.manage`           |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
 | `receipts.read`             |             ✅             |          ✅           |   ✅    |      ✅       |      ✅      |
-| `receipts.manage`           |             ✅             |          ✅           |   ❌    |      ❌       |      ✅      |
+| `receipts.manage`           |             ✅             |          ✅           |   ✅    |      ❌       |      ✅      |
 | `reports.read`              |             ✅             |          ✅           |   ✅    |      ❌       |      ❌      |
 | `reports.export`            |             ✅             |          ✅           |   ❌    |      ❌       |      ❌      |
 | `settings.read`             |             ✅             |          ✅           |   ❌    |      ❌       |      ❌      |

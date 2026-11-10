@@ -1138,10 +1138,10 @@ describe('Milestone 9.3 â€” Gym Business Journey End-to-End Acceptance (Client â
   // STEP 4: VALIDATE RECEIPT
   // ==========================================================================
   describe('Step 4: Receipt Eligibility, Authoritative Snapshots, Idempotency & RBAC', () => {
-    it('denies receipt issuance to roles lacking receipts.manage (e.g. Trainer -> 403 Forbidden)', async () => {
+    it('denies receipt issuance to roles lacking receipts.manage (e.g. Kitchen Staff -> 403 Forbidden)', async () => {
       await request(app.getHttpServer())
         .post(`/api/v1/sales/${settledSaleId}/receipt`)
-        .set('Authorization', `Bearer ${trainerToken}`)
+        .set('Authorization', `Bearer ${kitchenToken}`)
         .send({})
         .expect(403);
     });
@@ -1215,6 +1215,16 @@ describe('Milestone 9.3 â€” Gym Business Journey End-to-End Acceptance (Client â
       expect(reprintRes.body.reprintCount).toBe(1);
       expect(reprintRes.body.status).toBe('REPRINTED');
       expect(reprintRes.body.lastReprintedAt).toBeTruthy();
+    });
+
+    it('allows Trainer to retrieve the receipt with identical operational access', async () => {
+      const getBySaleRes = await request(app.getHttpServer())
+        .get(`/api/v1/sales/${settledSaleId}/receipt`)
+        .set('Authorization', `Bearer ${trainerToken}`)
+        .expect(200);
+
+      expect(getBySaleRes.body.id).toBe(issuedReceiptId);
+      expect(getBySaleRes.body.receiptNumber).toBe(issuedReceiptNumber);
     });
   });
 

@@ -18,6 +18,7 @@ export const RECEIPT_MUTATION_ROLES: string[] = [
   'Gym Manager',
   'Platform Admin',
   'Receptionist',
+  'Trainer',
   'Kitchen Staff',
 ];
 
@@ -168,7 +169,7 @@ export function enforceReceiptOwnershipBoundary(
   const normUserPerms = permissions.map(normalize);
 
   const hasRestrictedRole = roles.some(
-    (r) => r === 'Client' || r === 'Member' || r === 'Trainer' || r === 'Visitor' || r === 'Guest',
+    (r) => r === 'Client' || r === 'Member' || r === 'Visitor' || r === 'Guest',
   );
 
   // 1. Staff Administrative / Operational Privilege Check
@@ -188,6 +189,7 @@ export function enforceReceiptOwnershipBoundary(
         r === 'Gym Manager' ||
         r === 'Platform Admin' ||
         r === 'Receptionist' ||
+        r === 'Trainer' ||
         r === 'Kitchen Staff' ||
         r.includes('Owner') ||
         r.includes('Manager'),
@@ -213,19 +215,7 @@ export function enforceReceiptOwnershipBoundary(
     return;
   }
 
-  // 3. Trainer / Other Non-Staff Roles
-  // Trainers lack general billing/receipt visibility across the facility (ADR-0074).
-  if (roles.includes('Trainer')) {
-    const receiptClientId = receipt.clientSnapshot?.clientId;
-    if (!receiptClientId || !callerId || receiptClientId !== callerId) {
-      throw new ReceiptUnauthorizedException(
-        'Access denied: trainers are not authorized to view general facility receipts.',
-      );
-    }
-    return;
-  }
-
-  // 4. Default: Unprivileged or unauthorized role attempting to read (Fail-Closed)
+  // 3. Default: Unprivileged or unauthorized role attempting to read (Fail-Closed)
   throw new ReceiptUnauthorizedException(
     'Access denied: user is not authorized to access this receipt document.',
   );

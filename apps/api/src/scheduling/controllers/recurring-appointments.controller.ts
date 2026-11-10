@@ -58,7 +58,7 @@ export class RecurringAppointmentsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
   @ApiOperation({
     summary: 'Create recurring appointment series and generate initial rolling window',
@@ -108,7 +108,7 @@ export class RecurringAppointmentsController {
 
   @Post(':seriesId/skip')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.update')
   @ApiOperation({
     summary: 'Skip a specific recurrence occurrence slot',
@@ -154,7 +154,7 @@ export class RecurringAppointmentsController {
 
   @Patch('occurrences/:appointmentId')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.update')
   @ApiOperation({
     summary: 'Edit and detach a single materialized occurrence',
@@ -205,7 +205,7 @@ export class RecurringAppointmentsController {
 
   @Post(':seriesId/edit-future')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.update')
   @ApiOperation({
     summary: 'Edit future recurrence occurrences (Cutoff-and-Fork)',
@@ -258,7 +258,7 @@ export class RecurringAppointmentsController {
 
   @Post(':seriesId/cancel')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.delete')
   @ApiOperation({
     summary: 'Cancel recurring appointment series',

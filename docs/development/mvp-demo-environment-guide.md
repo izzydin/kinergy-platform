@@ -243,13 +243,13 @@ pnpm db:seed
 
 ### 6.1 Demonstration User Personas & Credentials
 
-| Role / Persona                     | Email Address                     | Password            | Effective Granted Capabilities                                                                                      |
-| :--------------------------------- | :-------------------------------- | :------------------ | :------------------------------------------------------------------------------------------------------------------ |
-| **Platform Owner / Administrator** | `owner@kinergy.platform`          | `OwnerPassword123!` | Complete wildcard administrative access (`*`).                                                                      |
-| **Front Desk Receptionist**        | `reception.demo@kinergy.platform` | `DemoPass123!`      | Client registration, gym plan enrollment, check-in, POS checkout, cash/QR payment settlement, receipts.             |
-| **Clinical Therapist / Trainer**   | `therapist.demo@kinergy.platform` | `DemoPass123!`      | Assigned client lookup, treatment session execution, clinical SOAP documentation charting, medico-legal completion. |
-| **Gym Movement Coach / Trainer**   | `trainer.demo@kinergy.platform`   | `DemoPass123!`      | Assigned member training oversight, movement supervision, check-in access verification, attendance tracking.        |
-| **Operations / Inventory Staff**   | `inventory.demo@kinergy.platform` | `DemoPass123!`      | Inventory item management, stock receiving, supplier invoice tracking, inventory movement ledger inspection.        |
+| Role / Persona                     | Email Address                     | Password            | Effective Granted Capabilities                                                                                                                                                                                                                                                                    |
+| :--------------------------------- | :-------------------------------- | :------------------ | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Platform Owner / Administrator** | `owner@kinergy.platform`          | `OwnerPassword123!` | Complete wildcard administrative access (`*`).                                                                                                                                                                                                                                                    |
+| **Front Desk Receptionist**        | `reception.demo@kinergy.platform` | `DemoPass123!`      | Client registration, gym plan enrollment, check-in, POS checkout, cash/QR payment settlement, receipts.                                                                                                                                                                                           |
+| **Clinical Therapist / Trainer**   | `therapist.demo@kinergy.platform` | `DemoPass123!`      | Assigned client lookup, treatment session execution, clinical SOAP documentation charting, medico-legal completion.                                                                                                                                                                               |
+| **Gym Movement Coach / Trainer**   | `trainer.demo@kinergy.platform`   | `DemoPass123!`      | Full operational front-desk & gym access equivalent to Receptionist (client registration & search, kinesiology/treatment scheduling, POS food/drinks/membership sales, cash/QR payment processing, receipt issuance/retrieval, gym check-in) plus assigned movement coaching & reports oversight. |
+| **Operations / Inventory Staff**   | `inventory.demo@kinergy.platform` | `DemoPass123!`      | Inventory item management, stock receiving, supplier invoice tracking, inventory movement ledger inspection.                                                                                                                                                                                      |
 
 > [!WARNING]
 > **Credential Accuracy**: The default password for all demo staff accounts is **`DemoPass123!`** (not `Demo123!`). Using incorrect credentials will result in `401 Unauthorized`.
@@ -258,26 +258,73 @@ pnpm db:seed
 
 For complete catalog breakdown, entity relationship graphs, and reset procedures, see [docs/demo/demo-fixtures.md](../demo/demo-fixtures.md).
 
-| Domain           | Entity Identifier      | Display Name / Description                        | Initial Seed State                                                                   |
-| :--------------- | :--------------------- | :------------------------------------------------ | :----------------------------------------------------------------------------------- |
-| **Clients**      | `CLI-2026-00001`       | **Jane Doe** (`jane.doe@example.com`)             | Has completed assessment with SOAP notes; upcoming scheduled appointment.            |
-| **Clients**      | `CLI-2026-00002`       | **John Smith** (`john.smith@example.com`)         | Has active Gold Annual Membership; verified turnstile check-in record.               |
-| **Clients**      | `CLI-2026-00003`       | **Carlos Rivera** (`carlos.rivera@example.com`)   | Registered intake profile ready for live enrollment, billing, and check-in.          |
-| **Clients**      | `CLI-2026-00004`       | **Maria Gonzalez** (`maria.gonzalez@example.com`) | Has Silver Monthly Membership **frozen** on medical hold; scheduled therapy session. |
-| **Clients**      | `CLI-2026-00005`       | **David Kim** (`david.kim@example.com`)           | Has **expired** membership; documented turnstile gate check-in denial.               |
-| **Gym Plans**    | `MEM-GOLD-2026`        | Gold Annual Gym Membership                        | \$600.00 / 365 days; unlimited facility access.                                      |
-| **Gym Plans**    | `MEM-SLV-MONTH`        | Silver Monthly Gym Membership                     | \$60.00 / 30 days; recurring facility access.                                        |
-| **Gym Plans**    | `MEM-10-VISITS`        | 10-Visit Flexibility Pass                         | \$45.00 / 60 days; 10 check-in quota limit.                                          |
-| **Rooms**        | `room-seed-kinesio-01` | Room 1 - Kinesiology Therapy Suite                | Therapy bed, ultrasound machine; available for booking.                              |
-| **Rooms**        | `room-seed-consult-02` | Room 2 - Assessment & Consultation                | Consultation desk, goniometers; available for booking.                               |
-| **Rooms**        | `studio-b-facility`    | Studio B - Movement Room                          | Mats, Pilates reformers, wall bars (Capacity: 20).                                   |
-| **Inventory**    | `SKU-SNK-BAR-01`       | Organic Whey Protein Bar 60g                      | In Stock: 42 units (Min: 15) \| Selling Price: \$5.50                                |
-| **Inventory**    | `SKU-DRK-ELEC-01`      | Electrolyte Hydration Drink 500ml                 | In Stock: 36 units (Min: 12) \| Selling Price: \$3.00                                |
-| **Inventory**    | `SKU-CLIN-BAND-01`     | Kinesiology Tape Roll 5m                          | Low Stock: 3 units (Min: 10) \| **Triggers Low-Stock Alert**                         |
-| **Inventory**    | `SKU-SUP-CREAT-01`     | Micronized Creatine Monohydrate 300g              | In Stock: 25 units (Min: 8) \| Selling Price: \$28.00                                |
-| **Inventory**    | `SKU-RET-BOTTLE-01`    | Stainless Steel Insulated Shaker Bottle 750ml     | In Stock: 18 units (Min: 5) \| Selling Price: \$22.00                                |
-| **Fixed Assets** | `AST-GYM-TRDM-01`      | Commercial Treadmill Pro Series 8                 | Condition: EXCELLENT \| Purchase Cost: \$3,500.00                                    |
-| **Fixed Assets** | `AST-CLN-PLTH-02`      | Hi-Lo Electric Clinical Treatment Plinth          | Condition: EXCELLENT \| Purchase Cost: \$2,850.00                                    |
+| Domain        | Entity Identifier | Display Name / Description                        | Initial Seed State                                                                   |
+| :------------ | :---------------- | :------------------------------------------------ | :----------------------------------------------------------------------------------- |
+| **Clients**   | `CLI-2026-00001`  | **Jane Doe** (`jane.doe@example.com`)             | Has completed assessment with SOAP notes; upcoming scheduled appointment.            |
+| **Clients**   | `CLI-2026-00002`  | **John Smith** (`john.smith@example.com`)         | Has active Gold Annual Membership; verified turnstile check-in record.               |
+| **Clients**   | `CLI-2026-00003`  | **Carlos Rivera** (`carlos.rivera@example.com`)   | Registered intake profile ready for live enrollment, billing, and check-in.          |
+| **Clients**   | `CLI-2026-00004`  | **Maria Gonzalez** (`maria.gonzalez@example.com`) | Has Silver Monthly Membership **frozen** on medical hold; scheduled therapy session. |
+| **Clients**   | `CLI-2026-00005`  | **David Kim** (`david.kim@example.com`)           | Has **expired** membership; documented turnstile gate check-in denial.               |
+| **Gym Plans** | `MEM-GOLD-2026`   | Gold Annual Gym Membership                        | \$600.00 / 365 days; unlimited facility access.                                      |
+| **Gym Plans** | `MEM-SLV-MONTH`   | Silver Monthly Gym Membership                     | \$60.00 / 30 days; recurring facility access.                                        |
+| **Gym Plans** | `MEM-10-VISITS`   | 10-Visit Flexibility Pass                         | \$45.00 / 60 days; 10 check-in quota limit.                                          |
+
+---
+
+### 6.3 Operational Alignment: Trainer & Receptionist Equivalence (Milestone 11.9 / ADR-0145)
+
+In small boutique facilities like Kynergy, trainers frequently cover front-desk and reception operational responsibilities. Under this operational model:
+
+$$\text{RECEPTIONIST operational permissions} \subseteq \text{TRAINER operational permissions}$$
+$$\text{TRAINER operational permissions} = \text{RECEPTIONIST operational permissions} \cup \{\text{reports.read}\}$$
+
+#### Shared Operational Permissions (17 Permissions)
+
+Both `Trainer` and `Receptionist` possess full operational authorization for:
+
+1. **Clients**: `clients.read`, `clients.write` (registration, search, profile updates).
+2. **Scheduling**: `appointments.read`, `appointments.create`, `appointments.update`, `appointments.delete` (agenda inspection across daily/weekly/monthly views, kinesiology and clinical session bookings).
+3. **Sales & POS**: `sales.read`, `sales.create`, `sales.cancel` (cart management, consumable catalog checkout for food and drinks, gym membership sales).
+4. **Billing & Catalog**: `billing.read`, `billing.write`, `inventory.read` (consumables catalog inspection).
+5. **Payments**: `payments.read`, `payments.create`, `payments.manage` (cash tenders, customer QR capture, settlement reconciliation).
+6. **Receipts**: `receipts.read`, `receipts.manage` (issuance of official legal proof-of-purchase vouchers, reprint management).
+
+#### Preserved Trainer-Specific Capabilities
+
+- `reports.read`: Movement coaching metrics, session completion verification, attendance utilization summaries.
+
+#### Strictly Preserved Administrative Boundaries
+
+Neither `Trainer` nor `Receptionist` receive administrative access:
+
+- **No User/Role Administration**: `users.*`, `identity.roles.*`, `identity.permissions.*` remain strictly restricted to `Owner` / `Manager`.
+- **No System Configuration**: `settings.*` remains strictly restricted to administrators.
+- **No Discretionary Overrides**: `sales.manage` (arbitrary price overrides and unconstrained discounts) remains restricted.
+- **No Inventory Stock Adjustment**: `inventory.write` remains restricted to Operations / Inventory staff.
+- **No Permanent Client Deletion**: `clients.delete` remains restricted.
+
+#### How Existing Accounts Receive Updated Permissions
+
+1. **Database Migration**: Idempotent, non-destructive migration `20261110000000_align_trainer_receptionist_permissions` inserts missing `role_permissions` rows with `ON CONFLICT DO NOTHING`, preserving all existing user accounts, passwords, and custom role assignments.
+2. **Token Refresh / Login**: The runtime `PrismaUserRepository` dynamically loads active role permissions from PostgreSQL upon login. Authenticated users generate fresh JWT tokens reflecting the full 18 permissions immediately without requiring account re-seeding or destructive resets.
+
+#### Demo Verification Steps
+
+To verify operational equivalence in the Docker demo environment (`http://localhost:8080`):
+
+1. Navigate to `http://localhost:8080` and log in with `trainer.demo@kinergy.platform` / `DemoPass123!`.
+2. Verify access to navigation items: **Clients**, **Calendar / Appointments**, **Point of Sale (POS)**, **Sales History**, and **Gym Attendance**.
+3. Create a client, schedule a kinesiology treatment session, sell a food/drink item via POS with cash tender, issue the receipt, and perform an attendance check-in. All operational flows execute with zero 403 Forbidden errors.
+   | **Rooms** | `room-seed-kinesio-01` | Room 1 - Kinesiology Therapy Suite | Therapy bed, ultrasound machine; available for booking. |
+   | **Rooms** | `room-seed-consult-02` | Room 2 - Assessment & Consultation | Consultation desk, goniometers; available for booking. |
+   | **Rooms** | `studio-b-facility` | Studio B - Movement Room | Mats, Pilates reformers, wall bars (Capacity: 20). |
+   | **Inventory** | `SKU-SNK-BAR-01` | Organic Whey Protein Bar 60g | In Stock: 42 units (Min: 15) \| Selling Price: \$5.50 |
+   | **Inventory** | `SKU-DRK-ELEC-01` | Electrolyte Hydration Drink 500ml | In Stock: 36 units (Min: 12) \| Selling Price: \$3.00 |
+   | **Inventory** | `SKU-CLIN-BAND-01` | Kinesiology Tape Roll 5m | Low Stock: 3 units (Min: 10) \| **Triggers Low-Stock Alert** |
+   | **Inventory** | `SKU-SUP-CREAT-01` | Micronized Creatine Monohydrate 300g | In Stock: 25 units (Min: 8) \| Selling Price: \$28.00 |
+   | **Inventory** | `SKU-RET-BOTTLE-01` | Stainless Steel Insulated Shaker Bottle 750ml | In Stock: 18 units (Min: 5) \| Selling Price: \$22.00 |
+   | **Fixed Assets** | `AST-GYM-TRDM-01` | Commercial Treadmill Pro Series 8 | Condition: EXCELLENT \| Purchase Cost: \$3,500.00 |
+   | **Fixed Assets** | `AST-CLN-PLTH-02` | Hi-Lo Electric Clinical Treatment Plinth | Condition: EXCELLENT \| Purchase Cost: \$2,850.00 |
 
 | Domain           | Entity Identifier      | Display Name / Description                        | Initial Seed State                                                                   |
 | :--------------- | :--------------------- | :------------------------------------------------ | :----------------------------------------------------------------------------------- |

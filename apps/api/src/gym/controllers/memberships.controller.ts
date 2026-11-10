@@ -75,7 +75,7 @@ export class MembershipsController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('memberships.create')
   @ApiOperation({
     summary: 'Create and activate a new membership agreement for a registered client',
@@ -129,7 +129,7 @@ export class MembershipsController {
 
   @Get('expired')
   @HttpCode(HttpStatus.OK)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('memberships.read')
   @ApiOperation({ summary: 'List all lapsed/expired memberships with pagination' })
   @ApiResponse({ status: HttpStatus.OK, type: PaginatedMembershipsResponseDto })
@@ -193,7 +193,7 @@ export class MembershipsController {
 
   @Get()
   @HttpCode(HttpStatus.OK)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('memberships.read')
   @ApiOperation({
     summary: 'List and filter all membership agreements with server-side pagination',
@@ -224,7 +224,7 @@ export class MembershipsController {
 
   @Post(':id/renew')
   @HttpCode(HttpStatus.OK)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('memberships.update')
   @ApiOperation({ summary: 'Renew a membership agreement gaplessly or from effective date' })
   @ApiParam({ name: 'id', description: 'Membership ID' })
@@ -249,7 +249,7 @@ export class MembershipsController {
 
   @Post(':id/freeze')
   @HttpCode(HttpStatus.OK)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('memberships.update')
   @ApiOperation({
     summary: 'Freeze an active membership agreement for a specified calendar window',
@@ -277,7 +277,7 @@ export class MembershipsController {
 
   @Post(':id/unfreeze')
   @HttpCode(HttpStatus.OK)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('memberships.update')
   @ApiOperation({ summary: 'Unfreeze a suspended membership and automatically extend validity' })
   @ApiParam({ name: 'id', description: 'Membership ID' })
@@ -295,7 +295,7 @@ export class MembershipsController {
 
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('memberships.update')
   @ApiOperation({ summary: 'Voluntarily terminate a membership agreement with reason audit' })
   @ApiParam({ name: 'id', description: 'Membership ID' })

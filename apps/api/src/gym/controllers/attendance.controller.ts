@@ -58,7 +58,7 @@ export class AttendanceController {
 
   @Post('check-in')
   @HttpCode(HttpStatus.OK)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('attendance.create')
   @ApiOperation({ summary: 'Record and authorize a physical check-in entry attempt for a client' })
   @ApiResponse({ status: HttpStatus.OK, type: RecordCheckInResponseDto })
@@ -86,7 +86,7 @@ export class AttendanceController {
 
   @Get('today')
   @HttpCode(HttpStatus.OK)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('attendance.read')
   @ApiOperation({
     summary: "Retrieve today's facility-local operational check-in log and summary KPIs",
@@ -114,7 +114,7 @@ export class AttendanceController {
 
   @Get('summary')
   @HttpCode(HttpStatus.OK)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('attendance.read')
   @ApiOperation({
     summary:
@@ -169,7 +169,7 @@ export class AttendanceController {
 
   @Get('search')
   @HttpCode(HttpStatus.OK)
-  @Roles('Admin', 'Owner', 'Receptionist')
+  @Roles('Admin', 'Owner', 'Receptionist', 'Trainer')
   @Permissions('attendance.read')
   @ApiOperation({ summary: 'Multi-criteria paginated search across historical attendance records' })
   @ApiResponse({ status: HttpStatus.OK, type: PaginatedAttendanceResponseDto })
