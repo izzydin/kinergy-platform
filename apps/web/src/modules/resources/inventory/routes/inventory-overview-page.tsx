@@ -18,6 +18,10 @@ export const InventoryOverviewPage: React.FC = () => {
     navigate(`/resources/inventory/${product.id}?action=receive`);
   };
 
+  const handleRegisterProduct = () => {
+    navigate('/resources/inventory/new');
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -79,7 +83,7 @@ export const InventoryOverviewPage: React.FC = () => {
       </div>
 
       {/* 2. Top-Level Operational KPI Cards */}
-      <InventoryOverviewSummary />
+      <InventoryOverviewSummary onRegisterProductClick={handleRegisterProduct} />
 
       {/* 3. Low-Stock Reorder Priority Queue */}
       <LowStockAlertTable onReceiveStockClick={handleReceiveStock} />

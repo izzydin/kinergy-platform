@@ -3,6 +3,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { InventoryOverviewPage } from '../routes/inventory-overview-page';
+import { InventoryOverviewSummary } from '../components/inventory-overview-summary';
 import * as authProvider from '../../../../app/providers/auth-provider';
 import * as inventoryQueries from '../hooks/use-inventory-queries';
 import {
@@ -24,6 +25,15 @@ jest.mock('../hooks/use-inventory-queries', () => ({
   useLowStockItems: jest.fn(),
   useInventoryValuation: jest.fn(),
 }));
+
+const mockNavigate = jest.fn();
+jest.mock('react-router-dom', () => {
+  const actual = jest.requireActual('react-router-dom');
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate,
+  };
+});
 
 describe('InventoryOverviewPage & Components', () => {
   let queryClient: QueryClient;
@@ -232,5 +242,150 @@ describe('InventoryOverviewPage & Components', () => {
       fireEvent.click(firstRetryBtn);
       expect(refetchLowStock).toHaveBeenCalled();
     }
+  });
+
+  describe('Operational Actions — Register New Product', () => {
+    it('navigates to /resources/inventory/new when clicking Register New Product under Operational Actions', () => {
+      (authProvider.useAuth as jest.Mock).mockReturnValue({
+        currentUser: {
+          userId: 'user-op',
+          email: 'inventory.demo@kinergy.platform',
+          roles: ['KITCHEN_STAFF'],
+          permissions: ['inventory.read', 'inventory.write'],
+        },
+      });
+
+      (inventoryQueries.useLowStockItems as jest.Mock).mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+      });
+
+      (inventoryQueries.useInventoryValuation as jest.Mock).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+      });
+
+      renderComponent();
+
+      const registerBtn = screen.getByTestId('register-new-product-btn');
+      expect(registerBtn).toBeInTheDocument();
+      expect(registerBtn).toHaveTextContent('Register New Product');
+
+      fireEvent.click(registerBtn);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/resources/inventory/new');
+    });
+
+    it('hides Register New Product button under Operational Actions when user lacks inventory.write permission', () => {
+      (authProvider.useAuth as jest.Mock).mockReturnValue({
+        currentUser: {
+          userId: 'user-readonly',
+          email: 'readonly@kinergy.platform',
+          roles: ['TRAINER'],
+          permissions: ['inventory.read'],
+        },
+      });
+
+      (inventoryQueries.useLowStockItems as jest.Mock).mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+      });
+
+      (inventoryQueries.useInventoryValuation as jest.Mock).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+      });
+
+      renderComponent();
+
+      expect(screen.queryByTestId('register-new-product-btn')).not.toBeInTheDocument();
+    });
+
+    it('executes custom onRegisterProductClick handler when provided to InventoryOverviewSummary', () => {
+      const customHandler = jest.fn();
+
+      (authProvider.useAuth as jest.Mock).mockReturnValue({
+        currentUser: {
+          userId: 'user-op',
+          email: 'inventory.demo@kinergy.platform',
+          roles: ['KITCHEN_STAFF'],
+          permissions: ['inventory.read', 'inventory.write'],
+        },
+      });
+
+      (inventoryQueries.useLowStockItems as jest.Mock).mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+      });
+
+      (inventoryQueries.useInventoryValuation as jest.Mock).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+      });
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <InventoryOverviewSummary onRegisterProductClick={customHandler} />
+          </BrowserRouter>
+        </QueryClientProvider>,
+      );
+
+      const registerBtn = screen.getByTestId('register-new-product-btn');
+      fireEvent.click(registerBtn);
+
+      expect(customHandler).toHaveBeenCalledTimes(1);
+      expect(mockNavigate).not.toHaveBeenCalled();
+    });
+
+    it('falls back to navigating to /resources/inventory/new when onRegisterProductClick is omitted in InventoryOverviewSummary', () => {
+      (authProvider.useAuth as jest.Mock).mockReturnValue({
+        currentUser: {
+          userId: 'user-op',
+          email: 'inventory.demo@kinergy.platform',
+          roles: ['KITCHEN_STAFF'],
+          permissions: ['inventory.read', 'inventory.write'],
+        },
+      });
+
+      (inventoryQueries.useLowStockItems as jest.Mock).mockReturnValue({
+        data: [],
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+      });
+
+      (inventoryQueries.useInventoryValuation as jest.Mock).mockReturnValue({
+        data: undefined,
+        isLoading: false,
+        isError: false,
+        refetch: jest.fn(),
+      });
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <BrowserRouter>
+            <InventoryOverviewSummary />
+          </BrowserRouter>
+        </QueryClientProvider>,
+      );
+
+      const registerBtn = screen.getByTestId('register-new-product-btn');
+      fireEvent.click(registerBtn);
+
+      expect(mockNavigate).toHaveBeenCalledWith('/resources/inventory/new');
+    });
   });
 });

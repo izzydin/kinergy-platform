@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Card,
   CardContent,
@@ -29,6 +29,10 @@ export interface InventoryOverviewSummaryProps {
 export const InventoryOverviewSummary: React.FC<InventoryOverviewSummaryProps> = ({
   onRegisterProductClick,
 }) => {
+  const navigate = useNavigate();
+  const handleRegisterProduct =
+    onRegisterProductClick ?? (() => navigate('/resources/inventory/new'));
+
   const { currentUser } = useAuth();
   const hasValuationPermission = Boolean(
     currentUser?.permissions?.includes('valuation.read') ||
@@ -202,7 +206,8 @@ export const InventoryOverviewSummary: React.FC<InventoryOverviewSummaryProps> =
                 variant="default"
                 size="sm"
                 className="w-full justify-start"
-                onClick={onRegisterProductClick}
+                onClick={handleRegisterProduct}
+                data-testid="register-new-product-btn"
               >
                 <PackagePlus className="mr-2 h-4 w-4" /> Register New Product
               </Button>

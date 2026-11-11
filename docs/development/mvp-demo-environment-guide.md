@@ -605,9 +605,10 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 
 #### Step-by-Step Walkthrough
 
-1. **Low-Stock Cockpit (Inventory Staff)**:
+1. **Low-Stock Cockpit & Operational Hub (Inventory Staff)**:
    - Sign in as `inventory.demo@kinergy.platform` / `DemoPass123!` at `http://localhost:8080/login` (Option B) or `http://localhost:5173/login` (Option A).
-   - Navigate to `/resources/inventory/low-stock` (`http://localhost:8080/resources/inventory/low-stock`).
+   - Navigate to `/resources/inventory/overview` (`http://localhost:8080/resources/inventory/overview`) or `/resources/inventory/low-stock`.
+   - Point out **Operational Actions** on the overview: clicking **Register New Product** opens the dedicated product creation workflow (`/resources/inventory/new`) to define new consumable items.
    - Highlight that **Kinesiology Tape Roll 5m** is flagged with a low-stock alert (3 rolls on hand vs. 10 minimum).
 2. **Stock Receiving (Replenishment)**:
    - Navigate to `/resources/inventory` (`http://localhost:8080/resources/inventory`) and select **Kinesiology Tape Roll**.

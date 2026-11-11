@@ -26,6 +26,7 @@ export function useCreateProduct() {
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lists() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.lowStock() });
       queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.valuation() });
+      queryClient.invalidateQueries({ queryKey: inventoryQueryKeys.all });
       queryClient.invalidateQueries({ queryKey: resourceOverviewQueryKeys.all });
     },
     onError: (error: Error) => {
