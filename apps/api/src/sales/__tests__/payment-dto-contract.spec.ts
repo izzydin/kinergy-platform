@@ -443,6 +443,38 @@ describe('Payment API Request & Response DTO Contract Specification', () => {
       expect(result.saleId).toBe('sale_123');
     });
 
+    it('accepts compound sort parameter matching frontend DataTable convention (e.g. createdAt.desc)', async () => {
+      const query = {
+        page: '1',
+        limit: '20',
+        sort: 'createdAt.desc',
+      };
+
+      const result = (await pipe.transform(query, {
+        type: 'query',
+        metatype: ListPaymentsQueryDto,
+      })) as ListPaymentsQueryDto;
+
+      expect(result.sort).toBe('createdAt.desc');
+      expect(result.page).toBe(1);
+      expect(result.limit).toBe(20);
+    });
+
+    it('accepts sortField and sortOrder aliases', async () => {
+      const query = {
+        sortField: 'amount',
+        sortOrder: 'asc',
+      };
+
+      const result = (await pipe.transform(query, {
+        type: 'query',
+        metatype: ListPaymentsQueryDto,
+      })) as ListPaymentsQueryDto;
+
+      expect(result.sortField).toBe('amount');
+      expect(result.sortOrder).toBe('asc');
+    });
+
     it('rejects invalid page number (< 1)', async () => {
       await expect(
         pipe.transform(

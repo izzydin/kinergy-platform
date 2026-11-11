@@ -5,6 +5,7 @@ import { PaymentHistoryPage } from '../pages/payment-history-page';
 import { ReceiptViewPage } from '../pages/receipt-view-page';
 import { salesApi } from '../api';
 import { renderWithProviders } from '../../../test/test-utils';
+import { ValidationError } from '../../../shared/api/api-error';
 import type { PaginatedPaymentsDTO } from '../types/payments.types';
 import type { ReceiptDTO } from '../types/receipts.types';
 import type { AuthUser } from '../../auth/domain/auth-state.types';
@@ -355,6 +356,42 @@ describe('Screen 6: Payment History Specification', () => {
     });
 
     expect(screen.getByRole('button', { name: /Retry/i })).toBeInTheDocument();
+  });
+
+  it('renders informative validation error message when API returns 400 ValidationError', async () => {
+    const validationErr = new ValidationError(
+      'Invalid date range: fromDate cannot be after toDate.',
+    );
+    (salesApi.listPayments as jest.Mock).mockRejectedValue(validationErr);
+
+    renderWithProviders(<PaymentHistoryPage />, {
+      queryClient,
+      initialSessionOverride: mockStaffUser,
+      initialRoute: '/sales/payments?fromDate=2026-11-10&toDate=2026-11-01',
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('payment-history-error')).toBeInTheDocument();
+      expect(screen.getByText(/Failed to load payments history/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/Invalid date range: fromDate cannot be after toDate/i),
+      ).toBeInTheDocument();
+    });
+
+    // Retry button preserves filter state in URL
+    const retryBtn = screen.getByRole('button', { name: /Retry/i });
+    expect(retryBtn).toBeInTheDocument();
+    (salesApi.listPayments as jest.Mock).mockResolvedValueOnce(mockPaymentsResponse);
+    fireEvent.click(retryBtn);
+
+    await waitFor(() => {
+      expect(salesApi.listPayments).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fromDate: '2026-11-10',
+          toDate: '2026-11-01',
+        }),
+      );
+    });
   });
 
   it('renders loading indicator while payment tenders history is being fetched', () => {

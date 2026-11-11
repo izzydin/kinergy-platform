@@ -156,11 +156,23 @@ export const salesApi = {
    * Lists payment transactions across all orders with multi-criteria filtering
    */
   async listPayments(params?: ListPaymentsQueryParams): Promise<PaginatedPaymentsDTO> {
+    let sortBy = params?.sortBy ?? params?.sortField;
+    let sortDirection = params?.sortDirection ?? params?.sortOrder;
+    if (!sortBy && params?.sort && typeof params.sort === 'string' && params.sort.includes('.')) {
+      const [f, d] = params.sort.split('.');
+      sortBy = f;
+      if (d === 'asc' || d === 'desc') {
+        sortDirection = d;
+      }
+    }
+
     return httpClient.get<PaginatedPaymentsDTO>('/api/v1/payments', {
       params: {
         page: params?.page,
         limit: params?.limit,
         sort: params?.sort,
+        sortBy,
+        sortDirection,
         saleId: params?.saleId,
         status: params?.status,
         method: params?.method,

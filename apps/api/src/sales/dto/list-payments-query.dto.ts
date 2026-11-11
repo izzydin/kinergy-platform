@@ -77,6 +77,14 @@ export class ListPaymentsQueryDto {
   sortBy?: string;
 
   @ApiPropertyOptional({
+    description: 'Alias for sortBy',
+    enum: ['createdAt', 'paidAt', 'amount', 'status'],
+  })
+  @IsOptional()
+  @IsString()
+  sortField?: string;
+
+  @ApiPropertyOptional({
     description: 'Sort direction',
     default: 'desc',
     enum: ['asc', 'desc'],
@@ -84,4 +92,21 @@ export class ListPaymentsQueryDto {
   @IsOptional()
   @IsEnum(['asc', 'desc'])
   sortDirection?: 'asc' | 'desc';
+
+  @ApiPropertyOptional({
+    description: 'Alias for sortDirection',
+    enum: ['asc', 'desc'],
+  })
+  @IsOptional()
+  @IsEnum(['asc', 'desc'])
+  sortOrder?: 'asc' | 'desc';
+
+  @ApiPropertyOptional({
+    description:
+      'Compound sort query string adhering to frontend conventions: <field>.<dir> (e.g. createdAt.desc, amount.asc, status.desc).',
+    example: 'createdAt.desc',
+  })
+  @IsOptional()
+  @IsString()
+  sort?: string;
 }

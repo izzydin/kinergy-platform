@@ -508,8 +508,31 @@ export class PaymentsController {
     @Query() queryDto: ListPaymentsQueryDto = {},
     @CurrentUser() user?: AuthenticatedUserPayload,
   ): Promise<unknown> {
+    let sortBy = queryDto.sortBy ?? queryDto.sortField;
+    let sortDirection = queryDto.sortDirection ?? queryDto.sortOrder;
+
+    if (queryDto.sort && typeof queryDto.sort === 'string' && queryDto.sort.trim().length > 0) {
+      const parts = queryDto.sort.trim().split('.');
+      if (parts.length >= 2 && parts[1]) {
+        sortBy = sortBy ?? parts[0];
+        sortDirection = sortDirection ?? (parts[1].toLowerCase() as 'asc' | 'desc');
+      } else {
+        sortBy = sortBy ?? parts[0];
+      }
+    }
+
     const query = new ListPaymentsQuery({
-      ...queryDto,
+      saleId: queryDto.saleId,
+      status: queryDto.status,
+      method: queryDto.method,
+      fromDate: queryDto.fromDate,
+      toDate: queryDto.toDate,
+      createdAtFrom: queryDto.createdAtFrom,
+      createdAtTo: queryDto.createdAtTo,
+      page: queryDto.page,
+      limit: queryDto.limit,
+      sortBy: sortBy as 'createdAt' | 'paidAt' | 'amount' | 'status' | undefined,
+      sortDirection: sortDirection as 'asc' | 'desc' | undefined,
       tenantId: user?.tenantId ?? undefined,
       currentUser: user
         ? {

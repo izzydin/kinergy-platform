@@ -150,6 +150,20 @@ describe('salesApi Transport Layer', () => {
       });
     });
 
+    it('listPayments unpacks compound sort into sortBy and sortDirection while preserving sort', async () => {
+      (httpClient.get as jest.Mock).mockResolvedValueOnce({ items: [], total: 0 });
+
+      await salesApi.listPayments({ page: 1, limit: 20, sort: 'createdAt.desc' });
+
+      expect(httpClient.get).toHaveBeenCalledWith('/api/v1/payments', {
+        params: expect.objectContaining({
+          sort: 'createdAt.desc',
+          sortBy: 'createdAt',
+          sortDirection: 'desc',
+        }),
+      });
+    });
+
     it('getPaymentById invokes GET /api/v1/payments/:id', async () => {
       (httpClient.get as jest.Mock).mockResolvedValueOnce({ id: 'pay_1' });
 

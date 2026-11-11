@@ -613,6 +613,28 @@ describe('ListPaymentsHandler Specification Suite (Application Query Architectur
       expect(result.isSuccess).toBe(true);
       expect(repository.lastSort).toEqual({ field: 'amount', direction: 'asc' });
     });
+
+    it('should support sorting via sortBy and sortDirection (e.g. createdAt desc and amount asc)', async () => {
+      const resultDesc = await handler.execute(
+        new ListPaymentsQuery({
+          sortBy: 'createdAt',
+          sortDirection: 'desc',
+          currentUser: defaultUser,
+        }),
+      );
+      expect(resultDesc.isSuccess).toBe(true);
+      expect(repository.lastSort).toEqual({ field: 'createdAt', direction: 'desc' });
+
+      const resultAsc = await handler.execute(
+        new ListPaymentsQuery({
+          sortBy: 'amount',
+          sortDirection: 'asc',
+          currentUser: defaultUser,
+        }),
+      );
+      expect(resultAsc.isSuccess).toBe(true);
+      expect(repository.lastSort).toEqual({ field: 'amount', direction: 'asc' });
+    });
   });
 
   describe('4. Deterministic Ordering Guarantee', () => {

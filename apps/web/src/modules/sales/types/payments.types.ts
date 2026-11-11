@@ -70,6 +70,10 @@ export interface ListPaymentsQueryParams {
   readonly page?: number;
   readonly limit?: number;
   readonly sort?: string;
+  readonly sortBy?: string;
+  readonly sortField?: string;
+  readonly sortDirection?: 'asc' | 'desc';
+  readonly sortOrder?: 'asc' | 'desc';
   readonly saleId?: string;
   readonly status?: PaymentStatus;
   readonly method?: PaymentMethod;

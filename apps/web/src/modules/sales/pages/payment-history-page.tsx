@@ -276,7 +276,15 @@ export const PaymentHistoryPage: React.FC = () => {
                     <AlertCircle className="h-5 w-5 mx-auto mb-1.5 text-destructive" />
                     <p className="font-medium">Failed to load payments history.</p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {error?.message || 'Server error occurred while retrieving payments.'}
+                      {error?.name === 'AuthorizationError' ||
+                      (error as { statusCode?: number })?.statusCode === 403
+                        ? 'You do not possess the required permissions to view payment tenders.'
+                        : error?.name === 'ValidationError' ||
+                            (error as { statusCode?: number })?.statusCode === 400
+                          ? error.message || 'Invalid search or filter parameters provided.'
+                          : error?.name === 'NetworkError'
+                            ? 'Network connection error. Please check your connectivity and try again.'
+                            : error?.message || 'Server error occurred while retrieving payments.'}
                     </p>
                     <Button
                       variant="outline"
