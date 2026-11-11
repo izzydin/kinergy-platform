@@ -9,6 +9,9 @@ import type {
   CancelSessionPayload,
   PaginatedTreatmentHistory,
   TreatmentHistoryFilterParams,
+  SessionBillingInfo,
+  CompleteAndCheckoutPayload,
+  CompleteAndCheckoutResult,
 } from '../types';
 
 /**
@@ -225,6 +228,57 @@ export const kinesiologyApi = {
       return await (requestOptions
         ? httpClient.get<PaginatedTreatmentHistory>(url, requestOptions)
         : httpClient.get<PaginatedTreatmentHistory>(url));
+    } catch (error) {
+      throw normalizeKinesiologyError(error);
+    }
+  },
+
+  /**
+   * Retrieves authoritative commercial billing information and payment status for a treatment session.
+   * Path: GET /api/v1/kinesiology/sessions/:id/billing-info
+   * Permission: kinesiology.sessions.read
+   */
+  async getSessionBillingInfo(
+    sessionId: string,
+    options?: RequestOptions,
+  ): Promise<SessionBillingInfo> {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new ValidationError('Session ID cannot be empty.');
+    }
+
+    const url = `/api/v1/kinesiology/sessions/${encodeURIComponent(sessionId.trim())}/billing-info`;
+    try {
+      return await (options
+        ? httpClient.get<SessionBillingInfo>(url, options)
+        : httpClient.get<SessionBillingInfo>(url));
+    } catch (error) {
+      throw normalizeKinesiologyError(error);
+    }
+  },
+
+  /**
+   * Performs therapist-led completion and checkout in a single unified operation.
+   * Supports Option A (COLLECT_PAYMENT via CASH or QR) and Option B (ALREADY_PAID verification).
+   * Path: POST /api/v1/kinesiology/sessions/:id/checkout
+   * Permission: kinesiology.sessions.treat
+   */
+  async checkoutSession(
+    sessionId: string,
+    payload: CompleteAndCheckoutPayload,
+    options?: RequestOptions,
+  ): Promise<CompleteAndCheckoutResult> {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new ValidationError('Session ID cannot be empty.');
+    }
+    if (!payload?.flowOption) {
+      throw new ValidationError('flowOption is required (COLLECT_PAYMENT or ALREADY_PAID).');
+    }
+
+    const url = `/api/v1/kinesiology/sessions/${encodeURIComponent(sessionId.trim())}/checkout`;
+    try {
+      return await (options
+        ? httpClient.post<CompleteAndCheckoutResult>(url, payload, options)
+        : httpClient.post<CompleteAndCheckoutResult>(url, payload));
     } catch (error) {
       throw normalizeKinesiologyError(error);
     }

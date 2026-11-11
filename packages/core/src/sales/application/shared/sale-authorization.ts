@@ -19,6 +19,7 @@ export const SALE_MUTATION_ROLES: string[] = [
   'Receptionist',
   'Trainer',
   'Kitchen Staff',
+  'Therapist',
 ];
 
 export const SALE_CANCELLATION_ROLES: string[] = [

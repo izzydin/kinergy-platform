@@ -14,6 +14,7 @@ import {
   UnprocessableEntityException,
   BadRequestException,
   ConflictException,
+  Optional,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -25,9 +26,22 @@ import {
   ApiPropertyOptional,
 } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsNotEmpty, IsOptional, IsString, Max, Min } from 'class-validator';
-import { Permissions } from '../../platform/identity/decorators';
+import {
+  IsBoolean,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
+import { Permissions, CurrentUser } from '../../platform/identity/decorators';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
+import { AuthenticatedUserPayload } from '../../platform/identity/decorators/current-user.decorator';
+import { AuthenticatedUserContext } from '../../platform/identity/context';
+import { TherapistTreatmentCheckoutService } from '../application/therapist-treatment-checkout.service';
 import {
   CreateTreatmentSessionFromAppointmentHandler,
   CreateTreatmentSessionFromAppointmentCommand,
@@ -99,6 +113,55 @@ export class UpdateSessionNotesDto {
   rawText?: string;
 }
 
+export class CompleteAndCheckoutDto {
+  @ApiPropertyOptional({
+    description: "Checkout option: 'COLLECT_PAYMENT' or 'ALREADY_PAID'",
+    enum: ['COLLECT_PAYMENT', 'ALREADY_PAID'],
+    example: 'COLLECT_PAYMENT',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['COLLECT_PAYMENT', 'ALREADY_PAID'])
+  checkoutOption?: 'COLLECT_PAYMENT' | 'ALREADY_PAID';
+
+  @ApiPropertyOptional({
+    description: "Alias for checkoutOption: 'COLLECT_PAYMENT' or 'ALREADY_PAID'",
+    enum: ['COLLECT_PAYMENT', 'ALREADY_PAID'],
+    example: 'COLLECT_PAYMENT',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['COLLECT_PAYMENT', 'ALREADY_PAID'])
+  flowOption?: 'COLLECT_PAYMENT' | 'ALREADY_PAID';
+
+  @ApiPropertyOptional({
+    description: 'Payment method for collection',
+    enum: ['CASH', 'QR'],
+    example: 'CASH',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['CASH', 'QR'])
+  paymentMethod?: 'CASH' | 'QR';
+
+  @ApiPropertyOptional({ description: 'Payment reference or external note' })
+  @IsOptional()
+  @IsString()
+  paymentReference?: string;
+
+  @ApiPropertyOptional({ description: 'Optional cash tender amount for change calculation' })
+  @IsOptional()
+  @IsNumber()
+  tenderAmount?: number;
+
+  @ApiPropertyOptional({
+    description: 'Idempotency key to safely guard against duplicate checkout requests',
+  })
+  @IsOptional()
+  @IsString()
+  idempotencyKey?: string;
+}
+
 export class CancelTreatmentSessionDto {
   @ApiProperty({ description: 'Mandatory explanation for treatment session cancellation' })
   @IsString()
@@ -156,7 +219,21 @@ export class TreatmentSessionsController {
     private readonly completeSessionHandler: CompleteTreatmentSessionHandler,
     private readonly cancelSessionHandler: CancelTreatmentSessionHandler,
     private readonly getHistoryHandler: GetClientTreatmentHistoryHandler,
+    @Optional()
+    private readonly therapistCheckoutService?: TherapistTreatmentCheckoutService,
   ) {}
+
+  private mapCurrentUser(user?: AuthenticatedUserPayload): AuthenticatedUserContext | undefined {
+    if (!user) return undefined;
+    return new AuthenticatedUserContext({
+      userId: user.id,
+      email: user.email,
+      roles: [...(user.roles ?? [])],
+      permissions: [...(user.permissions ?? [])],
+      tenantId: user.tenantId,
+      status: 'ACTIVE',
+    });
+  }
 
   @Post('sessions')
   @HttpCode(HttpStatus.CREATED)
@@ -376,6 +453,48 @@ export class TreatmentSessionsController {
     }
 
     return result.getValue();
+  }
+
+  @Get('sessions/:id/billing-info')
+  @HttpCode(HttpStatus.OK)
+  @Permissions('kinesiology.sessions.read')
+  @ApiOperation({ summary: 'Retrieve authoritative commercial billing details and payment status' })
+  @ApiParam({ name: 'id', description: 'Treatment session unique identifier' })
+  @ApiResponse({ status: 200, description: 'Billing information retrieved successfully' })
+  @ApiResponse({ status: 404, description: 'Session not found' })
+  public async getSessionBillingInfo(@Param('id') sessionId: string) {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new BadRequestException('Session ID cannot be empty.');
+    }
+    if (!this.therapistCheckoutService) {
+      throw new UnprocessableEntityException('Therapist checkout service is not configured.');
+    }
+    return this.therapistCheckoutService.getSessionBillingInfo(sessionId);
+  }
+
+  @Post('sessions/:id/checkout')
+  @HttpCode(HttpStatus.CREATED)
+  @Permissions('kinesiology.sessions.treat')
+  @ApiOperation({ summary: 'Therapist-led treatment completion and automatic commercial checkout' })
+  @ApiParam({ name: 'id', description: 'Treatment session unique identifier' })
+  @ApiResponse({ status: 201, description: 'Session completed and payment processed successfully' })
+  @ApiResponse({ status: 400, description: 'Validation error' })
+  @ApiResponse({ status: 404, description: 'Session not found' })
+  @ApiResponse({ status: 409, description: 'Session already settled and paid' })
+  @ApiResponse({ status: 422, description: 'Unprocessable payment or session state' })
+  public async checkoutSession(
+    @Param('id') sessionId: string,
+    @Body() dto: CompleteAndCheckoutDto,
+    @CurrentUser() user?: AuthenticatedUserPayload,
+  ) {
+    if (!sessionId || sessionId.trim().length === 0) {
+      throw new BadRequestException('Session ID cannot be empty.');
+    }
+    if (!this.therapistCheckoutService) {
+      throw new UnprocessableEntityException('Therapist checkout service is not configured.');
+    }
+    const currentUser = this.mapCurrentUser(user);
+    return this.therapistCheckoutService.checkoutSession(sessionId, dto, currentUser);
   }
 
   @Post('sessions/:id/cancel')

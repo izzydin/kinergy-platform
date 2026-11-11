@@ -25,6 +25,10 @@ export const kinesiologyQueryKeys = {
   sessionTherapist: (sessionId: string) =>
     [...kinesiologyQueryKeys.session(sessionId), 'therapist'] as const,
 
+  // Scoped session billing and checkout info query key
+  sessionBillingInfo: (sessionId: string) =>
+    [...kinesiologyQueryKeys.session(sessionId), 'billing-info'] as const,
+
   // Root namespace for client history queries
   histories: () => [...kinesiologyQueryKeys.all, 'history'] as const,
 

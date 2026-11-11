@@ -14,6 +14,8 @@ import type {
   CreateSessionPayload,
   TreatmentSessionModel,
   UpdateNotesPayload,
+  CompleteAndCheckoutPayload,
+  CompleteAndCheckoutResult,
 } from '../types';
 
 export function useTreatmentMutations(sessionId?: string) {
@@ -199,6 +201,46 @@ export function useTreatmentMutations(sessionId?: string) {
     },
   });
 
+  const checkoutSessionMutation = useMutation<
+    CompleteAndCheckoutResult,
+    Error,
+    CompleteAndCheckoutPayload
+  >({
+    mutationFn: (payload) => {
+      if (!sessionId) throw new Error('Session ID required');
+      return kinesiologyApi.checkoutSession(sessionId, payload);
+    },
+    onSuccess: (data) => {
+      success(
+        data.receiptNumber
+          ? `Treatment completed & settled. Receipt #${data.receiptNumber} issued.`
+          : 'Treatment completed & settled successfully.',
+      );
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.session(sessionId!),
+      });
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.sessionNotes(sessionId!),
+      });
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.sessionContext(sessionId!),
+      });
+      queryClient.invalidateQueries({
+        queryKey: kinesiologyQueryKeys.sessionBillingInfo(sessionId!),
+      });
+      queryClient.invalidateQueries({ queryKey: kinesiologyQueryKeys.sessions() });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['receipts'] });
+      queryClient.invalidateQueries({ queryKey: ['scheduling'] });
+      queryClient.invalidateQueries({ queryKey: ['appointments'] });
+    },
+    onError: (err) => {
+      error(getKinesiologyErrorMessage(err));
+      handleConflictReload(err);
+    },
+  });
+
   return {
     createSession: createSessionMutation,
     startSession: startSessionMutation,
@@ -206,5 +248,6 @@ export function useTreatmentMutations(sessionId?: string) {
     updateNotes: updateNotesMutation,
     completeSession: completeSessionMutation,
     cancelSession: cancelSessionMutation,
+    checkoutSession: checkoutSessionMutation,
   };
 }

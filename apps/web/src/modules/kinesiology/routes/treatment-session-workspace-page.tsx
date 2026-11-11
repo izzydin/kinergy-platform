@@ -3,8 +3,10 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import { Button, Card, CardHeader, CardContent, StateView } from '@kinergy-platform/ui';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
-import { useTreatmentSession } from '../hooks/use-treatment-session';
+import { useTreatmentSession, useSessionBillingInfo } from '../hooks/use-treatment-session';
 import { useTreatmentMutations } from '../hooks/use-treatment-mutations';
+import { SALES_ROUTES } from '../../sales/routes/sales-routes';
+import { Receipt } from 'lucide-react';
 import { SessionStatusBadge } from '../components/session-status-badge';
 import { SoapNotesForm } from '../components/soap-notes-form';
 import { AssignTherapistModal } from '../components/assign-therapist-modal';
@@ -50,6 +52,14 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
   } = useTreatmentSession(sessionId, {
     enabled: canRead && Boolean(sessionId && sessionId.trim().length > 0),
   });
+
+  const billingQueryResult =
+    typeof useSessionBillingInfo === 'function'
+      ? useSessionBillingInfo(sessionId, {
+          enabled: canRead && Boolean(sessionId && session?.status === 'COMPLETED'),
+        })
+      : undefined;
+  const sessionBilling = billingQueryResult?.data;
   const { startSession, assignTherapist, updateNotes, completeSession, cancelSession } =
     useTreatmentMutations(sessionId);
 
@@ -309,8 +319,11 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
 
             {/* Post-Completion UX Summary Card */}
             {session.status === 'COMPLETED' && (
-              <Card className="border-emerald-200 bg-emerald-50 text-emerald-950 shadow-sm">
-                <CardContent className="py-4 px-5">
+              <Card
+                className="border-emerald-200 bg-emerald-50 text-emerald-950 shadow-sm"
+                data-testid="completed-session-summary-card"
+              >
+                <CardContent className="py-4 px-5 space-y-4">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                     <div className="space-y-1">
                       <div className="flex items-center space-x-2">
@@ -348,6 +361,55 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
                         Client Profile
                       </Button>
                     </div>
+                  </div>
+
+                  {/* Financial Settlement & Receipt Access */}
+                  <div className="pt-3 border-t border-emerald-200/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs bg-white/70 rounded-md p-3">
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div>
+                        <span className="text-emerald-700 font-medium text-[11px] block">
+                          Payment Settlement
+                        </span>
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
+                          {sessionBilling?.paymentStatus ?? 'PAID'}
+                        </span>
+                      </div>
+                      {sessionBilling?.price && (
+                        <div>
+                          <span className="text-emerald-700 font-medium text-[11px] block">
+                            Service Fee
+                          </span>
+                          <span className="font-semibold text-emerald-950">
+                            {sessionBilling.price.formatted}
+                          </span>
+                        </div>
+                      )}
+                      {sessionBilling?.existingReceiptNumber && (
+                        <div>
+                          <span className="text-emerald-700 font-medium text-[11px] block">
+                            Official Receipt
+                          </span>
+                          <span className="font-mono font-bold text-emerald-900">
+                            #{sessionBilling.existingReceiptNumber}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {sessionBilling?.existingSaleId && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs flex items-center space-x-1 border-emerald-300 text-emerald-800 hover:bg-emerald-50"
+                        onClick={() =>
+                          navigate(SALES_ROUTES.receipt(sessionBilling.existingSaleId!))
+                        }
+                        data-testid="view-completed-receipt-btn"
+                      >
+                        <Receipt className="h-3.5 w-3.5 mr-1" />
+                        <span>View Official Receipt</span>
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -396,7 +458,11 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
             <CompleteSessionModal
               isOpen={isCompleteModalOpen}
               onClose={() => setIsCompleteModalOpen(false)}
+              sessionId={session.id}
               onConfirm={handleConfirmComplete}
+              onCheckoutSuccess={() => {
+                refetch();
+              }}
               isLoading={completeSession.isPending}
               hasNotes={Boolean(
                 session.notes?.subjective?.trim() ||

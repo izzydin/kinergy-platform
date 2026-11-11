@@ -52,3 +52,59 @@ export interface UpdateNotesPayload {
 export interface CancelSessionPayload {
   readonly reason: string;
 }
+
+/**
+ * Authoritative billing details for a kinesiology treatment session.
+ */
+export interface SessionBillingInfo {
+  readonly sessionId: string;
+  readonly appointmentId: string;
+  readonly clientId: string;
+  readonly clientFullName: string;
+  readonly therapistId: string;
+  readonly sessionStatus: string;
+  readonly serviceType: string;
+  readonly serviceDescription: string;
+  readonly price: {
+    readonly amount: number;
+    readonly currency: string;
+    readonly formatted: string;
+  };
+  readonly isAlreadyPaid: boolean;
+  readonly paymentStatus: 'PAID' | 'UNPAID' | 'PARTIALLY_PAID' | 'PENDING';
+  readonly existingSaleId?: string;
+  readonly existingPaymentId?: string;
+  readonly existingPaymentMethod?: string;
+  readonly existingReceiptId?: string;
+  readonly existingReceiptNumber?: string;
+}
+
+/**
+ * Request payload for integrated treatment session completion and financial checkout.
+ */
+export interface CompleteAndCheckoutPayload {
+  readonly flowOption: 'COLLECT_PAYMENT' | 'ALREADY_PAID';
+  readonly paymentMethod?: 'CASH' | 'QR';
+  readonly paymentReference?: string;
+  readonly idempotencyKey?: string;
+}
+
+/**
+ * Authoritative result from completing and checking out a treatment session.
+ */
+export interface CompleteAndCheckoutResult {
+  readonly success: boolean;
+  readonly sessionId: string;
+  readonly sessionStatus: string;
+  readonly saleId?: string;
+  readonly saleStatus?: string;
+  readonly paymentId?: string;
+  readonly paymentStatus?: string;
+  readonly paymentMethod?: string;
+  readonly receiptId?: string | null;
+  readonly receiptNumber?: string | null;
+  readonly amount: number;
+  readonly currency: string;
+  readonly clientFullName: string;
+  readonly paidAt: string;
+}

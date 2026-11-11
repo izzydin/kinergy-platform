@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import {
   CreateTreatmentSessionFromAppointmentHandler,
   GetTreatmentSessionByIdHandler,
@@ -31,13 +31,16 @@ import {
   KinesiologyEventPublisherAdapter,
 } from './infrastructure';
 import { SchedulingModule } from '../scheduling';
+import { SalesModule } from '../sales/sales.module';
+import { TherapistTreatmentCheckoutService } from './application/therapist-treatment-checkout.service';
 
 @Module({
-  imports: [SchedulingModule],
+  imports: [SchedulingModule, forwardRef(() => SalesModule)],
   controllers: [TreatmentSessionsController],
   providers: [
     PrismaTreatmentSessionRepository,
     KinesiologyEventPublisherAdapter,
+    TherapistTreatmentCheckoutService,
     {
       provide: KINESIOLOGY_DOMAIN_EVENT_PUBLISHER_TOKEN,
       useExisting: KinesiologyEventPublisherAdapter,
@@ -144,6 +147,7 @@ import { SchedulingModule } from '../scheduling';
     KINESIOLOGY_DOMAIN_EVENT_PUBLISHER_TOKEN,
     PrismaTreatmentSessionRepository,
     KinesiologyEventPublisherAdapter,
+    TherapistTreatmentCheckoutService,
   ],
 })
 export class KinesiologyModule {}
@@ -155,4 +159,5 @@ export {
   PrismaTreatmentSessionRepository,
   InMemoryTreatmentSessionRepository,
   KinesiologyEventPublisherAdapter,
+  TherapistTreatmentCheckoutService,
 };

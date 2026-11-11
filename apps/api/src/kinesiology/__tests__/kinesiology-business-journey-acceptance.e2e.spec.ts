@@ -455,6 +455,7 @@ describe('Milestone 9.4 — Kinesiology Business Journey End-to-End Acceptance (
   let receptionistToken: string;
   let therapistToken: string;
   let kitchenToken: string;
+  let pureTherapistToken: string;
 
   // Shared journey state across sequential business steps
   let patientClientId: string;
@@ -486,6 +487,7 @@ describe('Milestone 9.4 — Kinesiology Business Journey End-to-End Acceptance (
     const receptionistPerms = [...getRolePermissions('Receptionist')];
     const therapistPerms = [...getRolePermissions('Trainer')];
     const kitchenPerms = [...getRolePermissions('Kitchen Staff')];
+    const pureTherapistPerms = [...getRolePermissions('Therapist')];
 
     const mockUsers = new Map<string, User>([
       [
@@ -523,6 +525,19 @@ describe('Milestone 9.4 — Kinesiology Business Journey End-to-End Acceptance (
           status: UserStatus.ACTIVE,
           roles: ['Trainer', 'THERAPIST'],
           permissions: therapistPerms,
+          tenantId: TENANT_ID,
+          tokenVersion: 1,
+        }),
+      ],
+      [
+        'usr_pure_therapist_e2e',
+        new User({
+          id: 'usr_pure_therapist_e2e',
+          email: 'puretherapist@kinergy.test',
+          passwordHash: 'hashed',
+          status: UserStatus.ACTIVE,
+          roles: ['Therapist'],
+          permissions: pureTherapistPerms,
           tenantId: TENANT_ID,
           tokenVersion: 1,
         }),
@@ -609,6 +624,74 @@ describe('Milestone 9.4 — Kinesiology Business Journey End-to-End Acceptance (
       tokenVersion: 1,
     });
 
+    pureTherapistToken = await mockAccessTokenService.generateToken({
+      userId: 'usr_pure_therapist_e2e',
+      email: 'puretherapist@kinergy.test',
+      roles: ['Therapist'],
+      permissions: pureTherapistPerms,
+      tenantId: TENANT_ID,
+      tokenVersion: 1,
+    });
+
+    const mockPrisma = {
+      client: {
+        findUnique: async ({ where }: { where: { id: string } }) => {
+          const c = await clientStore.findById(ClientId.create(where.id));
+          return c
+            ? {
+                id: c.id,
+                firstName: c.name.firstName,
+                lastName: c.name.lastName,
+                fullName: `${c.name.firstName} ${c.name.lastName}`,
+              }
+            : null;
+        },
+      },
+      sale: {
+        findFirst: async ({
+          where,
+        }: {
+          where: {
+            sourceId?: string;
+            sourceCode?: string;
+            OR?: Array<{ sourceId?: string; sourceCode?: string }>;
+          };
+        }) => {
+          const s = Array.from(saleStore.store.values()).find((sale) => {
+            if (where.sourceId && sale.source?.sourceId === where.sourceId) return true;
+            if (where.sourceCode && sale.source?.sourceCode === where.sourceCode) return true;
+            if (where.OR && Array.isArray(where.OR)) {
+              return where.OR.some((cond) => {
+                if (cond.sourceId && sale.source?.sourceId === cond.sourceId) return true;
+                if (cond.sourceCode && sale.source?.sourceCode === cond.sourceCode) return true;
+                return false;
+              });
+            }
+            return false;
+          });
+          if (!s) return null;
+          const p = Array.from(paymentStore.store.values()).find(
+            (pay) => pay.saleId.value === s.id.value,
+          );
+          const r = Array.from(receiptStore.store.values()).find(
+            (rcpt) => rcpt.saleId.value === s.id.value,
+          );
+          return {
+            id: s.id.value,
+            status: s.status,
+            currency: s.total.currency,
+            totalAmount: s.total.amount,
+            payments: p ? [{ id: p.id.value, status: p.status, method: p.method }] : [],
+            receipts: r ? [{ id: r.id.value, receiptNumber: r.receiptNumber.value }] : [],
+          };
+        },
+        findUnique: async ({ where }: { where: { id: string } }) => {
+          const s = saleStore.store.get(where.id);
+          return s ? { id: s.id.value, status: s.status } : null;
+        },
+      },
+    };
+
     const mockUnitOfWork: IUnitOfWork = {
       executeInTransaction: async <T>(work: () => Promise<T>): Promise<T> => work(),
     };
@@ -619,7 +702,7 @@ describe('Milestone 9.4 — Kinesiology Business Journey End-to-End Acceptance (
     @Global()
     @Module({
       providers: [
-        { provide: PrismaService, useValue: {} },
+        { provide: PrismaService, useValue: mockPrisma },
         { provide: ACCESS_TOKEN_SERVICE, useValue: mockAccessTokenService },
         { provide: USER_REPOSITORY, useValue: mockUserRepository },
         { provide: PERMISSION_RESOLVER, useValue: permissionResolver },
@@ -1714,6 +1797,112 @@ describe('Milestone 9.4 — Kinesiology Business Journey End-to-End Acceptance (
       expect(paidSaleRes.body.status).toBe('PAID');
 
       settledKinesiologyPaymentId = cashPayRes.body.id;
+    });
+
+    it('4.4 executes Therapist-Led Integrated Treatment Completion & Automatic Checkout (Option A & Option B) with least privilege', async () => {
+      // 1. Book an appointment for a patient encounter
+      const bookRes = await request(app.getHttpServer())
+        .post('/api/v1/scheduling/appointments')
+        .set('Authorization', `Bearer ${receptionistToken}`)
+        .send({
+          clientId: secondaryClientId,
+          therapistId: PRIMARY_THERAPIST_ID,
+          roomId: primaryRoomId,
+          type: 'TREATMENT',
+          startTime: '2026-11-06T11:00:00.000Z',
+          endTime: '2026-11-06T11:45:00.000Z',
+        })
+        .expect(201);
+
+      const apptId = bookRes.body.id;
+
+      // 2. Start treatment session
+      const startRes = await request(app.getHttpServer())
+        .post('/api/v1/kinesiology/sessions')
+        .set('Authorization', `Bearer ${pureTherapistToken}`)
+        .send({
+          appointmentId: apptId,
+          initialNotes: 'Assessment of hamstring tightness',
+          autoStart: true,
+        })
+        .expect(201);
+
+      const sessionId = startRes.body.id;
+      expect(startRes.body.status).toBe('IN_PROGRESS');
+
+      // 3. Query Billing Info
+      const billingRes = await request(app.getHttpServer())
+        .get(`/api/v1/kinesiology/sessions/${sessionId}/billing-info`)
+        .set('Authorization', `Bearer ${pureTherapistToken}`)
+        .expect(200);
+
+      expect(billingRes.body.sessionId).toBe(sessionId);
+      expect(billingRes.body.clientFullName).toBeDefined();
+      expect(billingRes.body.serviceType).toBe('TREATMENT');
+      expect(billingRes.body.price.amount).toBe(85);
+      expect(billingRes.body.isAlreadyPaid).toBe(false);
+      expect(billingRes.body.paymentStatus).toBe('UNPAID');
+
+      // 4. Reject Option B (Already Paid) when no payment exists (422)
+      const optBFailRes = await request(app.getHttpServer())
+        .post(`/api/v1/kinesiology/sessions/${sessionId}/checkout`)
+        .set('Authorization', `Bearer ${pureTherapistToken}`)
+        .send({
+          flowOption: 'ALREADY_PAID',
+        })
+        .expect(422);
+
+      expect(JSON.stringify(optBFailRes.body)).toContain('No completed payment was found');
+
+      // 5. Option A: Complete & Collect CASH Payment
+      const checkoutRes = await request(app.getHttpServer())
+        .post(`/api/v1/kinesiology/sessions/${sessionId}/checkout`)
+        .set('Authorization', `Bearer ${pureTherapistToken}`)
+        .send({
+          flowOption: 'COLLECT_PAYMENT',
+          paymentMethod: 'CASH',
+          paymentReference: 'CASH-COUNTER-TEST-01',
+        })
+        .expect(201);
+
+      expect(checkoutRes.body.success).toBe(true);
+      expect(checkoutRes.body.sessionStatus).toBe('COMPLETED');
+      expect(checkoutRes.body.saleStatus).toBe('PAID');
+      expect(checkoutRes.body.paymentStatus).toBe('COMPLETED');
+      expect(checkoutRes.body.paymentMethod).toBe('CASH');
+      expect(checkoutRes.body.receiptNumber).toBeDefined();
+
+      const createdSaleId = checkoutRes.body.saleId;
+
+      // 6. Enforce Single-Billing Invariant: Re-checkout is rejected (409 Conflict)
+      await request(app.getHttpServer())
+        .post(`/api/v1/kinesiology/sessions/${sessionId}/checkout`)
+        .set('Authorization', `Bearer ${pureTherapistToken}`)
+        .send({
+          flowOption: 'COLLECT_PAYMENT',
+          paymentMethod: 'CASH',
+        })
+        .expect(409);
+
+      // 7. Verify Therapist can access their receipt
+      const receiptRes = await request(app.getHttpServer())
+        .get(`/api/v1/receipts/${checkoutRes.body.receiptId}`)
+        .set('Authorization', `Bearer ${pureTherapistToken}`)
+        .expect(200);
+
+      expect(receiptRes.body.saleId).toBe(createdSaleId);
+
+      // 8. Enforce Least Privilege: Therapist DENIED access to broad sales history and sales cancellation
+      await request(app.getHttpServer())
+        .get('/api/v1/sales')
+        .set('Authorization', `Bearer ${pureTherapistToken}`)
+        .expect(403);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/sales/${createdSaleId}/cancel`)
+        .set('Authorization', `Bearer ${pureTherapistToken}`)
+        .send({ reason: 'Unauthorized cancellation attempt' })
+        .expect(403);
     });
   });
 

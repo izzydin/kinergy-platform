@@ -529,13 +529,20 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
      - **Assessment**: Subacromial irritation responding favorably to manual therapy.
      - **Plan**: Prescribed rotator cuff strengthening and scapular stabilization drills.
    - Click **Save Draft Notes**. Point out that drafts can be incrementally updated during the encounter.
-5. **Medico-Legal Immutability Locking**:
+5. **Medico-Legal Immutability Locking & Integrated Therapist Checkout**:
    - Click **Complete Session**.
-   - Note the status transition to `COMPLETED` with a locked badge.
-   - Point out that the clinical notes are now permanently read-only and cannot be tampered with.
-6. **Commercial Checkout (Switch to Receptionist)**:
-   - Switch back to `reception.demo@kinergy.platform`.
-   - Navigate to `/sales/new` (`http://localhost:8080/sales/new`), source the completed session, bill $120.00, and complete payment.
+   - The integrated checkout modal opens displaying the client's full name, authoritative service fee ($85.00), and settlement options.
+   - **Option A — Complete & Collect Payment**:
+     - Select payment method: **CASH** (with dynamic tender and change calculator) or **QR Code** (with transaction reference).
+     - Confirm payment details and submit.
+     - The system locks clinical documentation (immutability), completes the treatment session, orchestrates the Sales module to create exactly one Sale, completes Payment (`PAID`), issues the official receipt, and updates financial records.
+     - A dedicated success view displays the receipt number and provides one-click navigation to **View Official Receipt** (`/sales/:id/receipt`).
+   - **Option B — Complete Treatment (Already Paid)**:
+     - If the client paid upfront at the front desk before the encounter, select **Already Paid**.
+     - The system verifies the existing settled payment linked to the session and completes it with zero duplicate charges.
+6. **Receptionist Commercial Overview & Audit Visibility**:
+   - When operational staff or receptionists view `/sales` (`http://localhost:8080/sales`), the therapist-collected sale and payment are immediately visible with full audit trails.
+   - Therapists retain strict least-privilege RBAC: authorized to treat, collect payment, and view receipts for their encounters, while administrative capabilities (sales cancellation, refunds, broad financial reports) remain restricted to authorized operational roles.
 
 ---
 

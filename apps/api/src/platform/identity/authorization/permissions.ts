@@ -187,11 +187,28 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> 
     PERMISSIONS.RECEIPTS.READ,
   ]),
   Trainer: Object.freeze([...SHARED_OPERATIONAL_PERMISSIONS, PERMISSIONS.REPORTS.READ]),
+  Therapist: Object.freeze([
+    PERMISSIONS.CLIENTS.READ,
+    PERMISSIONS.APPOINTMENTS.READ,
+    PERMISSIONS.APPOINTMENTS.UPDATE,
+    PERMISSIONS.SALES.CREATE,
+    PERMISSIONS.PAYMENTS.CREATE,
+    PERMISSIONS.PAYMENTS.READ,
+    PERMISSIONS.RECEIPTS.READ,
+    PERMISSIONS.RECEIPTS.MANAGE,
+  ]),
 });
 
 /**
  * Retrieves the approved permissions for a given role name.
  */
 export function getRolePermissions(roleName: string): readonly PermissionCode[] {
-  return SYSTEM_ROLE_PERMISSIONS[roleName] ?? [];
+  if (!roleName) return [];
+  if (SYSTEM_ROLE_PERMISSIONS[roleName]) {
+    return SYSTEM_ROLE_PERMISSIONS[roleName];
+  }
+  const key = Object.keys(SYSTEM_ROLE_PERMISSIONS).find(
+    (k) => k.toLowerCase() === roleName.trim().toLowerCase(),
+  );
+  return key && SYSTEM_ROLE_PERMISSIONS[key] ? SYSTEM_ROLE_PERMISSIONS[key] : [];
 }

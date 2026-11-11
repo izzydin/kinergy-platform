@@ -61,7 +61,7 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
       );
 
       const hasPermissions = requirements.requiredPermissions.every((requiredPerm) =>
-        this.hasPermissionPattern(resolvedPermissions, requiredPerm),
+        this.hasPermissionPattern(resolvedPermissions, requiredPerm, userContext),
       );
 
       if (!hasPermissions) {
@@ -76,7 +76,11 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
     return AuthorizationDecision.authorized();
   }
 
-  private hasPermissionPattern(resolvedPermissions: string[], requiredPerm: string): boolean {
+  private hasPermissionPattern(
+    resolvedPermissions: string[],
+    requiredPerm: string,
+    userContext?: AuthenticatedUserContext,
+  ): boolean {
     const normalize = (p: string) => p.replace(/:/g, '.');
     const normRequired = normalize(requiredPerm);
     const normResolved = resolvedPermissions.map(normalize);
@@ -230,6 +234,13 @@ export class DefaultAuthorizationEvaluator implements IAuthorizationEvaluator {
       normResolved.includes('appointments.update') &&
       normResolved.includes('clients.write') &&
       normResolved.includes('reports.read') &&
+      ['kinesiology.sessions.read', 'kinesiology.sessions.treat'].includes(normRequired)
+    ) {
+      return true;
+    }
+
+    if (
+      userContext?.roles.some((r) => r.toLowerCase() === 'therapist') &&
       ['kinesiology.sessions.read', 'kinesiology.sessions.treat'].includes(normRequired)
     ) {
       return true;

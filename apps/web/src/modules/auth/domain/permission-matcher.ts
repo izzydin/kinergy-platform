@@ -199,6 +199,15 @@ export function matchPermission(
 
   if (
     normUserPerms.includes('appointments.update') &&
+    normUserPerms.includes('clients.read') &&
+    normUserPerms.includes('sales.create') &&
+    ['kinesiology.sessions.read', 'kinesiology.sessions.treat'].includes(normRequired)
+  ) {
+    return true;
+  }
+
+  if (
+    normUserPerms.includes('appointments.update') &&
     normUserPerms.includes('users.read') &&
     [
       'kinesiology.sessions.read',

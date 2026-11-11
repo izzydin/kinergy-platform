@@ -18,6 +18,7 @@ export const PAYMENT_MUTATION_ROLES: string[] = [
   'Platform Admin',
   'Receptionist',
   'Trainer',
+  'Therapist',
   'Kitchen Staff',
 ];
 
@@ -30,6 +31,7 @@ export const PAYMENT_READ_ROLES: string[] = [
   'Receptionist',
   'Kitchen Staff',
   'Trainer',
+  'Therapist',
   'Client',
   'Member',
 ];

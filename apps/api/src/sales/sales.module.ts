@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { PrismaService } from '../platform/persistence/prisma/prisma.service';
 import { AuditModule } from '../platform/audit/audit.module';
 import {
@@ -65,7 +65,13 @@ import {
 } from './infrastructure/adapters';
 
 @Module({
-  imports: [AuditModule, GymModule, KinesiologyModule, ResourcesModule, SchedulingModule],
+  imports: [
+    AuditModule,
+    GymModule,
+    forwardRef(() => KinesiologyModule),
+    ResourcesModule,
+    SchedulingModule,
+  ],
   controllers: [SalesController, PaymentsController, ReceiptsController],
   providers: [
     SalesAuditEventPublisher,

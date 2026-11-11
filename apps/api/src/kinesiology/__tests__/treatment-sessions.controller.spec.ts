@@ -4,7 +4,12 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { TreatmentSessionsController } from '../controllers/treatment-sessions.controller';
+import {
+  TreatmentSessionsController,
+  CompleteAndCheckoutDto,
+} from '../controllers/treatment-sessions.controller';
+import { TherapistTreatmentCheckoutService } from '../application/therapist-treatment-checkout.service';
+import { AuthenticatedUserPayload } from '../../platform/identity/decorators/current-user.decorator';
 import {
   CreateTreatmentSessionFromAppointmentHandler,
   GetTreatmentSessionByIdHandler,
@@ -30,6 +35,10 @@ describe('TreatmentSessionsController Unit Tests', () => {
   let mockCompleteSessionHandler: jest.Mocked<CompleteTreatmentSessionHandler>;
   let mockCancelSessionHandler: jest.Mocked<CancelTreatmentSessionHandler>;
   let mockGetHistoryHandler: jest.Mocked<GetClientTreatmentHistoryHandler>;
+  let mockTherapistCheckoutService: {
+    getSessionBillingInfo: jest.Mock;
+    checkoutSession: jest.Mock;
+  };
 
   const mockSessionDTO: TreatmentSessionDTO = {
     id: 'sess_123',
@@ -99,6 +108,11 @@ describe('TreatmentSessionsController Unit Tests', () => {
       execute: jest.fn(),
     } as unknown as jest.Mocked<GetClientTreatmentHistoryHandler>;
 
+    mockTherapistCheckoutService = {
+      getSessionBillingInfo: jest.fn(),
+      checkoutSession: jest.fn(),
+    };
+
     controller = new TreatmentSessionsController(
       mockCreateSessionHandler,
       mockGetSessionByIdHandler,
@@ -108,6 +122,7 @@ describe('TreatmentSessionsController Unit Tests', () => {
       mockCompleteSessionHandler,
       mockCancelSessionHandler,
       mockGetHistoryHandler,
+      mockTherapistCheckoutService as unknown as TherapistTreatmentCheckoutService,
     );
   });
 
@@ -316,6 +331,82 @@ describe('TreatmentSessionsController Unit Tests', () => {
 
     it('should throw BadRequestException if clientId is empty', async () => {
       await expect(controller.getTreatmentHistory('   ', {})).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getSessionBillingInfo endpoint (GET sessions/:id/billing-info)', () => {
+    it('should return billing info for a valid session ID', async () => {
+      const mockBilling = {
+        sessionId: 'sess_123',
+        appointmentId: 'appt_001',
+        clientId: 'client_456',
+        clientFullName: 'Carlos Rivera',
+        therapistId: 'therapist_789',
+        sessionStatus: 'IN_PROGRESS',
+        serviceType: 'TREATMENT',
+        serviceDescription: 'Standard Kinesiology Treatment Session',
+        price: { amount: 8500, currency: 'USD', formatted: '$85.00 USD' },
+        isAlreadyPaid: false,
+        paymentStatus: 'UNPAID',
+      };
+      mockTherapistCheckoutService.getSessionBillingInfo.mockResolvedValueOnce(mockBilling);
+
+      const result = await controller.getSessionBillingInfo('sess_123');
+
+      expect(result).toEqual(mockBilling);
+      expect(mockTherapistCheckoutService.getSessionBillingInfo).toHaveBeenCalledWith('sess_123');
+    });
+
+    it('should throw BadRequestException if sessionId is empty', async () => {
+      await expect(controller.getSessionBillingInfo('   ')).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('checkoutSession endpoint (POST sessions/:id/checkout)', () => {
+    it('should delegate to therapistCheckoutService with mapped user and payload', async () => {
+      const mockResult = {
+        success: true,
+        sessionId: 'sess_123',
+        sessionStatus: 'COMPLETED',
+        saleId: 'sale_999',
+        saleStatus: 'PAID',
+        paymentId: 'pay_888',
+        paymentStatus: 'COMPLETED',
+        paymentMethod: 'CASH',
+        receiptId: 'rcpt_777',
+        receiptNumber: 'RCP-2026-0001',
+        amount: 8500,
+        currency: 'USD',
+        clientFullName: 'Carlos Rivera',
+        paidAt: '2026-11-10T20:00:00.000Z',
+      };
+      mockTherapistCheckoutService.checkoutSession.mockResolvedValueOnce(mockResult);
+
+      const result = await controller.checkoutSession(
+        'sess_123',
+        { flowOption: 'COLLECT_PAYMENT', paymentMethod: 'CASH' },
+        {
+          id: 'user_1',
+          email: 'therapist@kinergy.test',
+          roles: ['Therapist'],
+          permissions: ['sales.create'],
+        } as unknown as AuthenticatedUserPayload,
+      );
+
+      expect(result).toEqual(mockResult);
+      expect(mockTherapistCheckoutService.checkoutSession).toHaveBeenCalledWith(
+        'sess_123',
+        expect.objectContaining({ flowOption: 'COLLECT_PAYMENT', paymentMethod: 'CASH' }),
+        expect.objectContaining({ userId: 'user_1' }),
+      );
+    });
+
+    it('should throw BadRequestException if sessionId is empty', async () => {
+      await expect(
+        controller.checkoutSession('   ', {
+          flowOption: 'COLLECT_PAYMENT',
+        } as CompleteAndCheckoutDto),
+      ).rejects.toThrow(BadRequestException);
     });
   });
 });

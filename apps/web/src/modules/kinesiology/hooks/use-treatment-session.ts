@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { kinesiologyApi } from '../api/kinesiology-api';
 import { kinesiologyQueryKeys } from '../api/kinesiology-query-keys';
-import type { TreatmentSessionModel, SoapNotesData } from '../types';
+import type { TreatmentSessionModel, SoapNotesData, SessionBillingInfo } from '../types';
 
 export { kinesiologyQueryKeys };
 
@@ -93,5 +93,29 @@ export function useSessionTherapist(sessionId: string | undefined) {
     }),
     enabled: Boolean(sessionId && sessionId.trim().length > 0),
     staleTime: 30 * 1000,
+  });
+}
+
+/**
+ * Scoped hook retrieving commercial billing details and payment status for a treatment session.
+ */
+export function useSessionBillingInfo(
+  sessionId: string | undefined,
+  options?: { enabled?: boolean },
+) {
+  const isEnabled =
+    options?.enabled !== undefined
+      ? options.enabled
+      : Boolean(sessionId && sessionId.trim().length > 0);
+  return useQuery<SessionBillingInfo, Error>({
+    queryKey: kinesiologyQueryKeys.sessionBillingInfo(sessionId ?? ''),
+    queryFn: () => {
+      if (!sessionId) {
+        throw new Error('Session ID is required');
+      }
+      return kinesiologyApi.getSessionBillingInfo(sessionId);
+    },
+    enabled: isEnabled,
+    staleTime: 10 * 1000,
   });
 }

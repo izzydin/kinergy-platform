@@ -20,6 +20,7 @@ export const RECEIPT_MUTATION_ROLES: string[] = [
   'Receptionist',
   'Trainer',
   'Kitchen Staff',
+  'Therapist',
 ];
 
 export const RECEIPT_READ_ROLES: string[] = [
@@ -33,6 +34,7 @@ export const RECEIPT_READ_ROLES: string[] = [
   'Trainer',
   'Client',
   'Member',
+  'Therapist',
 ];
 
 /**

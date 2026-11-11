@@ -189,6 +189,7 @@ export class ReceiptsController {
     'Receptionist',
     'Kitchen Staff',
     'Trainer',
+    'Therapist',
     'Client',
     'Member',
   )
@@ -285,6 +286,7 @@ export class ReceiptsController {
     'Receptionist',
     'Kitchen Staff',
     'Trainer',
+    'Therapist',
     'Client',
     'Member',
   )
