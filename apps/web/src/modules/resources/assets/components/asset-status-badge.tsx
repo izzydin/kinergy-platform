@@ -15,7 +15,7 @@ export const AssetStatusBadge: React.FC<AssetStatusBadgeProps> = ({ status, clas
         <Badge
           variant="outline"
           className={cn(
-            'border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-medium',
+            'border-status-success-border bg-status-success-surface text-status-success font-medium',
             className,
           )}
         >
@@ -27,7 +27,7 @@ export const AssetStatusBadge: React.FC<AssetStatusBadgeProps> = ({ status, clas
         <Badge
           variant="outline"
           className={cn(
-            'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300 font-medium',
+            'border-status-warning-border bg-status-warning-surface text-status-warning font-medium',
             className,
           )}
         >
@@ -39,7 +39,7 @@ export const AssetStatusBadge: React.FC<AssetStatusBadgeProps> = ({ status, clas
         <Badge
           variant="outline"
           className={cn(
-            'border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-300 font-medium',
+            'border-status-danger-border bg-status-danger-surface text-status-danger font-medium',
             className,
           )}
         >
@@ -50,10 +50,7 @@ export const AssetStatusBadge: React.FC<AssetStatusBadgeProps> = ({ status, clas
       return (
         <Badge
           variant="outline"
-          className={cn(
-            'border-slate-500/30 bg-slate-500/15 text-slate-700 dark:text-slate-400 font-medium',
-            className,
-          )}
+          className={cn('border-border bg-muted text-muted-foreground font-medium', className)}
         >
           Retired
         </Badge>

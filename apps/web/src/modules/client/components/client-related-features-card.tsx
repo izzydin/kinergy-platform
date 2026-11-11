@@ -17,32 +17,32 @@ export const ClientRelatedFeaturesCard: React.FC<ClientRelatedFeaturesCardProps>
   canReadSales = false,
 }) => {
   return (
-    <Card className="border-slate-200 shadow-sm">
-      <CardHeader className="pb-3 border-b border-slate-100">
-        <CardTitle className="text-base font-semibold text-slate-900">
+    <Card className="border-border shadow-sm">
+      <CardHeader className="pb-3 border-b border-border">
+        <CardTitle className="text-base font-semibold text-foreground">
           Cross-Domain Operational Workflows
         </CardTitle>
-        <p className="text-xs text-slate-500 mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5">
           Authoritative entry points into clinical charting, active gym memberships, and commercial
           sales ledgers.
         </p>
       </CardHeader>
       <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* 1. Clinical Treatment History */}
-        <div className="flex flex-col justify-between p-4 rounded-lg border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors space-y-3">
+        <div className="flex flex-col justify-between p-4 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors space-y-3">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-md bg-indigo-100 text-indigo-700">
+              <div className="p-1.5 rounded-md bg-status-info-surface text-status-info">
                 <Stethoscope className="h-4 w-4" aria-hidden="true" />
               </div>
-              <h3 className="text-sm font-semibold text-slate-900">Treatment History</h3>
+              <h3 className="text-sm font-semibold text-foreground">Treatment History</h3>
             </div>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-muted-foreground">
               Clinical SOAP charting, functional muscle assessments, and treatment documentation.
             </p>
           </div>
 
-          <div className="pt-2 border-t border-slate-200/60">
+          <div className="pt-2 border-t border-border">
             {canReadKinesiology ? (
               <Button
                 asChild
@@ -61,10 +61,10 @@ export const ClientRelatedFeaturesCard: React.FC<ClientRelatedFeaturesCardProps>
               </Button>
             ) : (
               <div
-                className="flex items-center gap-1.5 text-xs text-slate-500 py-1"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground py-1"
                 data-testid="locked-treatment-history"
               >
-                <Lock className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+                <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                 <span>Requires kinesiology.sessions.read</span>
               </div>
             )}
@@ -72,20 +72,20 @@ export const ClientRelatedFeaturesCard: React.FC<ClientRelatedFeaturesCardProps>
         </div>
 
         {/* 2. Gym Facility Memberships */}
-        <div className="flex flex-col justify-between p-4 rounded-lg border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors space-y-3">
+        <div className="flex flex-col justify-between p-4 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors space-y-3">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-md bg-emerald-100 text-emerald-700">
+              <div className="p-1.5 rounded-md bg-brand-soft text-brand-forest">
                 <Dumbbell className="h-4 w-4" aria-hidden="true" />
               </div>
-              <h3 className="text-sm font-semibold text-slate-900">Gym Memberships</h3>
+              <h3 className="text-sm font-semibold text-foreground">Gym Memberships</h3>
             </div>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-muted-foreground">
               Active facility access agreements, recurring subscriptions, and check-in eligibility.
             </p>
           </div>
 
-          <div className="pt-2 border-t border-slate-200/60">
+          <div className="pt-2 border-t border-border">
             {canReadMemberships ? (
               <Button
                 asChild
@@ -104,10 +104,10 @@ export const ClientRelatedFeaturesCard: React.FC<ClientRelatedFeaturesCardProps>
               </Button>
             ) : (
               <div
-                className="flex items-center gap-1.5 text-xs text-slate-500 py-1"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground py-1"
                 data-testid="locked-gym-memberships"
               >
-                <Lock className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+                <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                 <span>Requires memberships.read</span>
               </div>
             )}
@@ -115,20 +115,20 @@ export const ClientRelatedFeaturesCard: React.FC<ClientRelatedFeaturesCardProps>
         </div>
 
         {/* 3. Commercial Sales & Invoices */}
-        <div className="flex flex-col justify-between p-4 rounded-lg border border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition-colors space-y-3">
+        <div className="flex flex-col justify-between p-4 rounded-lg border border-border bg-card hover:bg-muted/30 transition-colors space-y-3">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2">
-              <div className="p-1.5 rounded-md bg-amber-100 text-amber-700">
+              <div className="p-1.5 rounded-md bg-status-warning-surface text-status-warning">
                 <Receipt className="h-4 w-4" aria-hidden="true" />
               </div>
-              <h3 className="text-sm font-semibold text-slate-900">Commercial Sales</h3>
+              <h3 className="text-sm font-semibold text-foreground">Commercial Sales</h3>
             </div>
-            <p className="text-xs text-slate-600">
+            <p className="text-xs text-muted-foreground">
               Point-of-sale invoices, itemized receipts, and transaction payment history.
             </p>
           </div>
 
-          <div className="pt-2 border-t border-slate-200/60">
+          <div className="pt-2 border-t border-border">
             {canReadSales ? (
               <Button
                 asChild
@@ -147,10 +147,10 @@ export const ClientRelatedFeaturesCard: React.FC<ClientRelatedFeaturesCardProps>
               </Button>
             ) : (
               <div
-                className="flex items-center gap-1.5 text-xs text-slate-500 py-1"
+                className="flex items-center gap-1.5 text-xs text-muted-foreground py-1"
                 data-testid="locked-commercial-sales"
               >
-                <Lock className="h-3.5 w-3.5 text-slate-400" aria-hidden="true" />
+                <Lock className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
                 <span>Requires sales.read</span>
               </div>
             )}

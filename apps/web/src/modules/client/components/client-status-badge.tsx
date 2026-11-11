@@ -13,8 +13,8 @@ export const ClientStatusBadge: React.FC<ClientStatusBadgeProps> = ({ status, cl
     case 'ACTIVE':
       return (
         <Badge
-          variant="default"
-          className={`inline-flex items-center gap-1 border-emerald-500/30 bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 ${className ?? ''}`}
+          variant="outline"
+          className={`inline-flex items-center gap-1 border-status-success-border bg-status-success-surface text-status-success ${className ?? ''}`}
           aria-label="Client status: Active"
         >
           <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />

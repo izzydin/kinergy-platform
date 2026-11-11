@@ -45,8 +45,11 @@ export const toastVariants = cva(
         default: 'border-border bg-card text-card-foreground',
         destructive:
           'destructive group border-destructive bg-destructive text-destructive-foreground',
-        success: 'border-emerald-500/50 bg-emerald-950/90 text-emerald-100 dark:border-emerald-500',
-        warning: 'border-yellow-500/50 bg-yellow-950/90 text-yellow-100 dark:border-yellow-500',
+        danger:
+          'destructive group border-status-danger-border bg-status-danger text-status-danger-foreground',
+        success: 'border-status-success-border bg-status-success text-status-success-foreground',
+        warning: 'border-status-warning-border bg-status-warning text-status-warning-foreground',
+        info: 'border-status-info-border bg-status-info text-status-info-foreground',
       },
     },
     defaultVariants: {

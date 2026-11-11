@@ -33,7 +33,7 @@ export const CalendarStatusBadge: React.FC<CalendarStatusBadgeProps> = ({
       return (
         <Badge
           variant="default"
-          className={`inline-flex items-center gap-1 border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-medium ${textSize} ${className}`}
+          className={`inline-flex items-center gap-1 border-status-success-border bg-status-success-surface text-status-success font-medium ${textSize} ${className}`}
           aria-label="Appointment status: Confirmed"
         >
           <CheckCircle2 className={`${iconSize} shrink-0`} aria-hidden="true" />
@@ -45,7 +45,7 @@ export const CalendarStatusBadge: React.FC<CalendarStatusBadgeProps> = ({
       return (
         <Badge
           variant="secondary"
-          className={`inline-flex items-center gap-1 border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-400 font-medium ${textSize} ${className}`}
+          className={`inline-flex items-center gap-1 border-status-info-border bg-status-info-surface text-status-info font-medium ${textSize} ${className}`}
           aria-label="Appointment status: Checked In"
         >
           <UserCheck className={`${iconSize} shrink-0`} aria-hidden="true" />
@@ -57,7 +57,7 @@ export const CalendarStatusBadge: React.FC<CalendarStatusBadgeProps> = ({
       return (
         <Badge
           variant="default"
-          className={`inline-flex items-center gap-1 border-indigo-500/30 bg-indigo-500/15 text-indigo-700 dark:text-indigo-400 font-medium animate-pulse ${textSize} ${className}`}
+          className={`inline-flex items-center gap-1 border-status-info-border bg-status-info-surface text-status-info font-medium animate-pulse ${textSize} ${className}`}
           aria-label="Appointment status: In Progress"
         >
           <Play className={`${iconSize} shrink-0`} aria-hidden="true" />
@@ -69,7 +69,7 @@ export const CalendarStatusBadge: React.FC<CalendarStatusBadgeProps> = ({
       return (
         <Badge
           variant="outline"
-          className={`inline-flex items-center gap-1 border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 font-medium ${textSize} ${className}`}
+          className={`inline-flex items-center gap-1 border-border bg-muted text-muted-foreground font-medium ${textSize} ${className}`}
           aria-label="Appointment status: Completed"
         >
           <CheckCheck className={`${iconSize} shrink-0`} aria-hidden="true" />
@@ -81,7 +81,7 @@ export const CalendarStatusBadge: React.FC<CalendarStatusBadgeProps> = ({
       return (
         <Badge
           variant="destructive"
-          className={`inline-flex items-center gap-1 border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-400 font-medium ${textSize} ${className}`}
+          className={`inline-flex items-center gap-1 font-medium ${textSize} ${className}`}
           aria-label="Appointment status: Cancelled"
         >
           <XCircle className={`${iconSize} shrink-0`} aria-hidden="true" />
@@ -93,7 +93,7 @@ export const CalendarStatusBadge: React.FC<CalendarStatusBadgeProps> = ({
       return (
         <Badge
           variant="destructive"
-          className={`inline-flex items-center gap-1 border-amber-600/30 bg-amber-600/15 text-amber-800 dark:text-amber-400 font-medium ${textSize} ${className}`}
+          className={`inline-flex items-center gap-1 border-status-warning-border bg-status-warning-surface text-status-warning font-medium ${textSize} ${className}`}
           aria-label="Appointment status: No Show"
         >
           <AlertTriangle className={`${iconSize} shrink-0`} aria-hidden="true" />
@@ -105,7 +105,7 @@ export const CalendarStatusBadge: React.FC<CalendarStatusBadgeProps> = ({
       return (
         <Badge
           variant="secondary"
-          className={`inline-flex items-center gap-1 border-purple-500/30 bg-purple-500/15 text-purple-700 dark:text-purple-400 font-medium ${textSize} ${className}`}
+          className={`inline-flex items-center gap-1 border-border bg-muted text-foreground font-medium ${textSize} ${className}`}
           aria-label="Appointment status: Rescheduled"
         >
           <Calendar className={`${iconSize} shrink-0`} aria-hidden="true" />
@@ -117,7 +117,7 @@ export const CalendarStatusBadge: React.FC<CalendarStatusBadgeProps> = ({
       return (
         <Badge
           variant="secondary"
-          className={`inline-flex items-center gap-1 border-orange-500/30 bg-orange-500/15 text-orange-700 dark:text-orange-400 font-medium ${textSize} ${className}`}
+          className={`inline-flex items-center gap-1 border-status-warning-border bg-status-warning-surface text-status-warning font-medium ${textSize} ${className}`}
           aria-label="Status: Room Maintenance"
         >
           <Wrench className={`${iconSize} shrink-0`} aria-hidden="true" />
@@ -130,7 +130,7 @@ export const CalendarStatusBadge: React.FC<CalendarStatusBadgeProps> = ({
       return (
         <Badge
           variant="outline"
-          className={`inline-flex items-center gap-1 border-cyan-500/30 bg-cyan-500/15 text-cyan-800 dark:text-cyan-300 font-medium ${textSize} ${className}`}
+          className={`inline-flex items-center gap-1 border-status-info-border bg-status-info-surface text-status-info font-medium ${textSize} ${className}`}
           aria-label={`Appointment status: ${status || 'Scheduled'}`}
         >
           <Clock className={`${iconSize} shrink-0`} aria-hidden="true" />
@@ -156,7 +156,7 @@ export const ConflictBadge: React.FC<ConflictBadgeProps> = ({ className = '', si
 
   return (
     <span
-      className={`inline-flex items-center gap-1 rounded font-semibold bg-red-600 text-white shadow-xs ${textSize} ${className}`}
+      className={`inline-flex items-center gap-1 rounded font-semibold bg-status-danger text-status-danger-foreground shadow-xs ${textSize} ${className}`}
       role="status"
       aria-label="Schedule conflict detected by system"
     >

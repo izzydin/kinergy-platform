@@ -76,7 +76,7 @@ export const SkipOccurrenceModal: React.FC<SkipOccurrenceModalProps> = ({
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-5 py-4 bg-muted/20">
             <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-md bg-amber-500/10 flex items-center justify-center text-amber-600">
+              <div className="h-8 w-8 rounded-md bg-status-warning-surface flex items-center justify-center text-status-warning">
                 <CalendarDays className="h-4 w-4" />
               </div>
               <div>
@@ -110,9 +110,11 @@ export const SkipOccurrenceModal: React.FC<SkipOccurrenceModalProps> = ({
               </Alert>
             )}
 
-            <div className="rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 p-3 text-xs text-amber-900 dark:text-amber-300">
-              <p className="font-semibold">Authoritative Skip Exception Semantics</p>
-              <p className="text-[11px] mt-0.5 text-amber-800 dark:text-amber-400">
+            <div className="rounded-lg border border-status-warning-border bg-status-warning-surface p-3 text-xs text-status-warning">
+              <p className="font-semibold text-status-warning">
+                Authoritative Skip Exception Semantics
+              </p>
+              <p className="text-[11px] mt-0.5 text-status-warning/90">
                 This cancels this specific appointment and registers a SKIPPED exception on parent
                 series ID <code>{seriesId.slice(0, 8)}</code>. The recurrence pattern continues
                 intact for all subsequent occurrences.
@@ -151,7 +153,7 @@ export const SkipOccurrenceModal: React.FC<SkipOccurrenceModalProps> = ({
               type="submit"
               size="sm"
               disabled={skipMutation.isPending || !reason.trim()}
-              className="inline-flex items-center gap-1.5 bg-amber-600 hover:bg-amber-700 text-white"
+              className="inline-flex items-center gap-1.5 bg-status-warning hover:bg-status-warning/90 text-status-warning-foreground"
             >
               {skipMutation.isPending ? 'Skipping Occurrence...' : 'Skip Occurrence'}
             </Button>

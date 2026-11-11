@@ -18,11 +18,11 @@ export const UserStatusBadge: React.FC<UserStatusBadgeProps> = ({ status, classN
     case 'ACTIVE':
       return (
         <Badge
-          variant="default"
-          className={`bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/25 ${className ?? ''}`}
+          variant="outline"
+          className={`bg-status-success-surface text-status-success border border-status-success-border ${className ?? ''}`}
         >
           <span
-            className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"
+            className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-status-success"
             aria-hidden="true"
           />
           Active
@@ -42,10 +42,10 @@ export const UserStatusBadge: React.FC<UserStatusBadgeProps> = ({ status, classN
       return (
         <Badge
           variant="outline"
-          className={`bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 ${className ?? ''}`}
+          className={`bg-status-warning-surface text-status-warning border border-status-warning-border ${className ?? ''}`}
         >
           <span
-            className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500"
+            className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-status-warning"
             aria-hidden="true"
           />
           Pending

@@ -71,9 +71,9 @@ export const DeactivateRoomModal: React.FC<DeactivateRoomModalProps> = ({
       <div className="w-full max-w-md rounded-xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95">
         <form onSubmit={handleSubmit}>
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-border px-5 py-4 bg-amber-500/10">
+          <div className="flex items-center justify-between border-b border-border px-5 py-4 bg-status-warning-surface/50">
             <div className="flex items-center gap-2.5">
-              <div className="h-8 w-8 rounded-md bg-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
+              <div className="h-8 w-8 rounded-md bg-status-warning-surface flex items-center justify-center text-status-warning">
                 <PowerOff className="h-4 w-4" />
               </div>
               <div>
@@ -98,11 +98,11 @@ export const DeactivateRoomModal: React.FC<DeactivateRoomModalProps> = ({
 
           {/* Body */}
           <div className="p-5 space-y-3.5">
-            <div className="rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/20 p-3 text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
-              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+            <div className="rounded-lg border border-status-warning-border bg-status-warning-surface p-3 text-xs text-status-warning flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-status-warning mt-0.5" />
               <div>
-                <p className="font-semibold">Authoritative Status Behavior</p>
-                <p className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-400">
+                <p className="font-semibold text-status-warning">Authoritative Status Behavior</p>
+                <p className="mt-0.5 text-[11px] text-status-warning/90">
                   Deactivating this room transitions its status to <strong>UNAVAILABLE</strong>.
                   Staff will not be able to book new appointments in this room until reactivated.
                   Existing confirmed appointments remain intact.

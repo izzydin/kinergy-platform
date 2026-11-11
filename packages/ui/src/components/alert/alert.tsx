@@ -11,10 +11,13 @@ export const alertVariants = cva(
         default: 'bg-background text-foreground border-border',
         destructive:
           'border-destructive/50 text-destructive dark:border-destructive [&>svg]:text-destructive bg-destructive/10',
+        danger:
+          'border-status-danger-border text-status-danger [&>svg]:text-status-danger bg-status-danger-surface',
         warning:
-          'border-yellow-500/50 text-yellow-600 dark:text-yellow-400 [&>svg]:text-yellow-600 bg-yellow-500/10',
+          'border-status-warning-border text-status-warning [&>svg]:text-status-warning bg-status-warning-surface',
         success:
-          'border-emerald-500/50 text-emerald-600 dark:text-emerald-400 [&>svg]:text-emerald-600 bg-emerald-500/10',
+          'border-status-success-border text-status-success [&>svg]:text-status-success bg-status-success-surface',
+        info: 'border-status-info-border text-status-info [&>svg]:text-status-info bg-status-info-surface',
       },
     },
     defaultVariants: {

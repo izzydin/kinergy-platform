@@ -40,10 +40,14 @@ export const StockLevelGauge: React.FC<StockLevelGaugeProps> = ({
         aria-label={`Stock level: ${currentStock} ${unit}, Low Stock, at or below threshold of ${reorderThreshold} ${unit}`}
         className={`inline-flex items-center gap-1.5 font-medium ${className ?? ''}`}
       >
-        <span className="text-amber-600 dark:text-amber-400 font-semibold">
+        <span className="text-status-warning font-semibold">
           {currentStock} {unit}
         </span>
-        <Badge variant="outline" size="sm" className="border-amber-500 text-amber-600">
+        <Badge
+          variant="outline"
+          size="sm"
+          className="border-status-warning-border bg-status-warning-surface text-status-warning"
+        >
           Low Stock (&le; {reorderThreshold})
         </Badge>
       </div>

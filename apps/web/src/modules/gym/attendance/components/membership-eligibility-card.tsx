@@ -55,7 +55,7 @@ export const MembershipEligibilityCard: React.FC<MembershipEligibilityCardProps>
         return (
           <Badge
             variant="default"
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-1 font-semibold"
+            className="border-status-success-border bg-status-success-surface text-status-success text-xs px-2.5 py-1 font-semibold"
             data-testid="eligibility-status-badge"
           >
             ✓ ELIGIBLE TO ENTER
@@ -76,8 +76,8 @@ export const MembershipEligibilityCard: React.FC<MembershipEligibilityCardProps>
       case MembershipEligibilityOutcome.MEMBERSHIP_FROZEN:
         return (
           <Badge
-            variant="secondary"
-            className="bg-amber-100 text-amber-900 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-200 text-xs px-2.5 py-1 font-semibold"
+            variant="outline"
+            className="bg-status-warning-surface text-status-warning border-status-warning-border text-xs px-2.5 py-1 font-semibold"
             data-testid="eligibility-status-badge"
           >
             ❄ MEMBERSHIP FROZEN
@@ -99,7 +99,7 @@ export const MembershipEligibilityCard: React.FC<MembershipEligibilityCardProps>
         return (
           <Badge
             variant="outline"
-            className="text-xs px-2.5 py-1 font-semibold text-amber-600 border-amber-300"
+            className="text-xs px-2.5 py-1 font-semibold text-status-warning border-status-warning-border bg-status-warning-surface"
             data-testid="eligibility-status-badge"
           >
             ⏳ NOT YET ACTIVE

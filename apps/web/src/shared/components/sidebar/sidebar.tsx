@@ -124,18 +124,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <aside
         id="main-sidebar-drawer"
         aria-label="Main Navigation"
-        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-border/50 bg-card/70 backdrop-blur-xl transition-all duration-300 ease-in-out md:static ${
+        className={`fixed inset-y-0 left-0 z-40 flex flex-col border-r border-white/10 bg-brand-charcoal text-white transition-all duration-300 ease-in-out md:static ${
           isMobileOpen ? 'translate-x-0 w-64 shadow-2xl' : '-translate-x-full md:translate-x-0'
         } ${isCollapsed ? 'md:w-20' : 'md:w-64'} ${className}`}
       >
         {/* Sidebar Brand Header */}
-        <div className="flex h-16 shrink-0 items-center justify-between border-b border-border/50 px-4">
+        <div className="flex h-16 shrink-0 items-center justify-between border-b border-white/10 px-4">
           <div className="flex items-center gap-3 font-bold text-lg">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-md shadow-primary/20">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-green text-brand-charcoal shadow-md shadow-brand-green/20">
               <Zap className="h-5 w-5" />
             </div>
             {(!isCollapsed || isMobileOpen) && (
-              <span className="truncate bg-gradient-to-r from-primary via-blue-400 to-indigo-400 bg-clip-text text-transparent font-extrabold tracking-tight">
+              <span className="truncate text-white font-extrabold tracking-tight">
                 {brandTitle}
               </span>
             )}
@@ -149,7 +149,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               setIsMobileOpen(false);
               mobileTriggerRef.current?.focus();
             }}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#C1CBC3] transition-colors hover:bg-white/10 hover:text-white md:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
             aria-label="Close Mobile Sidebar"
           >
             <X className="h-5 w-5" />
@@ -162,7 +162,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <div key={section.id} className="space-y-1">
               {/* Section Header Title */}
               {(!isCollapsed || isMobileOpen) && section.title && (
-                <h3 className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/70 select-none">
+                <h3 className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#C1CBC3] select-none">
                   {section.title}
                 </h3>
               )}
@@ -179,17 +179,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     end={item.path === '/'}
                     aria-current={active ? 'page' : undefined}
                     title={isCollapsed && !isMobileOpen ? item.label : undefined}
-                    className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green ${
                       active
-                        ? 'bg-primary text-primary-foreground shadow-md shadow-primary/20 font-semibold'
-                        : 'text-muted-foreground hover:bg-accent/80 hover:text-accent-foreground'
+                        ? 'bg-brand-forest text-white shadow-md font-semibold'
+                        : 'text-white/90 hover:bg-white/10 hover:text-white'
                     }`}
                   >
+                    {/* Active Visual Indicator Bar (WCAG 1.4.1) */}
+                    {active && (
+                      <span
+                        className="absolute left-0 top-2 bottom-2 w-1 rounded-r bg-brand-green"
+                        aria-hidden="true"
+                      />
+                    )}
+
                     {/* Icon Render */}
                     {IconComponent && (
                       <IconComponent
                         className={`h-5 w-5 shrink-0 transition-transform duration-200 ${
-                          active ? 'scale-110' : 'group-hover:scale-105'
+                          active
+                            ? 'scale-110 text-brand-green'
+                            : 'text-white/80 group-hover:scale-105 group-hover:text-white'
                         }`}
                       />
                     )}
@@ -202,8 +212,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           <span
                             className={`rounded-full px-2 py-0.5 text-xs font-bold ${
                               active
-                                ? 'bg-primary-foreground/20 text-primary-foreground'
-                                : 'bg-primary/10 text-primary'
+                                ? 'bg-brand-green text-brand-charcoal'
+                                : 'bg-white/15 text-white'
                             }`}
                           >
                             {item.badge}
@@ -219,14 +229,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </nav>
 
         {/* Footer Extension & Desktop Toggle Button */}
-        <div className="shrink-0 border-t border-border/50 p-3 space-y-2">
+        <div className="shrink-0 border-t border-white/10 p-3 space-y-2">
           {footer}
 
           {/* Desktop Collapse Toggle Button */}
           <button
             type="button"
             onClick={toggleCollapse}
-            className="hidden w-full items-center justify-center gap-2 rounded-xl border border-border/60 bg-card/40 p-2 font-medium text-muted-foreground text-xs transition-colors hover:bg-accent hover:text-foreground md:flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="hidden w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 p-2 font-medium text-[#C1CBC3] text-xs transition-colors hover:bg-white/10 hover:text-white md:flex focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
             aria-label={isCollapsed ? 'Expand Sidebar (Ctrl+B)' : 'Collapse Sidebar (Ctrl+B)'}
             aria-expanded={!isCollapsed}
           >

@@ -25,9 +25,8 @@ export const RoomStatusBadge: React.FC<RoomStatusBadgeProps> = ({
   const config = {
     AVAILABLE: {
       label: 'Available',
-      bgClass:
-        'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800',
-      dotClass: 'bg-emerald-500',
+      bgClass: 'bg-status-success-surface text-status-success border-status-success-border',
+      dotClass: 'bg-status-success',
     },
     UNAVAILABLE: {
       label: 'Unavailable',
@@ -36,9 +35,8 @@ export const RoomStatusBadge: React.FC<RoomStatusBadgeProps> = ({
     },
     MAINTENANCE: {
       label: 'In Maintenance',
-      bgClass:
-        'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800',
-      dotClass: 'bg-amber-500 animate-pulse',
+      bgClass: 'bg-status-warning-surface text-status-warning border-status-warning-border',
+      dotClass: 'bg-status-warning animate-pulse',
     },
   }[effectiveStatus] || {
     label: effectiveStatus,

@@ -42,12 +42,7 @@ export const CrudEmpty: React.FC<CrudEmptyProps> = ({
       return <ShieldAlert className="h-6 w-6 text-destructive" aria-hidden="true" />;
     }
     if (isHealthy) {
-      return (
-        <CheckCircle2
-          className="h-6 w-6 text-emerald-600 dark:text-emerald-400"
-          aria-hidden="true"
-        />
-      );
+      return <CheckCircle2 className="h-6 w-6 text-status-success" aria-hidden="true" />;
     }
     return <FolderOpen className="h-6 w-6" aria-hidden="true" />;
   };
@@ -55,7 +50,7 @@ export const CrudEmpty: React.FC<CrudEmptyProps> = ({
   const iconBgClass = isUnauthorized
     ? 'bg-destructive/10 text-destructive'
     : isHealthy
-      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+      ? 'bg-status-success-surface text-status-success'
       : 'bg-muted text-muted-foreground';
 
   return (

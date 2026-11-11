@@ -12,6 +12,75 @@ export interface HslColor {
   a?: number;
 }
 
+/**
+ * Official Kinergy Brand Tokens (Canonical HEX values per KIN-BRAND-UI-001)
+ */
+export interface OfficialBrandTokens {
+  readonly kinergyGreen: '#68CE39';
+  readonly kinergyForest: '#3F5F25';
+  readonly kinergyCharcoal: '#202522';
+  readonly kinergySoft: '#E5F6D9';
+  readonly kinergyTint: '#F4FAEF';
+}
+
+/**
+ * Approved Neutral Tokens (Canonical HEX values per KIN-BRAND-UI-001)
+ */
+export interface ApprovedNeutralTokens {
+  readonly white: '#FFFFFF';
+  readonly background: '#F8FAF9';
+  readonly border: '#D8DDD9';
+  readonly textSecondary: '#68716B';
+}
+
+/**
+ * Semantic Status Scale Contract
+ */
+export interface SemanticStatusScale {
+  readonly default: string;
+  readonly foreground: string;
+  readonly surface: string;
+  readonly border: string;
+}
+
+/**
+ * Complete Semantic Status Tokens
+ */
+export interface SemanticStatusTokens {
+  readonly success: SemanticStatusScale;
+  readonly warning: SemanticStatusScale;
+  readonly danger: SemanticStatusScale;
+  readonly info: SemanticStatusScale;
+}
+
+/**
+ * Data Visualization & Chart Tokens
+ */
+export interface ChartTokens {
+  readonly chart1: string;
+  readonly chart2: string;
+  readonly chart3: string;
+  readonly chart4: string;
+  readonly chart5: string;
+}
+
+/**
+ * Interactive States Tokens Contract
+ */
+export interface InteractionStateTokens {
+  readonly default: string;
+  readonly hover: string;
+  readonly active: string;
+  readonly focusVisible: string;
+  readonly selected: string;
+  readonly disabled: string;
+  readonly invalid: string;
+  readonly success: string;
+}
+
+/**
+ * shadcn/ui & Tailwind Semantic HSL Color Channel Maps
+ */
 export interface SemanticColors {
   background: string;
   foreground: string;
@@ -32,6 +101,8 @@ export interface SemanticColors {
   border: string;
   input: string;
   ring: string;
+  brand?: string;
+  brandForeground?: string;
 }
 
 export interface TypographyTokens {
@@ -96,6 +167,11 @@ export interface ZIndexTokens {
 }
 
 export interface DesignTokens {
+  brand: OfficialBrandTokens;
+  neutrals: ApprovedNeutralTokens;
+  status: SemanticStatusTokens;
+  charts: ChartTokens;
+  interaction: InteractionStateTokens;
   colors: SemanticColors;
   typography: TypographyTokens;
   spacing: SpacingTokens;

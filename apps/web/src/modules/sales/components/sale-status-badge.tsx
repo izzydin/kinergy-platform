@@ -25,7 +25,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
       return (
         <Badge
           variant="outline"
-          className={`inline-flex items-center gap-1 border-amber-500/40 bg-amber-500/10 text-amber-500 dark:text-amber-400 ${className ?? ''}`}
+          className={`inline-flex items-center gap-1 border-status-warning-border bg-status-warning-surface text-status-warning ${className ?? ''}`}
           aria-label="Sale status: Pending Payment"
         >
           <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -36,7 +36,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
       return (
         <Badge
           variant="outline"
-          className={`inline-flex items-center gap-1 border-blue-500/40 bg-blue-500/10 text-blue-500 dark:text-blue-400 ${className ?? ''}`}
+          className={`inline-flex items-center gap-1 border-status-info-border bg-status-info-surface text-status-info ${className ?? ''}`}
           aria-label="Sale status: Partially Paid"
         >
           <Coins className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -47,7 +47,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
       return (
         <Badge
           variant="default"
-          className={`inline-flex items-center gap-1 border-emerald-500/30 bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 ${className ?? ''}`}
+          className={`inline-flex items-center gap-1 border-status-success-border bg-status-success-surface text-status-success font-medium ${className ?? ''}`}
           aria-label="Sale status: Paid"
         >
           <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -58,7 +58,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
       return (
         <Badge
           variant="default"
-          className={`inline-flex items-center gap-1 border-emerald-500/30 bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 ${className ?? ''}`}
+          className={`inline-flex items-center gap-1 border-status-success-border bg-status-success-surface text-status-success font-medium ${className ?? ''}`}
           aria-label="Sale status: Completed"
         >
           <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -80,7 +80,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
       return (
         <Badge
           variant="outline"
-          className={`inline-flex items-center gap-1 border-purple-500/40 bg-purple-500/10 text-purple-500 dark:text-purple-400 ${className ?? ''}`}
+          className={`inline-flex items-center gap-1 border-border bg-muted text-muted-foreground ${className ?? ''}`}
           aria-label="Sale status: Refunded"
         >
           <RotateCcw className="h-3 w-3 shrink-0" aria-hidden="true" />

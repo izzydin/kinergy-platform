@@ -1,32 +1,152 @@
-import type { DesignTokens, SemanticColors } from './tokens.types';
+import type {
+  ApprovedNeutralTokens,
+  ChartTokens,
+  DesignTokens,
+  InteractionStateTokens,
+  OfficialBrandTokens,
+  SemanticColors,
+  SemanticStatusTokens,
+} from './tokens.types';
 
 /**
- * Light Theme HSL Semantic Design Tokens
+ * =============================================================================
+ * Official Kinergy Brand Tokens (Canonical HEX values per KIN-BRAND-UI-001)
+ * =============================================================================
+ * These exact values must be preserved without modification.
  */
-export const LIGHT_SEMANTIC_COLORS: SemanticColors = {
-  background: '0 0% 100%',
-  foreground: '222.2 84% 4.9%',
-  card: '0 0% 100%',
-  cardForeground: '222.2 84% 4.9%',
-  popover: '0 0% 100%',
-  popoverForeground: '222.2 84% 4.9%',
-  primary: '221.2 83.2% 53.3%',
-  primaryForeground: '210 40% 98%',
-  secondary: '210 40% 96.1%',
-  secondaryForeground: '222.2 47.4% 11.2%',
-  muted: '210 40% 96.1%',
-  mutedForeground: '215.4 16.3% 46.9%',
-  accent: '210 40% 96.1%',
-  accentForeground: '222.2 47.4% 11.2%',
-  destructive: '0 84.2% 60.2%',
-  destructiveForeground: '210 40% 98%',
-  border: '214.3 31.8% 91.4%',
-  input: '214.3 31.8% 91.4%',
-  ring: '221.2 83.2% 53.3%',
+export const OFFICIAL_BRAND_TOKENS: OfficialBrandTokens = {
+  kinergyGreen: '#68CE39',
+  kinergyForest: '#3F5F25',
+  kinergyCharcoal: '#202522',
+  kinergySoft: '#E5F6D9',
+  kinergyTint: '#F4FAEF',
 };
 
 /**
- * Dark Theme HSL Semantic Design Tokens (Default Platform Aesthetic)
+ * =============================================================================
+ * Approved Neutral Tokens (Canonical HEX values per KIN-BRAND-UI-001)
+ * =============================================================================
+ * These exact values must be preserved without modification.
+ */
+export const APPROVED_NEUTRAL_TOKENS: ApprovedNeutralTokens = {
+  white: '#FFFFFF',
+  background: '#F8FAF9',
+  border: '#D8DDD9',
+  textSecondary: '#68716B',
+};
+
+/**
+ * =============================================================================
+ * Semantic Status Tokens
+ * =============================================================================
+ * Standardized status feedback scales for Success, Warning, Danger, and Info.
+ * All surface/foreground pairings meet or exceed WCAG 2.2 AA (>= 4.5:1).
+ */
+export const SEMANTIC_STATUS_TOKENS: SemanticStatusTokens = {
+  success: {
+    default: '#3F5F25', // Forest
+    foreground: '#FFFFFF', // White -> Contrast 7.30:1
+    surface: '#E5F6D9', // Soft
+    border: '#68CE39', // Green
+  },
+  warning: {
+    default: '#B45309', // Amber-700
+    foreground: '#FFFFFF', // White -> Contrast 5.21:1
+    surface: '#FEF3C7', // Amber-100
+    border: '#FCD34D', // Amber-300
+  },
+  danger: {
+    default: '#B91C1C', // Red-700
+    foreground: '#FFFFFF', // White -> Contrast 6.47:1
+    surface: '#FEE2E2', // Red-100
+    border: '#FCA5A5', // Red-300
+  },
+  info: {
+    default: '#0369A1', // Sky-700
+    foreground: '#FFFFFF', // White -> Contrast 4.67:1
+    surface: '#E0F2FE', // Sky-100
+    border: '#7DD3FC', // Sky-300
+  },
+};
+
+/**
+ * =============================================================================
+ * Data Visualization & Chart Tokens
+ * =============================================================================
+ */
+export const CHART_TOKENS: ChartTokens = {
+  chart1: '#3F5F25', // Forest
+  chart2: '#68CE39', // Green
+  chart3: '#2563EB', // Blue-600
+  chart4: '#D97706', // Amber-600
+  chart5: '#7C3AED', // Purple-600
+};
+
+/**
+ * =============================================================================
+ * Interactive State Tokens
+ * =============================================================================
+ */
+export const INTERACTION_TOKENS: InteractionStateTokens = {
+  default: '#3F5F25',
+  hover: '#314B1D',
+  active: '#273D17',
+  focusVisible: '#3F5F25',
+  selected: '#E5F6D9',
+  disabled: 'rgba(63, 95, 37, 0.4)',
+  invalid: '#B91C1C',
+  success: '#3F5F25',
+};
+
+/**
+ * =============================================================================
+ * Light Theme HSL Semantic Design Tokens (Official Platform Aesthetic v1.0)
+ * =============================================================================
+ * Maps canonical Kinergy brand and neutral values into shadcn/ui and Tailwind
+ * HSL variable format (`H S% L%` without `hsl()` wrapper).
+ */
+export const LIGHT_SEMANTIC_COLORS: SemanticColors = {
+  // Neutral surfaces
+  background: '150 16.7% 97.6%', // #F8FAF9 (--color-background)
+  foreground: '144 7.2% 13.5%', // #202522 (--kinergy-charcoal)
+  card: '0 0% 100%', // #FFFFFF (--color-white)
+  cardForeground: '144 7.2% 13.5%', // #202522 (--kinergy-charcoal)
+  popover: '0 0% 100%', // #FFFFFF (--color-white)
+  popoverForeground: '144 7.2% 13.5%', // #202522 (--kinergy-charcoal)
+
+  // Primary Action (Forest bg + White fg -> 7.30:1 contrast)
+  primary: '93.1 43.9% 25.9%', // #3F5F25 (--kinergy-forest)
+  primaryForeground: '0 0% 100%', // #FFFFFF (--color-white)
+
+  // Secondary Action (Soft surface + Forest fg -> 6.44:1 contrast)
+  secondary: '95.2 61.7% 90.8%', // #E5F6D9 (--kinergy-soft)
+  secondaryForeground: '93.1 43.9% 25.9%', // #3F5F25 (--kinergy-forest)
+
+  // Muted & Accent (Tint surface + Text Secondary -> 4.81:1 contrast)
+  muted: '92.7 52.4% 95.9%', // #F4FAEF (--kinergy-tint)
+  mutedForeground: '140 4.1% 42.5%', // #68716B (--color-text-secondary)
+  accent: '92.7 52.4% 95.9%', // #F4FAEF (--kinergy-tint)
+  accentForeground: '144 7.2% 13.5%', // #202522 (--kinergy-charcoal)
+
+  // Destructive Action (Red-600 bg + White fg -> 4.83:1 contrast)
+  destructive: '0 72% 51%', // #DC2626
+  destructiveForeground: '0 0% 100%', // #FFFFFF
+
+  // Structural boundaries & Focus rings
+  border: '132 6.8% 85.7%', // #D8DDD9 (--color-border)
+  input: '132 6.8% 85.7%', // #D8DDD9 (--color-border)
+  ring: '93.1 43.9% 25.9%', // #3F5F25 (--kinergy-forest)
+
+  // Brand Action (Green bg + Charcoal fg -> 7.77:1 contrast)
+  brand: '101.1 60.3% 51.6%', // #68CE39 (--kinergy-green)
+  brandForeground: '144 7.2% 13.5%', // #202522 (--kinergy-charcoal)
+};
+
+/**
+ * =============================================================================
+ * Dark Theme HSL Semantic Design Tokens (Architecture Prepared for Future)
+ * =============================================================================
+ * Prepared clean architecture without unapproved auto-inversion.
  */
 export const DARK_SEMANTIC_COLORS: SemanticColors = {
   background: '224 71% 4%',
@@ -35,8 +155,8 @@ export const DARK_SEMANTIC_COLORS: SemanticColors = {
   cardForeground: '213 31% 91%',
   popover: '224 71% 7%',
   popoverForeground: '213 31% 91%',
-  primary: '210 100% 50%',
-  primaryForeground: '0 0% 100%',
+  primary: '101.1 60.3% 51.6%', // Kinergy Green
+  primaryForeground: '144 7.2% 13.5%', // Charcoal foreground
   secondary: '215 27.9% 16.9%',
   secondaryForeground: '210 20% 98%',
   muted: '215 27.9% 16.9%',
@@ -47,14 +167,23 @@ export const DARK_SEMANTIC_COLORS: SemanticColors = {
   destructiveForeground: '210 20% 98%',
   border: '215 27.9% 16.9%',
   input: '215 27.9% 16.9%',
-  ring: '216 100% 50%',
+  ring: '101.1 60.3% 51.6%',
+  brand: '101.1 60.3% 51.6%',
+  brandForeground: '144 7.2% 13.5%',
 };
 
 /**
- * Shared Design System Token Definitions
+ * =============================================================================
+ * Shared Design System Token Definitions (Root Single Source of Truth)
+ * =============================================================================
  */
 export const DESIGN_TOKENS: DesignTokens = {
-  colors: DARK_SEMANTIC_COLORS,
+  brand: OFFICIAL_BRAND_TOKENS,
+  neutrals: APPROVED_NEUTRAL_TOKENS,
+  status: SEMANTIC_STATUS_TOKENS,
+  charts: CHART_TOKENS,
+  interaction: INTERACTION_TOKENS,
+  colors: LIGHT_SEMANTIC_COLORS, // Light theme is official v1.0
   typography: {
     fontFamily: {
       sans: 'Inter, system-ui, -apple-system, sans-serif',

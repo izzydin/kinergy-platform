@@ -42,16 +42,10 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
     <div className="space-y-4">
       {/* Archived Status Warning Banner */}
       {isArchived && (
-        <Alert
-          variant="destructive"
-          className="bg-amber-50/90 border-amber-300 text-amber-900"
-          role="alert"
-        >
-          <AlertCircle className="h-4 w-4 text-amber-700" aria-hidden="true" />
-          <AlertTitle className="text-sm font-semibold text-amber-950">
-            Archived Client Profile
-          </AlertTitle>
-          <AlertDescription className="text-xs text-amber-800 mt-1">
+        <Alert variant="warning" role="alert">
+          <AlertCircle className="h-4 w-4" aria-hidden="true" />
+          <AlertTitle className="text-sm font-semibold">Archived Client Profile</AlertTitle>
+          <AlertDescription className="text-xs mt-1">
             This client record is currently archived. Active service delivery, recurring
             memberships, and new appointment scheduling are restricted. To make changes, restore the
             profile.
@@ -123,12 +117,15 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
                 >
                   {isArchived ? (
                     <>
-                      <ArchiveRestore className="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+                      <ArchiveRestore
+                        className="h-3.5 w-3.5 text-status-success"
+                        aria-hidden="true"
+                      />
                       <span>Restore Client</span>
                     </>
                   ) : (
                     <>
-                      <Archive className="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+                      <Archive className="h-3.5 w-3.5 text-status-warning" aria-hidden="true" />
                       <span>Archive Client</span>
                     </>
                   )}
@@ -138,13 +135,13 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
           </div>
 
           {/* Profile Sub-route Navigation Tabs */}
-          <div className="flex border-b border-slate-200 mt-6 -mb-6 space-x-6 text-sm font-medium">
+          <div className="flex border-b border-border mt-6 -mb-6 space-x-6 text-sm font-medium">
             <Link
               to={`/clients/${client.id}`}
               className={`pb-3 transition-colors ${
                 activeTab === 'overview'
-                  ? 'text-indigo-600 border-b-2 border-indigo-600 font-semibold'
-                  : 'text-slate-500 hover:text-slate-700 border-b-2 border-transparent'
+                  ? 'text-primary border-b-2 border-primary font-semibold'
+                  : 'text-muted-foreground hover:text-foreground border-b-2 border-transparent'
               }`}
             >
               Overview
@@ -153,8 +150,8 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
               to={`/clients/${client.id}/timeline`}
               className={`pb-3 transition-colors ${
                 activeTab === 'timeline'
-                  ? 'text-indigo-600 border-b-2 border-indigo-600 font-semibold'
-                  : 'text-slate-500 hover:text-slate-700 border-b-2 border-transparent'
+                  ? 'text-primary border-b-2 border-primary font-semibold'
+                  : 'text-muted-foreground hover:text-foreground border-b-2 border-transparent'
               }`}
             >
               Activity Timeline
@@ -163,8 +160,8 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
               to={`/clients/${client.id}/treatments`}
               className={`pb-3 transition-colors ${
                 activeTab === 'treatments'
-                  ? 'text-indigo-600 border-b-2 border-indigo-600 font-semibold'
-                  : 'text-slate-500 hover:text-slate-700 border-b-2 border-transparent'
+                  ? 'text-primary border-b-2 border-primary font-semibold'
+                  : 'text-muted-foreground hover:text-foreground border-b-2 border-transparent'
               }`}
             >
               Treatment History

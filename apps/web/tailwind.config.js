@@ -19,6 +19,7 @@ module.exports = {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
       },
       colors: {
+        // shadcn/ui semantic mappings bound to CSS Custom Properties
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
@@ -51,6 +52,54 @@ module.exports = {
         card: {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
+        },
+
+        // Official Kinergy Brand Tokens (KIN-BRAND-UI-001)
+        brand: {
+          DEFAULT: 'var(--kinergy-forest)',
+          green: 'var(--kinergy-green)',
+          forest: 'var(--kinergy-forest)',
+          charcoal: 'var(--kinergy-charcoal)',
+          soft: 'var(--kinergy-soft)',
+          tint: 'var(--kinergy-tint)',
+          foreground: 'hsl(var(--brand-foreground, var(--foreground)))',
+        },
+
+        // Semantic Status Feedback Tokens
+        status: {
+          success: {
+            DEFAULT: 'var(--status-success)',
+            foreground: 'var(--status-success-foreground)',
+            surface: 'var(--status-success-surface)',
+            border: 'var(--status-success-border)',
+          },
+          warning: {
+            DEFAULT: 'var(--status-warning)',
+            foreground: 'var(--status-warning-foreground)',
+            surface: 'var(--status-warning-surface)',
+            border: 'var(--status-warning-border)',
+          },
+          danger: {
+            DEFAULT: 'var(--status-danger)',
+            foreground: 'var(--status-danger-foreground)',
+            surface: 'var(--status-danger-surface)',
+            border: 'var(--status-danger-border)',
+          },
+          info: {
+            DEFAULT: 'var(--status-info)',
+            foreground: 'var(--status-info-foreground)',
+            surface: 'var(--status-info-surface)',
+            border: 'var(--status-info-border)',
+          },
+        },
+
+        // Data Visualization & Chart Tokens
+        chart: {
+          1: 'var(--chart-1)',
+          2: 'var(--chart-2)',
+          3: 'var(--chart-3)',
+          4: 'var(--chart-4)',
+          5: 'var(--chart-5)',
         },
       },
       borderRadius: {

@@ -141,7 +141,7 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
         {checkoutResult ? (
           <div className="space-y-4 py-2" data-testid="checkout-success-view">
             <DialogHeader>
-              <div className="flex items-center space-x-2 text-emerald-600">
+              <div className="flex items-center space-x-2 text-status-success">
                 <CheckCircle2 className="h-6 w-6" />
                 <DialogTitle className="text-foreground font-bold text-lg">
                   Treatment Encounter Finalized & Settled
@@ -152,42 +152,42 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
               </DialogDescription>
             </DialogHeader>
 
-            <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-4 space-y-3 text-sm text-emerald-950">
+            <div className="rounded-lg border border-status-success-border bg-status-success-surface p-4 space-y-3 text-sm text-foreground">
               <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <span className="text-emerald-700 font-medium">Client</span>
-                  <p className="font-semibold text-emerald-950 text-sm">
+                  <span className="text-muted-foreground font-medium">Client</span>
+                  <p className="font-semibold text-foreground text-sm">
                     {checkoutResult.clientFullName}
                   </p>
                 </div>
                 <div>
-                  <span className="text-emerald-700 font-medium">Session Status</span>
-                  <p className="font-semibold text-emerald-950">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-200 text-emerald-800">
+                  <span className="text-muted-foreground font-medium">Session Status</span>
+                  <p className="font-semibold text-foreground">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border border-status-success-border bg-status-success-surface text-status-success">
                       {checkoutResult.sessionStatus}
                     </span>
                   </p>
                 </div>
                 <div>
-                  <span className="text-emerald-700 font-medium">Sale & Payment</span>
-                  <p className="font-semibold text-emerald-950">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-200 text-emerald-800">
+                  <span className="text-muted-foreground font-medium">Sale & Payment</span>
+                  <p className="font-semibold text-foreground">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold border border-status-success-border bg-status-success-surface text-status-success">
                       PAID ({checkoutResult.paymentMethod ?? 'CASH'})
                     </span>
                   </p>
                 </div>
                 <div>
-                  <span className="text-emerald-700 font-medium">Amount Settled</span>
-                  <p className="font-semibold text-emerald-950">
+                  <span className="text-muted-foreground font-medium">Amount Settled</span>
+                  <p className="font-semibold text-foreground">
                     ${(checkoutResult.amount / 100).toFixed(2)} {checkoutResult.currency}
                   </p>
                 </div>
               </div>
 
               {checkoutResult.receiptNumber && (
-                <div className="pt-2 border-t border-emerald-200/80 flex items-center justify-between text-xs">
-                  <span className="text-emerald-800 font-medium">Official Receipt:</span>
-                  <span className="font-mono font-bold text-emerald-900">
+                <div className="pt-2 border-t border-status-success-border/80 flex items-center justify-between text-xs">
+                  <span className="text-muted-foreground font-medium">Official Receipt:</span>
+                  <span className="font-mono font-bold text-foreground">
                     #{checkoutResult.receiptNumber}
                   </span>
                 </div>
@@ -240,35 +240,35 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
             <div className="space-y-3.5 my-2 text-xs">
               {/* Encounter Summary & Authoritative Pricing */}
               {billingInfo && (
-                <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3.5 space-y-2">
+                <div className="rounded-lg border border-border bg-muted/30 p-3.5 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="text-slate-500 font-medium uppercase tracking-wider text-[10px]">
+                      <span className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">
                         Client
                       </span>
                       <p
-                        className="font-semibold text-slate-900 text-sm"
+                        className="font-semibold text-foreground text-sm"
                         data-testid="billing-client-display"
                       >
                         {billingInfo.clientFullName}
                       </p>
                     </div>
                     <div className="text-right">
-                      <span className="text-slate-500 font-medium uppercase tracking-wider text-[10px]">
+                      <span className="text-muted-foreground font-medium uppercase tracking-wider text-[10px]">
                         Service Fee
                       </span>
                       <p
-                        className="font-bold text-slate-900 text-base"
+                        className="font-bold text-foreground text-base"
                         data-testid="billing-price-display"
                       >
                         {priceFormatted}
                       </p>
                     </div>
                   </div>
-                  <div className="text-slate-600 flex items-center justify-between text-xs pt-1 border-t border-slate-200/70">
+                  <div className="text-muted-foreground flex items-center justify-between text-xs pt-1 border-t border-border/70">
                     <span>{billingInfo.serviceDescription}</span>
                     {billingInfo.isAlreadyPaid && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-100 text-emerald-800">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border border-status-success-border bg-status-success-surface text-status-success">
                         ✓ Upfront Paid
                       </span>
                     )}
@@ -278,7 +278,7 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
 
               {/* Payment Decision Options (Option A vs Option B) */}
               <div className="space-y-2">
-                <span className="text-slate-700 font-semibold block text-xs">
+                <span className="text-foreground font-semibold block text-xs">
                   Financial Settlement Option:
                 </span>
 
@@ -286,8 +286,8 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                 <div
                   className={`rounded-lg border p-3 cursor-pointer transition-colors ${
                     flowOption === 'COLLECT_PAYMENT'
-                      ? 'border-indigo-600 bg-indigo-50/40 ring-1 ring-indigo-600'
-                      : 'border-slate-200 hover:bg-slate-50'
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                      : 'border-border hover:bg-muted/40'
                   } ${billingInfo?.isAlreadyPaid ? 'opacity-50 cursor-not-allowed' : ''}`}
                   onClick={() => {
                     if (!billingInfo?.isAlreadyPaid) {
@@ -304,26 +304,26 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                       checked={flowOption === 'COLLECT_PAYMENT'}
                       onChange={() => setFlowOption('COLLECT_PAYMENT')}
                       disabled={isSubmitting || Boolean(billingInfo?.isAlreadyPaid)}
-                      className="mt-0.5 h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                      className="mt-0.5 h-4 w-4 text-primary focus:ring-primary"
                       data-testid="flow-collect-payment-radio"
                     />
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center justify-between">
-                        <span className="font-semibold text-slate-900 text-xs">
+                        <span className="font-semibold text-foreground text-xs">
                           Option A — Complete & Collect Payment
                         </span>
-                        <span className="font-mono text-xs font-bold text-slate-900">
+                        <span className="font-mono text-xs font-bold text-foreground">
                           {priceFormatted}
                         </span>
                       </div>
-                      <p className="text-slate-500 text-[11px]">
+                      <p className="text-muted-foreground text-[11px]">
                         Receive payment directly from client upon completion. Creates 1 Sale & 1
                         settled Payment.
                       </p>
 
                       {/* Payment Method Selector (CASH / QR) */}
                       {flowOption === 'COLLECT_PAYMENT' && (
-                        <div className="pt-2 mt-2 border-t border-indigo-100 space-y-2">
+                        <div className="pt-2 mt-2 border-t border-border space-y-2">
                           <div className="flex items-center space-x-2">
                             <button
                               type="button"
@@ -331,8 +331,8 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                               disabled={isSubmitting}
                               className={`flex-1 py-1.5 px-3 rounded border text-xs font-medium flex items-center justify-center space-x-1.5 transition-all ${
                                 paymentMethod === 'CASH'
-                                  ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
-                                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                                  : 'border-border bg-background text-foreground hover:bg-muted'
                               }`}
                               data-testid="payment-method-cash-btn"
                             >
@@ -345,8 +345,8 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                               disabled={isSubmitting}
                               className={`flex-1 py-1.5 px-3 rounded border text-xs font-medium flex items-center justify-center space-x-1.5 transition-all ${
                                 paymentMethod === 'QR'
-                                  ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm'
-                                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                                  ? 'border-primary bg-primary text-primary-foreground shadow-sm'
+                                  : 'border-border bg-background text-foreground hover:bg-muted'
                               }`}
                               data-testid="payment-method-qr-btn"
                             >
@@ -357,11 +357,13 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
 
                           {/* Cash Change Calculator */}
                           {paymentMethod === 'CASH' && (
-                            <div className="rounded bg-white border border-slate-200 p-2 space-y-1.5">
+                            <div className="rounded bg-background border border-border p-2 space-y-1.5">
                               <div className="flex items-center justify-between">
-                                <span className="text-slate-600 text-[11px]">Cash Received:</span>
+                                <span className="text-muted-foreground text-[11px]">
+                                  Cash Received:
+                                </span>
                                 <div className="flex items-center space-x-1 w-28">
-                                  <span className="text-slate-400 text-xs">$</span>
+                                  <span className="text-muted-foreground text-xs">$</span>
                                   <input
                                     type="number"
                                     step="0.01"
@@ -369,20 +371,22 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                                     placeholder="0.00"
                                     value={cashTendered}
                                     onChange={(e) => setCashTendered(e.target.value)}
-                                    className="w-full px-2 py-0.5 border border-slate-300 rounded text-xs text-right font-mono"
+                                    className="w-full px-2 py-0.5 border border-input rounded text-xs text-right font-mono bg-background text-foreground"
                                     data-testid="cash-tendered-input"
                                   />
                                 </div>
                               </div>
                               {tenderedCents > 0 && (
                                 <div
-                                  className="flex items-center justify-between pt-1 border-t border-slate-100 font-semibold text-xs"
+                                  className="flex items-center justify-between pt-1 border-t border-border font-semibold text-xs"
                                   data-testid="cash-change-display"
                                 >
-                                  <span className="text-slate-700">Change Due:</span>
+                                  <span className="text-foreground">Change Due:</span>
                                   <span
                                     className={`font-mono ${
-                                      changeDueCents >= 0 ? 'text-emerald-600' : 'text-red-600'
+                                      changeDueCents >= 0
+                                        ? 'text-status-success'
+                                        : 'text-destructive'
                                     }`}
                                   >
                                     ${(changeDueCents / 100).toFixed(2)}
@@ -403,7 +407,7 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                               }
                               value={paymentReference}
                               onChange={(e) => setPaymentReference(e.target.value)}
-                              className="w-full px-2.5 py-1 border border-slate-300 rounded text-xs bg-white text-slate-800"
+                              className="w-full px-2.5 py-1 border border-input rounded text-xs bg-background text-foreground"
                               data-testid="payment-reference-input"
                             />
                           </div>
@@ -417,8 +421,8 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                 <div
                   className={`rounded-lg border p-3 cursor-pointer transition-colors ${
                     flowOption === 'ALREADY_PAID'
-                      ? 'border-indigo-600 bg-indigo-50/40 ring-1 ring-indigo-600'
-                      : 'border-slate-200 hover:bg-slate-50'
+                      ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                      : 'border-border hover:bg-muted/40'
                   }`}
                   onClick={() => setFlowOption('ALREADY_PAID')}
                   data-testid="flow-already-paid-card"
@@ -431,14 +435,14 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                       checked={flowOption === 'ALREADY_PAID'}
                       onChange={() => setFlowOption('ALREADY_PAID')}
                       disabled={isSubmitting}
-                      className="mt-0.5 h-4 w-4 text-indigo-600 focus:ring-indigo-500"
+                      className="mt-0.5 h-4 w-4 text-primary focus:ring-primary"
                       data-testid="flow-already-paid-radio"
                     />
                     <div className="flex-1 space-y-1">
-                      <span className="font-semibold text-slate-900 text-xs block">
+                      <span className="font-semibold text-foreground text-xs block">
                         Option B — Complete Treatment (Already Paid)
                       </span>
-                      <p className="text-slate-500 text-[11px]">
+                      <p className="text-muted-foreground text-[11px]">
                         Client already paid at reception or online. Verifies settled payment and
                         avoids double-charging.
                       </p>
@@ -447,20 +451,22 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                       {billingInfo && (
                         <div className="pt-1.5">
                           {billingInfo.isAlreadyPaid ? (
-                            <div className="rounded bg-emerald-50 border border-emerald-200 p-2 text-emerald-800 text-[11px] space-y-0.5">
-                              <p className="font-semibold">✓ Verified Settled Payment</p>
-                              <p>
+                            <div className="rounded bg-status-success-surface border border-status-success-border p-2 text-foreground text-[11px] space-y-0.5">
+                              <p className="font-semibold text-status-success">
+                                ✓ Verified Settled Payment
+                              </p>
+                              <p className="text-muted-foreground">
                                 Active Sale #{billingInfo.existingSaleId?.slice(-8)} is fully paid.
                                 Completing will not re-charge the client.
                               </p>
                             </div>
                           ) : (
-                            <div className="rounded bg-amber-50 border border-amber-200 p-2 text-amber-800 text-[11px] space-y-0.5">
-                              <p className="font-semibold flex items-center space-x-1">
-                                <AlertCircle className="h-3.5 w-3.5 inline text-amber-600" />
+                            <div className="rounded bg-status-warning-surface border border-status-warning-border p-2 text-foreground text-[11px] space-y-0.5">
+                              <p className="font-semibold flex items-center space-x-1 text-status-warning">
+                                <AlertCircle className="h-3.5 w-3.5 inline text-status-warning" />
                                 <span>No Prior Payment Found</span>
                               </p>
-                              <p>
+                              <p className="text-muted-foreground">
                                 No settled payment is linked to this appointment. Please collect
                                 payment via Option A.
                               </p>
@@ -476,23 +482,25 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
               {/* Clinical Documentation Status Notice */}
               {hasNotes ? (
                 <div
-                  className="rounded-md bg-emerald-50 border border-emerald-200 p-2.5 text-emerald-800"
+                  className="rounded-md bg-status-success-surface border border-status-success-border p-2.5 text-foreground"
                   data-testid="notes-present-notice"
                 >
-                  <p className="font-semibold">✓ Clinical Notes Documented</p>
-                  <p className="text-[11px] mt-0.5">
+                  <p className="font-semibold text-status-success">✓ Clinical Notes Documented</p>
+                  <p className="text-[11px] mt-0.5 text-muted-foreground">
                     Structured SOAP findings are recorded and will be permanently sealed upon
                     signing.
                   </p>
                 </div>
               ) : (
                 <div
-                  className="rounded-md bg-amber-50 border border-amber-200 p-2.5 text-amber-800 space-y-1.5"
+                  className="rounded-md bg-status-warning-surface border border-status-warning-border p-2.5 text-foreground space-y-1.5"
                   data-testid="empty-notes-warning"
                 >
                   <div>
-                    <p className="font-semibold">⚠️ Incomplete Clinical Documentation Notice</p>
-                    <p className="text-[11px] mt-0.5">
+                    <p className="font-semibold text-status-warning">
+                      ⚠️ Incomplete Clinical Documentation Notice
+                    </p>
+                    <p className="text-[11px] mt-0.5 text-muted-foreground">
                       No SOAP progress notes documented. Completing will lock this clinical record
                       with empty documentation.
                     </p>
@@ -501,12 +509,12 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                     <input
                       type="checkbox"
                       data-testid="confirm-empty-notes-checkbox"
-                      className="mt-0.5 h-3.5 w-3.5 rounded border-amber-300 text-amber-600"
+                      className="mt-0.5 h-3.5 w-3.5 rounded border-status-warning-border text-status-warning focus:ring-status-warning"
                       checked={acknowledgedEmptyNotes}
                       onChange={(e) => setAcknowledgedEmptyNotes(e.target.checked)}
                       disabled={isSubmitting}
                     />
-                    <span className="text-[11px] text-amber-900 font-medium">
+                    <span className="text-[11px] text-foreground font-medium">
                       I acknowledge completing this encounter without documented SOAP notes.
                     </span>
                   </label>
@@ -516,12 +524,14 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
               {/* Unsaved Draft Notes Warning */}
               {hasUnsavedNotes && (
                 <div
-                  className="rounded-md bg-amber-50 border border-amber-200 p-2.5 text-amber-800 space-y-1.5"
+                  className="rounded-md bg-status-warning-surface border border-status-warning-border p-2.5 text-foreground space-y-1.5"
                   data-testid="unsaved-notes-warning"
                 >
                   <div>
-                    <p className="font-semibold">⚠️ Unsaved Note Changes in Editor</p>
-                    <p className="text-[11px] mt-0.5">
+                    <p className="font-semibold text-status-warning">
+                      ⚠️ Unsaved Note Changes in Editor
+                    </p>
+                    <p className="text-[11px] mt-0.5 text-muted-foreground">
                       You have unsaved changes in the clinical SOAP editor. Signing will seal
                       documentation and discard unsaved drafts.
                     </p>
@@ -530,12 +540,12 @@ export const CompleteSessionModal: React.FC<CompleteSessionModalProps> = ({
                     <input
                       type="checkbox"
                       data-testid="confirm-unsaved-notes-checkbox"
-                      className="mt-0.5 h-3.5 w-3.5 rounded border-amber-300 text-amber-600"
+                      className="mt-0.5 h-3.5 w-3.5 rounded border-status-warning-border text-status-warning focus:ring-status-warning"
                       checked={acknowledgedUnsavedNotes}
                       onChange={(e) => setAcknowledgedUnsavedNotes(e.target.checked)}
                       disabled={isSubmitting}
                     />
-                    <span className="text-[11px] text-amber-900 font-medium">
+                    <span className="text-[11px] text-foreground font-medium">
                       I acknowledge that unsaved edits in the editor will be discarded upon signing.
                     </span>
                   </label>

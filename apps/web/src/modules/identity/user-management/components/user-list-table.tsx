@@ -165,7 +165,7 @@ export const UserListTable: React.FC<UserListTableProps> = ({
                   disabled={isActivating}
                   onClick={() => onActivate(user)}
                   aria-label={`Activate user account for ${user.name}`}
-                  className="hidden sm:inline-flex text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                  className="hidden sm:inline-flex text-status-success hover:text-status-success hover:bg-status-success-surface"
                 >
                   Activate
                 </Button>

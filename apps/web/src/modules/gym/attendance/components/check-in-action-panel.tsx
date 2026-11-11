@@ -133,7 +133,10 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
             Record Ingress Admission
           </CardTitle>
           {isEligible ? (
-            <Badge variant="default" className="bg-emerald-600 text-[10px] text-white">
+            <Badge
+              variant="outline"
+              className="border-status-success-border bg-status-success-surface text-status-success text-[10px]"
+            >
               Eligible
             </Badge>
           ) : (
@@ -206,11 +209,8 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
         <Button
           onClick={() => handleCheckIn(false)}
           disabled={isActionDisabled}
-          className={`w-full py-2 font-medium text-sm transition-all ${
-            isEligible
-              ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm'
-              : 'bg-primary hover:bg-primary/90 text-primary-foreground'
-          }`}
+          variant="primary"
+          className="w-full py-2 font-medium text-sm shadow-sm"
           data-testid="submit-check-in-btn"
         >
           {isActionDisabled ? (
@@ -251,29 +251,33 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
           >
             {lastResult.isGranted ? (
               <div
-                className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 rounded-lg text-emerald-900 dark:text-emerald-100 text-xs space-y-2 shadow-sm"
+                className="p-3 bg-status-success-surface border border-status-success-border rounded-lg text-foreground text-xs space-y-2 shadow-sm"
                 data-testid="check-in-granted-card"
               >
                 <div className="flex items-center justify-between font-semibold">
-                  <span className="text-sm">✓ Admission Granted</span>
-                  <Badge variant="default" className="bg-emerald-600 text-white text-[10px] px-2">
+                  <span className="text-sm text-status-success">✓ Admission Granted</span>
+                  <Badge
+                    variant="outline"
+                    className="border-status-success-border bg-status-success text-white text-[10px] px-2"
+                  >
                     {lastResult.isIdempotentReplay ? 'Replay' : 'Granted'}
                   </Badge>
                 </div>
-                <p className="text-[11px] text-emerald-800 dark:text-emerald-200">
+                <p className="text-[11px] text-muted-foreground">
                   Recorded at {new Date(lastResult.checkInTime).toLocaleTimeString()} via{' '}
                   {lastResult.method}
                 </p>
-                <div className="text-[10px] font-mono text-emerald-700 dark:text-emerald-300">
+                <div className="text-[10px] font-mono text-muted-foreground">
                   Attendance ID: {lastResult.attendanceId}
                 </div>
 
                 {onResetDesk && (
-                  <div className="pt-1 border-t border-emerald-300/40 dark:border-emerald-800/40 flex justify-end">
+                  <div className="pt-1 border-t border-status-success-border/40 flex justify-end">
                     <Button
                       size="sm"
+                      variant="primary"
                       onClick={onResetDesk}
-                      className="h-7 text-xs bg-emerald-700 hover:bg-emerald-800 text-white"
+                      className="h-7 text-xs"
                       data-testid="next-member-btn"
                     >
                       Next Member &rarr;
@@ -286,7 +290,7 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
                 className={`p-3 rounded-lg border text-xs space-y-1.5 shadow-sm ${
                   lastResult.outcome === AccessResult.DENIED_DUPLICATE_CHECKIN ||
                   lastResult.isDuplicate
-                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-100'
+                    ? 'bg-status-warning-surface border-status-warning-border text-foreground'
                     : 'bg-destructive/10 border-destructive/40 text-destructive'
                 }`}
                 data-testid={
@@ -308,7 +312,7 @@ export const CheckInActionPanel: React.FC<CheckInActionPanelProps> = ({
                     className={`text-[10px] ${
                       lastResult.outcome === AccessResult.DENIED_DUPLICATE_CHECKIN ||
                       lastResult.isDuplicate
-                        ? 'border-amber-500 text-amber-700 dark:text-amber-300'
+                        ? 'border-status-warning-border text-status-warning'
                         : 'border-destructive text-destructive'
                     }`}
                   >

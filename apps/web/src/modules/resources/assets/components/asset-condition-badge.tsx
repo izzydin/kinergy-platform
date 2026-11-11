@@ -20,7 +20,7 @@ export const AssetConditionBadge: React.FC<AssetConditionBadgeProps> = ({
         <Badge
           variant="outline"
           className={cn(
-            'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium',
+            'border-status-success-border bg-status-success-surface text-status-success font-medium',
             className,
           )}
         >
@@ -32,7 +32,7 @@ export const AssetConditionBadge: React.FC<AssetConditionBadgeProps> = ({
         <Badge
           variant="outline"
           className={cn(
-            'border-sky-500/30 bg-sky-500/10 text-sky-700 dark:text-sky-300 font-medium',
+            'border-status-info-border bg-status-info-surface text-status-info font-medium',
             className,
           )}
         >
@@ -44,7 +44,7 @@ export const AssetConditionBadge: React.FC<AssetConditionBadgeProps> = ({
         <Badge
           variant="outline"
           className={cn(
-            'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-medium',
+            'border-status-warning-border bg-status-warning-surface text-status-warning font-medium',
             className,
           )}
         >
@@ -56,7 +56,7 @@ export const AssetConditionBadge: React.FC<AssetConditionBadgeProps> = ({
         <Badge
           variant="outline"
           className={cn(
-            'border-orange-500/30 bg-orange-500/15 text-orange-700 dark:text-orange-300 font-medium',
+            'border-status-warning-border bg-status-warning-surface text-status-warning font-medium',
             className,
           )}
         >

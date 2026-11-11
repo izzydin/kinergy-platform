@@ -28,6 +28,7 @@ export function DataTableSkeleton({
           <tr>
             {columns.map((_, colIndex) => (
               <th key={`skeleton-header-${colIndex}`} scope="col" className="px-4 py-3.5">
+                <span className="sr-only">Loading column {colIndex + 1}</span>
                 <Skeleton className="h-4 w-20" />
               </th>
             ))}

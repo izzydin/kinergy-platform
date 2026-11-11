@@ -103,7 +103,7 @@ export const ClientRestoreDialog: React.FC<ClientRestoreDialogProps> = ({
           </Alert>
         )}
 
-        <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-slate-100">
+        <DialogFooter className="gap-2 sm:gap-0 pt-2 border-t border-border">
           <Button
             type="button"
             variant="outline"
@@ -119,7 +119,7 @@ export const ClientRestoreDialog: React.FC<ClientRestoreDialogProps> = ({
             size="sm"
             onClick={handleConfirm}
             disabled={isPending}
-            className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="gap-1.5"
             data-testid="confirm-restore-button"
           >
             {isPending ? (

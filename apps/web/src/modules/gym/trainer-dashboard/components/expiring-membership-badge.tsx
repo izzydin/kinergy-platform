@@ -27,8 +27,8 @@ export const ExpiringMembershipBadge: React.FC<ExpiringMembershipBadgeProps> = (
   if (isExpiringSoon) {
     return (
       <Badge
-        variant="secondary"
-        className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[11px] font-semibold px-2 py-0.5 animate-pulse"
+        variant="outline"
+        className="bg-status-warning-surface text-status-warning border border-status-warning-border text-[11px] font-semibold px-2 py-0.5 animate-pulse"
         data-testid="badge-expiring-soon"
       >
         ⚠️ Expiring in {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'}

@@ -208,12 +208,8 @@ export const UpdateAssetConditionDialog: React.FC<UpdateAssetConditionDialogProp
 
           {/* Priority Technician Alert when rating severe */}
           {isSevereCondition && !isTerminalCurrent && (
-            <Alert
-              variant="destructive"
-              className="border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200"
-              data-testid="condition-severe-alert"
-            >
-              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <Alert variant="warning" data-testid="condition-severe-alert">
+              <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Priority Maintenance Trigger</AlertTitle>
               <AlertDescription className="text-xs mt-1">
                 Rating equipment as{' '}

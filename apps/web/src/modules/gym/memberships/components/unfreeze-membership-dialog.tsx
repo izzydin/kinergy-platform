@@ -62,7 +62,7 @@ export const UnfreezeMembershipDialog: React.FC<UnfreezeMembershipDialogProps> =
       <DialogContent className="max-w-md" data-testid="unfreeze-membership-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
-            <PlayCircle className="h-5 w-5 text-emerald-500" />
+            <PlayCircle className="h-5 w-5 text-status-success" />
             Resume / Unfreeze Membership
           </DialogTitle>
           <DialogDescription>
@@ -71,7 +71,7 @@ export const UnfreezeMembershipDialog: React.FC<UnfreezeMembershipDialogProps> =
           </DialogDescription>
         </DialogHeader>
 
-        <Alert className="bg-emerald-50 border-emerald-200 text-emerald-900 dark:bg-emerald-950/20 dark:border-emerald-800 dark:text-emerald-300">
+        <Alert variant="success">
           <PlayCircle className="h-4 w-4" />
           <AlertTitle>Validity Recalculation</AlertTitle>
           <AlertDescription className="text-xs">
@@ -105,7 +105,7 @@ export const UnfreezeMembershipDialog: React.FC<UnfreezeMembershipDialogProps> =
             type="button"
             onClick={handleConfirmUnfreeze}
             disabled={unfreezeMembership.isPending}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            className="bg-status-success hover:bg-status-success/90 text-status-success-foreground"
             data-testid="confirm-unfreeze-button"
           >
             {unfreezeMembership.isPending ? 'Resuming...' : 'Confirm Resume'}

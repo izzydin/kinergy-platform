@@ -19,13 +19,16 @@ export const PotentialMatchesCard: React.FC<PotentialMatchesCardProps> = ({
 }) => {
   return (
     <Card
-      className="border-amber-500/40 bg-amber-500/5 shadow-sm"
+      className="border-status-warning-border bg-status-warning-surface/40 shadow-sm"
       data-testid="potential-matches-card"
     >
       <CardContent className="p-4 sm:p-5 space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" aria-hidden="true" />
+            <AlertTriangle
+              className="h-5 w-5 text-status-warning shrink-0 mt-0.5"
+              aria-hidden="true"
+            />
             <div className="space-y-1">
               <h3 className="text-sm font-semibold text-foreground">
                 Potential Duplicate Client Records Found
@@ -63,10 +66,7 @@ export const PotentialMatchesCard: React.FC<PotentialMatchesCardProps> = ({
                   <span className="font-mono text-[11px] text-muted-foreground">
                     ({match.referenceNumber})
                   </span>
-                  <Badge
-                    variant="outline"
-                    className="text-[10px] font-medium border-amber-500/40 text-amber-600 dark:text-amber-400"
-                  >
+                  <Badge variant="warning-soft" className="text-[10px] font-medium">
                     {match.matchReason === 'EXACT_PHONE'
                       ? 'Matching Phone'
                       : match.matchReason === 'SIMILAR_PHONE'
@@ -102,7 +102,7 @@ export const PotentialMatchesCard: React.FC<PotentialMatchesCardProps> = ({
         </div>
 
         {/* Action Controls */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-2 border-t border-amber-500/20">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-2 border-t border-status-warning-border/50">
           <Button
             type="button"
             variant="ghost"
@@ -120,7 +120,7 @@ export const PotentialMatchesCard: React.FC<PotentialMatchesCardProps> = ({
             size="sm"
             onClick={onProceedWithDuplicate}
             disabled={isSubmitting}
-            className="gap-1.5 text-xs bg-amber-600 hover:bg-amber-700 text-white dark:bg-amber-600 dark:hover:bg-amber-700"
+            className="gap-1.5 text-xs bg-status-warning hover:bg-status-warning/90 text-status-warning-foreground"
             data-testid="bypass-duplicate-button"
           >
             <span>Proceed with Registration</span>

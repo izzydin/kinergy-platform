@@ -26,7 +26,7 @@ export const MembershipStatusBadge: React.FC<MembershipStatusBadgeProps> = ({
             return (
               <Badge
                 variant="outline"
-                className={`bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800 ${className ?? ''}`}
+                className={`bg-status-warning-surface text-status-warning border-status-warning-border ${className ?? ''}`}
                 data-testid="membership-status-badge-pending"
               >
                 <Clock className="mr-1 h-3 w-3 inline" />
@@ -37,7 +37,7 @@ export const MembershipStatusBadge: React.FC<MembershipStatusBadgeProps> = ({
             return (
               <Badge
                 variant="outline"
-                className={`bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800 ${className ?? ''}`}
+                className={`bg-status-success-surface text-status-success border-status-success-border ${className ?? ''}`}
                 data-testid="membership-status-badge-active"
               >
                 <CheckCircle2 className="mr-1 h-3 w-3 inline" />
@@ -48,7 +48,7 @@ export const MembershipStatusBadge: React.FC<MembershipStatusBadgeProps> = ({
             return (
               <Badge
                 variant="outline"
-                className={`bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/30 dark:text-sky-400 dark:border-sky-800 ${className ?? ''}`}
+                className={`bg-status-info-surface text-status-info border-status-info-border ${className ?? ''}`}
                 data-testid="membership-status-badge-frozen"
               >
                 <PauseCircle className="mr-1 h-3 w-3 inline" />
@@ -59,7 +59,7 @@ export const MembershipStatusBadge: React.FC<MembershipStatusBadgeProps> = ({
             return (
               <Badge
                 variant="outline"
-                className={`bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700 ${className ?? ''}`}
+                className={`bg-muted text-muted-foreground border-border ${className ?? ''}`}
                 data-testid="membership-status-badge-expired"
               >
                 <AlertCircle className="mr-1 h-3 w-3 inline" />
@@ -70,7 +70,7 @@ export const MembershipStatusBadge: React.FC<MembershipStatusBadgeProps> = ({
             return (
               <Badge
                 variant="outline"
-                className={`bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-400 dark:border-rose-800 ${className ?? ''}`}
+                className={`bg-status-danger-surface text-status-danger border-status-danger-border ${className ?? ''}`}
                 data-testid="membership-status-badge-cancelled"
               >
                 <XCircle className="mr-1 h-3 w-3 inline" />
@@ -93,7 +93,7 @@ export const MembershipStatusBadge: React.FC<MembershipStatusBadgeProps> = ({
       {isExpiringSoon && normalized === 'ACTIVE' && (
         <Badge
           variant="outline"
-          className="bg-amber-50 text-amber-800 border-amber-300 text-[10px] px-1.5 py-0 animate-pulse dark:bg-amber-950/40 dark:text-amber-300"
+          className="bg-status-warning-surface text-status-warning border-status-warning-border text-[10px] px-1.5 py-0 animate-pulse"
           data-testid="membership-expiring-indicator"
         >
           Expiring Soon

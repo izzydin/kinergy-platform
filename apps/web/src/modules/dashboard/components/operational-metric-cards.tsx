@@ -224,7 +224,10 @@ export const LowStockAlertsCard: React.FC<LowStockAlertsCardProps> = ({ onRetry,
             <Package className="h-4 w-4" />
             Low-Stock Alerts
           </CardTitle>
-          <Badge variant="outline" className="text-emerald-600 border-emerald-300">
+          <Badge
+            variant="outline"
+            className="text-status-success border-status-success-border bg-status-success-surface"
+          >
             Healthy
           </Badge>
         </CardHeader>
@@ -329,7 +332,10 @@ export const TodayAppointmentsCard: React.FC<TodayAppointmentsCardProps> = ({ fo
           <Calendar className="h-4 w-4" />
           Today's Appointments
         </CardTitle>
-        <Badge variant="outline" className="text-amber-600 border-amber-300">
+        <Badge
+          variant="outline"
+          className="text-status-warning border-status-warning-border bg-status-warning-surface"
+        >
           Telemetry Pending
         </Badge>
       </CardHeader>
@@ -385,7 +391,10 @@ export const DailySalesTotalCard: React.FC<DailySalesTotalCardProps> = ({ forced
           <Receipt className="h-4 w-4" />
           Daily Sales Total
         </CardTitle>
-        <Badge variant="outline" className="text-amber-600 border-amber-300">
+        <Badge
+          variant="outline"
+          className="text-status-warning border-status-warning-border bg-status-warning-surface"
+        >
           Aggregation Pending
         </Badge>
       </CardHeader>

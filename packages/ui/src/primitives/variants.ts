@@ -12,7 +12,15 @@ export type { VariantProps };
  * Standard Design System Component Variant Scale
  */
 export type StandardVariant =
-  'default' | 'secondary' | 'destructive' | 'outline' | 'ghost' | 'link';
+  | 'default'
+  | 'primary'
+  | 'brand'
+  | 'secondary'
+  | 'destructive'
+  | 'danger'
+  | 'outline'
+  | 'ghost'
+  | 'link';
 
 /**
  * Standard Design System Component Size Scale

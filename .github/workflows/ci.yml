@@ -82,5 +82,8 @@ jobs:
           PGPASSWORD=kinergy_staging_admin_password psql -h 127.0.0.1 -p 5434 -U kinergy_staging_admin -d kinergy_staging -f infrastructure/docker/init-staging-roles.sql
           DATABASE_URL="$STAGING_MIGRATOR_DATABASE_URL" pnpm prisma:migrate:deploy
 
+      - name: Verify WCAG 2.2 AA Accessibility & Contrast Gates
+        run: pnpm test:a11y
+
       - name: Validate Workspace
         run: pnpm validate

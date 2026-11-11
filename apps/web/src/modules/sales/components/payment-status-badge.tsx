@@ -14,7 +14,7 @@ export const PaymentStatusBadge: React.FC<PaymentStatusBadgeProps> = ({ status, 
       return (
         <Badge
           variant="outline"
-          className={`inline-flex items-center gap-1 border-amber-500/40 bg-amber-500/10 text-amber-500 dark:text-amber-400 ${className ?? ''}`}
+          className={`inline-flex items-center gap-1 border-status-warning-border bg-status-warning-surface text-status-warning ${className ?? ''}`}
           aria-label="Payment status: Pending"
         >
           <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -24,8 +24,8 @@ export const PaymentStatusBadge: React.FC<PaymentStatusBadgeProps> = ({ status, 
     case 'COMPLETED':
       return (
         <Badge
-          variant="default"
-          className={`inline-flex items-center gap-1 border-emerald-500/30 bg-emerald-600/20 text-emerald-600 dark:text-emerald-400 ${className ?? ''}`}
+          variant="outline"
+          className={`inline-flex items-center gap-1 border-status-success-border bg-status-success-surface text-status-success ${className ?? ''}`}
           aria-label="Payment status: Completed"
         >
           <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />

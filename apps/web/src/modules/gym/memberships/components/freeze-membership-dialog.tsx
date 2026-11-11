@@ -110,7 +110,7 @@ export const FreezeMembershipDialog: React.FC<FreezeMembershipDialogProps> = ({
       <DialogContent className="max-w-md" data-testid="freeze-membership-dialog">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-foreground">
-            <Snowflake className="h-5 w-5 text-sky-500" />
+            <Snowflake className="h-5 w-5 text-status-info" />
             Freeze / Suspend Membership
           </DialogTitle>
           <DialogDescription>
@@ -120,7 +120,7 @@ export const FreezeMembershipDialog: React.FC<FreezeMembershipDialogProps> = ({
           </DialogDescription>
         </DialogHeader>
 
-        <Alert className="bg-sky-50 border-sky-200 text-sky-900 dark:bg-sky-950/20 dark:border-sky-800 dark:text-sky-300">
+        <Alert variant="info">
           <PauseCircle className="h-4 w-4" />
           <AlertTitle>Suspension Invariants</AlertTitle>
           <AlertDescription className="text-xs">

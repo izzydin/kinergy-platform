@@ -16,7 +16,7 @@ export const PlanStatusBadge: React.FC<PlanStatusBadgeProps> = ({ status, classN
       return (
         <Badge
           variant="outline"
-          className={`bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800 ${className ?? ''}`}
+          className={`bg-status-success-surface text-status-success border-status-success-border ${className ?? ''}`}
           data-testid="plan-status-badge-active"
         >
           Active
@@ -26,7 +26,7 @@ export const PlanStatusBadge: React.FC<PlanStatusBadgeProps> = ({ status, classN
       return (
         <Badge
           variant="outline"
-          className={`bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800 ${className ?? ''}`}
+          className={`bg-status-warning-surface text-status-warning border-status-warning-border ${className ?? ''}`}
           data-testid="plan-status-badge-draft"
         >
           Draft
@@ -36,7 +36,7 @@ export const PlanStatusBadge: React.FC<PlanStatusBadgeProps> = ({ status, classN
       return (
         <Badge
           variant="outline"
-          className={`bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800/40 dark:text-slate-400 dark:border-slate-700 ${className ?? ''}`}
+          className={`bg-muted text-muted-foreground border-border ${className ?? ''}`}
           data-testid="plan-status-badge-archived"
         >
           Archived

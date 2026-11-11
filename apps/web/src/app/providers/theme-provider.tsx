@@ -28,7 +28,7 @@ export interface ThemeProviderProps {
  */
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({
   children,
-  defaultTheme = 'dark',
+  defaultTheme = 'light',
   storageKey = STORAGE_KEY,
 }) => {
   const [theme, setThemeState] = useState<Theme>(() => {
@@ -36,7 +36,7 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({
     return (localStorage.getItem(storageKey) as Theme) || defaultTheme;
   });
 
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('dark');
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>('light');
 
   useEffect(() => {
     const root = window.document.documentElement;
