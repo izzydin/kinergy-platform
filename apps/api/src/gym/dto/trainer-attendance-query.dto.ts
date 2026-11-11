@@ -12,6 +12,14 @@ export class TrainerAttendanceQueryDto {
   date?: string;
 
   @ApiPropertyOptional({
+    description: 'Optional trainer identifier filter',
+    example: 'usr_trainer_123',
+  })
+  @IsOptional()
+  @IsString()
+  trainerId?: string;
+
+  @ApiPropertyOptional({
     description: 'Facility identifier (default "main")',
     example: 'main',
   })

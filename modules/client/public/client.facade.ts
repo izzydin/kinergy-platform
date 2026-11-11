@@ -4,6 +4,7 @@ import { SearchClientsUseCase } from '../application/use-cases/search-clients.us
 import { GetClientProfileQuery } from '../application/queries/get-client-profile.query';
 import { SearchClientsQuery } from '../application/queries/search-clients.query';
 import { ClientNotFoundException } from '../application/exceptions/client-already-exists.exception';
+import { ClientStatus } from '../domain/value-objects/client-status.enum';
 import { ClientProfileDto } from './dto/client-profile.dto';
 import { ClientSummaryDto } from './dto/client-summary.dto';
 import { IClientFacade } from './interfaces/client-facade.interface';
@@ -81,6 +82,63 @@ export class ClientFacade implements IClientFacade {
 
     const result = await this.searchClientsUseCase.execute(searchQuery);
     return result.items.map((profile) => this.toSummaryDto(profile));
+  }
+
+  /**
+   * {@inheritDoc IClientFacade.searchClients}
+   */
+  async searchClients(params: {
+    query?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'ASC' | 'DESC';
+  }): Promise<{
+    items: ClientProfileDto[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  }> {
+    let targetStatus: ClientStatus | undefined;
+    if (params.status) {
+      const upper = params.status.toUpperCase();
+      if (upper === 'ACTIVE') targetStatus = ClientStatus.ACTIVE;
+      else if (upper === 'ARCHIVED') targetStatus = ClientStatus.ARCHIVED;
+    }
+
+    let targetSortBy: 'name' | 'createdAt' | 'updatedAt' | undefined;
+    if (params.sortBy === 'name' || params.sortBy === 'fullName') {
+      targetSortBy = 'name';
+    } else if (params.sortBy === 'updatedAt') {
+      targetSortBy = 'updatedAt';
+    } else {
+      targetSortBy = 'createdAt';
+    }
+
+    const searchQuery = new SearchClientsQuery({
+      query: params.query?.trim() || undefined,
+      status: targetStatus,
+      limit: params.limit ?? 20,
+      page: params.page ?? 1,
+      sortBy: targetSortBy,
+      sortOrder: params.sortOrder ?? 'DESC',
+      includeArchived: false,
+    });
+
+    const result = await this.searchClientsUseCase.execute(searchQuery);
+    return {
+      items: result.items,
+      total: result.total,
+      page: result.page,
+      limit: result.limit,
+      totalPages: result.totalPages,
+      hasNextPage: result.hasNextPage,
+      hasPreviousPage: result.hasPreviousPage,
+    };
   }
 
   // ---------------------------------------------------------------------------

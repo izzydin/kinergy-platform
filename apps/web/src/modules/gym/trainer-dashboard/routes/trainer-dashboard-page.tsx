@@ -111,8 +111,10 @@ export const TrainerDashboardPage: React.FC = () => {
     const foundInRoster = assignedClientsData?.items.find((item) => item.clientId === clientId);
     const clientDto: ClientSearchResultDTO = {
       id: clientId,
-      fullName: foundInRoster ? foundInRoster.planName : clientId,
-      email: `${clientId}@kinergy.client`,
+      fullName: foundInRoster
+        ? foundInRoster.fullName || foundInRoster.clientName || foundInRoster.planName
+        : clientId,
+      email: foundInRoster?.email || `${clientId}@kinergy.client`,
       status: foundInRoster ? foundInRoster.status : 'ACTIVE',
     };
     setSelectedClient(clientDto);

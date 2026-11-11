@@ -40,6 +40,8 @@ export const trainerDashboardApi = {
     return httpClient.get<PaginatedAssignedClientsVM>('/api/v1/gym/trainer-dashboard/clients', {
       params: {
         trainerId: params?.trainerId,
+        search: params?.search || params?.query,
+        status: params?.status,
         statuses: params?.statuses ? params.statuses.join(',') : undefined,
         horizonDays: params?.horizonDays,
         asOfDate: params?.asOfDate,

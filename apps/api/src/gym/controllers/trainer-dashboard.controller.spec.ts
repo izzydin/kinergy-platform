@@ -14,6 +14,7 @@ import {
 import { AuthenticatedUserPayload } from '../../platform/identity/decorators';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
+import { IClientFacade, CLIENT_FACADE_TOKEN } from '@kinergy-platform/client-domain';
 
 describe('Phase 5.6-E: TrainerDashboardController API & Architecture Spec', () => {
   let controller: TrainerDashboardController;
@@ -208,6 +209,106 @@ describe('Phase 5.6-E: TrainerDashboardController API & Architecture Spec', () =
       expect(response.totalPages).toBe(2);
       expect(response.hasNextPage).toBe(true);
       expect(response.hasPreviousPage).toBe(false);
+    });
+  });
+
+  describe('2b. GET /clients with ClientFacade (Facility-Wide Client Visibility)', () => {
+    let facadeController: TrainerDashboardController;
+    let mockClientFacade: jest.Mocked<IClientFacade>;
+
+    beforeEach(async () => {
+      mockClientFacade = {
+        getClientProfile: jest.fn(),
+        getClientSummary: jest.fn(),
+        isClientActive: jest.fn(),
+        searchClientsSummary: jest.fn(),
+        searchClients: jest.fn().mockResolvedValue({
+          items: [
+            {
+              id: 'cli-001',
+              referenceNumber: 'REF-001',
+              firstName: 'Alice',
+              lastName: 'Smith',
+              fullName: 'Alice Smith',
+              email: 'alice@example.com',
+              phone: '+15551234567',
+              status: 'ACTIVE',
+              version: 1,
+              createdAt: new Date('2026-01-01'),
+              updatedAt: new Date('2026-01-01'),
+              identityId: null,
+            },
+            {
+              id: 'cli-002',
+              referenceNumber: 'REF-002',
+              firstName: 'Bob',
+              lastName: 'Jones',
+              fullName: 'Bob Jones',
+              email: 'bob@example.com',
+              phone: '+15559876543',
+              status: 'ACTIVE',
+              version: 1,
+              createdAt: new Date('2026-02-01'),
+              updatedAt: new Date('2026-02-01'),
+              identityId: null,
+            },
+          ],
+          total: 2,
+          page: 1,
+          limit: 20,
+          totalPages: 1,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        }),
+      };
+
+      const module: TestingModule = await Test.createTestingModule({
+        controllers: [TrainerDashboardController],
+        providers: [
+          { provide: GetTrainerDashboardSummaryHandler, useValue: summaryHandler },
+          { provide: GetAssignedClientMembershipsHandler, useValue: assignedClientsHandler },
+          { provide: GetExpiringMembershipsHandler, useValue: expiringHandler },
+          { provide: GetDailyAttendanceHandler, useValue: attendanceHandler },
+          { provide: CLIENT_FACADE_TOKEN, useValue: mockClientFacade },
+        ],
+      })
+        .overrideGuard(AuthenticationGuard)
+        .useValue({ canActivate: () => true })
+        .overrideGuard(AuthorizationGuard)
+        .useValue({ canActivate: () => true })
+        .compile();
+
+      facadeController = module.get<TrainerDashboardController>(TrainerDashboardController);
+    });
+
+    it('returns all facility clients including client names, emails, phones, and reference numbers', async () => {
+      const response = await facadeController.getAssignedClients(mockTrainerUser, {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(response.items).toHaveLength(2);
+      expect(response.totalItems).toBe(2);
+      expect(response.items[0]?.clientId).toBe('cli-001');
+      expect(response.items[0]?.fullName).toBe('Alice Smith');
+      expect(response.items[0]?.email).toBe('alice@example.com');
+      expect(response.items[0]?.phone).toBe('+15551234567');
+      expect(response.items[0]?.referenceNumber).toBe('REF-001');
+      expect(mockClientFacade.searchClients).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 1, limit: 20 }),
+      );
+    });
+
+    it('passes search query to ClientFacade when search term is provided', async () => {
+      await facadeController.getAssignedClients(mockTrainerUser, {
+        search: 'Alice',
+        page: 1,
+        limit: 10,
+      });
+
+      expect(mockClientFacade.searchClients).toHaveBeenCalledWith(
+        expect.objectContaining({ query: 'Alice', page: 1, limit: 10 }),
+      );
     });
   });
 

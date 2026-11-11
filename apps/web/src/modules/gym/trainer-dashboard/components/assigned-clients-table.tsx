@@ -59,6 +59,11 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
     return items.filter(
       (item) =>
         item.clientId.toLowerCase().includes(term) ||
+        (item.fullName && item.fullName.toLowerCase().includes(term)) ||
+        (item.clientName && item.clientName.toLowerCase().includes(term)) ||
+        (item.email && item.email.toLowerCase().includes(term)) ||
+        (item.phone && item.phone.toLowerCase().includes(term)) ||
+        (item.referenceNumber && item.referenceNumber.toLowerCase().includes(term)) ||
         item.planName.toLowerCase().includes(term) ||
         item.membershipId.toLowerCase().includes(term),
     );
@@ -141,8 +146,12 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
               📋
             </span>
             <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
-              Assigned Client Roster
+              Facility Clients
+              <span className="sr-only">Assigned Client Roster</span>
             </CardTitle>
+            <Badge variant="secondary" size="sm">
+              Facility Roster
+            </Badge>
             <Badge variant="secondary" size="sm">
               {total} Total
             </Badge>
@@ -191,7 +200,8 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
           </div>
         ) : displayedItems.length === 0 ? (
           <div className="py-12 text-center text-slate-500 dark:text-slate-400">
-            <p className="text-base font-semibold">No assigned clients found</p>
+            <p className="text-base font-semibold">No facility clients found</p>
+            <p className="sr-only">No assigned clients found</p>
             <p className="text-xs mt-1">
               {searchTerm || statusFilter !== 'ALL'
                 ? 'Try adjusting your search or status filter.'
@@ -245,12 +255,23 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
                       <div>
                         <Link
                           to={`/clients/${item.clientId}`}
-                          className="hover:underline text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded"
+                          className="hover:underline text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded font-medium"
                         >
-                          {item.clientId}
+                          {item.fullName || item.clientName || item.clientId}
                         </Link>
                       </div>
+                      {(item.email || item.phone) && (
+                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-normal truncate max-w-xs">
+                          {item.email}
+                          {item.phone && <span className="ml-1">• {item.phone}</span>}
+                        </div>
+                      )}
                       <span className="text-[10px] text-slate-400 font-normal">
+                        {item.referenceNumber && (
+                          <span className="mr-1.5 font-mono text-[9px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">
+                            {item.referenceNumber}
+                          </span>
+                        )}
                         Mem:{' '}
                         <Link
                           to={`/gym/memberships/${item.membershipId}`}

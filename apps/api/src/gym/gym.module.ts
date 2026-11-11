@@ -54,13 +54,16 @@ import {
 } from './infrastructure';
 
 // Injection tokens
-export const MEMBERSHIP_REPOSITORY_TOKEN = 'MembershipRepository';
-export const MEMBERSHIP_PLAN_REPOSITORY_TOKEN = 'MembershipPlanRepository';
-export const ATTENDANCE_RECORD_REPOSITORY_TOKEN = 'AttendanceRecordRepository';
-export const GYM_CLOCK_TOKEN = 'GymClock';
-export const CLIENT_LOOKUP_PORT_TOKEN = 'ClientLookupPort';
-export const GYM_EVENT_PUBLISHER_PORT_TOKEN = 'GymEventPublisherPort';
-export const GYM_FULFILLMENT_STORE_PORT_TOKEN = 'GymFulfillmentStorePort';
+export * from './gym.tokens';
+import {
+  MEMBERSHIP_REPOSITORY_TOKEN,
+  MEMBERSHIP_PLAN_REPOSITORY_TOKEN,
+  ATTENDANCE_RECORD_REPOSITORY_TOKEN,
+  GYM_CLOCK_TOKEN,
+  CLIENT_LOOKUP_PORT_TOKEN,
+  GYM_EVENT_PUBLISHER_PORT_TOKEN,
+  GYM_FULFILLMENT_STORE_PORT_TOKEN,
+} from './gym.tokens';
 
 // Export in-memory classes for testing doubles
 export { DefaultGymMembershipRepository, DefaultGymPlanRepository, DefaultGymAttendanceRepository };

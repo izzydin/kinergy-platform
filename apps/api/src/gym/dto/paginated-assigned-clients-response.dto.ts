@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class AssignedClientMembershipItemDto {
   @ApiProperty({ example: 'mem_123' })
@@ -6,6 +6,21 @@ export class AssignedClientMembershipItemDto {
 
   @ApiProperty({ example: 'client_456' })
   clientId!: string;
+
+  @ApiPropertyOptional({ example: 'Jane Doe' })
+  clientName?: string;
+
+  @ApiPropertyOptional({ example: 'Jane Doe' })
+  fullName?: string;
+
+  @ApiPropertyOptional({ example: 'jane.doe@example.com' })
+  email?: string;
+
+  @ApiPropertyOptional({ example: '+14155552671' })
+  phone?: string;
+
+  @ApiPropertyOptional({ example: 'CLI-2026-12345' })
+  referenceNumber?: string;
 
   @ApiProperty({ example: 'plan_standard_monthly' })
   planId!: string;
@@ -44,6 +59,9 @@ export class PaginatedAssignedClientsResponseDto {
 
   @ApiProperty({ example: 45 })
   totalItems!: number;
+
+  @ApiPropertyOptional({ example: 45 })
+  total?: number;
 
   @ApiProperty({ example: 1 })
   page!: number;

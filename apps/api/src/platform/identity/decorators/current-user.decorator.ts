@@ -9,6 +9,7 @@ export interface AuthenticatedUserPayload {
   roles: string[];
   permissions: string[];
   tenantId?: string | null;
+  userId?: string;
 }
 
 /**
@@ -22,7 +23,15 @@ export const CurrentUser = createParamDecorator(
     const asyncUser = RequestContext.currentIdentity();
 
     const user: AuthenticatedUserPayload | null = reqUser
-      ? reqUser
+      ? {
+          id: reqUser.id || reqUser.userId || '',
+          email: reqUser.email ?? '',
+          status: reqUser.status ?? 'ACTIVE',
+          roles: Array.isArray(reqUser.roles) ? [...reqUser.roles] : [],
+          permissions: Array.isArray(reqUser.permissions) ? [...reqUser.permissions] : [],
+          tenantId: reqUser.tenantId ?? null,
+          ...(reqUser.userId !== undefined ? { userId: reqUser.userId } : {}),
+        }
       : asyncUser
         ? {
             id: asyncUser.userId,

@@ -63,11 +63,11 @@ export const TrainerSummaryKpiBanner: React.FC<TrainerSummaryKpiBannerProps> = (
     {
       id: 'kpi-expiring-soon',
       label: `Expiring Soon (≤${summary?.horizonDays ?? 7}d)`,
-      value: summary?.expiringSoonMembershipsCount ?? 0,
+      value: summary?.expiringSoonMembershipsCount ?? summary?.expiringMembershipsCount ?? 0,
       icon: '⏳',
       badge: 'Urgent Action',
       badgeVariant:
-        (summary?.expiringSoonMembershipsCount ?? 0) > 0
+        (summary?.expiringSoonMembershipsCount ?? summary?.expiringMembershipsCount ?? 0) > 0
           ? ('destructive' as const)
           : ('secondary' as const),
       color: 'text-amber-600 dark:text-amber-400',
@@ -84,7 +84,7 @@ export const TrainerSummaryKpiBanner: React.FC<TrainerSummaryKpiBannerProps> = (
     {
       id: 'kpi-today-checkins',
       label: "Today's Client Visits",
-      value: summary?.todayGrantedCheckInsCount ?? 0,
+      value: summary?.todayGrantedCheckInsCount ?? summary?.todayCheckInsCount ?? 0,
       icon: '🚪',
       badge: 'Live Attendance',
       badgeVariant: 'default' as const,

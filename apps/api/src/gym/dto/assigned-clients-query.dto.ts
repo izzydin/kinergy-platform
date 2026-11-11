@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type, Transform } from 'class-transformer';
-import { IsIn, IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import { IsIn, IsInt, IsISO8601, IsOptional, IsString, Max, Min } from 'class-validator';
 import { MembershipStatus } from '@kinergy-platform/core';
 
 export class AssignedClientsQueryDto {
@@ -32,12 +32,13 @@ export class AssignedClientsQueryDto {
 
   @ApiPropertyOptional({
     description: 'Field to sort assigned client memberships by',
-    enum: ['daysRemaining', 'endDate', 'startDate', 'assignedAt'],
+    enum: ['daysRemaining', 'endDate', 'startDate', 'assignedAt', 'createdAt', 'fullName'],
     default: 'daysRemaining',
   })
   @IsOptional()
-  @IsIn(['daysRemaining', 'endDate', 'startDate', 'assignedAt'])
-  sortBy?: 'daysRemaining' | 'endDate' | 'startDate' | 'assignedAt' = 'daysRemaining';
+  @IsIn(['daysRemaining', 'endDate', 'startDate', 'assignedAt', 'createdAt', 'fullName'])
+  sortBy?: 'daysRemaining' | 'endDate' | 'startDate' | 'assignedAt' | 'createdAt' | 'fullName' =
+    'daysRemaining';
 
   @ApiPropertyOptional({
     description: 'Sort direction order',
@@ -47,6 +48,38 @@ export class AssignedClientsQueryDto {
   @IsOptional()
   @IsIn(['ASC', 'DESC'])
   sortOrder?: 'ASC' | 'DESC' = 'ASC';
+
+  @ApiPropertyOptional({
+    description: 'Free-text search query across client name, email, phone, reference',
+    example: 'John',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Legacy query string alias for search',
+    example: 'John',
+  })
+  @IsOptional()
+  @IsString()
+  query?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by client or membership status',
+    example: 'ACTIVE',
+  })
+  @IsOptional()
+  @IsString()
+  status?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional trainer identifier filter',
+    example: 'usr_trainer_123',
+  })
+  @IsOptional()
+  @IsString()
+  trainerId?: string;
 
   @ApiPropertyOptional({
     description: 'Filter by membership lifecycle statuses (comma-separated or array)',

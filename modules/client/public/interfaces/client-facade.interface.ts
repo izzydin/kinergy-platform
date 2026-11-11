@@ -58,4 +58,27 @@ export interface IClientFacade {
    * @returns Matched summary DTOs, or an empty array if none found.
    */
   searchClientsSummary(query: string, limit?: number): Promise<ClientSummaryDto[]>;
+
+  /**
+   * Paginated client profile search across authorized facility clients.
+   *
+   * @param params - Query parameters including search text, status, page, and limit.
+   * @returns Paginated result containing matching client profiles.
+   */
+  searchClients(params: {
+    query?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+    sortBy?: string;
+    sortOrder?: 'ASC' | 'DESC';
+  }): Promise<{
+    items: ClientProfileDto[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  }>;
 }

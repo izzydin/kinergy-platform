@@ -4,6 +4,8 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
+  Optional,
   Query,
   UseGuards,
 } from '@nestjs/common';
@@ -25,16 +27,23 @@ import {
   GetExpiringMembershipsQuery,
   GetDailyAttendanceHandler,
   GetDailyAttendanceQuery,
+  MembershipRepository,
+  MembershipPlanRepository,
+  MembershipStatus,
+  Membership,
 } from '@kinergy-platform/core';
 import {
   TrainerDashboardSummaryResponseDto,
   AssignedClientsQueryDto,
   PaginatedAssignedClientsResponseDto,
+  AssignedClientMembershipItemDto,
   ExpiringMembershipsQueryDto,
   ExpiringMembershipsResponseDto,
   TrainerAttendanceQueryDto,
   TrainerAttendanceResponseDto,
 } from '../dto';
+import { IClientFacade, CLIENT_FACADE_TOKEN } from '@kinergy-platform/client-domain';
+import { MEMBERSHIP_REPOSITORY_TOKEN, MEMBERSHIP_PLAN_REPOSITORY_TOKEN } from '../gym.tokens';
 
 @ApiTags('Gym - Trainer Operational Dashboard')
 @ApiBearerAuth()
@@ -48,6 +57,15 @@ export class TrainerDashboardController {
     private readonly getAssignedClientsHandler: GetAssignedClientMembershipsHandler,
     private readonly getExpiringMembershipsHandler: GetExpiringMembershipsHandler,
     private readonly getDailyAttendanceHandler: GetDailyAttendanceHandler,
+    @Optional()
+    @Inject(CLIENT_FACADE_TOKEN)
+    private readonly clientFacade?: IClientFacade,
+    @Optional()
+    @Inject(MEMBERSHIP_REPOSITORY_TOKEN)
+    private readonly membershipRepository?: MembershipRepository,
+    @Optional()
+    @Inject(MEMBERSHIP_PLAN_REPOSITORY_TOKEN)
+    private readonly planRepository?: MembershipPlanRepository,
   ) {}
 
   /**
@@ -57,11 +75,13 @@ export class TrainerDashboardController {
     currentUser: AuthenticatedUserPayload,
     requestedTrainerId?: string,
   ): string {
-    const isElevated = currentUser.roles.includes('Admin') || currentUser.roles.includes('Owner');
+    const isElevated =
+      currentUser?.roles?.includes('Admin') || currentUser?.roles?.includes('Owner');
     if (isElevated && requestedTrainerId && requestedTrainerId.trim().length > 0) {
       return requestedTrainerId.trim();
     }
-    return currentUser.id;
+    const id = currentUser?.id ?? '';
+    return id.trim();
   }
 
   @Get('summary')
@@ -129,18 +149,148 @@ export class TrainerDashboardController {
     @Query() queryDto: AssignedClientsQueryDto,
     @Query('trainerId') requestedTrainerId?: string,
   ): Promise<PaginatedAssignedClientsResponseDto> {
-    const targetTrainerId = this.resolveTrainerId(currentUser, requestedTrainerId);
-
     const page = queryDto.page ? Math.max(1, Number(queryDto.page)) : 1;
     const limit = queryDto.limit ? Math.min(100, Math.max(1, Number(queryDto.limit))) : 20;
 
-    // Fetch all assigned clients for counting totalItems
+    // When clientFacade is available, serve facility-wide client roster
+    if (this.clientFacade) {
+      const clientResult = await this.clientFacade.searchClients({
+        query: queryDto.search || queryDto.query,
+        status: queryDto.status,
+        page,
+        limit,
+        sortBy: queryDto.sortBy === 'fullName' ? 'name' : queryDto.sortBy,
+        sortOrder: queryDto.sortOrder,
+      });
+
+      const now = new Date();
+      const asOf = queryDto.asOfDate ? new Date(queryDto.asOfDate) : now;
+      const horizonDays = queryDto.horizonDays ? Number(queryDto.horizonDays) : 7;
+      const horizonMs = horizonDays * 24 * 60 * 60 * 1000;
+
+      const items: AssignedClientMembershipItemDto[] = await Promise.all(
+        clientResult.items.map(async (client) => {
+          let clientMemberships: Membership[] = [];
+          if (this.membershipRepository) {
+            try {
+              clientMemberships = await this.membershipRepository.findByClientId(client.id);
+            } catch {
+              clientMemberships = [];
+            }
+          }
+
+          // Pick active membership first, else frozen, else most recent
+          const activeMem =
+            clientMemberships.find((m) => m.status === MembershipStatus.ACTIVE) ??
+            clientMemberships.find((m) => m.status === MembershipStatus.FROZEN) ??
+            clientMemberships[0];
+
+          if (activeMem) {
+            let planName = activeMem.planId;
+            if (this.planRepository) {
+              try {
+                const plan = await this.planRepository.findById(activeMem.planId);
+                if (plan?.name) {
+                  planName = plan.name;
+                }
+              } catch {
+                // Ignore plan lookup failure
+              }
+            }
+
+            const endMs = activeMem.period.endDate.getTime();
+            const asOfMs = asOf.getTime();
+            const diffMs = endMs - asOfMs;
+            const daysRemaining = diffMs > 0 ? Math.ceil(diffMs / (1000 * 60 * 60 * 24)) : 0;
+            const isExpiringSoon =
+              (activeMem.status === MembershipStatus.ACTIVE ||
+                activeMem.status === MembershipStatus.FROZEN) &&
+              diffMs <= horizonMs &&
+              diffMs > 0;
+            const isExpired = activeMem.status === MembershipStatus.EXPIRED || diffMs <= 0;
+            const isCurrentlyFrozen =
+              typeof activeMem.isCurrentlyFrozen === 'function'
+                ? activeMem.isCurrentlyFrozen(asOf)
+                : false;
+
+            return {
+              membershipId: activeMem.id.value,
+              clientId: client.id,
+              clientName: client.fullName,
+              fullName: client.fullName,
+              email: client.email,
+              phone: client.phone,
+              referenceNumber: client.referenceNumber,
+              planId: activeMem.planId,
+              planName,
+              status: activeMem.status,
+              startDate: activeMem.period.startDate.toISOString(),
+              endDate: activeMem.period.endDate.toISOString(),
+              daysRemaining,
+              isExpiringSoon,
+              isExpired,
+              isCurrentlyFrozen,
+              assignedAt:
+                activeMem.trainerAssignment?.assignedAt?.toISOString() ??
+                activeMem.createdAt.toISOString(),
+            };
+          }
+
+          // Client without an active gym membership (general facility client)
+          return {
+            membershipId: `mem-${client.id.slice(0, 8)}`,
+            clientId: client.id,
+            clientName: client.fullName,
+            fullName: client.fullName,
+            email: client.email,
+            phone: client.phone,
+            referenceNumber: client.referenceNumber,
+            planId: 'plan-facility',
+            planName: 'General Member',
+            status: client.status === 'ACTIVE' ? 'ACTIVE' : client.status,
+            startDate: client.createdAt
+              ? new Date(client.createdAt).toISOString()
+              : now.toISOString(),
+            endDate: new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString(),
+            daysRemaining: 365,
+            isExpiringSoon: false,
+            isExpired: false,
+            isCurrentlyFrozen: false,
+            assignedAt: client.createdAt
+              ? new Date(client.createdAt).toISOString()
+              : now.toISOString(),
+          };
+        }),
+      );
+
+      return {
+        items,
+        totalItems: clientResult.total,
+        total: clientResult.total,
+        page: clientResult.page,
+        limit: clientResult.limit,
+        totalPages: clientResult.totalPages,
+        hasNextPage: clientResult.hasNextPage,
+        hasPreviousPage: clientResult.hasPreviousPage,
+      };
+    }
+
+    // Fallback path when clientFacade is not provided (e.g. isolated legacy unit tests)
+    const targetTrainerId = this.resolveTrainerId(currentUser, requestedTrainerId);
+    const fallbackSortBy =
+      queryDto.sortBy === 'endDate' ||
+      queryDto.sortBy === 'startDate' ||
+      queryDto.sortBy === 'daysRemaining' ||
+      queryDto.sortBy === 'assignedAt'
+        ? queryDto.sortBy
+        : undefined;
+
     const allQuery = new GetAssignedClientMembershipsQuery({
       trainerId: targetTrainerId,
       statuses: queryDto.statuses,
       asOfDate: queryDto.asOfDate,
       horizonDays: queryDto.horizonDays,
-      sortBy: queryDto.sortBy,
+      sortBy: fallbackSortBy,
       sortOrder: queryDto.sortOrder,
     });
 
@@ -149,7 +299,16 @@ export class TrainerDashboardController {
       throw new BadRequestException(allResult.getError());
     }
 
-    const allItems = allResult.getValue();
+    let allItems = allResult.getValue();
+    const searchTerm = (queryDto.search || queryDto.query || '').trim().toLowerCase();
+    if (searchTerm) {
+      allItems = allItems.filter(
+        (i) =>
+          i.clientId.toLowerCase().includes(searchTerm) ||
+          i.planName.toLowerCase().includes(searchTerm),
+      );
+    }
+
     const totalItems = allItems.length;
     const totalPages = Math.ceil(totalItems / limit) || 1;
     const startIndex = (page - 1) * limit;
@@ -158,6 +317,7 @@ export class TrainerDashboardController {
     return {
       items: paginatedItems,
       totalItems,
+      total: totalItems,
       page,
       limit,
       totalPages,

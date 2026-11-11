@@ -92,7 +92,7 @@ export const AssignedClientCard: React.FC<AssignedClientCardProps> = ({
           <div>
             <span className="text-muted-foreground block">Assigned Since</span>
             <span className="font-mono text-foreground font-medium">
-              {new Date(client.assignedAt).toLocaleDateString()}
+              {client.assignedAt ? new Date(client.assignedAt).toLocaleDateString() : 'N/A'}
             </span>
           </div>
         </div>

@@ -294,6 +294,7 @@ Both `Trainer` and `Receptionist` possess full operational authorization for:
 #### Preserved Trainer-Specific Capabilities
 
 - `reports.read`: Movement coaching metrics, session completion verification, attendance utilization summaries.
+- **Shared Facility Operational Client Directory**: View and filter all clients within the trainer's authorized facility on the Trainer Dashboard (to support drop-ins and multi-trainer floor shifts).
 
 #### Strictly Preserved Administrative Boundaries
 

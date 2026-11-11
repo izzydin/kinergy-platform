@@ -42,7 +42,12 @@ export interface AssignedClientMembershipVM {
   readonly isExpiringSoon: boolean;
   readonly isExpired: boolean;
   readonly isCurrentlyFrozen: boolean;
-  readonly assignedAt: string;
+  readonly assignedAt?: string;
+  readonly clientName?: string;
+  readonly fullName?: string;
+  readonly email?: string;
+  readonly phone?: string;
+  readonly referenceNumber?: string;
 }
 
 /**
@@ -106,12 +111,16 @@ export interface TrainerAttendanceResponseVM {
  */
 export interface AssignedClientsFilterParams {
   readonly trainerId?: string;
+  readonly search?: string;
+  readonly query?: string;
+  readonly status?: string;
   readonly statuses?: string[];
   readonly horizonDays?: number;
   readonly asOfDate?: string;
   readonly page?: number;
   readonly limit?: number;
-  readonly sortBy?: 'daysRemaining' | 'endDate' | 'startDate' | 'assignedAt';
+  readonly sortBy?:
+    'daysRemaining' | 'endDate' | 'startDate' | 'assignedAt' | 'fullName' | 'createdAt';
   readonly sortOrder?: 'ASC' | 'DESC';
 }
 

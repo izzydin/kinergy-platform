@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsISO8601, IsOptional, Max, Min } from 'class-validator';
+import { IsInt, IsISO8601, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class ExpiringMembershipsQueryDto {
   @ApiPropertyOptional({
@@ -24,4 +24,12 @@ export class ExpiringMembershipsQueryDto {
   @IsOptional()
   @IsISO8601()
   asOfDate?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional trainer identifier filter',
+    example: 'usr_trainer_123',
+  })
+  @IsOptional()
+  @IsString()
+  trainerId?: string;
 }

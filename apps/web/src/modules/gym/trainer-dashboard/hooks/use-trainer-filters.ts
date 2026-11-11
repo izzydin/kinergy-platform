@@ -45,6 +45,7 @@ export function useTrainerFilters() {
 
   const clientParams: AssignedClientsFilterParams = useMemo(() => {
     return {
+      search: state.q || undefined,
       page: state.page,
       limit: state.limit,
       sortBy,
@@ -52,7 +53,7 @@ export function useTrainerFilters() {
       statuses: backendStatuses,
       horizonDays: 7,
     };
-  }, [state.page, state.limit, sortBy, sortOrder, backendStatuses]);
+  }, [state.q, state.page, state.limit, sortBy, sortOrder, backendStatuses]);
 
   const setStatusFilter = useCallback(
     (status: string) => {

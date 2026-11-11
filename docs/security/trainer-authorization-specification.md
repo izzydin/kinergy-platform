@@ -29,22 +29,24 @@ Kinergy platform explicitly separates **Role Authority** from **Domain Relations
 
 - **A user can be a Trainer without assigned clients**: e.g., a newly onboarded trainer before any memberships are assigned.
 - **One trainer can be assigned to multiple clients**: A one-to-many relationship governed by multiple `Membership` aggregates.
-- **Conflation Prohibition**: Having `Role = Trainer` does NOT grant horizontal visibility into other trainers' clients or gym-wide membership registries.
+- **Shared Facility Operational Roster**: Per business operating requirements, trainers within an authorized facility have operational visibility over all clients of that facility (to support floor assistance, multi-trainer shifts, and drop-in attendance), while individual session allocations remain attributable.
+- **Conflation Prohibition**: Having `Role = Trainer` does NOT grant administrative or billing privileges (`billing.read`), nor does it expose confidential clinical records.
 
 ---
 
 ## 2. Resource Visibility & Access Matrix
 
-| Resource                          | Trainer Access Level    | Invariant & Boundary Rule                                            |
-| --------------------------------- | ----------------------- | -------------------------------------------------------------------- |
-| **My Assigned Clients**           | Read-Only (Full Roster) | Scoped strictly to `TrainerAssignment.trainerId === currentUser.id`. |
-| **All Clients Directory**         | Search by Name / Email  | Permitted via `clients.read` to diagnose floor arrival issues.       |
-| **All Gym Memberships**           | ❌ Denied               | Administrative overview restricted to `Owner` / `Admin`.             |
-| **Membership Commercial Pricing** | ❌ Denied               | `PlanPrice.amount` stripped; Trainer lacks `billing.read`.           |
-| **Today's Attendance Feed**       | Scoped (Assigned Only)  | Filtered by `assignedClientIds` whitelist.                           |
-| **All-Gym Ingress Feed**          | ❌ Denied               | Global check-in feed belongs exclusively to Reception.               |
-| **Historical Attendance**         | On-Demand (Per Client)  | Permitted via `getClientHistory(clientId)` for pre-workout checks.   |
-| **Clinical SOAP Records**         | ❌ Denied               | Medical confidentiality; isolated in Kinesiology context.            |
+| Resource                          | Trainer Access Level   | Invariant & Boundary Rule                                             |
+| --------------------------------- | ---------------------- | --------------------------------------------------------------------- |
+| **Facility Client Roster**        | Read-Only (Facility)   | Scoped strictly to trainer's authorized facility via `clients.read`.  |
+| **My Assigned Clients**           | Attributable Metrics   | Attributable trainer metrics (e.g., individual assigned client KPIs). |
+| **All Clients Directory**         | Search by Name / Email | Permitted via `clients.read` to diagnose floor arrival issues.        |
+| **All Gym Memberships**           | ❌ Denied              | Administrative overview restricted to `Owner` / `Admin`.              |
+| **Membership Commercial Pricing** | ❌ Denied              | `PlanPrice.amount` stripped; Trainer lacks `billing.read`.            |
+| **Today's Attendance Feed**       | Scoped (Assigned Only) | Filtered by `assignedClientIds` whitelist.                            |
+| **All-Gym Ingress Feed**          | ❌ Denied              | Global check-in feed belongs exclusively to Reception.                |
+| **Historical Attendance**         | On-Demand (Per Client) | Permitted via `getClientHistory(clientId)` for pre-workout checks.    |
+| **Clinical SOAP Records**         | ❌ Denied              | Medical confidentiality; isolated in Kinesiology context.             |
 
 ---
 
