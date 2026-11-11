@@ -56,22 +56,26 @@ export class AuthenticatedUserContext {
   }
 
   public hasRole(role: string): boolean {
+    const normalize = (r: string) => r.toUpperCase().replace(/[\s-]+/g, '_');
     const targetUpper = role.toUpperCase();
+    const targetNormalized = normalize(role);
     const userRolesUpper = this.roles.map((r) => r.toUpperCase());
+    const userRolesNormalized = this.roles.map(normalize);
 
     if (
       this.roles.includes(role) ||
       userRolesUpper.includes(targetUpper) ||
-      userRolesUpper.includes('ADMIN') ||
-      userRolesUpper.includes('SUPER_ADMIN') ||
-      userRolesUpper.includes('OWNER')
+      userRolesNormalized.includes(targetNormalized) ||
+      userRolesNormalized.includes('ADMIN') ||
+      userRolesNormalized.includes('SUPER_ADMIN') ||
+      userRolesNormalized.includes('OWNER')
     ) {
       return true;
     }
 
     if (
-      ['THERAPIST', 'TRAINER', 'PRACTITIONER'].includes(targetUpper) &&
-      userRolesUpper.some((r) =>
+      ['THERAPIST', 'TRAINER', 'PRACTITIONER'].includes(targetNormalized) &&
+      userRolesNormalized.some((r) =>
         ['THERAPIST', 'TRAINER', 'PRACTITIONER', 'RECEPTIONIST'].includes(r),
       )
     ) {
@@ -79,8 +83,10 @@ export class AuthenticatedUserContext {
     }
 
     if (
-      ['RECEPTIONIST', 'FRONT_DESK'].includes(targetUpper) &&
-      userRolesUpper.some((r) => ['RECEPTIONIST', 'FRONT_DESK', 'MANAGER', 'TRAINER'].includes(r))
+      ['RECEPTIONIST', 'FRONT_DESK'].includes(targetNormalized) &&
+      userRolesNormalized.some((r) =>
+        ['RECEPTIONIST', 'FRONT_DESK', 'MANAGER', 'TRAINER'].includes(r),
+      )
     ) {
       return true;
     }

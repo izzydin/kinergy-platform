@@ -317,6 +317,54 @@ To verify operational equivalence in the Docker demo environment (`http://localh
 1. Navigate to `http://localhost:8080` and log in with `trainer.demo@kinergy.platform` / `DemoPass123!`.
 2. Verify access to navigation items: **Clients**, **Calendar / Appointments**, **Point of Sale (POS)**, **Sales History**, and **Gym Attendance**.
 3. Create a client, schedule a kinesiology treatment session, sell a food/drink item via POS with cash tender, issue the receipt, and perform an attendance check-in. All operational flows execute with zero 403 Forbidden errors.
+
+---
+
+### 6.4 Inventory Operator Persona & Operational Permissions (Prompt 84315)
+
+The Inventory Operator persona (`inventory.demo@kinergy.platform`) is provisioned to manage day-to-day consumable inventory and stock movements across the platform.
+
+```
+inventory.demo@kinergy.platform (Password: DemoPass123!)
+Role: Kitchen Staff
+```
+
+#### Granted Operational Capabilities
+
+The role possesses the following authoritative permissions:
+
+- `inventory.read`: Full access to the consumable catalog, stock levels, low-stock cockpit, and movement audit logs.
+- `inventory.write`: Full capability to execute stock receiving (replenishment), stock adjustments (count reconciliation), scrapping (damage/spoilage disposal), clinical session consumption, and POS sales decrements, as well as catalog product creation and metadata updates.
+- `kitchen.read`, `kitchen.orders.manage`: Preparation queue and kitchen order tracking.
+- `sales.read`, `sales.create`: Retail product ordering and sales creation.
+- `payments.create`: POS payment processing.
+- `receipts.read`: Sale receipt generation and viewing.
+
+#### Strictly Enforced Security & Least-Privilege Boundaries
+
+Following Kinergy's fail-closed security architecture, the inventory operator is strictly barred from non-inventory administrative capabilities:
+
+- **No Inventory Valuation Reports**: `GET /api/v1/resources/inventory/valuation` strictly requires `billing.read` in addition to `inventory.read`. Requests from the inventory operator are denied with `403 Forbidden`.
+- **No Catalog Archival / Activation / Deactivation**: `POST /api/v1/resources/inventory/:id/(archive|activate|deactivate)` are restricted to `ADMIN`, `SUPER_ADMIN`, and `OWNER`.
+- **No Identity / User Administration**: `users.*`, `identity.*` remain restricted to administrators.
+- **No System Settings Configuration**: `settings.*` remains restricted.
+
+#### Architectural Fix: Separator & Case Invariant Role Matching
+
+Prisma seeds assign human-readable role names in title case (e.g. `'Kitchen Staff'`), while controller decorators may declare roles in uppercase snake case (e.g. `@Roles('KITCHEN_STAFF')`).
+
+Both runtime layers normalize role comparisons:
+
+- **API Runtime (`AuthenticatedUserContext.hasRole`)**: Normalizes whitespace and hyphens to underscores (`r.toUpperCase().replace(/[\s-]+/g, '_')`), ensuring `'Kitchen Staff'` seamlessly matches `'KITCHEN_STAFF'`.
+- **Frontend Matcher (`matchRole`)**: Normalizes whitespace and hyphens to underscores (`r.trim().toLowerCase().replace(/[\s-]+/g, '_')`), ensuring seamless client-side gating.
+
+#### Verification Procedure
+
+1. Sign in as `inventory.demo@kinergy.platform` / `DemoPass123!`.
+2. Navigate to `/resources/inventory` and `/resources/inventory/low-stock`.
+3. Verify catalog list and low-stock cockpit load without HTTP 403 errors.
+4. Execute stock receiving, adjustment, or scrapping on any catalog item.
+5. Attempting to access valuation reports yields `403 Forbidden`.
    | **Rooms** | `room-seed-kinesio-01` | Room 1 - Kinesiology Therapy Suite | Therapy bed, ultrasound machine; available for booking. |
    | **Rooms** | `room-seed-consult-02` | Room 2 - Assessment & Consultation | Consultation desk, goniometers; available for booking. |
    | **Rooms** | `studio-b-facility` | Studio B - Movement Room | Mats, Pilates reformers, wall bars (Capacity: 20). |

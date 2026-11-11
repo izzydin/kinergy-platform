@@ -232,6 +232,16 @@ export function matchRole(
     return false;
   }
 
+  const normalize = (r: string) =>
+    r
+      .trim()
+      .toLowerCase()
+      .replace(/[\s-]+/g, '_');
   const targetRole = requiredRole.trim().toLowerCase();
-  return userRoles.some((r) => r.trim().toLowerCase() === targetRole);
+  const targetNormalized = normalize(requiredRole);
+
+  return userRoles.some((r) => {
+    const rLower = r.trim().toLowerCase();
+    return rLower === targetRole || normalize(r) === targetNormalized;
+  });
 }

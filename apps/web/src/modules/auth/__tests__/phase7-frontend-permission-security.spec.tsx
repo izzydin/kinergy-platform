@@ -138,12 +138,15 @@ describe('Phase 7 Frontend Permission Security Suite (IAM & AuthZ)', () => {
   // 2. Role Matching Engine (matchRole)
   // ═══════════════════════════════════════════════════════════════════════════
   describe('2. Role Matching Engine (matchRole)', () => {
-    it('matches roles with case-insensitivity', () => {
+    it('matches roles with case-insensitivity and whitespace/underscore normalization', () => {
       expect(matchRole(['Owner'], 'owner')).toBe(true);
       expect(matchRole(['ADMIN'], 'admin')).toBe(true);
       expect(matchRole(['Manager'], 'MANAGER')).toBe(true);
       expect(matchRole(['Receptionist'], 'Receptionist')).toBe(true);
       expect(matchRole(['Kitchen Staff'], 'kitchen staff')).toBe(true);
+      expect(matchRole(['Kitchen Staff'], 'KITCHEN_STAFF')).toBe(true);
+      expect(matchRole(['KITCHEN_STAFF'], 'Kitchen Staff')).toBe(true);
+      expect(matchRole(['Front Desk'], 'FRONT_DESK')).toBe(true);
     });
 
     it('rejects principals without the required role', () => {

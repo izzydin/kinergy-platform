@@ -38,8 +38,18 @@ describe('AuthenticatedUserContext', () => {
     const context = new AuthenticatedUserContext(defaultProps);
 
     expect(context.hasRole('MANAGER')).toBe(true);
+    expect(context.hasRole('manager')).toBe(true);
     expect(context.hasRole('MEMBER')).toBe(false);
     expect(context.hasAnyRole(['MEMBER', 'MANAGER'])).toBe(true);
+
+    const kitchenStaffContext = new AuthenticatedUserContext({
+      ...defaultProps,
+      roles: ['Kitchen Staff'],
+    });
+    expect(kitchenStaffContext.hasRole('KITCHEN_STAFF')).toBe(true);
+    expect(kitchenStaffContext.hasRole('kitchen_staff')).toBe(true);
+    expect(kitchenStaffContext.hasRole('Kitchen Staff')).toBe(true);
+    expect(kitchenStaffContext.hasAnyRole(['ADMIN', 'KITCHEN_STAFF'])).toBe(true);
 
     const adminContext = new AuthenticatedUserContext({
       ...defaultProps,
