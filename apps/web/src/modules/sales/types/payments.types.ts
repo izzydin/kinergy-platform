@@ -79,6 +79,8 @@ export interface ListPaymentsQueryParams {
   readonly method?: PaymentMethod;
   readonly fromDate?: string;
   readonly toDate?: string;
+  readonly paidAtFrom?: string;
+  readonly paidAtTo?: string;
 }
 
 /**

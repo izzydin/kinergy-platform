@@ -366,6 +366,68 @@ Both runtime layers normalize role comparisons:
 3. Verify catalog list and low-stock cockpit load without HTTP 403 errors.
 4. Execute stock receiving, adjustment, or scrapping on any catalog item.
 5. Attempting to access valuation reports yields `403 Forbidden`.
+
+---
+
+### 6.5 Main Operational Business Dashboard (`/dashboard` — Prompt 84321)
+
+The main dashboard at `/dashboard` provides a role-aware operational cockpit backed strictly by persisted PostgreSQL records across the Gym Attendance, Consumable Inventory, Scheduling, and Sales & Payments bounded contexts. All development/simulation controls (`4-State UI Simulator`, `System Health & Notification Infrastructure`, `Recent Platform Activity`, and `Quick System Check`) have been removed from the production interface.
+
+#### 1. Business-Day & Timezone Definition
+
+All daily dashboard metrics share a single authoritative facility business-day window:
+
+- **Facility Timezone**: `UTC` (`OPERATIONAL_FACILITY_TIMEZONE = 'UTC'`), aligned with backend `SystemClock('UTC')` in Gym Attendance and `CalendarProjectionService` in Scheduling.
+- **Business-Day Boundaries**: `YYYY-MM-DDT00:00:00.000Z` through `YYYY-MM-DDT23:59:59.999Z` in `UTC`.
+
+#### 2. Operational KPI Definitions
+
+| KPI Card                 | Data Source & Endpoint                      | Calculation & Business Invariants                                                                                                                                                                                                                                                                                | Target Navigation                |
+| :----------------------- | :------------------------------------------ | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------------- |
+| **Gym Check-ins Today**  | `GET /api/v1/gym/attendance/today`          | Counts `GRANTED` physical check-in events recorded for the current facility business day (`YYYY-MM-DD@main(UTC)`), displaying unique client count and denied attempts separately without double-counting.                                                                                                        | `/gym/attendance`                |
+| **Low-Stock Alerts**     | `GET /api/v1/resources/inventory/low-stock` | Counts distinct `ACTIVE` inventory items where `currentStock <= reorderThreshold` (including `0` out-of-stock items), sorted by criticality (`currentStock === 0` first).                                                                                                                                        | `/resources/inventory/low-stock` |
+| **Today's Appointments** | `GET /api/v1/scheduling/appointments`       | Counts active (non-cancelled) appointments scheduled within today's facility business day (`startDate`..`endDate`), with status breakdown (`Confirmed/In-Clinic`, `Unconfirmed`, `Completed`, and `Cancelled` labeled separately).                                                                               | `/scheduling`                    |
+| **Daily Sales Total**    | `GET /api/v1/payments?status=COMPLETED`     | Sums actual collected revenue across **completed/settled payments (`status = COMPLETED`)** whose `paidAt` completion timestamp falls within today's facility business day, using exact integer minor-unit (cents) arithmetic. Excludes `DRAFT`, `PENDING_PAYMENT`, `PENDING`, `FAILED`, and `CANCELLED` records. | `/sales/payments`                |
+
+#### 3. Operational Sections Below KPIs
+
+1. **Today's Schedule**:
+   - Chronological list of today's non-cancelled appointments showing start time, duration, client full name (linked to `/clients/:id`), service/appointment type, assigned staff member, room, and semantic status badge.
+   - Strictly omits clinical SOAP notes to protect healthcare privacy on the shared operational overview.
+2. **Needs Attention**:
+   - Actionable operational issues derived from persisted domain records:
+     - **Inventory Replenishment**: Top critical out-of-stock and low-stock items with SKU, on-hand quantity vs. reorder threshold, and direct link to `/resources/inventory/:id`.
+     - **Appointments Awaiting Action**: Today's `SCHEDULED` (awaiting confirmation) and `CHECKED_IN` (client waiting for session start) appointments.
+     - **Pending Payment Orders**: Finalized sales in `PENDING_PAYMENT` status awaiting payment settlement (`/sales/:id`).
+3. **Quick Actions**:
+   - Permission-gated shortcuts to daily operational workflows:
+     - **Register Gym Check-in** (`/gym/attendance` — requires `attendance.create` / `clients.read`)
+     - **Create Appointment** (`/scheduling/book` — requires `appointments.create`)
+     - **Create Sale** (`/sales/new` — requires `sales.create`)
+     - **Register Client** (`/clients/new` — requires `clients.write`)
+     - **Receive Inventory** (`/resources/inventory` — requires `inventory.write` / `inventory.read`)
+4. **Recent Business Activity**:
+   - Omitted in MVP because no cross-domain operational event-stream endpoint exists; individual domain audit trails remain accessible within Client Timelines (`/clients/:id/timeline`), Inventory Movement Ledgers (`/resources/inventory/:id/movements`), and Payment History (`/sales/payments`).
+
+#### 4. Role-Specific Dashboard Visibility Matrix
+
+| Persona / Role                                                               | Visible KPI Cards                                                                                       | Visible Operational Sections                                                              | Available Quick Actions                                                                    |
+| :--------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------- |
+| **Owner / Admin** (`owner@kinergy.platform`)                                 | Gym Check-ins Today, Low-Stock Alerts, Today's Appointments, Daily Sales Total                          | Today's Schedule, Needs Attention (Inventory, Appointments, Pending Sales), Quick Actions | Register Gym Check-in, Create Appointment, Create Sale, Register Client, Receive Inventory |
+| **Receptionist** (`reception.demo@kinergy.platform`)                         | Today's Appointments, Gym Check-ins Today, Daily Sales Total, Low-Stock Alerts                          | Today's Schedule, Needs Attention (Inventory, Appointments, Pending Sales), Quick Actions | Register Gym Check-in, Create Appointment, Create Sale, Register Client, Receive Inventory |
+| **Trainer** (`trainer.demo@kinergy.platform`)                                | Today's Appointments, Gym Check-ins Today, Low-Stock Alerts, Daily Sales Total                          | Today's Schedule, Needs Attention (Inventory, Appointments, Pending Sales), Quick Actions | Create Appointment, Register Gym Check-in, Register Client, Create Sale, Receive Inventory |
+| **Inventory Operator** (`inventory.demo@kinergy.platform` / `Kitchen Staff`) | **Low-Stock Alerts only** _(Daily Sales Total, Gym Check-ins, and Today's Appointments are restricted)_ | Needs Attention (Inventory Replenishment), Quick Actions _(Today's Schedule is hidden)_   | Receive Inventory, Create Sale                                                             |
+
+#### 5. Dashboard Smoke-Test Procedure
+
+1. Ensure the demo stack is running (`pnpm demo:up` or `docker compose -f docker-compose.demo.yml up -d`) and seeded (`pnpm db:seed`).
+2. Sign in at `http://localhost:8080/login` as `owner@kinergy.platform` (`OwnerPassword123!`) or `reception.demo@kinergy.platform` (`DemoPass123!`).
+3. Verify `/dashboard` renders:
+   - All 4 KPI cards with real persisted values (no `"Telemetry Pending"` or `"Aggregation Pending"` placeholders, and no `4-State UI Simulator` or `System Health` cards).
+   - **Today's Schedule** populated with today's seeded appointments and client names.
+   - **Needs Attention** highlighting low-stock items (e.g., `Kinesiology Tape Roll 5m`), unconfirmed appointments, and pending-payment sales.
+   - **Quick Actions** navigating cleanly to `/gym/attendance`, `/scheduling/book`, `/sales/new`, `/clients/new`, and `/resources/inventory`.
+4. Sign in as `inventory.demo@kinergy.platform` (`DemoPass123!`) and verify `/dashboard` displays **Low-Stock Alerts**, **Needs Attention (Inventory Replenishment)**, and **Receive Inventory / Create Sale** quick actions without exposing **Daily Sales Total** or throwing HTTP 403 errors.
    | **Rooms** | `room-seed-kinesio-01` | Room 1 - Kinesiology Therapy Suite | Therapy bed, ultrasound machine; available for booking. |
    | **Rooms** | `room-seed-consult-02` | Room 2 - Assessment & Consultation | Consultation desk, goniometers; available for booking. |
    | **Rooms** | `studio-b-facility` | Studio B - Movement Room | Mats, Pilates reformers, wall bars (Capacity: 20). |

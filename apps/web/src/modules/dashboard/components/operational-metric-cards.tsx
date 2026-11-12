@@ -1,144 +1,94 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { Card, CardHeader, CardTitle, CardContent, Badge, Button } from '@kinergy-platform/ui';
 import {
-  Badge,
-  Button,
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Skeleton,
-} from '@kinergy-platform/ui';
-import { ArrowUpRight, Calendar, Dumbbell, Package, Receipt } from 'lucide-react';
-import { useAuth } from '../../../app/providers/auth-provider';
-import { useTodayGymCheckIns, useLowStockAlerts } from '../api/operational-dashboard-queries';
+  Users,
+  AlertTriangle,
+  Calendar,
+  DollarSign,
+  ArrowRight,
+  RefreshCw,
+  CheckCircle2,
+} from 'lucide-react';
+import {
+  useDashboardAccess,
+  useTodayGymCheckIns,
+  useLowStockAlerts,
+  useTodayAppointments,
+  useDailySalesTotal,
+} from '../api/operational-dashboard-queries';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 1. Gym Check-ins Metric Card
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * 1. Gym Check-ins Today Card (Real-time Operational Indicator)
+ */
+export const GymCheckInsCard: React.FC = () => {
+  const { canViewGymCheckIns } = useDashboardAccess();
+  const { data, isLoading, isError, refetch } = useTodayGymCheckIns();
 
-interface GymCheckInsCardProps {
-  readonly onRetry?: () => void;
-  readonly forcedState?: 'loading' | 'error' | 'empty' | 'success';
-}
-
-export const GymCheckInsCard: React.FC<GymCheckInsCardProps> = ({ onRetry, forcedState }) => {
-  const { hasPermission, isAuthenticated } = useAuth();
-  const canRead =
-    isAuthenticated && (hasPermission('gym.attendance.read') || hasPermission('attendance.read'));
-
-  const query = useTodayGymCheckIns({ enabled: canRead && forcedState !== 'loading' });
-
-  if (!canRead && forcedState === undefined) {
+  if (!canViewGymCheckIns) {
     return null;
   }
 
-  // 1. Loading State
-  if (forcedState === 'loading' || (query.isLoading && forcedState === undefined)) {
-    return (
-      <Card data-testid="gym-checkins-loading" aria-busy="true">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-5 w-16 rounded-full" />
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Skeleton className="h-8 w-20" />
-          <Skeleton className="h-3 w-40" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // 2. Error State
-  if (forcedState === 'error' || (query.isError && forcedState === undefined)) {
-    return (
-      <Card className="border-destructive/40 bg-destructive/5" data-testid="gym-checkins-error">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="font-medium text-sm text-muted-foreground flex items-center gap-1.5">
-            <Dumbbell className="h-4 w-4" />
-            Gym Check-ins Today
-          </CardTitle>
-          <Badge variant="destructive">Error</Badge>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-destructive">
-            {query.error?.message ?? 'Failed to load check-in telemetry.'}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full text-xs"
-            onClick={() => {
-              if (onRetry) onRetry();
-              query.refetch();
-            }}
-          >
-            Retry Fetching
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const data = query.data;
-  const isZero = forcedState === 'empty' || (data && data.grantedCount === 0);
-
-  // 3. Empty State (Valid Zero admissions)
-  if (isZero) {
-    return (
-      <Card data-testid="gym-checkins-empty" data-testid-card="metric-card-gym-checkins">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="font-medium text-sm text-muted-foreground flex items-center gap-1.5">
-            <Dumbbell className="h-4 w-4" />
-            Gym Check-ins Today
-          </CardTitle>
-          <Badge variant="secondary">Quiet</Badge>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="font-bold text-2xl text-foreground">0</div>
-          <p className="text-xs text-muted-foreground">0 admissions recorded today</p>
-          <div className="pt-1">
-            <Link
-              to="/gym/attendance"
-              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-              aria-label="View attendance log for gym check-ins"
-            >
-              View Attendance Log
-              <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // 4. Populated State
-  const grantedCount = data?.grantedCount ?? 14;
-  const uniqueCount = data?.uniqueClientsCount ?? 12;
-  const totalAttempts = data?.totalCheckIns ?? 14;
-
   return (
-    <Card data-testid="gym-checkins-populated" data-testid-card="metric-card-gym-checkins">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="font-medium text-sm text-muted-foreground flex items-center gap-1.5">
-          <Dumbbell className="h-4 w-4" />
+    <Card
+      className="flex flex-col justify-between transition-shadow hover:shadow-md border-border"
+      data-testid="metric-card-gym-checkins"
+    >
+      <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
           Gym Check-ins Today
         </CardTitle>
-        <Badge variant="default">Active</Badge>
+        <div className="p-2 rounded-lg bg-primary/10 text-primary">
+          <Users className="w-4 h-4" aria-hidden="true" />
+        </div>
       </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="font-bold text-2xl text-foreground">{grantedCount}</div>
-        <p className="text-xs text-muted-foreground">
-          {uniqueCount} unique clients ({totalAttempts} total attempts)
-        </p>
-        <div className="pt-1">
+      <CardContent className="pt-2 flex flex-col justify-between flex-1 gap-3">
+        {isLoading ? (
+          <div className="space-y-2 py-1" data-testid="gym-checkins-loading">
+            <div className="h-7 w-16 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+          </div>
+        ) : isError ? (
+          <div className="space-y-2 py-1" data-testid="gym-checkins-error">
+            <p className="text-xs text-destructive font-medium">
+              Unable to load today&apos;s attendance
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refetch()}
+              className="h-7 text-xs gap-1.5"
+            >
+              <RefreshCw className="w-3 h-3" aria-hidden="true" /> Retry
+            </Button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-2xl font-bold tracking-tight" data-testid="gym-checkins-value">
+                {data?.grantedCount ?? 0}
+              </div>
+              <Badge variant="success" className="text-[11px] px-1.5 py-0 font-normal">
+                Granted
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {(data?.grantedCount ?? 0) === 0 && (data?.deniedCount ?? 0) === 0
+                ? 'No check-ins recorded today'
+                : `${data?.uniqueClientsCount ?? 0} unique client(s)${
+                    (data?.deniedCount ?? 0) > 0 ? ` · ${data?.deniedCount} denied` : ''
+                  }`}
+            </p>
+          </div>
+        )}
+
+        <div className="pt-2 border-t border-border/60 flex items-center justify-between">
           <Link
             to="/gym/attendance"
-            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-            aria-label="View attendance log for gym check-ins"
+            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
+            data-testid="gym-checkins-link"
           >
-            View Attendance Log
-            <ArrowUpRight className="h-3 w-3" />
+            Open Attendance Log <ArrowRight className="w-3 h-3" aria-hidden="true" />
           </Link>
         </div>
       </CardContent>
@@ -146,137 +96,93 @@ export const GymCheckInsCard: React.FC<GymCheckInsCardProps> = ({ onRetry, force
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. Low-Stock Alerts Metric Card
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * 2. Low-Stock Alerts Card (Real-time Operational Indicator)
+ */
+export const LowStockAlertsCard: React.FC = () => {
+  const { canViewLowStock } = useDashboardAccess();
+  const { data, isLoading, isError, refetch } = useLowStockAlerts();
 
-interface LowStockAlertsCardProps {
-  readonly onRetry?: () => void;
-  readonly forcedState?: 'loading' | 'error' | 'empty' | 'success';
-}
-
-export const LowStockAlertsCard: React.FC<LowStockAlertsCardProps> = ({ onRetry, forcedState }) => {
-  const { hasPermission, isAuthenticated } = useAuth();
-  const canRead = isAuthenticated && hasPermission('inventory.read');
-
-  const query = useLowStockAlerts({ enabled: canRead && forcedState !== 'loading' });
-
-  if (!canRead && forcedState === undefined) {
+  if (!canViewLowStock) {
     return null;
   }
 
-  // 1. Loading State
-  if (forcedState === 'loading' || (query.isLoading && forcedState === undefined)) {
-    return (
-      <Card data-testid="low-stock-loading" aria-busy="true">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-5 w-16 rounded-full" />
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Skeleton className="h-8 w-20" />
-          <Skeleton className="h-3 w-40" />
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // 2. Error State
-  if (forcedState === 'error' || (query.isError && forcedState === undefined)) {
-    return (
-      <Card className="border-destructive/40 bg-destructive/5" data-testid="low-stock-error">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="font-medium text-sm text-muted-foreground flex items-center gap-1.5">
-            <Package className="h-4 w-4" />
-            Low-Stock Alerts
-          </CardTitle>
-          <Badge variant="destructive">Error</Badge>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-xs text-destructive">
-            {query.error?.message ?? 'Failed to load low-stock alerts.'}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full text-xs"
-            onClick={() => {
-              if (onRetry) onRetry();
-              query.refetch();
-            }}
-          >
-            Retry Fetching
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  const data = query.data;
-  const isHealthyZero = forcedState === 'empty' || (data && data.count === 0);
-
-  // 3. Empty State (Valid Zero deficit items — stock is healthy)
-  if (isHealthyZero) {
-    return (
-      <Card data-testid="low-stock-empty" data-testid-card="metric-card-low-stock">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <CardTitle className="font-medium text-sm text-muted-foreground flex items-center gap-1.5">
-            <Package className="h-4 w-4" />
-            Low-Stock Alerts
-          </CardTitle>
-          <Badge
-            variant="outline"
-            className="text-status-success border-status-success-border bg-status-success-surface"
-          >
-            Healthy
-          </Badge>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="font-bold text-2xl text-foreground">0</div>
-          <p className="text-xs text-muted-foreground">All inventory above reorder threshold</p>
-          <div className="pt-1">
-            <Link
-              to="/resources/inventory/low-stock"
-              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-              aria-label="View low stock inventory"
-            >
-              View Inventory
-              <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
-
-  // 4. Populated State (Deficit items detected)
-  const count = data?.count ?? 3;
-  const outOfStockCount = data?.outOfStockCount ?? 1;
+  const count = data?.count ?? 0;
+  const outOfStockCount = data?.outOfStockCount ?? 0;
 
   return (
-    <Card data-testid="low-stock-populated" data-testid-card="metric-card-low-stock">
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="font-medium text-sm text-muted-foreground flex items-center gap-1.5">
-          <Package className="h-4 w-4" />
+    <Card
+      className="flex flex-col justify-between transition-shadow hover:shadow-md border-border"
+      data-testid="metric-card-low-stock"
+    >
+      <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
           Low-Stock Alerts
         </CardTitle>
-        <Badge variant="destructive">Action Needed</Badge>
+        <div
+          className={`p-2 rounded-lg ${
+            count > 0 ? 'bg-warning/15 text-warning-text' : 'bg-success/10 text-success-text'
+          }`}
+        >
+          {count > 0 ? (
+            <AlertTriangle className="w-4 h-4" aria-hidden="true" />
+          ) : (
+            <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
+          )}
+        </div>
       </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="font-bold text-2xl text-foreground">{count}</div>
-        <p className="text-xs text-muted-foreground">
-          {outOfStockCount > 0
-            ? `${outOfStockCount} out of stock, replenishment required`
-            : 'Stock replenishment required'}
-        </p>
-        <div className="pt-1">
+      <CardContent className="pt-2 flex flex-col justify-between flex-1 gap-3">
+        {isLoading ? (
+          <div className="space-y-2 py-1" data-testid="low-stock-loading">
+            <div className="h-7 w-16 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+          </div>
+        ) : isError ? (
+          <div className="space-y-2 py-1" data-testid="low-stock-error">
+            <p className="text-xs text-destructive font-medium">Unable to load stock alerts</p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refetch()}
+              className="h-7 text-xs gap-1.5"
+            >
+              <RefreshCw className="w-3 h-3" aria-hidden="true" /> Retry
+            </Button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-2xl font-bold tracking-tight" data-testid="low-stock-value">
+                {count}
+              </div>
+              {count > 0 ? (
+                <Badge
+                  variant={outOfStockCount > 0 ? 'destructive' : 'warning'}
+                  className="text-[11px] px-1.5 py-0 font-normal"
+                >
+                  {outOfStockCount > 0 ? `${outOfStockCount} Out of Stock` : 'Needs Restock'}
+                </Badge>
+              ) : (
+                <Badge variant="success" className="text-[11px] px-1.5 py-0 font-normal">
+                  Healthy
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-1">
+              {count === 0
+                ? 'All active inventory items stocked'
+                : `${count} active item(s) at or below reorder threshold`}
+            </p>
+          </div>
+        )}
+
+        <div className="pt-2 border-t border-border/60 flex items-center justify-between">
           <Link
             to="/resources/inventory/low-stock"
-            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-            aria-label="Manage low stock inventory"
+            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
+            data-testid="low-stock-link"
           >
-            Manage Low Stock
-            <ArrowUpRight className="h-3 w-3" />
+            Review Low Stock <ArrowRight className="w-3 h-3" aria-hidden="true" />
           </Link>
         </div>
       </CardContent>
@@ -284,136 +190,247 @@ export const LowStockAlertsCard: React.FC<LowStockAlertsCardProps> = ({ onRetry,
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. Today's Appointments Metric Card (Truthful Capability Gap)
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * 3. Today's Appointments Card (Connected to Persisted Scheduling Data)
+ */
+export const TodayAppointmentsCard: React.FC = () => {
+  const { canViewAppointments } = useDashboardAccess();
+  const { data, isLoading, isError, refetch } = useTodayAppointments();
 
-interface TodayAppointmentsCardProps {
-  readonly forcedState?: 'loading' | 'error' | 'empty' | 'success';
-}
-
-export const TodayAppointmentsCard: React.FC<TodayAppointmentsCardProps> = ({ forcedState }) => {
-  const { hasPermission, isAuthenticated } = useAuth();
-  const canRead =
-    isAuthenticated &&
-    (hasPermission('appointments.read') ||
-      hasPermission('scheduling.read') ||
-      hasPermission('client:read') ||
-      hasPermission('client.read') ||
-      hasPermission('*'));
-
-  if (!canRead && forcedState === undefined) {
+  if (!canViewAppointments) {
     return null;
   }
 
-  if (forcedState === 'loading') {
-    return (
-      <Card aria-busy="true">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-5 w-20 rounded-full" />
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Skeleton className="h-8 w-16" />
-          <Skeleton className="h-3 w-40" />
-        </CardContent>
-      </Card>
-    );
-  }
+  const activeCount = data?.activeCount ?? 0;
+  const breakdown = data?.statusBreakdown;
+
+  const buildBreakdownText = () => {
+    if (!breakdown || activeCount === 0) {
+      if ((breakdown?.cancelled ?? 0) > 0) {
+        return `No active sessions · ${breakdown?.cancelled ?? 0} cancelled`;
+      }
+      return 'No appointments scheduled today';
+    }
+
+    const parts: string[] = [];
+    const readyOrActive =
+      (breakdown.confirmed ?? 0) + (breakdown.checkedIn ?? 0) + (breakdown.inProgress ?? 0);
+    if (readyOrActive > 0) {
+      parts.push(`${readyOrActive} confirmed/in-clinic`);
+    }
+    if (breakdown.scheduled > 0) {
+      parts.push(`${breakdown.scheduled} unconfirmed`);
+    }
+    if (breakdown.completed > 0) {
+      parts.push(`${breakdown.completed} completed`);
+    }
+    if (breakdown.cancelled > 0) {
+      parts.push(`${breakdown.cancelled} cancelled`);
+    }
+    return parts.join(' · ') || `${activeCount} active appointment(s) today`;
+  };
 
   return (
     <Card
-      data-testid="appointments-unavailable"
-      data-testid-card="metric-card-appointments"
-      className="border-dashed"
+      className="flex flex-col justify-between transition-shadow hover:shadow-md border-border"
+      data-testid="metric-card-appointments"
     >
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="font-medium text-sm text-muted-foreground flex items-center gap-1.5">
-          <Calendar className="h-4 w-4" />
-          Today's Appointments
+      <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
+          Today&apos;s Appointments
         </CardTitle>
-        <Badge
-          variant="outline"
-          className="text-status-warning border-status-warning-border bg-status-warning-surface"
-        >
-          Telemetry Pending
-        </Badge>
+        <div className="p-2 rounded-lg bg-primary/10 text-primary">
+          <Calendar className="w-4 h-4" aria-hidden="true" />
+        </div>
       </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="font-bold text-2xl text-muted-foreground">—</div>
-        <p className="text-xs text-muted-foreground">
-          Daily appointment schedule telemetry requires upcoming scheduling service release.
-        </p>
+      <CardContent className="pt-2 flex flex-col justify-between flex-1 gap-3">
+        {isLoading ? (
+          <div className="space-y-2 py-1" data-testid="appointments-loading">
+            <div className="h-7 w-16 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+          </div>
+        ) : isError ? (
+          <div className="space-y-2 py-1" data-testid="appointments-error">
+            <p className="text-xs text-destructive font-medium">
+              Unable to load today&apos;s appointments
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refetch()}
+              className="h-7 text-xs gap-1.5"
+            >
+              <RefreshCw className="w-3 h-3" aria-hidden="true" /> Retry
+            </Button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-2xl font-bold tracking-tight" data-testid="appointments-value">
+                {activeCount}
+              </div>
+              <Badge
+                variant={activeCount > 0 ? 'info' : 'secondary'}
+                className="text-[11px] px-1.5 py-0 font-normal"
+              >
+                {activeCount === 1 ? '1 Active' : `${activeCount} Active`}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1" data-testid="appointments-breakdown">
+              {buildBreakdownText()}
+            </p>
+          </div>
+        )}
+
+        <div className="pt-2 border-t border-border/60 flex items-center justify-between">
+          <Link
+            to="/scheduling"
+            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
+            data-testid="appointments-link"
+          >
+            Open Schedule <ArrowRight className="w-3 h-3" aria-hidden="true" />
+          </Link>
+        </div>
       </CardContent>
     </Card>
   );
 };
 
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. Daily Sales Total Metric Card (Truthful Capability Gap)
-// ─────────────────────────────────────────────────────────────────────────────
+/**
+ * 4. Daily Sales Total Card (Connected to Settled Payments Ledger)
+ */
+export const DailySalesTotalCard: React.FC = () => {
+  const { canViewDailySales } = useDashboardAccess();
+  const { data, isLoading, isError, refetch } = useDailySalesTotal();
 
-interface DailySalesTotalCardProps {
-  readonly forcedState?: 'loading' | 'error' | 'empty' | 'success';
-}
-
-export const DailySalesTotalCard: React.FC<DailySalesTotalCardProps> = ({ forcedState }) => {
-  const { hasPermission, isAuthenticated } = useAuth();
-  const canRead = isAuthenticated && (hasPermission('sales.read') || hasPermission('billing.read'));
-
-  if (!canRead && forcedState === undefined) {
+  if (!canViewDailySales) {
     return null;
   }
 
-  if (forcedState === 'loading') {
-    return (
-      <Card aria-busy="true">
-        <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <Skeleton className="h-4 w-32" />
-          <Skeleton className="h-5 w-20 rounded-full" />
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Skeleton className="h-8 w-16" />
-          <Skeleton className="h-3 w-40" />
-        </CardContent>
-      </Card>
-    );
-  }
+  const formattedTotal = data?.formattedTotal ?? '$0.00';
+  const completedCount = data?.completedPaymentsCount ?? 0;
 
   return (
     <Card
-      data-testid="sales-unavailable"
-      data-testid-card="metric-card-daily-sales"
-      className="border-dashed"
+      className="flex flex-col justify-between transition-shadow hover:shadow-md border-border"
+      data-testid="metric-card-daily-sales"
     >
-      <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle className="font-medium text-sm text-muted-foreground flex items-center gap-1.5">
-          <Receipt className="h-4 w-4" />
+      <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+        <CardTitle className="text-sm font-medium text-muted-foreground">
           Daily Sales Total
         </CardTitle>
-        <Badge
-          variant="outline"
-          className="text-status-warning border-status-warning-border bg-status-warning-surface"
-        >
-          Aggregation Pending
-        </Badge>
+        <div className="p-2 rounded-lg bg-primary/10 text-primary">
+          <DollarSign className="w-4 h-4" aria-hidden="true" />
+        </div>
       </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="font-bold text-2xl text-muted-foreground">—</div>
-        <p className="text-xs text-muted-foreground">
-          Authoritative daily revenue aggregation endpoint scheduled for upcoming billing milestone.
-        </p>
-        <div className="pt-1">
+      <CardContent className="pt-2 flex flex-col justify-between flex-1 gap-3">
+        {isLoading ? (
+          <div className="space-y-2 py-1" data-testid="daily-sales-loading">
+            <div className="h-7 w-24 bg-muted animate-pulse rounded" />
+            <div className="h-4 w-32 bg-muted animate-pulse rounded" />
+          </div>
+        ) : isError ? (
+          <div className="space-y-2 py-1" data-testid="daily-sales-error">
+            <p className="text-xs text-destructive font-medium">
+              Unable to load today&apos;s sales total
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refetch()}
+              className="h-7 text-xs gap-1.5"
+            >
+              <RefreshCw className="w-3 h-3" aria-hidden="true" /> Retry
+            </Button>
+          </div>
+        ) : (
+          <div>
+            <div className="flex items-baseline gap-2">
+              <div className="text-2xl font-bold tracking-tight" data-testid="daily-sales-value">
+                {formattedTotal}
+              </div>
+              <Badge
+                variant={completedCount > 0 ? 'success' : 'secondary'}
+                className="text-[11px] px-1.5 py-0 font-normal"
+              >
+                Settled
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1" data-testid="daily-sales-subtitle">
+              {completedCount === 0
+                ? 'No settled payments recorded today'
+                : `Collected across ${completedCount} completed payment(s) today`}
+            </p>
+          </div>
+        )}
+
+        <div className="pt-2 border-t border-border/60 flex items-center justify-between">
           <Link
-            to="/sales"
-            className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-            aria-label="View sales overview hub"
+            to="/sales/payments"
+            className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
+            data-testid="daily-sales-link"
           >
-            Sales Overview Hub
-            <ArrowUpRight className="h-3 w-3" />
+            View Payment Ledger <ArrowRight className="w-3 h-3" aria-hidden="true" />
           </Link>
         </div>
       </CardContent>
     </Card>
+  );
+};
+
+export const OperationalMetricCards: React.FC = () => {
+  const { roleProfile } = useDashboardAccess();
+
+  const renderOrderedCards = () => {
+    if (roleProfile === 'TRAINER') {
+      return (
+        <>
+          <TodayAppointmentsCard />
+          <GymCheckInsCard />
+          <LowStockAlertsCard />
+          <DailySalesTotalCard />
+        </>
+      );
+    }
+
+    if (roleProfile === 'RECEPTIONIST') {
+      return (
+        <>
+          <TodayAppointmentsCard />
+          <GymCheckInsCard />
+          <DailySalesTotalCard />
+          <LowStockAlertsCard />
+        </>
+      );
+    }
+
+    if (roleProfile === 'INVENTORY') {
+      return (
+        <>
+          <LowStockAlertsCard />
+          <GymCheckInsCard />
+          <TodayAppointmentsCard />
+          <DailySalesTotalCard />
+        </>
+      );
+    }
+
+    return (
+      <>
+        <GymCheckInsCard />
+        <LowStockAlertsCard />
+        <TodayAppointmentsCard />
+        <DailySalesTotalCard />
+      </>
+    );
+  };
+
+  return (
+    <div
+      className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
+      data-testid="operational-metrics-grid"
+    >
+      {renderOrderedCards()}
+    </div>
   );
 };

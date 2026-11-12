@@ -7,6 +7,10 @@ import { moduleRegistry } from '../../app/routes/module-registry';
 import { SlotProvider } from '../../shared/ui/slots/SlotProvider';
 import { SlotTarget } from '../../shared/ui/slots/SlotTarget';
 import { DashboardOverviewPage, DashboardRouter } from '../dashboard';
+import {
+  operationalDashboardKeys,
+  getTodayOperationalBusinessDay,
+} from '../dashboard/api/operational-dashboard-queries';
 import { SettingsLayoutPage, SettingsRouter } from '../settings';
 import { GeneralSettingsForm } from '../settings/components/general-settings-form';
 import { SecuritySettingsForm } from '../settings/components/security-settings-form';
@@ -16,14 +20,65 @@ import { AuthProvider } from '../../app/providers/auth-provider';
 import { FeatureFlagProvider } from '../../app/providers/feature-flag-provider';
 import { BreadcrumbProvider } from '../../app/breadcrumbs';
 
+const TEST_OWNER_SESSION = {
+  id: 'usr-owner-validation',
+  email: 'owner@kinergy.platform',
+  name: 'Owner Validation',
+  roles: ['OWNER'],
+  permissions: ['*'],
+  tenantId: 'default',
+};
+
 function createTestQueryClient() {
-  return new QueryClient({
+  const qc = new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
       },
     },
   });
+  const businessDay = getTodayOperationalBusinessDay();
+  qc.setQueryData(operationalDashboardKeys.todayCheckIns(), {
+    grantedCount: 4,
+    uniqueClientsCount: 4,
+    deniedCount: 0,
+    totalCheckIns: 4,
+    gymDay: `${businessDay.dateStr}@main(UTC)`,
+  });
+  qc.setQueryData(operationalDashboardKeys.lowStock(), {
+    count: 1,
+    outOfStockCount: 0,
+    lowStockOnlyCount: 1,
+    items: [],
+  });
+  qc.setQueryData(operationalDashboardKeys.todayAppointments(businessDay.dateStr), {
+    dateStr: businessDay.dateStr,
+    activeCount: 2,
+    totalCount: 2,
+    statusBreakdown: {
+      scheduled: 1,
+      confirmed: 1,
+      checkedIn: 0,
+      inProgress: 0,
+      completed: 0,
+      cancelled: 0,
+      noShow: 0,
+    },
+    scheduleItems: [],
+    needsAttentionItems: [],
+  });
+  qc.setQueryData(operationalDashboardKeys.dailySalesTotal(businessDay.dateStr), {
+    dateStr: businessDay.dateStr,
+    totalCents: 9500,
+    formattedTotal: '$95.00',
+    currency: 'USD',
+    completedPaymentsCount: 1,
+  });
+  qc.setQueryData(operationalDashboardKeys.pendingSalesFollowUp(), {
+    count: 0,
+    items: [],
+  });
+  return qc;
 }
 
 function renderWithProviders(ui: React.ReactElement, { initialEntries = ['/'] } = {}) {
@@ -31,7 +86,7 @@ function renderWithProviders(ui: React.ReactElement, { initialEntries = ['/'] } 
   return render(
     <QueryClientProvider client={testQueryClient}>
       <MemoryRouter initialEntries={initialEntries}>
-        <AuthProvider skipBootstrap>
+        <AuthProvider initialSessionOverride={TEST_OWNER_SESSION}>
           <FeatureFlagProvider>
             <NavigationProvider>
               <BreadcrumbProvider>
@@ -62,8 +117,8 @@ describe('Step A5 Architectural Validation Modules', () => {
     });
   });
 
-  describe('2. Dashboard Overview Validation Screen (Milestone A5.2)', () => {
-    it('renders DashboardOverviewPage with initial success state and layout slot injections', async () => {
+  describe('2. Operational Dashboard Overview Screen', () => {
+    it('renders DashboardOverviewPage with operational KPIs, sections, and header quick-action slot', async () => {
       renderWithProviders(
         <div>
           <div data-testid="header-target">
@@ -76,46 +131,24 @@ describe('Step A5 Architectural Validation Modules', () => {
 
       expect(screen.getByRole('heading', { name: /dashboard overview/i })).toBeInTheDocument();
 
-      const metricsCard = await screen.findByTestId('metrics-success');
-      expect(metricsCard).toBeInTheDocument();
-      expect(screen.getByText('Gym Check-ins Today')).toBeInTheDocument();
-      expect(screen.getByText('Quick System Check')).toBeInTheDocument();
-    });
-
-    it('toggles 4-State UI Simulator controller buttons (Loading, Empty, Error)', async () => {
-      renderWithProviders(<DashboardOverviewPage />, { initialEntries: ['/dashboard'] });
-
-      const errorBtn = screen.getByRole('button', { name: /state: error/i });
-      fireEvent.click(errorBtn);
-
-      const errorAlert = await screen.findByTestId('metrics-error');
-      expect(errorAlert).toBeInTheDocument();
-
-      const emptyBtn = screen.getByRole('button', { name: /state: empty/i });
-      fireEvent.click(emptyBtn);
-
-      const emptyAlert = await screen.findByTestId('metrics-empty');
-      expect(emptyAlert).toBeInTheDocument();
-    });
-
-    it('triggers info and error toasts in system health section', async () => {
-      renderWithProviders(<DashboardOverviewPage />, { initialEntries: ['/dashboard'] });
-
-      const infoToastBtn = screen.getByRole('button', { name: /trigger info toast/i });
-      fireEvent.click(infoToastBtn);
-
-      expect(await screen.findByText('System Notification')).toBeInTheDocument();
+      expect(await screen.findByText('Gym Check-ins Today')).toBeInTheDocument();
+      expect(screen.getByText('Low-Stock Alerts')).toBeInTheDocument();
+      expect(screen.getByText("Today's Appointments")).toBeInTheDocument();
+      expect(screen.getByText('Daily Sales Total')).toBeInTheDocument();
+      expect(screen.getByTestId('dashboard-todays-schedule')).toBeInTheDocument();
+      expect(screen.getByTestId('dashboard-needs-attention')).toBeInTheDocument();
+      expect(screen.getByTestId('dashboard-quick-actions')).toBeInTheDocument();
     });
 
     it('renders DashboardRouter sub-routes correctly and handles obsolete sub-routes with 404', async () => {
       renderWithProviders(<DashboardRouter />, { initialEntries: ['/'] });
       expect(
-        await screen.findByRole('heading', { name: /dashboard overview/i }),
+        await screen.findByRole('heading', { name: /dashboard overview/i }, { timeout: 5000 }),
       ).toBeInTheDocument();
 
       renderWithProviders(<DashboardRouter />, { initialEntries: ['/metrics'] });
       expect(
-        await screen.findByRole('heading', { name: /404 — View Not Found/i }),
+        await screen.findByRole('heading', { name: /404 — View Not Found/i }, { timeout: 5000 }),
       ).toBeInTheDocument();
     });
   });
@@ -142,7 +175,6 @@ describe('Step A5 Architectural Validation Modules', () => {
         expect(screen.getByText(/please enter a valid email address/i)).toBeInTheDocument();
       });
 
-      // Fix email
       fireEvent.change(emailInput, { target: { value: 'valid@kinergy-platform.io' } });
       fireEvent.submit(form);
 

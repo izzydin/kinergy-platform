@@ -209,7 +209,7 @@ export class InventoryController {
 
   @Get('low-stock')
   @HttpCode(HttpStatus.OK)
-  @Roles('ADMIN', 'SUPER_ADMIN', 'OWNER', 'KITCHEN_STAFF')
+  @Roles('ADMIN', 'SUPER_ADMIN', 'OWNER', 'KITCHEN_STAFF', 'RECEPTIONIST', 'TRAINER')
   @Permissions('inventory.read')
   @ApiOperation({
     summary: 'List low stock products',

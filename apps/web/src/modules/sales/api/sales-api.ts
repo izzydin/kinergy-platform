@@ -178,6 +178,8 @@ export const salesApi = {
         method: params?.method,
         fromDate: params?.fromDate,
         toDate: params?.toDate,
+        paidAtFrom: params?.paidAtFrom,
+        paidAtTo: params?.paidAtTo,
       },
     });
   },

@@ -529,6 +529,8 @@ export class PaymentsController {
       toDate: queryDto.toDate,
       createdAtFrom: queryDto.createdAtFrom,
       createdAtTo: queryDto.createdAtTo,
+      paidAtFrom: queryDto.paidAtFrom,
+      paidAtTo: queryDto.paidAtTo,
       page: queryDto.page,
       limit: queryDto.limit,
       sortBy: sortBy as 'createdAt' | 'paidAt' | 'amount' | 'status' | undefined,

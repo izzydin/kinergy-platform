@@ -56,6 +56,7 @@ export interface AppointmentModel {
   readonly client?: AppointmentClientSummaryDTO;
   readonly clientName?: string;
   readonly therapistId: string;
+  readonly therapistName?: string;
   readonly roomId: string;
   readonly startTime: string; // UTC ISO 8601 (e.g. 2026-10-24T14:00:00.000Z)
   readonly endTime: string; // UTC ISO 8601 (e.g. 2026-10-24T15:00:00.000Z)

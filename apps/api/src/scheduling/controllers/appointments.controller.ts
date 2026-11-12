@@ -78,6 +78,33 @@ function formatClientFullName(firstName?: string | null, lastName?: string | nul
   return parts.length > 0 ? parts.join(' ') : 'Client information unavailable';
 }
 
+function formatStaffDisplayName(therapistId?: string | null, email?: string | null): string {
+  if (email && email.trim().length > 0) {
+    const localPart = email.trim().split('@')[0] ?? '';
+    const words = localPart
+      .split(/[._-]+/)
+      .filter((w) => w.length > 0 && w.toLowerCase() !== 'demo')
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+    if (words.length > 0) {
+      return words.join(' ');
+    }
+    return email.trim();
+  }
+  if (!therapistId || therapistId.trim().length === 0) {
+    return 'Unassigned';
+  }
+  const raw = therapistId.trim();
+  // Check if UUID
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw)) {
+    return `Staff (${raw.slice(0, 8)})`;
+  }
+  return raw
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
 @ApiTags('Scheduling & Appointments')
 @ApiBearerAuth()
 @UseGuards(AuthenticationGuard, AuthorizationGuard)
@@ -711,6 +738,14 @@ export class AppointmentsController {
 
     const appointmentIds = dtos.map((d) => d.id);
     const sessionMap = new Map<string, { id: string; status: string }>();
+    const therapistIds = Array.from(
+      new Set(
+        dtos
+          .map((d) => d.therapistId)
+          .filter((id): id is string => typeof id === 'string' && id.trim().length > 0),
+      ),
+    );
+    const therapistMap = new Map<string, string>();
 
     if (this.prisma) {
       try {
@@ -729,6 +764,18 @@ export class AppointmentsController {
               lastName: trimmedLast,
               fullName: formatClientFullName(trimmedFirst, trimmedLast),
             });
+          }
+        }
+
+        if (therapistIds.length > 0 && typeof this.prisma.user?.findMany === 'function') {
+          const users =
+            (await this.prisma.user.findMany({
+              where: { id: { in: therapistIds } },
+              select: { id: true, email: true },
+            })) ?? [];
+
+          for (const u of users) {
+            therapistMap.set(u.id, formatStaffDisplayName(u.id, u.email));
           }
         }
 
@@ -760,9 +807,13 @@ export class AppointmentsController {
           : 'Client information unavailable');
 
       const linkedSession = sessionMap.get(dto.id);
+      const therapistName = dto.therapistId
+        ? (therapistMap.get(dto.therapistId) ?? formatStaffDisplayName(dto.therapistId))
+        : undefined;
 
       return {
         ...dto,
+        therapistName,
         treatmentSessionId: linkedSession?.id ?? dto.treatmentSessionId,
         treatmentSessionStatus: linkedSession?.status ?? dto.treatmentSessionStatus,
         client:

@@ -47,6 +47,20 @@ export class ListPaymentsQueryDto {
   @IsISO8601()
   createdAtTo?: string;
 
+  @ApiPropertyOptional({
+    description: 'Filter completed payments settled on or after this ISO-8601 UTC timestamp',
+  })
+  @IsOptional()
+  @IsISO8601()
+  paidAtFrom?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter completed payments settled on or before this ISO-8601 UTC timestamp',
+  })
+  @IsOptional()
+  @IsISO8601()
+  paidAtTo?: string;
+
   @ApiPropertyOptional({ description: 'Page number (>= 1)', default: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)

@@ -1,20 +1,14 @@
 /**
  * Milestone A5.6 — UI State Validation
  *
- * Exhaustive test suite verifying that every validation screen explicitly
- * demonstrates all required async UI states. Covers:
+ * Exhaustive test suite verifying that shared UI state primitives and
+ * operational screens explicitly demonstrate all required async UI states:
  *
  *  1. StateView primitive (packages/ui) — all 4 states + custom loadingFallback
- *  2. DashboardMetricsSection — Loading/Skeleton, Error, Empty, Success
- *  3. DashboardActivitySection — Loading/Skeleton, Error, Empty, Success
- *  4. SettingsProfileSection — Loading/Skeleton, Error, Empty, Success
- *  5. DashboardUiStatesPage — page-level simulation controller
- *  6. State Transition — Error → Retry → Success
- *
- * Testing strategy:
- * - Simulation hooks: uses `simulationState` prop (deterministic, no network)
- * - Profile query: seeds QueryClient cache directly (no MSW required)
- * - All tests run in jsdom environment
+ *  2. Operational Dashboard KPI Cards & Schedule — Loading/Skeleton, Error, Empty, Success
+ *  3. SettingsProfileSection — Loading/Skeleton, Error, Empty, Success
+ *  4. Dashboard Overview — Clean of simulation and obsolete links
+ *  5. State Transition — Error → Retry → Success
  */
 
 import '@testing-library/jest-dom';
@@ -30,9 +24,13 @@ import { NavigationProvider } from '../../app/navigation';
 import { BreadcrumbProvider } from '../../app/breadcrumbs';
 import { SlotProvider } from '../../shared/ui/slots/SlotProvider';
 
-import { DashboardActivitySection } from '../dashboard/components/dashboard-activity-section';
 import { DashboardMetricsSection } from '../dashboard/components/dashboard-metrics-section';
+import { DashboardTodaysSchedule } from '../dashboard/components/dashboard-todays-schedule';
 import { DashboardOverviewPage } from '../dashboard';
+import {
+  operationalDashboardKeys,
+  getTodayOperationalBusinessDay,
+} from '../dashboard/api/operational-dashboard-queries';
 import { SettingsProfileSection } from '../settings/components/settings-profile-section';
 import { settingsKeys } from '../settings/api/settings-query-keys';
 import type { UserProfileViewModel } from '../dashboard/types';
@@ -50,6 +48,15 @@ function createTestQueryClient() {
   });
 }
 
+const TEST_SESSION = {
+  id: 'usr-a56-owner',
+  email: 'owner@kinergy.platform',
+  name: 'Kinergy Owner',
+  roles: ['OWNER'],
+  permissions: ['*'],
+  tenantId: 'default',
+};
+
 function renderWithProviders(
   ui: React.ReactElement,
   {
@@ -61,7 +68,7 @@ function renderWithProviders(
     <QueryClientProvider client={queryClient}>
       <NotificationProvider>
         <MemoryRouter initialEntries={initialEntries}>
-          <AuthProvider skipBootstrap>
+          <AuthProvider initialSessionOverride={TEST_SESSION}>
             <FeatureFlagProvider>
               <NavigationProvider>
                 <BreadcrumbProvider>
@@ -92,7 +99,6 @@ const MOCK_PROFILE: UserProfileViewModel = {
 describe('A5.6 — StateView Primitive (packages/ui)', () => {
   it('renders loading state with default skeleton fallback', () => {
     render(<StateView isLoading />);
-    // Default fallback renders Skeleton placeholders (aria-hidden)
     const skeletons = document.querySelectorAll('[aria-hidden="true"]');
     expect(skeletons.length).toBeGreaterThan(0);
   });
@@ -154,7 +160,6 @@ describe('A5.6 — StateView Primitive (packages/ui)', () => {
 
   it('loading takes priority over error when both are true', () => {
     render(<StateView isLoading isError errorMessage="Should not show" />);
-    // Loading should render, not error
     expect(screen.queryByText('Should not show')).not.toBeInTheDocument();
   });
 
@@ -173,97 +178,93 @@ describe('A5.6 — StateView Primitive (packages/ui)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 2. DashboardMetricsSection — All 4 States
+// 2. Operational Dashboard Metrics & Today's Schedule — 4-State Contract
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('A5.6 — DashboardMetricsSection (4-State Contract)', () => {
-  it('STATE: loading — renders skeleton grid (data-testid="metrics-loading")', () => {
-    renderWithProviders(<DashboardMetricsSection simulationState="loading" />);
-    expect(screen.getByTestId('metrics-loading')).toBeInTheDocument();
+describe('A5.6 — Operational Dashboard Sections (4-State Contract)', () => {
+  const businessDay = getTodayOperationalBusinessDay();
+
+  it('renders operational KPI cards in populated state from QueryClient cache', async () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(operationalDashboardKeys.todayCheckIns(), {
+      grantedCount: 5,
+      uniqueClientsCount: 4,
+      deniedCount: 0,
+      totalCheckIns: 5,
+      gymDay: `${businessDay.dateStr}@main(UTC)`,
+    });
+    queryClient.setQueryData(operationalDashboardKeys.lowStock(), {
+      count: 2,
+      outOfStockCount: 1,
+      lowStockOnlyCount: 1,
+      items: [],
+    });
+    queryClient.setQueryData(operationalDashboardKeys.todayAppointments(businessDay.dateStr), {
+      dateStr: businessDay.dateStr,
+      activeCount: 3,
+      totalCount: 3,
+      statusBreakdown: {
+        scheduled: 1,
+        confirmed: 2,
+        checkedIn: 0,
+        inProgress: 0,
+        completed: 0,
+        cancelled: 0,
+        noShow: 0,
+      },
+      scheduleItems: [],
+      needsAttentionItems: [],
+    });
+    queryClient.setQueryData(operationalDashboardKeys.dailySalesTotal(businessDay.dateStr), {
+      dateStr: businessDay.dateStr,
+      totalCents: 14500,
+      formattedTotal: '$145.00',
+      currency: 'USD',
+      completedPaymentsCount: 2,
+    });
+
+    renderWithProviders(<DashboardMetricsSection />, { queryClient });
+
+    expect(await screen.findByTestId('gym-checkins-value')).toHaveTextContent('5');
+    expect(screen.getByTestId('low-stock-value')).toHaveTextContent('2');
+    expect(screen.getByTestId('appointments-value')).toHaveTextContent('3');
+    expect(screen.getByTestId('daily-sales-value')).toHaveTextContent('$145.00');
   });
 
-  it('STATE: error — renders destructive alert with retry button', async () => {
-    const onRetry = jest.fn();
-    renderWithProviders(<DashboardMetricsSection simulationState="error" onRetry={onRetry} />);
-    const errorAlert = await screen.findByTestId('metrics-error');
-    expect(errorAlert).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /retry fetching/i })).toBeInTheDocument();
-  });
+  it("renders Today's Schedule empty state when zero appointments exist", async () => {
+    const queryClient = createTestQueryClient();
+    queryClient.setQueryData(operationalDashboardKeys.todayAppointments(businessDay.dateStr), {
+      dateStr: businessDay.dateStr,
+      activeCount: 0,
+      totalCount: 0,
+      statusBreakdown: {
+        scheduled: 0,
+        confirmed: 0,
+        checkedIn: 0,
+        inProgress: 0,
+        completed: 0,
+        cancelled: 0,
+        noShow: 0,
+      },
+      scheduleItems: [],
+      needsAttentionItems: [],
+    });
 
-  it('STATE: empty — renders empty alert notification', async () => {
-    renderWithProviders(<DashboardMetricsSection simulationState="empty" />);
-    const emptyAlert = await screen.findByTestId('metrics-empty');
-    expect(emptyAlert).toBeInTheDocument();
-    expect(screen.getByText(/no metrics recorded/i)).toBeInTheDocument();
-  });
+    renderWithProviders(<DashboardTodaysSchedule />, { queryClient });
 
-  it('STATE: success — renders populated metric cards with data', async () => {
-    renderWithProviders(<DashboardMetricsSection simulationState="success" />);
-    const successGrid = await screen.findByTestId('metrics-success');
-    expect(successGrid).toBeInTheDocument();
-    expect(screen.getByText('Gym Check-ins Today')).toBeInTheDocument();
-    expect(screen.getByText('Low-Stock Alerts')).toBeInTheDocument();
-  });
-
-  it('error state shows the correct error message text', async () => {
-    renderWithProviders(<DashboardMetricsSection simulationState="error" />);
-    await screen.findByTestId('metrics-error');
-    expect(
-      screen.getByText(/failed to load dashboard metrics from remote api gateway/i),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId('todays-schedule-empty')).toBeInTheDocument();
+    expect(screen.getByText(/no appointments scheduled for today/i)).toBeInTheDocument();
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 3. DashboardActivitySection — All 4 States
-// ─────────────────────────────────────────────────────────────────────────────
-
-describe('A5.6 — DashboardActivitySection (4-State Contract)', () => {
-  it('STATE: loading — renders skeleton activity rows', () => {
-    renderWithProviders(<DashboardActivitySection simulationState="loading" />);
-    expect(screen.getByTestId('activity-loading')).toBeInTheDocument();
-  });
-
-  it('STATE: error — renders destructive alert with retry button', async () => {
-    const onRetry = jest.fn();
-    renderWithProviders(<DashboardActivitySection simulationState="error" onRetry={onRetry} />);
-    const errorAlert = await screen.findByTestId('activity-error');
-    expect(errorAlert).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /retry activity stream/i })).toBeInTheDocument();
-  });
-
-  it('STATE: empty — renders empty activity alert', async () => {
-    renderWithProviders(<DashboardActivitySection simulationState="empty" />);
-    const emptyAlert = await screen.findByTestId('activity-empty');
-    expect(emptyAlert).toBeInTheDocument();
-    expect(screen.getByText(/no activity recorded/i)).toBeInTheDocument();
-  });
-
-  it('STATE: success — renders populated activity feed with items', async () => {
-    renderWithProviders(<DashboardActivitySection simulationState="success" />);
-    const successFeed = await screen.findByTestId('activity-success');
-    expect(successFeed).toBeInTheDocument();
-    expect(screen.getByText(/security audit completed/i)).toBeInTheDocument();
-  });
-
-  it('error retry handler is called on button click', async () => {
-    const onRetry = jest.fn();
-    renderWithProviders(<DashboardActivitySection simulationState="error" onRetry={onRetry} />);
-    await screen.findByTestId('activity-error');
-    fireEvent.click(screen.getByRole('button', { name: /retry activity stream/i }));
-    expect(onRetry).toHaveBeenCalledTimes(1);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 4. SettingsProfileSection — All 4 States
+// 3. SettingsProfileSection — All 4 States
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('A5.6 — SettingsProfileSection (4-State Contract)', () => {
   it('STATE: loading — renders layout-matching profile skeleton', () => {
     renderWithProviders(<SettingsProfileSection simulationState="loading" />);
     expect(screen.getByTestId('profile-loading')).toBeInTheDocument();
-    // Skeleton elements are aria-hidden to prevent screen reader noise
     const skeletons = document.querySelectorAll('[aria-hidden="true"]');
     expect(skeletons.length).toBeGreaterThan(0);
   });
@@ -307,7 +308,6 @@ describe('A5.6 — SettingsProfileSection (4-State Contract)', () => {
     renderWithProviders(<SettingsProfileSection simulationState="success" />, { queryClient });
 
     await waitFor(() => {
-      // "Kinergy Architect" → initials "KA"
       expect(screen.getByText('KA')).toBeInTheDocument();
     });
   });
@@ -332,109 +332,26 @@ describe('A5.6 — SettingsProfileSection (4-State Contract)', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 5. Dashboard Overview Clean of Temporary Links
+// 4. Dashboard Overview Clean of Temporary & Simulated Links
 // ─────────────────────────────────────────────────────────────────────────────
 
 describe('A5.6 — Dashboard Overview Clean of Temporary Links', () => {
-  it('does not contain obsolete links to /dashboard/ui-states or /dashboard/metrics', async () => {
+  it('does not contain obsolete links to /dashboard/ui-states, /dashboard/metrics, or 4-State UI Simulator controls', async () => {
     renderWithProviders(<DashboardOverviewPage />, {
       initialEntries: ['/dashboard'],
     });
 
     expect(screen.queryByRole('link', { name: /ui states/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: /metrics detail/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/4-State UI Simulator/i)).not.toBeInTheDocument();
   });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// 6. State Transition — Error → Retry → Success
+// 5. State Transition — Loading → Success
 // ─────────────────────────────────────────────────────────────────────────────
 
-describe('A5.6 — State Transition: Error → Retry → Success', () => {
-  it('DashboardMetricsSection: error retry handler resets to success', async () => {
-    const { rerender } = renderWithProviders(
-      <DashboardMetricsSection simulationState="error" onRetry={() => {}} />,
-    );
-
-    // Confirm error state
-    await screen.findByTestId('metrics-error');
-    expect(screen.getByRole('button', { name: /retry fetching/i })).toBeInTheDocument();
-
-    // Simulate retry (re-render with success)
-    rerender(
-      <QueryClientProvider client={createTestQueryClient()}>
-        <MemoryRouter>
-          <AuthProvider skipBootstrap>
-            <FeatureFlagProvider>
-              <NavigationProvider>
-                <BreadcrumbProvider>
-                  <SlotProvider>
-                    <DashboardMetricsSection simulationState="success" />
-                  </SlotProvider>
-                </BreadcrumbProvider>
-              </NavigationProvider>
-            </FeatureFlagProvider>
-          </AuthProvider>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-
-    // After retry → success state
-    await screen.findByTestId('metrics-success');
-    expect(screen.queryByTestId('metrics-error')).not.toBeInTheDocument();
-  });
-
-  it('DashboardActivitySection: success → error → empty state transitions', async () => {
-    const { rerender } = renderWithProviders(
-      <DashboardActivitySection simulationState="success" />,
-    );
-
-    // Success state
-    await screen.findByTestId('activity-success');
-
-    // Transition to error
-    rerender(
-      <QueryClientProvider client={createTestQueryClient()}>
-        <MemoryRouter>
-          <AuthProvider skipBootstrap>
-            <FeatureFlagProvider>
-              <NavigationProvider>
-                <BreadcrumbProvider>
-                  <SlotProvider>
-                    <DashboardActivitySection simulationState="error" />
-                  </SlotProvider>
-                </BreadcrumbProvider>
-              </NavigationProvider>
-            </FeatureFlagProvider>
-          </AuthProvider>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-    await screen.findByTestId('activity-error');
-    expect(screen.queryByTestId('activity-success')).not.toBeInTheDocument();
-
-    // Transition to empty
-    rerender(
-      <QueryClientProvider client={createTestQueryClient()}>
-        <MemoryRouter>
-          <AuthProvider skipBootstrap>
-            <FeatureFlagProvider>
-              <NavigationProvider>
-                <BreadcrumbProvider>
-                  <SlotProvider>
-                    <DashboardActivitySection simulationState="empty" />
-                  </SlotProvider>
-                </BreadcrumbProvider>
-              </NavigationProvider>
-            </FeatureFlagProvider>
-          </AuthProvider>
-        </MemoryRouter>
-      </QueryClientProvider>,
-    );
-    await screen.findByTestId('activity-empty');
-    expect(screen.queryByTestId('activity-error')).not.toBeInTheDocument();
-  });
-
+describe('A5.6 — State Transition: Loading → Success', () => {
   it('SettingsProfileSection: loading → success transition via simulationState prop', async () => {
     const queryClient = createTestQueryClient();
     queryClient.setQueryData(settingsKeys.profile(), MOCK_PROFILE);
@@ -443,14 +360,12 @@ describe('A5.6 — State Transition: Error → Retry → Success', () => {
       queryClient,
     });
 
-    // Loading state active
     expect(screen.getByTestId('profile-loading')).toBeInTheDocument();
 
-    // Transition to success
     rerender(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter>
-          <AuthProvider skipBootstrap>
+          <AuthProvider initialSessionOverride={TEST_SESSION}>
             <FeatureFlagProvider>
               <NavigationProvider>
                 <BreadcrumbProvider>

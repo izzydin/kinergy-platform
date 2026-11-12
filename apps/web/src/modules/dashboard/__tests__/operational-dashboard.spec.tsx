@@ -1,509 +1,591 @@
-/**
- * Prompt 5 — Operational Dashboard Integration Test Suite
- *
- * Exhaustive verification for the four candidate metrics:
- *  1. Today's Appointments (Truthful Capability Gap)
- *  2. Current Gym Check-ins (Authoritative GET /api/v1/gym/attendance/today)
- *  3. Low-Stock Alerts (Authoritative GET /api/v1/resources/inventory/low-stock)
- *  4. Daily Sales Total (Truthful Capability Gap)
- *
- * Verifies:
- *  - 4 UI states: Loading, Populated, Valid Zero (Empty), Error + Retry
- *  - Independent error isolation between cards
- *  - Permission-aware display and query suppression
- *  - Meaningful navigation destinations without broken links
- */
-
 import '@testing-library/jest-dom';
-import React from 'react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { AuthProvider } from '../../../app/providers/auth-provider';
-import { FeatureFlagProvider } from '../../../app/providers/feature-flag-provider';
-import { NotificationProvider } from '../../../app/providers/notification-provider';
-import { NavigationProvider } from '../../../app/navigation';
-import { BreadcrumbProvider } from '../../../app/breadcrumbs';
-import { SlotProvider } from '../../../shared/ui/slots/SlotProvider';
-
+import { DashboardOverviewPage } from '../routes/dashboard-overview-page';
+import {
+  extractPaymentMinorUnitsCents,
+  formatMinorUnitsAsCurrency,
+  getTodayOperationalBusinessDay,
+} from '../api/operational-dashboard-queries';
 import { attendanceApi } from '../../gym/attendance/api/attendance-api';
 import { inventoryApi } from '../../resources/inventory/api/inventory-api';
-import { DashboardMetricsSection } from '../components/dashboard-metrics-section';
-import {
-  GymCheckInsCard,
-  LowStockAlertsCard,
-  TodayAppointmentsCard,
-  DailySalesTotalCard,
-} from '../components/operational-metric-cards';
-import type { AuthUser } from '../../auth/domain/auth-state.types';
-import type { PaginatedAttendanceResultDTO } from '../../gym/attendance/types';
-import { InventoryCategory, InventoryItemStatus } from '../../resources/inventory/types';
-import type { InventoryProductVM } from '../../resources/inventory/types';
+import { schedulingApi } from '../../scheduling/api/scheduling-api';
+import { salesApi } from '../../sales/api/sales-api';
+import { useAuth } from '../../../app/providers/auth-provider';
+import { SlotProvider } from '../../../shared/ui/slots/SlotProvider';
+import { InventoryItemStatus, InventoryCategory } from '../../resources/inventory/types';
+import type { PaymentSummaryDTO } from '../../sales/types';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Test Users & Fixtures
-// ─────────────────────────────────────────────────────────────────────────────
-
-const FULL_ACCESS_USER: AuthUser = {
-  id: 'usr-admin-full',
-  name: 'Platform Administrator',
-  email: 'admin@kinergy.platform',
-  roles: ['PLATFORM_ADMIN', 'OWNER'],
-  permissions: [
-    'gym.attendance.read',
-    'attendance.read',
-    'inventory.read',
-    'sales.read',
-    'appointments.read',
-  ],
-};
-
-const ATTENDANCE_ONLY_USER: AuthUser = {
-  id: 'usr-receptionist',
-  name: 'Frontdesk Receptionist',
-  email: 'reception@kinergy.platform',
-  roles: ['RECEPTIONIST'],
-  permissions: ['gym.attendance.read', 'attendance.read'],
-};
-
-const INVENTORY_ONLY_USER: AuthUser = {
-  id: 'usr-kitchen',
-  name: 'Kitchen Staff',
-  email: 'kitchen@kinergy.platform',
-  roles: ['KITCHEN_STAFF'],
-  permissions: ['inventory.read'],
-};
-
-const UNPRIVILEGED_USER: AuthUser = {
-  id: 'usr-guest',
-  name: 'Guest Client',
-  email: 'guest@kinergy.platform',
-  roles: ['CLIENT'],
-  permissions: [],
-};
-
-const MOCK_ATTENDANCE_POPULATED: PaginatedAttendanceResultDTO = {
-  items: [],
-  pagination: {
-    page: 1,
-    limit: 1,
-    totalItems: 14,
-    totalPages: 14,
-    hasNextPage: true,
-    hasPreviousPage: false,
+jest.mock('../../gym/attendance/api/attendance-api', () => ({
+  attendanceApi: {
+    getToday: jest.fn(),
   },
-  dailySummary: {
-    totalCheckIns: 16,
-    grantedCount: 14,
-    deniedCount: 2,
-    uniqueClientsCount: 12,
-  },
-};
+}));
 
-const MOCK_ATTENDANCE_ZERO: PaginatedAttendanceResultDTO = {
-  items: [],
-  pagination: {
-    page: 1,
-    limit: 1,
-    totalItems: 0,
-    totalPages: 0,
-    hasNextPage: false,
-    hasPreviousPage: false,
+jest.mock('../../resources/inventory/api/inventory-api', () => ({
+  inventoryApi: {
+    getLowStock: jest.fn(),
   },
-  dailySummary: {
-    totalCheckIns: 0,
-    grantedCount: 0,
-    deniedCount: 0,
-    uniqueClientsCount: 0,
-  },
-};
+}));
 
-const MOCK_LOW_STOCK_POPULATED: InventoryProductVM[] = [
-  {
-    id: 'prod-1',
-    sku: 'DRK-001',
-    name: 'Electrolyte Splash',
-    description: 'Electrolyte drink',
-    category: InventoryCategory.HEALTHY_DRINKS,
-    unitCost: { amount: 150, currency: 'USD' },
-    sellingPrice: { amount: 350, currency: 'USD' },
-    currentStock: 2,
-    reorderThreshold: 10,
-    unitOfMeasure: 'bottle',
-    status: InventoryItemStatus.ACTIVE,
-    isLowStock: true,
-    isOutOfStock: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
+jest.mock('../../scheduling/api/scheduling-api', () => ({
+  schedulingApi: {
+    listAppointments: jest.fn(),
   },
-  {
-    id: 'prod-2',
-    sku: 'SUP-002',
-    name: 'Whey Protein Isolate',
-    description: 'Protein powder',
-    category: InventoryCategory.SUPPLEMENTS,
-    unitCost: { amount: 2500, currency: 'USD' },
-    sellingPrice: { amount: 4500, currency: 'USD' },
-    currentStock: 0,
-    reorderThreshold: 5,
-    unitOfMeasure: 'tub',
-    status: InventoryItemStatus.ACTIVE,
-    isLowStock: true,
-    isOutOfStock: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  },
-];
+}));
 
-function createTestQueryClient() {
-  return new QueryClient({
+jest.mock('../../sales/api/sales-api', () => ({
+  salesApi: {
+    listPayments: jest.fn(),
+    listSales: jest.fn(),
+  },
+}));
+
+jest.mock('../../../app/providers/auth-provider', () => ({
+  useAuth: jest.fn(),
+}));
+
+const mockedAttendanceApi = attendanceApi as jest.Mocked<typeof attendanceApi>;
+const mockedInventoryApi = inventoryApi as jest.Mocked<typeof inventoryApi>;
+const mockedSchedulingApi = schedulingApi as jest.Mocked<typeof schedulingApi>;
+const mockedSalesApi = salesApi as jest.Mocked<typeof salesApi>;
+const mockedUseAuth = useAuth as jest.MockedFunction<typeof useAuth>;
+
+function mockAuthenticatedRole(options: { roles: string[]; permissions: string[] }) {
+  mockedUseAuth.mockReturnValue({
+    isAuthenticated: true,
+    isBootstrapping: false,
+    currentUser: {
+      id: 'usr-test',
+      email: 'staff@kinergy.platform',
+      name: 'Staff Member',
+      roles: options.roles,
+      permissions: options.permissions,
+      tenantId: 'default',
+    },
+    hasPermission: (perm: string) => {
+      if (options.permissions.includes('*')) return true;
+      const norm = perm.replace(/:/g, '.');
+      return options.permissions.some((p) => p.replace(/:/g, '.') === norm);
+    },
+    hasRole: (role: string) => options.roles.some((r) => r.toUpperCase() === role.toUpperCase()),
+  } as unknown as ReturnType<typeof useAuth>);
+}
+
+function renderDashboard() {
+  const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
-        staleTime: 0,
       },
-      mutations: { retry: false },
     },
   });
-}
 
-function renderDashboard(
-  ui: React.ReactElement,
-  {
-    user = FULL_ACCESS_USER,
-    queryClient = createTestQueryClient(),
-  }: { user?: AuthUser; queryClient?: QueryClient } = {},
-) {
   return render(
     <QueryClientProvider client={queryClient}>
-      <NotificationProvider>
-        <MemoryRouter initialEntries={['/dashboard']}>
-          <AuthProvider initialSessionOverride={user}>
-            <FeatureFlagProvider>
-              <NavigationProvider>
-                <BreadcrumbProvider>
-                  <SlotProvider>{ui}</SlotProvider>
-                </BreadcrumbProvider>
-              </NavigationProvider>
-            </FeatureFlagProvider>
-          </AuthProvider>
-        </MemoryRouter>
-      </NotificationProvider>
+      <MemoryRouter initialEntries={['/dashboard']}>
+        <SlotProvider>
+          <DashboardOverviewPage />
+        </SlotProvider>
+      </MemoryRouter>
     </QueryClientProvider>,
   );
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Test Suites
-// ─────────────────────────────────────────────────────────────────────────────
+describe('Operational Business Dashboard (/dashboard)', () => {
+  const businessDay = getTodayOperationalBusinessDay();
 
-describe('Antigravity Prompt 5 — Operational Dashboard Acceptance Suite', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+
+    mockAuthenticatedRole({
+      roles: ['OWNER'],
+      permissions: ['*'],
+    });
+
+    mockedAttendanceApi.getToday.mockResolvedValue({
+      items: [],
+      pagination: {
+        page: 1,
+        limit: 5,
+        totalItems: 4,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      },
+      dailySummary: {
+        totalCheckIns: 4,
+        grantedCount: 3,
+        deniedCount: 1,
+        uniqueClientsCount: 3,
+      },
+    });
+
+    mockedInventoryApi.getLowStock.mockResolvedValue([
+      {
+        id: 'inv-1',
+        sku: 'KINE-TAPE-01',
+        name: 'Kinesiology Tape Pro Roll',
+        description: 'Elastic therapeutic tape',
+        category: InventoryCategory.CLINICAL_SUPPLIES,
+        unitCost: { amount: 6.5, currency: 'USD' },
+        sellingPrice: { amount: 14.0, currency: 'USD' },
+        currentStock: 0,
+        reorderThreshold: 10,
+        unitOfMeasure: 'roll',
+        status: InventoryItemStatus.ACTIVE,
+        isLowStock: true,
+        isOutOfStock: true,
+        createdAt: businessDay.startIso,
+        updatedAt: businessDay.startIso,
+      },
+      {
+        id: 'inv-2',
+        sku: 'SUP-WHEY-01',
+        name: 'Whey Isolate Recovery Shake',
+        description: 'Post-workout isolate',
+        category: InventoryCategory.SUPPLEMENTS,
+        unitCost: { amount: 25, currency: 'USD' },
+        sellingPrice: { amount: 45, currency: 'USD' },
+        currentStock: 4,
+        reorderThreshold: 10,
+        unitOfMeasure: 'tub',
+        status: InventoryItemStatus.ACTIVE,
+        isLowStock: true,
+        isOutOfStock: false,
+        createdAt: businessDay.startIso,
+        updatedAt: businessDay.startIso,
+      },
+    ]);
+
+    mockedSchedulingApi.listAppointments.mockResolvedValue([
+      {
+        id: 'appt-1',
+        status: 'CONFIRMED',
+        type: 'INITIAL_EVALUATION',
+        clientId: 'client-1',
+        clientName: 'Elena Rostova',
+        therapistId: 'therapist-1',
+        therapistName: 'Trainer Alex',
+        roomId: 'Room A',
+        startTime: `${businessDay.dateStr}T10:00:00.000Z`,
+        endTime: `${businessDay.dateStr}T11:00:00.000Z`,
+        durationMinutes: 60,
+        version: 1,
+        createdAt: businessDay.startIso,
+        updatedAt: businessDay.startIso,
+      },
+      {
+        id: 'appt-2',
+        status: 'SCHEDULED',
+        type: 'REHABILITATION',
+        clientId: 'client-2',
+        clientName: 'Marcus Vance',
+        therapistId: 'therapist-1',
+        therapistName: 'Trainer Alex',
+        roomId: 'Room B',
+        startTime: `${businessDay.dateStr}T14:00:00.000Z`,
+        endTime: `${businessDay.dateStr}T15:00:00.000Z`,
+        durationMinutes: 60,
+        version: 1,
+        createdAt: businessDay.startIso,
+        updatedAt: businessDay.startIso,
+      },
+      {
+        id: 'appt-3',
+        status: 'CANCELLED',
+        type: 'TREATMENT',
+        clientId: 'client-3',
+        clientName: 'Cancelled Patient',
+        therapistId: 'therapist-1',
+        therapistName: 'Trainer Alex',
+        roomId: 'Room A',
+        startTime: `${businessDay.dateStr}T16:00:00.000Z`,
+        endTime: `${businessDay.dateStr}T17:00:00.000Z`,
+        durationMinutes: 60,
+        cancellationReason: 'Client rescheduled',
+        version: 1,
+        createdAt: businessDay.startIso,
+        updatedAt: businessDay.startIso,
+      },
+    ]);
+
+    mockedSalesApi.listPayments.mockResolvedValue({
+      items: [
+        {
+          id: 'pay-1',
+          saleId: 'sale-1',
+          method: 'CARD',
+          amount: { amount: 128.5, currency: 'USD', cents: 12850 },
+          amountValue: 128.5,
+          status: 'COMPLETED',
+          reference: 'CARD-001',
+          paidAt: `${businessDay.dateStr}T11:15:00.000Z`,
+          createdAt: `${businessDay.dateStr}T11:14:00.000Z`,
+        },
+        {
+          id: 'pay-2',
+          saleId: 'sale-2',
+          method: 'CASH',
+          amount: { amount: 55.0, currency: 'USD', cents: 5500 },
+          amountValue: 55.0,
+          status: 'COMPLETED',
+          reference: 'CASH-002',
+          paidAt: `${businessDay.dateStr}T13:30:00.000Z`,
+          createdAt: `${businessDay.dateStr}T13:29:00.000Z`,
+        },
+      ],
+      total: 2,
+      page: 1,
+      limit: 100,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
+
+    mockedSalesApi.listSales.mockResolvedValue({
+      items: [
+        {
+          id: 'sale-pending-99112233',
+          clientId: 'client-2',
+          currency: 'USD',
+          status: 'PENDING_PAYMENT',
+          subtotalAmount: 65,
+          discountTotalAmount: 0,
+          totalAmount: 65,
+          subtotal: { amount: 65, currency: 'USD', cents: 6500 },
+          discountTotal: { amount: 0, currency: 'USD', cents: 0 },
+          total: { amount: 65, currency: 'USD', cents: 6500, formatted: '$65.00' },
+          itemCount: 2,
+          createdAt: `${businessDay.dateStr}T12:00:00.000Z`,
+          updatedAt: `${businessDay.dateStr}T12:00:00.000Z`,
+        },
+      ],
+      total: 1,
+      page: 1,
+      limit: 10,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPreviousPage: false,
+    });
   });
 
-  afterEach(() => {
-    jest.restoreAllMocks();
-  });
+  describe('1. Removal of Development & Simulation Content', () => {
+    it('does not render 4-State UI Simulator controls, System Health, Recent Platform Activity, or Quick System Check', async () => {
+      renderDashboard();
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Metric 1: Today's Appointments (Documented Capability Gap)
-  // ───────────────────────────────────────────────────────────────────────────
-  describe('Metric 1: Today Appointments (Authoritative Capability Gap)', () => {
-    it('displays truthful Telemetry Pending status without fabricating zero or fake numbers', () => {
-      renderDashboard(<TodayAppointmentsCard />);
+      await waitFor(() => {
+        expect(screen.getByTestId('gym-checkins-value')).toBeInTheDocument();
+      });
 
-      expect(screen.getByTestId('appointments-unavailable')).toBeInTheDocument();
-      expect(screen.getByText("Today's Appointments")).toBeInTheDocument();
-      expect(screen.getByText('Telemetry Pending')).toBeInTheDocument();
-      expect(screen.getByText('—')).toBeInTheDocument();
+      expect(screen.queryByText(/4-State UI Simulator/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /state: success/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /state: loading/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /state: empty/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /state: error/i })).not.toBeInTheDocument();
+
       expect(
-        screen.getByText(
-          /daily appointment schedule telemetry requires upcoming scheduling service release/i,
-        ),
-      ).toBeInTheDocument();
-    });
+        screen.queryByText(/System Health & Notification Infrastructure/i),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/Track A Architectural Validation/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Platform Architect Operator/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /trigger info toast/i })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: /trigger error toast/i }),
+      ).not.toBeInTheDocument();
 
-    it('does not render broken or dead navigation link for missing appointment service', () => {
-      renderDashboard(<TodayAppointmentsCard />);
-
-      const card = screen.getByTestId('appointments-unavailable');
-      const links = card.querySelectorAll('a');
-      expect(links.length).toBe(0);
+      expect(screen.queryByText(/Recent Platform Activity/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/Tenant #42/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /quick system check/i })).not.toBeInTheDocument();
     });
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Metric 2: Current Gym Check-ins (GET /api/v1/gym/attendance/today)
-  // ───────────────────────────────────────────────────────────────────────────
-  describe('Metric 2: Current Gym Check-ins (Authoritative Attendance API)', () => {
-    it('STATE 1: Loading — renders skeleton placeholder without displaying fake values', async () => {
-      let resolvePromise: (value: PaginatedAttendanceResultDTO) => void;
-      const pendingPromise = new Promise<PaginatedAttendanceResultDTO>((resolve) => {
-        resolvePromise = resolve;
-      });
-      jest.spyOn(attendanceApi, 'getTodayAttendance').mockReturnValue(pendingPromise);
-
-      renderDashboard(<GymCheckInsCard />);
-
-      expect(screen.getByTestId('gym-checkins-loading')).toBeInTheDocument();
-      expect(screen.queryByText('Gym Check-ins Today')).not.toBeInTheDocument();
-
-      // Cleanup pending promise
-      resolvePromise!(MOCK_ATTENDANCE_POPULATED);
-    });
-
-    it('STATE 2: Populated — renders granted admissions count, unique clients, and link to /attendance', async () => {
-      jest.spyOn(attendanceApi, 'getTodayAttendance').mockResolvedValue(MOCK_ATTENDANCE_POPULATED);
-
-      renderDashboard(<GymCheckInsCard />);
+  describe('2. Four Core Operational KPI Cards', () => {
+    it('renders Gym Check-ins Today, Low-Stock Alerts, Today Appointments, and Daily Sales Total from real APIs', async () => {
+      renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByTestId('gym-checkins-populated')).toBeInTheDocument();
+        expect(screen.getByTestId('gym-checkins-value')).toHaveTextContent('3');
       });
 
-      expect(screen.getByText('14')).toBeInTheDocument();
-      expect(screen.getByText('Active')).toBeInTheDocument();
-      expect(screen.getByText(/12 unique clients \(16 total attempts\)/i)).toBeInTheDocument();
+      expect(screen.getByText(/3 unique client\(s\) · 1 denied/i)).toBeInTheDocument();
+      expect(screen.getByTestId('gym-checkins-link')).toHaveAttribute('href', '/gym/attendance');
 
-      const link = screen.getByRole('link', { name: /view attendance log/i });
-      expect(link).toHaveAttribute('href', '/gym/attendance');
+      expect(screen.getByTestId('low-stock-value')).toHaveTextContent('2');
+      expect(screen.getByText('1 Out of Stock')).toBeInTheDocument();
+      expect(screen.getByTestId('low-stock-link')).toHaveAttribute(
+        'href',
+        '/resources/inventory/low-stock',
+      );
+
+      // Active appointments excludes the CANCELLED appointment (2 active out of 3 total)
+      expect(screen.getByTestId('appointments-value')).toHaveTextContent('2');
+      expect(screen.getByTestId('appointments-breakdown')).toHaveTextContent(
+        /1 confirmed\/in-clinic · 1 unconfirmed · 1 cancelled/i,
+      );
+      expect(screen.getByTestId('appointments-link')).toHaveAttribute('href', '/scheduling');
+
+      // Daily sales total sums completed payments ($128.50 + $55.00 = $183.50)
+      expect(screen.getByTestId('daily-sales-value')).toHaveTextContent('$183.50');
+      expect(screen.getByTestId('daily-sales-subtitle')).toHaveTextContent(
+        'Collected across 2 completed payment(s) today',
+      );
+      expect(screen.getByTestId('daily-sales-link')).toHaveAttribute('href', '/sales/payments');
     });
 
-    it('STATE 3: Empty (Valid Zero) — displays legitimate zero with Quiet badge and /attendance destination', async () => {
-      jest.spyOn(attendanceApi, 'getTodayAttendance').mockResolvedValue(MOCK_ATTENDANCE_ZERO);
+    it('renders clean zero states when no check-ins, low-stock items, appointments, or settled payments exist', async () => {
+      mockedAttendanceApi.getToday.mockResolvedValue({
+        items: [],
+        pagination: {
+          page: 1,
+          limit: 5,
+          totalItems: 0,
+          totalPages: 0,
+          hasNextPage: false,
+          hasPreviousPage: false,
+        },
+        dailySummary: {
+          totalCheckIns: 0,
+          grantedCount: 0,
+          deniedCount: 0,
+          uniqueClientsCount: 0,
+        },
+      });
+      mockedInventoryApi.getLowStock.mockResolvedValue([]);
+      mockedSchedulingApi.listAppointments.mockResolvedValue([]);
+      mockedSalesApi.listPayments.mockResolvedValue({
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 100,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      });
+      mockedSalesApi.listSales.mockResolvedValue({
+        items: [],
+        total: 0,
+        page: 1,
+        limit: 10,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      });
 
-      renderDashboard(<GymCheckInsCard />);
+      renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByTestId('gym-checkins-empty')).toBeInTheDocument();
+        expect(screen.getByTestId('gym-checkins-value')).toHaveTextContent('0');
       });
 
-      expect(screen.getByText('0')).toBeInTheDocument();
-      expect(screen.getByText('Quiet')).toBeInTheDocument();
-      expect(screen.getByText('0 admissions recorded today')).toBeInTheDocument();
-
-      const link = screen.getByRole('link', { name: /view attendance log/i });
-      expect(link).toHaveAttribute('href', '/gym/attendance');
+      expect(screen.getByText('No check-ins recorded today')).toBeInTheDocument();
+      expect(screen.getByTestId('low-stock-value')).toHaveTextContent('0');
+      expect(screen.getByText('All active inventory items stocked')).toBeInTheDocument();
+      expect(screen.getByTestId('appointments-value')).toHaveTextContent('0');
+      expect(screen.getByText('No appointments scheduled today')).toBeInTheDocument();
+      expect(screen.getByTestId('daily-sales-value')).toHaveTextContent('$0.00');
+      expect(screen.getByText('No settled payments recorded today')).toBeInTheDocument();
+      expect(screen.getByTestId('todays-schedule-empty')).toBeInTheDocument();
+      expect(screen.getByTestId('needs-attention-empty')).toBeInTheDocument();
     });
 
-    it('STATE 4: Error — displays error message and working retry action', async () => {
-      const getTodaySpy = jest
-        .spyOn(attendanceApi, 'getTodayAttendance')
-        .mockRejectedValueOnce(new Error('Gateway timeout accessing attendance ledger.'))
-        .mockResolvedValueOnce(MOCK_ATTENDANCE_POPULATED);
+    it('isolates KPI error states and supports retry without crashing sibling cards', async () => {
+      mockedAttendanceApi.getToday.mockRejectedValueOnce(new Error('Attendance service timeout'));
 
-      const onRetry = jest.fn();
-      renderDashboard(<GymCheckInsCard onRetry={onRetry} />);
+      renderDashboard();
 
       await waitFor(() => {
         expect(screen.getByTestId('gym-checkins-error')).toBeInTheDocument();
       });
 
-      expect(screen.getByText('Gateway timeout accessing attendance ledger.')).toBeInTheDocument();
-      expect(screen.getByText('Error')).toBeInTheDocument();
+      // Sibling cards still load and display their persisted metrics
+      expect(await screen.findByTestId('low-stock-value')).toHaveTextContent('2');
+      expect(await screen.findByTestId('appointments-value')).toHaveTextContent('2');
+      expect(await screen.findByTestId('daily-sales-value')).toHaveTextContent('$183.50');
 
-      const retryBtn = screen.getByRole('button', { name: /retry fetching/i });
+      // Retry recovers the failed card
+      const retryBtn = screen.getByTestId('gym-checkins-error').querySelector('button')!;
       fireEvent.click(retryBtn);
 
-      expect(onRetry).toHaveBeenCalledTimes(1);
       await waitFor(() => {
-        expect(screen.getByTestId('gym-checkins-populated')).toBeInTheDocument();
+        expect(screen.getByTestId('gym-checkins-value')).toHaveTextContent('3');
       });
-      expect(getTodaySpy).toHaveBeenCalledTimes(2);
-    });
-
-    it('Permission Policy: suppresses query and hides card when user lacks gym.attendance.read', async () => {
-      const getTodaySpy = jest.spyOn(attendanceApi, 'getTodayAttendance');
-
-      renderDashboard(<GymCheckInsCard />, { user: INVENTORY_ONLY_USER });
-
-      expect(screen.queryByTestId('gym-checkins-populated')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('gym-checkins-loading')).not.toBeInTheDocument();
-      expect(screen.queryByText('Gym Check-ins Today')).not.toBeInTheDocument();
-      expect(getTodaySpy).not.toHaveBeenCalled();
     });
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Metric 3: Low-Stock Alerts (GET /api/v1/resources/inventory/low-stock)
-  // ───────────────────────────────────────────────────────────────────────────
-  describe('Metric 3: Low-Stock Alerts (Authoritative Inventory API)', () => {
-    it('STATE 1: Loading — renders skeleton placeholder without displaying fake values', async () => {
-      let resolvePromise: (value: InventoryProductVM[]) => void;
-      const pendingPromise = new Promise<InventoryProductVM[]>((resolve) => {
-        resolvePromise = resolve;
-      });
-      jest.spyOn(inventoryApi, 'getLowStock').mockReturnValue(pendingPromise);
+  describe('3. Integer Minor-Unit Monetary Aggregation & Payment Filtering', () => {
+    it('avoids IEEE-754 floating-point drift (e.g. $19.99 + $35.01 + $0.10 + $0.20)', () => {
+      const payments: PaymentSummaryDTO[] = [
+        {
+          id: 'p1',
+          saleId: 's1',
+          method: 'CARD',
+          amount: { amount: 19.99, currency: 'USD' },
+          amountValue: 19.99,
+          status: 'COMPLETED',
+          reference: null,
+          paidAt: `${businessDay.dateStr}T09:00:00.000Z`,
+          createdAt: `${businessDay.dateStr}T09:00:00.000Z`,
+        },
+        {
+          id: 'p2',
+          saleId: 's2',
+          method: 'CARD',
+          amount: { amount: 0.1, currency: 'USD' },
+          amountValue: 0.1,
+          status: 'COMPLETED',
+          reference: null,
+          paidAt: `${businessDay.dateStr}T09:05:00.000Z`,
+          createdAt: `${businessDay.dateStr}T09:05:00.000Z`,
+        },
+        {
+          id: 'p3',
+          saleId: 's3',
+          method: 'CASH',
+          amount: { amount: 0.2, currency: 'USD' },
+          amountValue: 0.2,
+          status: 'COMPLETED',
+          reference: null,
+          paidAt: `${businessDay.dateStr}T09:10:00.000Z`,
+          createdAt: `${businessDay.dateStr}T09:10:00.000Z`,
+        },
+      ];
 
-      renderDashboard(<LowStockAlertsCard />);
-
-      expect(screen.getByTestId('low-stock-loading')).toBeInTheDocument();
-      expect(screen.queryByText('Low-Stock Alerts')).not.toBeInTheDocument();
-
-      resolvePromise!(MOCK_LOW_STOCK_POPULATED);
+      const totalCents = payments.reduce((sum, p) => sum + extractPaymentMinorUnitsCents(p), 0);
+      expect(totalCents).toBe(2029);
+      expect(formatMinorUnitsAsCurrency(totalCents, 'USD')).toBe('$20.29');
     });
 
-    it('STATE 2: Populated — renders deficit item count, Action Needed badge, and link to /resources/inventory/low-stock', async () => {
-      jest.spyOn(inventoryApi, 'getLowStock').mockResolvedValue(MOCK_LOW_STOCK_POPULATED);
-
-      renderDashboard(<LowStockAlertsCard />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('low-stock-populated')).toBeInTheDocument();
+    it('excludes PENDING, FAILED, and CANCELLED payments or payments settled outside today', async () => {
+      mockedSalesApi.listPayments.mockResolvedValue({
+        items: [
+          {
+            id: 'pay-settled-today',
+            saleId: 'sale-1',
+            method: 'CARD',
+            amount: { amount: 75.25, currency: 'USD', cents: 7525 },
+            amountValue: 75.25,
+            status: 'COMPLETED',
+            reference: 'SETTLED-1',
+            paidAt: `${businessDay.dateStr}T10:00:00.000Z`,
+            createdAt: `${businessDay.dateStr}T10:00:00.000Z`,
+          },
+          {
+            id: 'pay-pending',
+            saleId: 'sale-2',
+            method: 'CASH',
+            amount: { amount: 500.0, currency: 'USD', cents: 50000 },
+            amountValue: 500.0,
+            status: 'PENDING',
+            reference: null,
+            paidAt: null,
+            createdAt: `${businessDay.dateStr}T10:30:00.000Z`,
+          },
+          {
+            id: 'pay-outside-day',
+            saleId: 'sale-3',
+            method: 'CARD',
+            amount: { amount: 250.0, currency: 'USD', cents: 25000 },
+            amountValue: 250.0,
+            status: 'COMPLETED',
+            reference: 'YESTERDAY',
+            paidAt: '2020-01-01T10:00:00.000Z',
+            createdAt: '2020-01-01T10:00:00.000Z',
+          },
+        ],
+        total: 3,
+        page: 1,
+        limit: 100,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
       });
 
-      expect(screen.getByText('2')).toBeInTheDocument();
-      expect(screen.getByText('Action Needed')).toBeInTheDocument();
-      expect(screen.getByText(/1 out of stock, replenishment required/i)).toBeInTheDocument();
-
-      const link = screen.getByRole('link', { name: /manage low stock/i });
-      expect(link).toHaveAttribute('href', '/resources/inventory/low-stock');
-    });
-
-    it('STATE 3: Empty (Valid Zero / Healthy) — displays legitimate zero with Healthy badge and link to inventory', async () => {
-      jest.spyOn(inventoryApi, 'getLowStock').mockResolvedValue([]);
-
-      renderDashboard(<LowStockAlertsCard />);
+      renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByTestId('low-stock-empty')).toBeInTheDocument();
+        expect(screen.getByTestId('daily-sales-value')).toHaveTextContent('$75.25');
       });
-
-      expect(screen.getByText('0')).toBeInTheDocument();
-      expect(screen.getByText('Healthy')).toBeInTheDocument();
-      expect(screen.getByText('All inventory above reorder threshold')).toBeInTheDocument();
-
-      const link = screen.getByRole('link', { name: /view low stock inventory/i });
-      expect(link).toHaveAttribute('href', '/resources/inventory/low-stock');
-    });
-
-    it('STATE 4: Error — displays error message and working retry action', async () => {
-      const getLowStockSpy = jest
-        .spyOn(inventoryApi, 'getLowStock')
-        .mockRejectedValueOnce(new Error('Internal database error querying stock items.'))
-        .mockResolvedValueOnce(MOCK_LOW_STOCK_POPULATED);
-
-      const onRetry = jest.fn();
-      renderDashboard(<LowStockAlertsCard onRetry={onRetry} />);
-
-      await waitFor(() => {
-        expect(screen.getByTestId('low-stock-error')).toBeInTheDocument();
-      });
-
-      expect(screen.getByText('Internal database error querying stock items.')).toBeInTheDocument();
-      expect(screen.getByText('Error')).toBeInTheDocument();
-
-      const retryBtn = screen.getByRole('button', { name: /retry fetching/i });
-      fireEvent.click(retryBtn);
-
-      expect(onRetry).toHaveBeenCalledTimes(1);
-      await waitFor(() => {
-        expect(screen.getByTestId('low-stock-populated')).toBeInTheDocument();
-      });
-      expect(getLowStockSpy).toHaveBeenCalledTimes(2);
-    });
-
-    it('Permission Policy: suppresses query and hides card when user lacks inventory.read', async () => {
-      const getLowStockSpy = jest.spyOn(inventoryApi, 'getLowStock');
-
-      renderDashboard(<LowStockAlertsCard />, { user: ATTENDANCE_ONLY_USER });
-
-      expect(screen.queryByTestId('low-stock-populated')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('low-stock-loading')).not.toBeInTheDocument();
-      expect(screen.queryByText('Low-Stock Alerts')).not.toBeInTheDocument();
-      expect(getLowStockSpy).not.toHaveBeenCalled();
+      expect(screen.getByTestId('daily-sales-subtitle')).toHaveTextContent(
+        'Collected across 1 completed payment(s) today',
+      );
     });
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Metric 4: Daily Sales Total (Authoritative Capability Gap)
-  // ───────────────────────────────────────────────────────────────────────────
-  describe('Metric 4: Daily Sales Total (Authoritative Capability Gap)', () => {
-    it('displays truthful Aggregation Pending status without client-side summing or fake revenue', () => {
-      renderDashboard(<DailySalesTotalCard />);
+  describe("4. Today's Schedule, Needs Attention & Quick Actions", () => {
+    it('renders Today Schedule chronologically with client name, service type, staff, and status without exposing clinical notes', async () => {
+      renderDashboard();
 
-      expect(screen.getByTestId('sales-unavailable')).toBeInTheDocument();
-      expect(screen.getByText('Daily Sales Total')).toBeInTheDocument();
-      expect(screen.getByText('Aggregation Pending')).toBeInTheDocument();
-      expect(screen.getByText('—')).toBeInTheDocument();
-      expect(
-        screen.getByText(
-          /authoritative daily revenue aggregation endpoint scheduled for upcoming billing milestone/i,
-        ),
-      ).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByTestId('todays-schedule-list')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('schedule-item-appt-1')).toHaveTextContent('Elena Rostova');
+      expect(screen.getByTestId('schedule-item-appt-1')).toHaveTextContent('Initial Evaluation');
+      expect(screen.getByTestId('schedule-item-appt-1')).toHaveTextContent('Staff: Trainer Alex');
+      expect(screen.getByTestId('schedule-item-appt-1')).toHaveTextContent('Confirmed');
+
+      // Cancelled appointment is excluded from Today's active schedule list
+      expect(screen.queryByTestId('schedule-item-appt-3')).not.toBeInTheDocument();
     });
 
-    it('provides navigation link to authorized /sales overview page', () => {
-      renderDashboard(<DailySalesTotalCard />);
+    it('renders Needs Attention items for low stock, unconfirmed appointments, and pending-payment sales', async () => {
+      renderDashboard();
 
-      const link = screen.getByRole('link', { name: /view sales overview hub/i });
-      expect(link).toHaveAttribute('href', '/sales');
-    });
+      await waitFor(() => {
+        expect(screen.getByTestId('needs-attention-list')).toBeInTheDocument();
+      });
 
-    it('Permission Policy: hides card when user lacks sales.read', () => {
-      renderDashboard(<DailySalesTotalCard />, { user: UNPRIVILEGED_USER });
-
-      expect(screen.queryByTestId('sales-unavailable')).not.toBeInTheDocument();
-      expect(screen.queryByText('Daily Sales Total')).not.toBeInTheDocument();
+      expect(screen.getByTestId('attention-group-inventory')).toHaveTextContent(
+        'Kinesiology Tape Pro Roll',
+      );
+      expect(screen.getByTestId('attention-group-appointments')).toHaveTextContent('Marcus Vance');
+      expect(screen.getByTestId('attention-group-sales')).toHaveTextContent(
+        'Order #sale-pen · $65.00',
+      );
     });
   });
 
-  // ───────────────────────────────────────────────────────────────────────────
-  // Multi-Card Integration & Independent Error Isolation
-  // ───────────────────────────────────────────────────────────────────────────
-  describe('Multi-Card Integration & Error Isolation', () => {
-    it('one failed metric does NOT hide other successful metrics (attendance fails, inventory succeeds)', async () => {
-      jest
-        .spyOn(attendanceApi, 'getTodayAttendance')
-        .mockRejectedValue(new Error('Attendance gateway down.'));
-      jest.spyOn(inventoryApi, 'getLowStock').mockResolvedValue(MOCK_LOW_STOCK_POPULATED);
-
-      renderDashboard(<DashboardMetricsSection />);
-
-      // Attendance card shows error with retry
-      await waitFor(() => {
-        expect(screen.getByTestId('gym-checkins-error')).toBeInTheDocument();
+  describe('5. Role-Based Visibility & Financial Authorization Boundaries', () => {
+    it('restricts Daily Sales Total, Gym Check-ins, and Today Schedule for Kitchen Staff (Inventory operator)', async () => {
+      mockAuthenticatedRole({
+        roles: ['KITCHEN_STAFF'],
+        permissions: [
+          'inventory.read',
+          'inventory.write',
+          'sales.read',
+          'sales.create',
+          'payments.create',
+          'receipts.read',
+        ],
       });
-      expect(screen.getByText('Attendance gateway down.')).toBeInTheDocument();
 
-      // Low-stock card renders populated normally
-      expect(screen.getByTestId('low-stock-populated')).toBeInTheDocument();
-      expect(screen.getByText('2')).toBeInTheDocument();
-
-      // Unaffected cards render normally
-      expect(screen.getByTestId('appointments-unavailable')).toBeInTheDocument();
-      expect(screen.getByTestId('sales-unavailable')).toBeInTheDocument();
-    });
-
-    it('renders all 4 cards in populated operational state when all queries succeed', async () => {
-      jest.spyOn(attendanceApi, 'getTodayAttendance').mockResolvedValue(MOCK_ATTENDANCE_POPULATED);
-      jest.spyOn(inventoryApi, 'getLowStock').mockResolvedValue(MOCK_LOW_STOCK_POPULATED);
-
-      renderDashboard(<DashboardMetricsSection />);
+      renderDashboard();
 
       await waitFor(() => {
-        expect(screen.getByTestId('gym-checkins-populated')).toBeInTheDocument();
+        expect(screen.getByTestId('low-stock-value')).toHaveTextContent('2');
       });
-      expect(screen.getByTestId('low-stock-populated')).toBeInTheDocument();
-      expect(screen.getByTestId('appointments-unavailable')).toBeInTheDocument();
-      expect(screen.getByTestId('sales-unavailable')).toBeInTheDocument();
-    });
 
-    it('unprivileged user only sees permissible operational cards without leaking sensitive data', async () => {
-      const getTodaySpy = jest.spyOn(attendanceApi, 'getTodayAttendance');
-      const getLowStockSpy = jest.spyOn(inventoryApi, 'getLowStock');
+      // Role badge reflects Inventory & Stock Operations
+      expect(screen.getByTestId('dashboard-role-badge')).toHaveTextContent(
+        'Inventory & Stock Operations',
+      );
 
-      renderDashboard(<DashboardMetricsSection />, { user: UNPRIVILEGED_USER });
+      // Financial KPI, Gym Check-ins, and Appointments are hidden and their APIs are not called
+      expect(screen.queryByTestId('metric-card-daily-sales')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('metric-card-gym-checkins')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('metric-card-appointments')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('dashboard-todays-schedule')).not.toBeInTheDocument();
+      expect(mockedSalesApi.listPayments).not.toHaveBeenCalled();
+      expect(mockedAttendanceApi.getToday).not.toHaveBeenCalled();
+      expect(mockedSchedulingApi.listAppointments).not.toHaveBeenCalled();
 
-      // No unauthorized queries were fired
-      expect(getTodaySpy).not.toHaveBeenCalled();
-      expect(getLowStockSpy).not.toHaveBeenCalled();
-
-      // Restricted cards are omitted
-      expect(screen.queryByTestId('gym-checkins-populated')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('low-stock-populated')).not.toBeInTheDocument();
-      expect(screen.queryByTestId('sales-unavailable')).not.toBeInTheDocument();
+      // Quick actions show Receive Inventory and Create Sale, but not Register Client or Create Appointment
+      expect(screen.getByTestId('quick-action-receive-inventory')).toBeInTheDocument();
+      expect(screen.getByTestId('quick-action-create-sale')).toBeInTheDocument();
+      expect(screen.queryByTestId('quick-action-register-client')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('quick-action-create-appointment')).not.toBeInTheDocument();
     });
   });
 });

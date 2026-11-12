@@ -7,42 +7,100 @@ import { MemoryRouter } from 'react-router-dom';
 import { DashboardLayout } from '../../app/layouts/dashboard-layout';
 import { SlotProvider } from '../../shared/ui/slots/SlotProvider';
 import { DashboardOverviewPage } from '../dashboard';
+import {
+  operationalDashboardKeys,
+  getTodayOperationalBusinessDay,
+} from '../dashboard/api/operational-dashboard-queries';
 import { GeneralSettingsForm } from '../settings/components/general-settings-form';
 import { SecuritySettingsForm } from '../settings/components/security-settings-form';
 import { SettingsLayoutPage } from '../settings/routes/settings-layout-page';
 
 import { AuthProvider } from '../../app/providers/auth-provider';
 import { FeatureFlagProvider } from '../../app/providers/feature-flag-provider';
+import { NotificationProvider, useNotification } from '../../app/providers/notification-provider';
 import { NavigationProvider } from '../../app/navigation';
 import { BreadcrumbProvider } from '../../app/breadcrumbs';
 
 expect.extend(toHaveNoViolations);
 
+const TEST_OWNER_SESSION = {
+  id: 'usr-a11y-owner',
+  email: 'owner@kinergy.platform',
+  name: 'Owner User',
+  roles: ['OWNER'],
+  permissions: ['*'],
+  tenantId: 'default',
+};
+
 function createTestQueryClient() {
-  return new QueryClient({
+  const qc = new QueryClient({
     defaultOptions: {
       queries: {
         retry: false,
       },
     },
   });
+  const businessDay = getTodayOperationalBusinessDay();
+  qc.setQueryData(operationalDashboardKeys.todayCheckIns(), {
+    grantedCount: 3,
+    uniqueClientsCount: 3,
+    deniedCount: 0,
+    totalCheckIns: 3,
+    gymDay: `${businessDay.dateStr}@main(UTC)`,
+  });
+  qc.setQueryData(operationalDashboardKeys.lowStock(), {
+    count: 1,
+    outOfStockCount: 0,
+    lowStockOnlyCount: 1,
+    items: [],
+  });
+  qc.setQueryData(operationalDashboardKeys.todayAppointments(businessDay.dateStr), {
+    dateStr: businessDay.dateStr,
+    activeCount: 1,
+    totalCount: 1,
+    statusBreakdown: {
+      scheduled: 0,
+      confirmed: 1,
+      checkedIn: 0,
+      inProgress: 0,
+      completed: 0,
+      cancelled: 0,
+      noShow: 0,
+    },
+    scheduleItems: [],
+    needsAttentionItems: [],
+  });
+  qc.setQueryData(operationalDashboardKeys.dailySalesTotal(businessDay.dateStr), {
+    dateStr: businessDay.dateStr,
+    totalCents: 5000,
+    formattedTotal: '$50.00',
+    currency: 'USD',
+    completedPaymentsCount: 1,
+  });
+  qc.setQueryData(operationalDashboardKeys.pendingSalesFollowUp(), {
+    count: 0,
+    items: [],
+  });
+  return qc;
 }
 
 function renderWithProviders(ui: React.ReactElement, { initialEntries = ['/'] } = {}) {
   const testQueryClient = createTestQueryClient();
   return render(
     <QueryClientProvider client={testQueryClient}>
-      <MemoryRouter initialEntries={initialEntries}>
-        <AuthProvider skipBootstrap>
-          <FeatureFlagProvider>
-            <NavigationProvider>
-              <BreadcrumbProvider>
-                <SlotProvider>{ui}</SlotProvider>
-              </BreadcrumbProvider>
-            </NavigationProvider>
-          </FeatureFlagProvider>
-        </AuthProvider>
-      </MemoryRouter>
+      <NotificationProvider>
+        <MemoryRouter initialEntries={initialEntries}>
+          <AuthProvider initialSessionOverride={TEST_OWNER_SESSION}>
+            <FeatureFlagProvider>
+              <NavigationProvider>
+                <BreadcrumbProvider>
+                  <SlotProvider>{ui}</SlotProvider>
+                </BreadcrumbProvider>
+              </NavigationProvider>
+            </FeatureFlagProvider>
+          </AuthProvider>
+        </MemoryRouter>
+      </NotificationProvider>
     </QueryClientProvider>,
   );
 }
@@ -54,8 +112,7 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
         initialEntries: ['/dashboard'],
       });
 
-      // Wait for async metric cards to resolve to success state
-      await screen.findByTestId('metrics-success');
+      await screen.findByTestId('gym-checkins-value');
 
       const results = await axe(container);
       expect(results).toHaveNoViolations();
@@ -83,7 +140,7 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
         { initialEntries: ['/dashboard'] },
       );
 
-      await screen.findByTestId('metrics-success');
+      await screen.findByTestId('gym-checkins-value');
 
       const results = await axe(container);
       expect(results).toHaveNoViolations();
@@ -98,17 +155,13 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
         </DashboardLayout>,
       );
 
-      // Header landmark
       expect(screen.getByRole('banner')).toBeInTheDocument();
 
-      // Navigation landmarks (Sidebar drawer and menu)
       const navElements = screen.getAllByRole('navigation');
       expect(navElements.length).toBeGreaterThan(0);
 
-      // Main landmark
       expect(screen.getByRole('main')).toBeInTheDocument();
 
-      // Aside navigation landmark
       const aside =
         screen.getByRole('complementary', { name: /main navigation/i }) ||
         document.querySelector('aside[aria-label="Main Navigation"]');
@@ -116,19 +169,32 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
     });
 
     it('verifies live region toast notifications and error alert attributes', async () => {
-      renderWithProviders(<DashboardOverviewPage />);
+      const ToastHarness: React.FC = () => {
+        const { info, error } = useNotification();
+        return (
+          <div>
+            <button type="button" onClick={() => info('Polite update', 'Info Title')}>
+              Emit Polite Toast
+            </button>
+            <button type="button" onClick={() => error('Critical failure', 'Error Title')}>
+              Emit Assertive Toast
+            </button>
+          </div>
+        );
+      };
 
-      const infoBtn = screen.getByRole('button', { name: /trigger info toast/i });
-      fireEvent.click(infoBtn);
+      renderWithProviders(<ToastHarness />);
+
+      fireEvent.click(screen.getByRole('button', { name: /emit polite toast/i }));
 
       const toastStatus = await screen.findByRole('status');
       expect(toastStatus).toHaveAttribute('aria-live', 'polite');
 
-      const errBtn = screen.getByRole('button', { name: /trigger error toast/i });
-      fireEvent.click(errBtn);
+      fireEvent.click(screen.getByRole('button', { name: /emit assertive toast/i }));
 
       await waitFor(() => {
-        expect(toastStatus).toHaveAttribute('aria-live', 'assertive');
+        const statuses = screen.getAllByRole('status');
+        expect(statuses.some((el) => el.getAttribute('aria-live') === 'assertive')).toBe(true);
       });
     });
 
@@ -156,17 +222,10 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
         </DashboardLayout>,
       );
 
-      const banner = screen.getByRole('banner');
-      expect(banner).toBeInTheDocument();
-
-      const main = screen.getByRole('main');
-      expect(main).toBeInTheDocument();
-
-      const footer = screen.getByRole('contentinfo');
-      expect(footer).toBeInTheDocument();
-
-      const aside = screen.getByRole('complementary');
-      expect(aside).toBeInTheDocument();
+      expect(screen.getByRole('banner')).toBeInTheDocument();
+      expect(screen.getByRole('main')).toBeInTheDocument();
+      expect(screen.getByRole('contentinfo')).toBeInTheDocument();
+      expect(screen.getByRole('complementary')).toBeInTheDocument();
     });
   });
 
@@ -181,11 +240,9 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
       const toggleBtn = screen.getByRole('button', { name: /collapse sidebar/i });
       expect(toggleBtn).toHaveAttribute('aria-expanded', 'true');
 
-      // Trigger Ctrl+B
       fireEvent.keyDown(window, { key: 'b', ctrlKey: true });
       expect(toggleBtn).toHaveAttribute('aria-expanded', 'false');
 
-      // Trigger Ctrl+B again to toggle back
       fireEvent.keyDown(window, { key: 'b', ctrlKey: true });
       expect(screen.getByRole('button', { name: /collapse sidebar/i })).toHaveAttribute(
         'aria-expanded',
@@ -203,14 +260,10 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
       const mobileOpenBtn = screen.getByRole('button', { name: /open navigation drawer/i });
       expect(mobileOpenBtn).toHaveAttribute('aria-expanded', 'false');
 
-      // Open mobile drawer
       fireEvent.click(mobileOpenBtn);
       expect(mobileOpenBtn).toHaveAttribute('aria-expanded', 'true');
-
-      // Body scroll locked
       expect(document.body.style.overflow).toBe('hidden');
 
-      // Press Escape key to close
       fireEvent.keyDown(window, { key: 'Escape' });
 
       await waitFor(() => {
@@ -220,28 +273,6 @@ describe('Milestone A5.5 — Responsive & Accessibility Validation Suite', () =>
   });
 
   describe('4. Modal Dialog Behavior & Focus Trapping', () => {
-    it('opens Quick System Check diagnostic dialog and verifies modal properties', async () => {
-      renderWithProviders(
-        <DashboardLayout>
-          <DashboardOverviewPage />
-        </DashboardLayout>,
-      );
-
-      const diagBtn = screen.getByRole('button', { name: /quick system check/i });
-      fireEvent.click(diagBtn);
-
-      const dialog = await screen.findByRole('dialog');
-      expect(dialog).toBeInTheDocument();
-      expect(screen.getByText('System Diagnostic Verification')).toBeInTheDocument();
-
-      const closeBtn = screen.getByRole('button', { name: /close diagnostic/i });
-      fireEvent.click(closeBtn);
-
-      await waitFor(() => {
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      });
-    });
-
     it('opens session revocation dialog in SecuritySettingsForm and executes confirm action', async () => {
       renderWithProviders(<SecuritySettingsForm />);
 
