@@ -7,8 +7,10 @@
  */
 import '@testing-library/jest-dom';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { Header } from '../header';
 import { UserMenu, getUserInitials } from '../user-menu';
 import { AuthProvider } from '../../../../app/providers/auth-provider';
+import { SlotProvider } from '../../../ui/slots';
 import type { AuthUser } from '../../../../modules/auth/domain/auth-state.types';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -174,6 +176,50 @@ describe('Track B — Step B4.2: UserMenu Component & Logout Integration', () =>
       });
 
       expect(fetchCallCount).toBeLessThanOrEqual(1);
+    });
+  });
+
+  describe('3. Header Shell Layout & Non-Functional Control Removal', () => {
+    it('renders Header with breadcrumbs and UserMenu while omitting non-functional global search and notification bell controls', () => {
+      const queryClient = createTestQueryClient();
+      render(
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider initialSessionOverride={TEST_USER}>
+            <SlotProvider>
+              <Header />
+            </SlotProvider>
+          </AuthProvider>
+        </QueryClientProvider>,
+      );
+
+      // Banner landmark and responsive alignment classes
+      const header = screen.getByRole('banner');
+      expect(header).toBeInTheDocument();
+      expect(header).toHaveClass(
+        'flex',
+        'h-16',
+        'w-full',
+        'items-center',
+        'justify-between',
+        'gap-4',
+        'pl-14',
+        'pr-4',
+        'md:px-6',
+      );
+
+      // Breadcrumbs and UserMenu are rendered
+      expect(
+        screen.getByRole('navigation', { name: /breadcrumbs placeholder/i }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /user account menu for lead architect/i }),
+      ).toBeInTheDocument();
+
+      // Global search ("Search platform...") and notification bell are absent
+      expect(screen.queryByText(/search platform/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole('search')).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/global search placeholder/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/notifications placeholder/i)).not.toBeInTheDocument();
     });
   });
 });

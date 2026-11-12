@@ -155,9 +155,14 @@ describe('Track B — Step B4.4: Dashboard Authentication Vertical Slice Integra
       expect(screen.getByRole('link', { name: /dashboard/i })).toBeInTheDocument();
       expect(screen.getByRole('link', { name: /settings/i })).toBeInTheDocument();
 
-      // 2. Header Landmark & Breadcrumbs
-      expect(screen.getByRole('banner')).toBeInTheDocument();
+      // 2. Header Landmark & Breadcrumbs (without non-functional global search or notification bell)
+      const headerBanner = screen.getByRole('banner');
+      expect(headerBanner).toBeInTheDocument();
+      expect(headerBanner).toHaveClass('justify-between', 'gap-4', 'pl-14', 'pr-4', 'md:px-6');
       expect(screen.getByRole('navigation', { name: /breadcrumb/i })).toBeInTheDocument();
+      expect(screen.queryByText(/search platform/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/global search placeholder/i)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/notifications placeholder/i)).not.toBeInTheDocument();
 
       // 3. UserMenu Trigger Button displaying User Identity
       await waitFor(() => {

@@ -7,7 +7,6 @@ import React from 'react';
 export type KnownSlotTarget =
   | 'header-breadcrumbs'
   | 'header-actions'
-  | 'header-search'
   | 'page-toolbar'
   | 'page-tabs'
   | 'page-status'
