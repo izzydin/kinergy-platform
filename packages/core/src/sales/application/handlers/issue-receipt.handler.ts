@@ -55,7 +55,7 @@ export class IssueReceiptHandler implements SalesCommandHandler<
       enforceReceiptTenantIsolation(sale.tenantId, input.tenantId);
 
       // 4. Strict Idempotency Check (ADR-0117 Invariant 10, 11)
-      const existingReceipt = await this.receiptRepository.findBySaleId(sale.id);
+      const existingReceipt = await this.receiptRepository.findBySaleId(sale.id, sale.tenantId);
       if (existingReceipt) {
         // Deterministically return the existing receipt without duplicate issuance or recalculation
         return SalesApplicationResult.ok(ReceiptMapper.toDTO(existingReceipt));
@@ -113,28 +113,56 @@ export class IssueReceiptHandler implements SalesCommandHandler<
         };
       }
 
-      // 8. Generate Gap-Free Monotonic Receipt Number per Tenant (ADR-0117 Invariant 20)
+      // 8-10. Generate Gap-Free Monotonic Receipt Number per Tenant, Instantiate Aggregate, & Persist Atomically
+      // Includes bounded self-healing retry if an out-of-sync sequence generator produces a receipt number
+      // that already belongs to an older sale in the same tenant.
       const year = this.clock.now().getFullYear();
-      const receiptNumber = await this.receiptRepository.getNextReceiptNumber(
-        sale.tenantId ?? 'default',
-        year,
-      );
+      const maxSequenceAttempts = 5;
+      let receipt: Receipt | null = null;
 
-      // 9. Instantiate Immutable Receipt Aggregate Root
-      const receipt = Receipt.fromSettledSale(
-        {
-          id: input.receiptId,
-          sale,
-          payments: settledPayments,
-          clientSummary,
-          receiptNumber,
-          saleReference: input.saleReference,
-        },
-        this.clock,
-      );
+      for (let seqAttempt = 0; seqAttempt < maxSequenceAttempts; seqAttempt++) {
+        const receiptNumber = await this.receiptRepository.getNextReceiptNumber(
+          sale.tenantId ?? 'default',
+          year,
+        );
 
-      // 10. Atomic Persistence
-      await this.receiptRepository.save(receipt);
+        const candidate = Receipt.fromSettledSale(
+          {
+            id: input.receiptId,
+            sale,
+            payments: settledPayments,
+            clientSummary,
+            receiptNumber,
+            saleReference: input.saleReference,
+          },
+          this.clock,
+        );
+
+        try {
+          await this.receiptRepository.save(candidate);
+          receipt = candidate;
+          break;
+        } catch (saveErr: unknown) {
+          if (saveErr instanceof DuplicateReceiptException) {
+            const existingByNumber = await this.receiptRepository.findByReceiptNumber(
+              receiptNumber,
+              sale.tenantId,
+            );
+            if (
+              existingByNumber &&
+              existingByNumber.saleId.value !== sale.id.value &&
+              seqAttempt < maxSequenceAttempts - 1
+            ) {
+              continue;
+            }
+          }
+          throw saveErr;
+        }
+      }
+
+      if (!receipt) {
+        throw new DuplicateReceiptException(sale.id.value, sale.tenantId ?? 'default');
+      }
 
       // 11. Domain Event Dispatching
       const events = receipt.getUncommittedEvents();
@@ -149,7 +177,7 @@ export class IssueReceiptHandler implements SalesCommandHandler<
         // Deterministic recovery for concurrent racers: fetch committed winning receipt
         const targetSaleId = input.saleId?.trim();
         for (let attempt = 0; attempt < 3; attempt++) {
-          const existing = await this.receiptRepository.findBySaleId(targetSaleId);
+          const existing = await this.receiptRepository.findBySaleId(targetSaleId, input.tenantId);
           if (existing) {
             return SalesApplicationResult.ok(ReceiptMapper.toDTO(existing));
           }

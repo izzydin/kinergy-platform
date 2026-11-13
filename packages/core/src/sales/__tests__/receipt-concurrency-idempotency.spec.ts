@@ -660,6 +660,93 @@ describe('Receipt Issuance Concurrency, Idempotency & Database Integrity', () =>
       expect(findPollCount).toBeGreaterThanOrEqual(2);
     });
 
+    it('self-heals when an out-of-sync sequence generator produces receipt numbers already owned by older sales (Prompt 84322 regression)', async () => {
+      const olderSale14 = createSettledSaleFixture({ saleId: 'pos_older_sale_14' });
+      const olderSale15 = createSettledSaleFixture({ saleId: 'pos_older_sale_15' });
+      const targetSale = createSettledSaleFixture({ saleId: 'pos_1794572122420_hhoou6o' });
+
+      const pay14 = createCompletedPaymentFixture(olderSale14);
+      const pay15 = createCompletedPaymentFixture(olderSale15);
+      const targetPay = createCompletedPaymentFixture(targetSale);
+
+      saleRepo.add(olderSale14);
+      saleRepo.add(olderSale15);
+      saleRepo.add(targetSale);
+      paymentRepo.add(pay14);
+      paymentRepo.add(pay15);
+      paymentRepo.add(targetPay);
+
+      const existingReceipt14 = Receipt.fromSettledSale(
+        {
+          sale: olderSale14,
+          payments: [pay14],
+          clientSummary: null,
+          receiptNumber: ReceiptNumber.fromParts(2026, 14),
+          saleReference: olderSale14.id.value,
+        },
+        clock,
+      );
+      const existingReceipt15 = Receipt.fromSettledSale(
+        {
+          sale: olderSale15,
+          payments: [pay15],
+          clientSummary: null,
+          receiptNumber: ReceiptNumber.fromParts(2026, 15),
+          saleReference: olderSale15.id.value,
+        },
+        clock,
+      );
+
+      await receiptRepo.save(existingReceipt14);
+      await receiptRepo.save(existingReceipt15);
+
+      // Simulate sequence drift where the sequence counter was rewound to 13
+      // so the next allocations are 14 (collides), 15 (collides), then 16 (succeeds)
+      let driftedCounter = 13;
+      const driftedRepo: ReceiptRepositoryPort = {
+        findById: (id) => receiptRepo.findById(id),
+        findByReceiptNumber: (num) => receiptRepo.findByReceiptNumber(num),
+        findBySaleId: (sId) => receiptRepo.findBySaleId(sId),
+        getNextReceiptNumber: async (_t, year) => {
+          driftedCounter += 1;
+          return ReceiptNumber.fromParts(year, driftedCounter);
+        },
+        save: async (r) => {
+          const existingByNumber = await receiptRepo.findByReceiptNumber(r.receiptNumber);
+          if (existingByNumber && existingByNumber.id.value !== r.id.value) {
+            throw new DuplicateReceiptException(r.saleId.value, r.tenantId);
+          }
+          await receiptRepo.save(r);
+        },
+      };
+
+      const selfHealingHandler = new IssueReceiptHandler(
+        driftedRepo,
+        saleRepo,
+        paymentRepo,
+        undefined,
+        clock,
+      );
+
+      const cmd = new IssueReceiptCommand({
+        saleId: targetSale.id.value,
+        tenantId: targetSale.tenantId,
+        currentUser: AUTHORIZED_USER,
+      });
+
+      const firstRes = await selfHealingHandler.execute(cmd);
+      expect(firstRes.isSuccess).toBe(true);
+      expect(firstRes.getValue().saleId).toBe('pos_1794572122420_hhoou6o');
+      expect(firstRes.getValue().receiptNumber).toBe('REC-2026-000016');
+
+      // Second invocation must return the existing receipt idempotently without advancing counter
+      const secondRes = await selfHealingHandler.execute(cmd);
+      expect(secondRes.isSuccess).toBe(true);
+      expect(secondRes.getValue().id).toBe(firstRes.getValue().id);
+      expect(secondRes.getValue().receiptNumber).toBe('REC-2026-000016');
+      expect(driftedCounter).toBe(16);
+    });
+
     it('fails deterministically with DuplicateReceiptException if retries are completely exhausted', async () => {
       const sale = createSettledSaleFixture({ saleId: 'sale_exhausted_retries' });
       const payment = createCompletedPaymentFixture(sale);

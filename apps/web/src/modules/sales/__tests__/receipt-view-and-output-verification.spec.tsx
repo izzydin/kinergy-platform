@@ -529,5 +529,93 @@ describe('Receipt View & Output Hardening (Auditable Transaction Verification)',
       expect(salesApi.issueReceipt).not.toHaveBeenCalled();
       expect(salesApi.reprintReceipt).not.toHaveBeenCalled();
     });
+
+    it('recovers and renders existing receipt when issueReceipt returns 409 duplicate conflict (Prompt 84322 regression)', async () => {
+      const targetSaleId = 'pos_1794572122420_hhoou6o';
+      const recoveredReceipt: ReceiptDTO = {
+        ...mockReceiptVoucher,
+        id: 'rec_pos_1794572122420',
+        receiptNumber: 'REC-2026-000049',
+        saleId: targetSaleId,
+        saleReference: targetSaleId,
+      };
+
+      (useParams as jest.Mock).mockReturnValue({ saleId: targetSaleId });
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue({
+        ...mockSettledSale,
+        id: targetSaleId,
+      });
+
+      // Initial GET returns 404 (e.g. stale cache or concurrent issuance just finished), subsequent GET returns existing receipt
+      (salesApi.getReceiptBySale as jest.Mock)
+        .mockRejectedValueOnce({ statusCode: 404, message: 'Receipt not found' })
+        .mockResolvedValue(recoveredReceipt);
+
+      // POST /receipt throws 409 DuplicateReceiptException
+      (salesApi.issueReceipt as jest.Mock).mockRejectedValueOnce({
+        statusCode: 409,
+        code: 'DUPLICATE_RECEIPT',
+        message: `A primary receipt already exists for sale '${targetSaleId}' in tenant 'tenant-kinergy-main'. Duplicate receipt issuance is prohibited.`,
+      });
+
+      renderWithProviders(<ReceiptViewPage />, {
+        queryClient,
+        initialSessionOverride: mockManagerUser,
+        initialRoute: `/sales/${targetSaleId}/receipt`,
+      });
+
+      await waitFor(() => {
+        expect(screen.getByTestId('issue-receipt-btn')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByTestId('issue-receipt-btn'));
+
+      await waitFor(() => {
+        expect(screen.getByTestId('receipt-view-page')).toBeInTheDocument();
+      });
+
+      expect(screen.getByTestId('receipt-number')).toHaveTextContent('REC-2026-000049');
+      expect(screen.queryByTestId('issue-receipt-error')).not.toBeInTheDocument();
+    });
+
+    it('downloads a printable HTML receipt document from the immutable snapshot without mutating server state', async () => {
+      (useParams as jest.Mock).mockReturnValue({ saleId: 'sale_settled_500' });
+      (salesApi.getReceiptBySale as jest.Mock).mockResolvedValue(mockReceiptVoucher);
+      (salesApi.getSaleById as jest.Mock).mockResolvedValue(mockSettledSale);
+
+      const originalCreateObjectURL = URL.createObjectURL;
+      const originalRevokeObjectURL = URL.revokeObjectURL;
+      const createObjectURLMock = jest.fn(() => 'blob:http://localhost/receipt-doc');
+      const revokeObjectURLMock = jest.fn();
+      URL.createObjectURL = createObjectURLMock;
+      URL.revokeObjectURL = revokeObjectURLMock;
+      const anchorClickSpy = jest
+        .spyOn(HTMLAnchorElement.prototype, 'click')
+        .mockImplementation(() => {});
+
+      try {
+        renderWithProviders(<ReceiptViewPage />, {
+          queryClient,
+          initialSessionOverride: mockManagerUser,
+          initialRoute: '/sales/sale_settled_500/receipt',
+        });
+
+        await waitFor(() => {
+          expect(screen.getByTestId('receipt-download-button')).toBeInTheDocument();
+        });
+
+        fireEvent.click(screen.getByTestId('receipt-download-button'));
+
+        expect(createObjectURLMock).toHaveBeenCalledTimes(1);
+        expect(anchorClickSpy).toHaveBeenCalledTimes(1);
+        expect(revokeObjectURLMock).toHaveBeenCalledWith('blob:http://localhost/receipt-doc');
+        expect(salesApi.issueReceipt).not.toHaveBeenCalled();
+        expect(salesApi.reprintReceipt).not.toHaveBeenCalled();
+      } finally {
+        URL.createObjectURL = originalCreateObjectURL;
+        URL.revokeObjectURL = originalRevokeObjectURL;
+        anchorClickSpy.mockRestore();
+      }
+    });
   });
 });

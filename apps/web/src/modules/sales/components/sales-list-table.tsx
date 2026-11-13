@@ -164,7 +164,7 @@ export const SalesListTable: React.FC<SalesListTableProps> = ({
         header: () => <span className="sr-only">Actions</span>,
         cell: ({ row }) => {
           const id = row.original.id;
-          const isPaid = row.original.status === 'PAID';
+          const isPaid = row.original.status === 'PAID' || row.original.status === 'COMPLETED';
           return (
             <div className="flex justify-end items-center gap-1">
               {isPaid && (

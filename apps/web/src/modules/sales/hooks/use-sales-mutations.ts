@@ -333,17 +333,55 @@ export function useCancelPayment() {
 }
 
 /**
- * Hook to issue official receipt voucher for settled sale
+ * Hook to issue official receipt voucher for settled sale.
+ * Idempotently recovers and returns the existing receipt if a primary receipt
+ * already exists for the sale (e.g. HTTP 409 / DUPLICATE_RECEIPT).
  */
 export function useIssueReceipt() {
   const queryClient = useQueryClient();
   const notification = useNotification();
 
   return useMutation({
-    mutationFn: ({ saleId, input }: { saleId: string; input?: IssueReceiptInputDTO }) =>
-      salesApi.issueReceipt(saleId, input),
+    mutationFn: async ({ saleId, input }: { saleId: string; input?: IssueReceiptInputDTO }) => {
+      try {
+        return await salesApi.issueReceipt(saleId, input);
+      } catch (err: unknown) {
+        const errorObj = err as {
+          statusCode?: number;
+          status?: number;
+          code?: string;
+          message?: string;
+          response?: { status?: number; data?: { code?: string; message?: string } };
+        };
+        const status = errorObj?.statusCode ?? errorObj?.status ?? errorObj?.response?.status;
+        const code = errorObj?.code ?? errorObj?.response?.data?.code;
+        const msg = String(
+          errorObj?.response?.data?.message ?? errorObj?.message ?? '',
+        ).toLowerCase();
+
+        const isDuplicateConflict =
+          status === 409 ||
+          code === 'DUPLICATE_RECEIPT' ||
+          msg.includes('already exists') ||
+          msg.includes('duplicate receipt');
+
+        if (isDuplicateConflict) {
+          try {
+            const existingReceipt = await salesApi.getReceiptBySale(saleId);
+            if (existingReceipt) {
+              return existingReceipt;
+            }
+          } catch {
+            // If retrieval also fails, rethrow the original issuance error
+          }
+        }
+        throw err;
+      }
+    },
     onSuccess: (receipt) => {
       notification.success(`Receipt "${receipt.receiptNumber}" issued successfully`);
+      queryClient.setQueryData(salesQueryKeys.receiptBySale(receipt.saleId), receipt);
+      queryClient.setQueryData(salesQueryKeys.receiptById(receipt.id), receipt);
       queryClient.invalidateQueries({
         queryKey: salesQueryKeys.receiptBySale(receipt.saleId),
       });

@@ -1,9 +1,19 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, Button, Badge } from '@kinergy-platform/ui';
-import { ArrowLeft, Printer, CheckCircle2, RefreshCw, Copy, AlertCircle } from 'lucide-react';
+import {
+  ArrowLeft,
+  Printer,
+  Download,
+  CheckCircle2,
+  RefreshCw,
+  Copy,
+  AlertCircle,
+} from 'lucide-react';
 import { useReceiptBySale, useSaleDetail, useReceiptDetail } from '../hooks/use-sales-queries';
 import { useIssueReceipt, useReprintReceipt } from '../hooks/use-sales-mutations';
+import { salesApi } from '../api/sales-api';
+import type { ReceiptDTO } from '../types';
 import { MoneyDisplay } from '../components/money-display';
 import { PaymentMethodBadge } from '../components/payment-method-badge';
 import { HasPermission } from '../../../app/routes/permission-guard';
@@ -14,12 +24,177 @@ import { SALES_ROUTES } from '../routes/sales-routes';
 
 export type ReceiptPrintFormat = 'standard' | '80mm' | '58mm';
 
+function escapeHtml(value: string | number | undefined | null): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function formatMoneySnapshot(amount: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: currency || 'USD',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  } catch {
+    return `${currency || 'USD'} ${Number(amount).toFixed(2)}`;
+  }
+}
+
+export function buildReceiptHtmlDocument(receipt: ReceiptDTO): string {
+  const issuedDate = new Date(receipt.issuedAt).toLocaleString();
+  const customerName = receipt.clientSnapshot?.fullName || 'Walk-in Customer';
+  const customerRef = receipt.clientSnapshot?.referenceNumber
+    ? `<div>Member #${escapeHtml(receipt.clientSnapshot.referenceNumber)}</div>`
+    : '';
+  const customerEmail = receipt.clientSnapshot?.email
+    ? `<div>${escapeHtml(receipt.clientSnapshot.email)}</div>`
+    : '';
+  const customerPhone = receipt.clientSnapshot?.phone
+    ? `<div>${escapeHtml(receipt.clientSnapshot.phone)}</div>`
+    : '';
+
+  const rowsHtml = receipt.items
+    .map(
+      (item) => `
+        <tr>
+          <td>
+            <div class="item-name">${escapeHtml(item.description)}</div>
+            ${item.skuOrCode ? `<div class="item-sku">${escapeHtml(item.skuOrCode)}</div>` : ''}
+          </td>
+          <td class="text-center mono">${escapeHtml(item.quantity)}</td>
+          <td class="text-right mono">${escapeHtml(
+            formatMoneySnapshot(item.unitPrice.amount, item.unitPrice.currency),
+          )}</td>
+          <td class="text-right mono strong">${escapeHtml(
+            formatMoneySnapshot(item.total.amount, item.total.currency),
+          )}</td>
+        </tr>`,
+    )
+    .join('');
+
+  const paymentsHtml = receipt.payments
+    .map(
+      (p) => `
+        <div class="payment-row">
+          <span>${escapeHtml(p.method)}${p.reference ? ` (Ref: ${escapeHtml(p.reference)})` : ''}</span>
+          <span class="mono strong">${escapeHtml(
+            formatMoneySnapshot(p.amount.amount, p.amount.currency),
+          )}</span>
+        </div>`,
+    )
+    .join('');
+
+  const discountHtml =
+    receipt.discountTotal?.amount && receipt.discountTotal.amount > 0
+      ? `<div class="summary-row discount">
+          <span>Total Discount Applied:</span>
+          <span class="mono">-${escapeHtml(
+            formatMoneySnapshot(receipt.discountTotal.amount, receipt.discountTotal.currency),
+          )}</span>
+        </div>`
+      : '';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Receipt ${escapeHtml(receipt.receiptNumber)}</title>
+  <style>
+    body { font-family: system-ui, -apple-system, sans-serif; color: #202522; margin: 24px; }
+    .voucher { max-width: 640px; margin: 0 auto; border: 1px solid #d4dcd6; border-radius: 8px; padding: 24px; }
+    .header { text-align: center; border-bottom: 1px solid #d4dcd6; padding-bottom: 16px; margin-bottom: 16px; }
+    .badge { display: inline-block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; padding: 2px 8px; border: 1px solid #d4dcd6; border-radius: 4px; }
+    .receipt-number { font-family: ui-monospace, monospace; font-size: 24px; font-weight: 700; margin: 8px 0; }
+    .meta { font-family: ui-monospace, monospace; font-size: 12px; color: #525b55; }
+    .section { border-bottom: 1px solid #d4dcd6; padding-bottom: 14px; margin-bottom: 14px; font-size: 13px; }
+    .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #525b55; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { border-bottom: 1px solid #d4dcd6; padding: 6px 4px; text-align: left; color: #525b55; }
+    td { border-bottom: 1px solid #eef2ef; padding: 8px 4px; vertical-align: top; }
+    .text-center { text-align: center; }
+    .text-right { text-align: right; }
+    .mono { font-family: ui-monospace, monospace; }
+    .strong { font-weight: 600; }
+    .item-sku { font-family: ui-monospace, monospace; font-size: 10px; color: #525b55; }
+    .summary-row { display: flex; justify-content: space-between; margin: 4px 0; font-size: 13px; }
+    .summary-total { display: flex; justify-content: space-between; margin-top: 8px; padding-top: 8px; border-top: 1px solid #d4dcd6; font-size: 16px; font-weight: 700; font-family: ui-monospace, monospace; }
+    .payment-row { display: flex; justify-content: space-between; padding: 6px 8px; background: #f4faef; border-radius: 4px; margin-top: 4px; font-size: 12px; }
+    .footer { text-align: center; font-size: 11px; color: #525b55; padding-top: 12px; }
+  </style>
+</head>
+<body>
+  <div class="voucher">
+    <div class="header">
+      <span class="badge">Official Proof of Purchase</span>
+      <div class="receipt-number">${escapeHtml(receipt.receiptNumber)}</div>
+      <div class="meta">Order Reference: ${escapeHtml(receipt.saleReference)}</div>
+      <div class="meta">Issued: ${escapeHtml(issuedDate)}</div>
+    </div>
+    <div class="section">
+      <div class="section-label">Billed To</div>
+      <div class="strong">${escapeHtml(customerName)}</div>
+      ${customerRef}
+      ${customerEmail}
+      ${customerPhone}
+    </div>
+    <div class="section">
+      <div class="section-label">Purchased Items</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Item Description</th>
+            <th class="text-center">Qty</th>
+            <th class="text-right">Unit Price</th>
+            <th class="text-right">Total</th>
+          </tr>
+        </thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>
+    <div class="section">
+      <div class="summary-row">
+        <span>Subtotal:</span>
+        <span class="mono">${escapeHtml(
+          formatMoneySnapshot(receipt.subtotal.amount, receipt.subtotal.currency),
+        )}</span>
+      </div>
+      ${discountHtml}
+      <div class="summary-total">
+        <span>Total Paid (${escapeHtml(receipt.currency)}):</span>
+        <span>${escapeHtml(formatMoneySnapshot(receipt.total.amount, receipt.total.currency))}</span>
+      </div>
+    </div>
+    <div class="section">
+      <div class="section-label">Tender Settlement Records</div>
+      ${paymentsHtml}
+    </div>
+    <div class="footer">
+      <p>Thank you for your business at Kinergy Platform.</p>
+      <p>Official proof-of-purchase voucher snapshotted upon settlement.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
 export const ReceiptViewPage: React.FC = () => {
   const { saleId } = useParams<{ saleId: string }>();
   const location = useLocation();
   const auth = useAuth();
   const [printFormat, setPrintFormat] = useState<ReceiptPrintFormat>('standard');
   const [issueError, setIssueError] = useState<string | null>(null);
+  const [issuedReceipt, setIssuedReceipt] = useState<ReceiptDTO | null>(null);
+
+  useEffect(() => {
+    setIssuedReceipt(null);
+    setIssueError(null);
+  }, [saleId]);
 
   // Permission verification: receipts.read & receipts.manage
   const canRead = Boolean(
@@ -57,7 +232,8 @@ export const ReceiptViewPage: React.FC = () => {
     refetch: refetchId,
   } = useReceiptDetail(isDirectReceiptId ? saleId : undefined);
 
-  const receipt = isDirectReceiptId ? receiptById : (receiptBySale ?? receiptById);
+  const receipt =
+    issuedReceipt ?? (isDirectReceiptId ? receiptById : (receiptBySale ?? receiptById));
   const isLoading = isDirectReceiptId ? isLoadingId : isLoadingSale;
   const isError = isDirectReceiptId ? isErrorId : isErrorSale;
   const error = isDirectReceiptId ? errorId : errorSale;
@@ -81,10 +257,15 @@ export const ReceiptViewPage: React.FC = () => {
 
   const handleIssueReceipt = async () => {
     const targetSaleId = receipt?.saleId || (isDirectReceiptId ? undefined : saleId);
-    if (!canManageReceipts || !targetSaleId || issueReceiptMutation.isPending) return;
+    if (!canManageReceipts || !targetSaleId || Boolean(receipt) || issueReceiptMutation.isPending) {
+      return;
+    }
     setIssueError(null);
     try {
-      await issueReceiptMutation.mutateAsync({ saleId: targetSaleId });
+      const result = await issueReceiptMutation.mutateAsync({ saleId: targetSaleId });
+      if (result) {
+        setIssuedReceipt(result);
+      }
       refetch();
     } catch (err: unknown) {
       const errorObj = err as Record<string, unknown>;
@@ -94,6 +275,23 @@ export const ReceiptViewPage: React.FC = () => {
         (errorObj?.message as string) ??
         'Failed to issue receipt voucher.';
       const msg = Array.isArray(rawMsg) ? rawMsg.join(', ') : String(rawMsg);
+
+      if (
+        msg.toLowerCase().includes('already exists') ||
+        msg.toLowerCase().includes('duplicate receipt')
+      ) {
+        try {
+          const existing = await salesApi.getReceiptBySale(targetSaleId);
+          if (existing) {
+            setIssuedReceipt(existing);
+            refetch();
+            return;
+          }
+        } catch {
+          // fall through to show error if retrieval also fails
+        }
+      }
+
       setIssueError(msg);
     }
   };
@@ -101,7 +299,10 @@ export const ReceiptViewPage: React.FC = () => {
   const handleReprint = async () => {
     if (!canManageReceipts || !receipt?.id || reprintMutation.isPending) return;
     try {
-      await reprintMutation.mutateAsync({ receiptId: receipt.id });
+      const updated = await reprintMutation.mutateAsync({ receiptId: receipt.id });
+      if (updated) {
+        setIssuedReceipt(updated);
+      }
     } catch {
       // error toast handled by mutation hook
     }
@@ -109,6 +310,20 @@ export const ReceiptViewPage: React.FC = () => {
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const handleDownload = () => {
+    if (!receipt) return;
+    const htmlContent = buildReceiptHtmlDocument(receipt);
+    const blob = new Blob([htmlContent], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `${receipt.receiptNumber}.html`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
   };
 
   if (isLoading && !receipt) {
@@ -344,6 +559,17 @@ export const ReceiptViewPage: React.FC = () => {
               )}
             </Button>
           </HasPermission>
+
+          {/* Download Receipt Document */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleDownload}
+            className="gap-1.5 h-8 text-xs"
+            data-testid="receipt-download-button"
+          >
+            <Download className="h-3.5 w-3.5" /> Download Receipt
+          </Button>
 
           {/* Browser Print Trigger */}
           <Button

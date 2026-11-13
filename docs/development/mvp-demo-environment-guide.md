@@ -1006,6 +1006,25 @@ pnpm db:seed
   ```
   Nginx configuration guarantees that `index.html` is served with `Cache-Control: no-cache, no-store, must-revalidate`, allowing browsers to immediately pick up new JS chunks upon refresh.
 
+### Incident 10: Receipt Generation Fails with "Receipt Issuance Rejected / Duplicate Receipt Issuance Is Prohibited" (Prompt 84322)
+
+- **Symptom**: Attempting to generate or view a receipt for a settled POS sale (e.g., `pos_1794572122420_hhoou6o` in `tenant-kinergy-main`) fails with HTTP 409:
+  `Receipt Issuance Rejected: A primary receipt already exists for sale '<saleId>' in tenant '<tenantId>'. Duplicate receipt issuance is prohibited.`
+- **Root Cause**:
+  1. Re-running `pnpm db:seed` against an environment containing runtime receipts previously reset `receipt_sequences.current_value` to `3`, causing subsequent `getNextReceiptNumber` allocations (`REC-2026-000014`, `REC-2026-000015`) to collide with existing receipt numbers in `receipts` (`unique_tenant_receipt_number`).
+  2. `PrismaReceiptRepository.save` mapped any `P2002` unique violation to `DuplicateReceiptException(saleId, tenantId)`, and `IssueReceiptHandler` failed when `findBySaleId(saleId)` returned `null` for the new sale.
+- **Resolution & Permanent Architecture**:
+  1. **One-Primary-Receipt-Per-Sale Invariant Preserved**: Database constraints `unique_tenant_sale_receipt` (`(tenant_id, sale_id)`) and `unique_tenant_receipt_number` (`(tenant_id, receipt_number)`) remain strictly enforced.
+  2. **Self-Healing Atomic Sequence Allocation (`PrismaReceiptSequenceGenerator`)**: The PostgreSQL `INSERT INTO "receipt_sequences" ... ON CONFLICT ("tenant_id", "year") DO UPDATE` statement uses `GREATEST("receipt_sequences"."current_value", COALESCE((SELECT MAX(...) FROM "receipts" ...), 0)) + 1`, automatically advancing past the highest persisted receipt number in the tenant/year if the sequence row ever lags behind.
+  3. **Idempotent Issuance & Sequence Collision Recovery (`IssueReceiptHandler`)**:
+     - If a primary receipt already exists for `(tenantId, saleId)`, `POST /api/v1/sales/:saleId/receipt` returns the existing `ReceiptDTO` idempotently instead of failing.
+     - If a sequence number collision occurs with an older sale, `IssueReceiptHandler` detects that `findByReceiptNumber` belongs to a different `saleId` and retries sequence allocation automatically.
+  4. **Seed Synchronization (`prisma/seeds/sales.seed.ts`)**: `seedSalesDomain` inspects the highest existing `REC-YYYY-NNNNNN` in `receipts` and `receipt_sequences` and sets `currentValue = Math.max(existingValue, maxReceiptNumber, 3)` so seeding never rewinds the sequence counter.
+  5. **Frontend Retrieval, Print & Download (`ReceiptViewPage`, `useIssueReceipt`)**:
+     - Opening `/sales/:saleId/receipt` retrieves and renders the existing primary receipt via `GET /api/v1/sales/:saleId/receipt`.
+     - If `issueReceipt` encounters a `409 Conflict` / `DUPLICATE_RECEIPT`, `useIssueReceipt` and `ReceiptViewPage` automatically fetch and display the existing receipt via `getReceiptBySale(saleId)` rather than surfacing a destructive error banner.
+     - Users can **View**, **Print** (`Print Receipt` across Standard, 80mm, and 58mm layouts), and **Download** (`Download Receipt` HTML voucher) any issued receipt directly from its immutable point-in-time snapshot without creating duplicate receipt records.
+
 ---
 
 ## 12. Safe Shutdown & Reset Instructions

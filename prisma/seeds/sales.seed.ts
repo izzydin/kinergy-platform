@@ -524,7 +524,42 @@ export async function seedSales(prisma: PrismaClient): Promise<SalesSeedSummary>
 
   // --------------------------------------------------------------------------
   // 6. Monotonic Receipt Sequence Counter for 2026
+  //    Synchronize with the highest existing receipt sequence so seeding never
+  //    rewinds the counter below already-issued runtime receipts.
   // --------------------------------------------------------------------------
+  const existingSequence = await prisma.receiptSequence.findUnique({
+    where: {
+      tenantId_year: {
+        tenantId,
+        year,
+      },
+    },
+  });
+
+  const existingReceiptsForYear = await prisma.receipt.findMany({
+    where: {
+      tenantId,
+      receiptNumber: {
+        startsWith: `REC-${year}-`,
+      },
+    },
+    select: {
+      receiptNumber: true,
+    },
+  });
+
+  const maxExistingReceiptNumber = existingReceiptsForYear.reduce((maxVal, row) => {
+    const match = /^REC-\d{4}-(\d+)$/.exec(row.receiptNumber);
+    const parsed = match?.[1] ? Number.parseInt(match[1], 10) : 0;
+    return Number.isFinite(parsed) && parsed > maxVal ? parsed : maxVal;
+  }, 3);
+
+  const synchronizedSequenceValue = Math.max(
+    existingSequence?.currentValue ?? 0,
+    maxExistingReceiptNumber,
+    3,
+  );
+
   await prisma.receiptSequence.upsert({
     where: {
       tenantId_year: {
@@ -533,13 +568,13 @@ export async function seedSales(prisma: PrismaClient): Promise<SalesSeedSummary>
       },
     },
     update: {
-      currentValue: 3, // Matches highest seeded receipt number (REC-2026-000003)
+      currentValue: synchronizedSequenceValue,
       updatedAt: now,
     },
     create: {
       tenantId,
       year,
-      currentValue: 3,
+      currentValue: synchronizedSequenceValue,
       updatedAt: now,
     },
   });
@@ -548,13 +583,15 @@ export async function seedSales(prisma: PrismaClient): Promise<SalesSeedSummary>
   console.log('    ✓ 6 SaleItems seeded with exact line totals and decimal quantities');
   console.log('    ✓ 3 Settled Payments seeded matching paid sales');
   console.log('    ✓ 3 Receipts seeded with complete point-in-time snapshots');
-  console.log('    ✓ ReceiptSequence counter synchronized at currentValue = 3');
+  console.log(
+    `    ✓ ReceiptSequence counter synchronized at currentValue = ${synchronizedSequenceValue}`,
+  );
 
   return {
     salesCount: 5,
     saleItemsCount: 6,
     paymentsCount: 3,
     receiptsCount: 3,
-    receiptSequenceValue: 3,
+    receiptSequenceValue: synchronizedSequenceValue,
   };
 }

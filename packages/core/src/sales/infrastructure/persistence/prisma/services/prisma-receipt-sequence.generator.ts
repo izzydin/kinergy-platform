@@ -48,10 +48,32 @@ export class PrismaReceiptSequenceGenerator implements ReceiptSequenceGeneratorP
 
     const result = await this.prisma.$queryRawUnsafe<Array<{ current_value: number | bigint }>>(
       `INSERT INTO "receipt_sequences" ("tenant_id", "year", "current_value", "updated_at")
-       VALUES ($1, $2, 1, CURRENT_TIMESTAMP)
+       VALUES (
+         $1,
+         $2,
+         COALESCE(
+           (
+             SELECT MAX(CAST(SUBSTRING("receipt_number" FROM '^REC-[0-9]{4}-([0-9]+)$') AS INTEGER))
+             FROM "receipts"
+             WHERE "tenant_id" = $1 AND "receipt_number" LIKE ('REC-' || $2::text || '-%')
+           ),
+           0
+         ) + 1,
+         CURRENT_TIMESTAMP
+       )
        ON CONFLICT ("tenant_id", "year")
        DO UPDATE SET
-         "current_value" = "receipt_sequences"."current_value" + 1,
+         "current_value" = GREATEST(
+           "receipt_sequences"."current_value",
+           COALESCE(
+             (
+               SELECT MAX(CAST(SUBSTRING("receipt_number" FROM '^REC-[0-9]{4}-([0-9]+)$') AS INTEGER))
+               FROM "receipts"
+               WHERE "tenant_id" = $1 AND "receipt_number" LIKE ('REC-' || $2::text || '-%')
+             ),
+             0
+           )
+         ) + 1,
          "updated_at" = CURRENT_TIMESTAMP
        RETURNING "current_value";`,
       cleanTenantId,
