@@ -45,6 +45,52 @@ export class PrismaMembershipRepository implements MembershipRepository {
     return list.map(PrismaMembershipMapper.toDomain);
   }
 
+  async search(query: string): Promise<Membership[]> {
+    const trimmed = query.trim();
+    if (!trimmed) {
+      return this.findAll();
+    }
+
+    const terms = trimmed.split(/\s+/).filter(Boolean);
+
+    // Look up client candidates matching UUID, reference number, or multi-term name
+    const matchingClients = await this.prisma.client.findMany({
+      where: {
+        OR: [
+          { id: { contains: trimmed, mode: 'insensitive' } },
+          { referenceNumber: { contains: trimmed, mode: 'insensitive' } },
+          {
+            AND: terms.map((term) => ({
+              OR: [
+                { firstName: { contains: term, mode: 'insensitive' } },
+                { lastName: { contains: term, mode: 'insensitive' } },
+                { referenceNumber: { contains: term, mode: 'insensitive' } },
+                { normalizedSearchName: { contains: term.toLowerCase() } },
+              ],
+            })),
+          },
+        ],
+      },
+      select: { id: true },
+      take: 100,
+    });
+
+    const clientIds = matchingClients.map((c) => c.id);
+
+    const list = await this.prisma.membership.findMany({
+      where: {
+        OR: [
+          ...(clientIds.length > 0 ? [{ clientId: { in: clientIds } }] : []),
+          { clientId: { contains: trimmed, mode: 'insensitive' } },
+          { id: { contains: trimmed, mode: 'insensitive' } },
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return list.map(PrismaMembershipMapper.toDomain);
+  }
+
   async findAll(): Promise<Membership[]> {
     const list = await this.prisma.membership.findMany({
       orderBy: { createdAt: 'desc' },

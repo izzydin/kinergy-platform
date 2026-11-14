@@ -22,6 +22,7 @@ export function useMembershipFilters() {
     },
     defaultLimit: 10,
     allowedLimits: [5, 10, 20, 50],
+    debounceMs: 0,
     filterParsers: {
       clientId: (val) => val || undefined,
       planId: (val) => val || undefined,
@@ -43,8 +44,10 @@ export function useMembershipFilters() {
   });
 
   const queryParams: ListMembershipsFilterParams = useMemo(() => {
+    const trimmed = state.q ? state.q.trim() : undefined;
     return {
-      clientId: state.filters.clientId || (state.q ? state.q : undefined),
+      clientId: state.filters.clientId || trimmed,
+      search: trimmed,
       planId: state.filters.planId,
       status: state.filters.status,
       startDateFrom: state.filters.startDateFrom,

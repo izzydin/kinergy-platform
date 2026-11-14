@@ -26,6 +26,13 @@ export interface MembershipRepository {
   findAll(): Promise<Membership[]>;
 
   /**
+   * Searches memberships by client identifier, client code, or matching client name.
+   *
+   * @param query Search string (client UUID, reference number, or full/partial name)
+   */
+  search?(query: string): Promise<Membership[]>;
+
+  /**
    * Retrieves memberships assigned to a specific trainer via TrainerAssignment value object.
    * Used exclusively by the Trainer Operational Dashboard read model.
    *

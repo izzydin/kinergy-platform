@@ -27,8 +27,14 @@ export class ListMembershipsHandler implements QueryHandler<
       const limit = Math.min(ListMembershipsHandler.MAX_LIMIT, Math.max(1, rawLimit));
 
       let allMemberships: Membership[];
-      if (filter.clientId) {
-        allMemberships = await this.membershipRepository.findByClientId(filter.clientId.trim());
+      const searchQuery = filter.search?.trim() || filter.clientId?.trim();
+
+      if (searchQuery) {
+        if (typeof this.membershipRepository.search === 'function') {
+          allMemberships = await this.membershipRepository.search(searchQuery);
+        } else {
+          allMemberships = await this.membershipRepository.findByClientId(searchQuery);
+        }
       } else {
         allMemberships = await this.membershipRepository.findAll();
       }

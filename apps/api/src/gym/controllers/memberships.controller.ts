@@ -204,6 +204,7 @@ export class MembershipsController {
   ): Promise<PaginatedMembershipsResponseDto> {
     const query = new ListMembershipsQuery({
       clientId: queryDto.clientId,
+      search: queryDto.search ?? queryDto.clientId,
       planId: queryDto.planId,
       status: queryDto.status,
       startDateFrom: queryDto.startDateFrom,

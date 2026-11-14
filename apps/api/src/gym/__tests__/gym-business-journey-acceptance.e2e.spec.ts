@@ -919,6 +919,15 @@ describe('Milestone 9.3 â€” Gym Business Journey End-to-End Acceptance (Client â
 
       expect(listMembershipsRes.body.total).toBe(1);
       expect(listMembershipsRes.body.items[0].id).toBe(createdMembershipId);
+
+      // Retrieve membership list using search parameter
+      const searchMembershipsRes = await request(app.getHttpServer())
+        .get(`/api/v1/gym/memberships?search=${enrolledClientId}`)
+        .set('Authorization', `Bearer ${receptionistToken}`)
+        .expect(200);
+
+      expect(searchMembershipsRes.body.total).toBe(1);
+      expect(searchMembershipsRes.body.items[0].id).toBe(createdMembershipId);
     });
   });
 

@@ -96,6 +96,11 @@ export class ListMembershipsQueryDto {
   @IsOptional()
   clientId?: string;
 
+  @ApiPropertyOptional({ example: 'Jack Rivera' })
+  @IsString()
+  @IsOptional()
+  search?: string;
+
   @ApiPropertyOptional({ example: 'plan_123' })
   @IsString()
   @IsOptional()

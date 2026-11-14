@@ -27,6 +27,7 @@ export interface MembershipVM {
 
 export interface ListMembershipsFilterParams {
   clientId?: string;
+  search?: string;
   planId?: string;
   status?: string;
   startDateFrom?: string;

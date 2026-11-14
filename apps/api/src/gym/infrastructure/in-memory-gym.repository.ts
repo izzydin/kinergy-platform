@@ -27,6 +27,18 @@ export class DefaultGymMembershipRepository implements MembershipRepository {
     return Array.from(this.items.values()).filter((m) => m.clientId === clientId);
   }
 
+  async search(query: string): Promise<Membership[]> {
+    const trimmed = query.trim().toLowerCase();
+    if (!trimmed) {
+      return this.findAll();
+    }
+    return Array.from(this.items.values()).filter((m) => {
+      const clientIdMatch = m.clientId.toLowerCase().includes(trimmed);
+      const idMatch = m.id.value.toLowerCase().includes(trimmed);
+      return clientIdMatch || idMatch;
+    });
+  }
+
   async findByTrainerId(trainerId: string): Promise<Membership[]> {
     return Array.from(this.items.values()).filter(
       (m) => m.trainerAssignment?.trainerId === trainerId,

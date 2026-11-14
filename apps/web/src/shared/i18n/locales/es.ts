@@ -337,6 +337,8 @@ export const es: TranslationDictionary = {
     },
   },
   gym: {
+    searchClients: 'Buscar clientes',
+    searchClientsPlaceholder: 'Buscar por nombre o ID del cliente...',
     membershipsTitle: 'Membresías del gimnasio',
     membershipsSubtitle:
       'Gestiona suscripciones activas de miembros, renovaciones y estado de acceso.',

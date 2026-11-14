@@ -44,7 +44,7 @@ export const MembershipsListPage: React.FC = () => {
     resetFilters,
   } = useMembershipFilters();
 
-  const { data, isLoading, isError, error, refetch } = useMemberships(params);
+  const { data, isLoading, isFetching, isError, error, refetch } = useMemberships(params);
   const { renewMembership, freezeMembership, unfreezeMembership, cancelMembership } =
     useMembershipMutations();
 
@@ -81,6 +81,7 @@ export const MembershipsListPage: React.FC = () => {
           status={status}
           planId={planId}
           isFiltered={isFiltered}
+          isSearching={isFetching}
           onSearchChange={setSearch}
           onStatusChange={setStatus}
           onPlanChange={setPlanId}

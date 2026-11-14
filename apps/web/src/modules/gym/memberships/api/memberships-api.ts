@@ -41,6 +41,7 @@ export const membershipsApi = {
     return httpClient.get<PaginatedMembershipsVM>('/api/v1/gym/memberships', {
       params: {
         clientId: params?.clientId,
+        search: params?.search,
         planId: params?.planId,
         status: params?.status,
         startDateFrom: params?.startDateFrom,

@@ -13,6 +13,7 @@ export function useMemberships(params?: ListMembershipsFilterParams) {
   return useQuery({
     queryKey: membershipsQueryKeys.list(params),
     queryFn: () => membershipsApi.listMemberships(params),
+    placeholderData: (previousData) => previousData,
     staleTime: 30 * 1000,
   });
 }

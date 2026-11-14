@@ -335,6 +335,75 @@ describe('Gym Management Genuine Database Persistence Integration (ADR-0080)', (
       expect(frozenRetrieved!.freezeHistory[0]?.reason).toBe('Vacation');
       expect(frozenRetrieved!.freezeHistory[0]?.durationDays).toBe(10);
     });
+
+    it('searches memberships by client ID and matching client name', async () => {
+      if (shouldSkipDueToMissingDatabase()) return;
+
+      const planRepo = new PrismaMembershipPlanRepository(prisma);
+      const memberRepo = new PrismaMembershipRepository(prisma);
+
+      const uniqueSuffix = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+      const plan = MembershipPlan.create(
+        {
+          code: PlanCode.create(`SRCH_PLAN_${uniqueSuffix}`),
+          name: 'Search Verification Plan',
+          duration: PlanDuration.ofDays(30),
+          price: PlanPrice.create(45.0, 'USD'),
+          status: PlanStatus.ACTIVE,
+        },
+        clock.now(),
+      );
+      createdPlanIds.push(plan.id.value);
+      await planRepo.save(plan);
+
+      // Create a test client directly in DB
+      const testClient = await prisma.client.create({
+        data: {
+          referenceNumber: `CLI-${uniqueSuffix}`,
+          firstName: 'SearchableFirst',
+          lastName: 'SearchableLast',
+          email: `search_${uniqueSuffix}@example.com`,
+          phone: `+591 7000${uniqueSuffix.slice(-4)}`,
+          normalizedEmail: `search_${uniqueSuffix}@example.com`.toLowerCase(),
+          normalizedPhone: `7000${uniqueSuffix.slice(-4)}`,
+          normalizedSearchName: 'searchablefirst searchablelast',
+          status: 'ACTIVE',
+        },
+      });
+
+      const membership = Membership.create(
+        {
+          clientId: testClient.id,
+          planId: plan.id.value,
+          period: MembershipPeriod.create(
+            new Date(),
+            new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+          ),
+        },
+        clock,
+      );
+      createdMembershipIds.push(membership.id.value);
+      await memberRepo.save(membership);
+
+      // Search by partial client ID
+      const byClientId = await memberRepo.search(testClient.id.slice(0, 8));
+      expect(byClientId.some((m) => m.id.value === membership.id.value)).toBe(true);
+
+      // Search by client reference number
+      const byRef = await memberRepo.search(`CLI-${uniqueSuffix}`);
+      expect(byRef.some((m) => m.id.value === membership.id.value)).toBe(true);
+
+      // Search by full name (case-insensitive)
+      const byName = await memberRepo.search('searchablefirst searchablelast');
+      expect(byName.some((m) => m.id.value === membership.id.value)).toBe(true);
+
+      // Search by partial last name
+      const byPartial = await memberRepo.search('SearchableL');
+      expect(byPartial.some((m) => m.id.value === membership.id.value)).toBe(true);
+
+      // Cleanup test client
+      await prisma.client.delete({ where: { id: testClient.id } }).catch(() => {});
+    });
   });
 
   describe('3. Attendance Record Write-Once Audit Persistence', () => {

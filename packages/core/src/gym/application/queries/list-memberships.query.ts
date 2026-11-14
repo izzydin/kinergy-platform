@@ -3,6 +3,7 @@ import { MembershipStatus } from '../../domain/membership/membership-status.enum
 
 export interface ListMembershipsFilter {
   readonly clientId?: string;
+  readonly search?: string;
   readonly planId?: string;
   readonly status?: MembershipStatus | string;
   readonly startDateFrom?: string | Date;

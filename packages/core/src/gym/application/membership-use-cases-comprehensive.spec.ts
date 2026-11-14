@@ -399,6 +399,44 @@ describe('Phase 5.7-B: Comprehensive Membership Application Use Cases Spec', () 
       expect(dto.items[1]!.id).toBe('mem_001');
     });
 
+    it('ListMembershipsHandler delegates to membershipRepo.search when search query is provided', async () => {
+      const m1 = createMembership('mem_001', 'client_jack', MembershipStatus.ACTIVE);
+      membershipRepo.search = jest.fn().mockResolvedValue([m1]);
+
+      const handler = new ListMembershipsHandler(membershipRepo);
+      const result = await handler.execute(
+        new ListMembershipsQuery({
+          search: 'Jack',
+          page: 1,
+          limit: 10,
+        }),
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(membershipRepo.search).toHaveBeenCalledWith('Jack');
+      expect(result.getValue().items.length).toBe(1);
+      expect(result.getValue().items[0]!.id).toBe('mem_001');
+    });
+
+    it('ListMembershipsHandler falls back to findByClientId when search method is absent', async () => {
+      const m1 = createMembership('mem_001', 'client_123', MembershipStatus.ACTIVE);
+      delete (membershipRepo as Partial<MembershipRepository>).search;
+      membershipRepo.findByClientId.mockResolvedValue([m1]);
+
+      const handler = new ListMembershipsHandler(membershipRepo);
+      const result = await handler.execute(
+        new ListMembershipsQuery({
+          search: 'client_123',
+          page: 1,
+          limit: 10,
+        }),
+      );
+
+      expect(result.isSuccess).toBe(true);
+      expect(membershipRepo.findByClientId).toHaveBeenCalledWith('client_123');
+      expect(result.getValue().items.length).toBe(1);
+    });
+
     it('ListExpiredMembershipsHandler returns strictly expired memberships', async () => {
       const m1 = createMembership('mem_001', 'client_001', MembershipStatus.ACTIVE);
       const m2 = createMembership('mem_002', 'client_001', MembershipStatus.EXPIRED);

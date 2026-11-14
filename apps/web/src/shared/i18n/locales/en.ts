@@ -330,6 +330,8 @@ export const en = {
     },
   },
   gym: {
+    searchClients: 'Search clients',
+    searchClientsPlaceholder: 'Search by client name or ID...',
     membershipsTitle: 'Gym Memberships',
     membershipsSubtitle: 'Manage active member subscriptions, renewals, and access status.',
     newMembership: 'New Membership',
