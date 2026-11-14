@@ -15,10 +15,12 @@ import { CompleteSessionModal } from '../components/complete-session-modal';
 import { SoapNotesFormData } from '../schemas/session-notes.schema';
 import { AssignTherapistFormData } from '../schemas/assign-therapist.schema';
 import { CancelSessionFormData } from '../schemas/cancel-session.schema';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export const TreatmentSessionWorkspacePage: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const { locale, t } = useTranslation();
 
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
@@ -180,12 +182,17 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
               <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 pb-4">
                 <div className="space-y-1">
                   <div className="flex items-center space-x-3">
-                    <h1 className="text-2xl font-bold text-slate-900">Treatment Session Detail</h1>
+                    <h1 className="text-2xl font-bold text-slate-900">
+                      {locale === 'es'
+                        ? t('kinesiology.workspaceTitle', 'Espacio de sesión de tratamiento')
+                        : 'Treatment Session Detail'}
+                    </h1>
                     <SessionStatusBadge status={session.status} />
                   </div>
                   <p className="text-xs text-slate-500">
-                    Session ID: <span className="font-mono">{session.id}</span> • Version:{' '}
-                    {session.version}
+                    {locale === 'es' ? 'ID de sesión:' : 'Session ID:'}{' '}
+                    <span className="font-mono">{session.id}</span> •{' '}
+                    {locale === 'es' ? 'Versión:' : 'Version:'} {session.version}
                   </p>
                 </div>
 
@@ -197,7 +204,13 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
                       onClick={handleStartSession}
                       disabled={isAnyMutationPending}
                     >
-                      {startSession.isPending ? 'Starting...' : 'Start Session'}
+                      {startSession.isPending
+                        ? locale === 'es'
+                          ? 'Iniciando...'
+                          : 'Starting...'
+                        : locale === 'es'
+                          ? t('scheduling.startSession', 'Iniciar sesión')
+                          : 'Start Session'}
                     </Button>
                   )}
 
@@ -207,7 +220,13 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
                       onClick={() => setIsCompleteModalOpen(true)}
                       disabled={isAnyMutationPending}
                     >
-                      {completeSession.isPending ? 'Signing Off...' : 'Sign & Complete'}
+                      {completeSession.isPending
+                        ? locale === 'es'
+                          ? 'Finalizando...'
+                          : 'Signing Off...'
+                        : locale === 'es'
+                          ? t('kinesiology.completeSession', 'Completar sesión')
+                          : 'Sign & Complete'}
                     </Button>
                   )}
 

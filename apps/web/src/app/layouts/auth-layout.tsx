@@ -1,6 +1,8 @@
 import { Zap } from 'lucide-react';
 import React from 'react';
 import { Outlet } from 'react-router-dom';
+import { useTranslation } from '../providers/locale-provider';
+import { LanguageSelector } from '../../shared/i18n/language-selector';
 
 export interface AuthLayoutProps {
   children?: React.ReactNode;
@@ -23,8 +25,15 @@ export interface AuthLayoutProps {
  * - Zero authentication checking
  */
 export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, header, footer }) => {
+  const { t } = useTranslation();
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-background p-4 text-foreground">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-background p-4 text-foreground">
+      {/* Top-right Language Selector for Login / Public Screens */}
+      <div className="absolute top-4 right-4">
+        <LanguageSelector variant="compact" />
+      </div>
+
       {/* Branding Header Extension Point */}
       <div className="mb-8 flex items-center gap-3 font-bold text-2xl tracking-tight">
         {header || (
@@ -46,7 +55,12 @@ export const AuthLayout: React.FC<AuthLayoutProps> = ({ children, header, footer
 
       {/* Footer Links Extension Point */}
       <footer className="mt-8 text-center text-xs text-muted-foreground">
-        {footer || <>&copy; {new Date().getFullYear()} Kinergy Platform. All rights reserved.</>}
+        {footer || (
+          <>
+            &copy; {new Date().getFullYear()}{' '}
+            {t('auth.footerCopyright', 'Kinergy Platform. All rights reserved.')}
+          </>
+        )}
       </footer>
     </div>
   );

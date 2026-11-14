@@ -3,6 +3,7 @@ import { Inbox, SearchX, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import React from 'react';
 import { cn } from '../../lib/utils';
 import type { DataTableEmptyProps } from '../types/data-table.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 /**
  * DataTableEmpty Component
@@ -21,24 +22,48 @@ export function DataTableEmpty({
   action,
   className,
 }: DataTableEmptyProps): React.ReactElement {
-  const defaultTitle = isFiltered
-    ? 'No matching records found'
-    : isUnauthorized
-      ? 'Access restricted'
-      : isHealthy
-        ? 'All records operational'
-        : 'No records available';
+  const { locale, t } = useTranslation();
 
-  const defaultDescription = isFiltered
-    ? 'Try adjusting your search terms or clearing active filters to view available records.'
-    : isUnauthorized
-      ? 'You do not have the required permissions to view records in this table.'
-      : isHealthy
-        ? 'All items currently meet operational baselines. No attention or corrective actions required.'
-        : 'There are currently no items registered in this section.';
+  const defaultTitle =
+    locale === 'es'
+      ? isFiltered
+        ? t('common.noResults', 'No se encontraron registros coincidentes.')
+        : isUnauthorized
+          ? t('auth.forbiddenTitle', 'Acceso denegado')
+          : isHealthy
+            ? 'Todos los registros operativos'
+            : t('crud.emptyTitle', 'No se encontraron registros')
+      : isFiltered
+        ? 'No matching records found'
+        : isUnauthorized
+          ? 'Access restricted'
+          : isHealthy
+            ? 'All records operational'
+            : 'No records available';
 
-  const resolvedTitle = title ?? defaultTitle;
-  const resolvedDescription = description ?? defaultDescription;
+  const defaultDescription =
+    locale === 'es'
+      ? isFiltered
+        ? 'Intenta ajustar tus términos de búsqueda o limpiar los filtros activos.'
+        : isUnauthorized
+          ? t('auth.forbiddenMessage', 'No tienes permisos para ver esta página.')
+          : isHealthy
+            ? 'Todos los elementos cumplen con los parámetros operativos.'
+            : t('crud.emptyDescription', 'No hay elementos para mostrar en este momento.')
+      : isFiltered
+        ? 'Try adjusting your search terms or clearing active filters to view available records.'
+        : isUnauthorized
+          ? 'You do not have the required permissions to view records in this table.'
+          : isHealthy
+            ? 'All items currently meet operational baselines. No attention or corrective actions required.'
+            : 'There are currently no items registered in this section.';
+
+  const resolvedTitle = title ? (locale === 'es' ? t(title, title) : title) : defaultTitle;
+  const resolvedDescription = description
+    ? locale === 'es'
+      ? t(description, description)
+      : description
+    : defaultDescription;
 
   const renderIcon = () => {
     if (isFiltered) {
@@ -77,7 +102,7 @@ export function DataTableEmpty({
         {action}
         {isFiltered && onResetFilters && (
           <Button type="button" variant="outline" size="sm" onClick={onResetFilters}>
-            Reset Filters
+            {locale === 'es' ? t('common.clearFilters', 'Limpiar filtros') : 'Reset Filters'}
           </Button>
         )}
       </div>

@@ -1,7 +1,10 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export const SettingsNavTabs: React.FC = () => {
+  const { locale, t } = useTranslation();
+
   return (
     <nav
       aria-label="Settings Navigation"
@@ -17,7 +20,7 @@ export const SettingsNavTabs: React.FC = () => {
           }`
         }
       >
-        General Preferences
+        {locale === 'es' ? t('settings.tabs.general', 'General e idioma') : 'General Preferences'}
       </NavLink>
       <NavLink
         to="/settings/security"
@@ -29,7 +32,9 @@ export const SettingsNavTabs: React.FC = () => {
           }`
         }
       >
-        Security Controls
+        {locale === 'es'
+          ? t('settings.tabs.security', 'Seguridad y contraseña')
+          : 'Security Controls'}
       </NavLink>
     </nav>
   );

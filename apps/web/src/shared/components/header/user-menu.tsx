@@ -1,6 +1,7 @@
-import { LogOut, Shield } from 'lucide-react';
+import { Globe, LogOut, Shield } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../../app/providers/auth-provider';
+import { useLocale } from '../../../app/providers/locale-provider';
 import { Avatar, AvatarFallback, Badge, Spinner } from '@kinergy-platform/ui';
 
 export interface UserMenuProps {
@@ -53,6 +54,7 @@ export function getUserInitials(name?: string | null, email?: string | null): st
  */
 export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
   const { currentUser, logout } = useAuth();
+  const { locale, setLocale, t } = useLocale();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -180,6 +182,49 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
               </div>
             </div>
 
+            {/* Language Preference Switcher */}
+            <div
+              role="group"
+              aria-label={t('nav.switchLanguage', 'Interface Language')}
+              className="border-b border-border/50 py-2.5 px-1 space-y-1.5"
+              data-testid="user-menu-language-selector"
+            >
+              <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground px-1">
+                <Globe className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+                <span>{t('common.language', 'Language')}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1">
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={locale === 'en'}
+                  data-testid="user-menu-lang-en"
+                  onClick={() => setLocale('en')}
+                  className={`rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    locale === 'en'
+                      ? 'bg-background text-foreground shadow-sm font-semibold'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  English
+                </button>
+                <button
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={locale === 'es'}
+                  data-testid="user-menu-lang-es"
+                  onClick={() => setLocale('es')}
+                  className={`rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                    locale === 'es'
+                      ? 'bg-background text-foreground shadow-sm font-semibold'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Español
+                </button>
+              </div>
+            </div>
+
             {/* Menu Items (Minimal scope: Current User Info + Logout) */}
             <div className="pt-2 space-y-1">
               <button
@@ -195,7 +240,11 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
                 ) : (
                   <LogOut className="h-4 w-4" />
                 )}
-                <span>{isLoggingOut ? 'Signing out...' : 'Sign Out'}</span>
+                <span>
+                  {isLoggingOut
+                    ? t('nav.signingOut', 'Signing out...')
+                    : t('nav.signOut', 'Sign Out')}
+                </span>
               </button>
             </div>
           </div>

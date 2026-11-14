@@ -11,6 +11,7 @@ import { DashboardMetricsSection } from '../components/dashboard-metrics-section
 import { DashboardTodaysSchedule } from '../components/dashboard-todays-schedule';
 import { DashboardNeedsAttention } from '../components/dashboard-needs-attention';
 import { DashboardQuickActions } from '../components/dashboard-quick-actions';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 /**
  * Kinergy Main Operational Business Dashboard (/dashboard)
@@ -22,6 +23,7 @@ import { DashboardQuickActions } from '../components/dashboard-quick-actions';
 export const DashboardOverviewPage: React.FC = () => {
   const { roleLabel, canViewAppointments } = useDashboardAccess();
   const businessDay = getTodayOperationalBusinessDay();
+  const { locale, t, formatDate } = useTranslation();
 
   return (
     <div className="space-y-6 pb-8" data-testid="operational-dashboard-page">
@@ -35,7 +37,9 @@ export const DashboardOverviewPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2.5 flex-wrap">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Dashboard Overview
+              {locale === 'es'
+                ? t('dashboard.title', 'Panel principal operativo')
+                : 'Dashboard Overview'}
             </h1>
             <Badge
               variant="secondary"
@@ -46,7 +50,14 @@ export const DashboardOverviewPage: React.FC = () => {
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1 flex items-center gap-1.5 flex-wrap">
-            <span>Daily facility operations, schedule, and actionable alerts</span>
+            <span>
+              {locale === 'es'
+                ? t(
+                    'dashboard.subtitle',
+                    'Actividad clínica, de gimnasio, inventario y comercial en tiempo real para hoy.',
+                  )
+                : 'Daily facility operations, schedule, and actionable alerts'}
+            </span>
             <span aria-hidden="true">·</span>
             <span
               className="inline-flex items-center gap-1 font-medium text-foreground/80"
@@ -54,7 +65,16 @@ export const DashboardOverviewPage: React.FC = () => {
             >
               <Clock className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
               <span>
-                {businessDay.displayLabel} ({OPERATIONAL_FACILITY_TIMEZONE})
+                {locale === 'es'
+                  ? formatDate(`${businessDay.dateStr}T12:00:00.000Z`, {
+                      timeZone: 'UTC',
+                      weekday: 'short',
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })
+                  : businessDay.displayLabel}{' '}
+                ({OPERATIONAL_FACILITY_TIMEZONE})
               </span>
             </span>
           </p>

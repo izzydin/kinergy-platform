@@ -3,6 +3,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { useBreadcrumbs } from './breadcrumb-provider';
 import type { BreadcrumbItem } from './breadcrumb.types';
+import { useTranslation } from '../providers/locale-provider';
 
 export interface BreadcrumbProps {
   /** Optional custom CSS classes */
@@ -18,6 +19,7 @@ export interface BreadcrumbProps {
  */
 export const Breadcrumb: React.FC<BreadcrumbProps> = ({ className = '', maxItems = 4 }) => {
   const { breadcrumbs } = useBreadcrumbs();
+  const { t } = useTranslation();
 
   if (!breadcrumbs || breadcrumbs.length === 0) {
     return null;
@@ -40,6 +42,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ className = '', maxItems
 
           const isLast = index === displayItems.length - 1;
           const IconComponent = typeof item.icon === 'function' ? item.icon : undefined;
+          const localizedLabel = item.label === '...' ? '...' : t(item.label, item.label);
 
           return (
             <li key={item.id} className="inline-flex items-center gap-1.5">
@@ -58,7 +61,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ className = '', maxItems
                   }`}
                 >
                   {IconComponent && <IconComponent className="h-3.5 w-3.5 shrink-0" />}
-                  <span>{item.label}</span>
+                  <span>{localizedLabel}</span>
                 </span>
               ) : (
                 <Link
@@ -66,7 +69,7 @@ export const Breadcrumb: React.FC<BreadcrumbProps> = ({ className = '', maxItems
                   className="flex items-center gap-1 text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded px-1"
                 >
                   {IconComponent && <IconComponent className="h-3.5 w-3.5 shrink-0" />}
-                  <span>{item.label}</span>
+                  <span>{localizedLabel}</span>
                 </Link>
               )}
             </li>

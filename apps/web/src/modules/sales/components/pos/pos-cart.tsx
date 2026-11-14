@@ -12,6 +12,7 @@ import { ShoppingCart, Trash2, Percent, Tag, AlertCircle } from 'lucide-react';
 import type { PosCartItem, PosDiscount } from './pos-types';
 import { PosCartItemRow } from './pos-cart-item';
 import { formatMoneyCents } from '../../utils/financial-math';
+import { useTranslation } from '../../../../app/providers/locale-provider';
 
 export interface PosCartProps {
   items: PosCartItem[];
@@ -34,6 +35,7 @@ export const PosCart: React.FC<PosCartProps> = ({
   onSetOrderDiscount,
   disabled = false,
 }) => {
+  const { t } = useTranslation();
   const [showDiscountInput, setShowDiscountInput] = useState(Boolean(orderDiscount));
   const [discountType, setDiscountType] = useState<'PERCENTAGE' | 'FIXED'>(
     orderDiscount?.type || 'PERCENTAGE',
@@ -83,9 +85,9 @@ export const PosCart: React.FC<PosCartProps> = ({
       <CardHeader className="p-4 pb-2 border-b border-border flex flex-row items-center justify-between">
         <CardTitle className="text-sm font-semibold flex items-center gap-2">
           <ShoppingCart className="h-4 w-4 text-primary" />
-          <span>Current Transaction</span>
+          <span>{t('sales.currentTransaction', 'Current Transaction')}</span>
           <Badge variant="secondary" className="text-[11px] font-mono px-1.5 py-0">
-            {items.reduce((acc, it) => acc + it.quantity, 0)} items
+            {items.reduce((acc, it) => acc + it.quantity, 0)} {t('sales.itemPlural', 'items')}
           </Badge>
         </CardTitle>
 
@@ -99,7 +101,7 @@ export const PosCart: React.FC<PosCartProps> = ({
             className="h-7 text-xs text-muted-foreground hover:text-destructive px-2"
             data-testid="pos-clear-cart-btn"
           >
-            <Trash2 className="h-3 w-3 mr-1" /> Clear
+            <Trash2 className="h-3 w-3 mr-1" /> {t('common.clear', 'Clear')}
           </Button>
         )}
       </CardHeader>
@@ -112,9 +114,14 @@ export const PosCart: React.FC<PosCartProps> = ({
             data-testid="pos-empty-cart"
           >
             <ShoppingCart className="h-7 w-7 text-muted-foreground/60 mx-auto" />
-            <p className="text-xs font-semibold text-foreground">Cart is Empty</p>
+            <p className="text-xs font-semibold text-foreground">
+              {t('sales.cartIsEmpty', 'Cart is Empty')}
+            </p>
             <p className="text-[11px] text-muted-foreground max-w-[200px] mx-auto">
-              Select items from the catalog on the left to add them to this sale.
+              {t(
+                'sales.cartEmptyDescription',
+                'Select items from the catalog on the left to add them to this sale.',
+              )}
             </p>
           </div>
         ) : (
@@ -250,7 +257,7 @@ export const PosCart: React.FC<PosCartProps> = ({
         {items.length > 0 && (
           <div className="pt-2 border-t border-border space-y-1.5 text-xs">
             <div className="flex justify-between py-0.5 text-muted-foreground">
-              <span>Subtotal:</span>
+              <span>{t('sales.subtotal', 'Subtotal')}:</span>
               <span className="font-mono font-medium" data-testid="pos-subtotal">
                 {formatMoneyCents(subtotalCents, currency)}
               </span>
@@ -259,8 +266,8 @@ export const PosCart: React.FC<PosCartProps> = ({
             {discountCents > 0 && (
               <div className="flex justify-between py-0.5 text-emerald-600 dark:text-emerald-400">
                 <span>
-                  Discount {orderDiscount?.type === 'PERCENTAGE' ? `(${orderDiscount.value}%)` : ''}
-                  :
+                  {t('sales.discount', 'Discount')}{' '}
+                  {orderDiscount?.type === 'PERCENTAGE' ? `(${orderDiscount.value}%)` : ''}:
                 </span>
                 <span className="font-mono font-medium" data-testid="pos-discount">
                   - {formatMoneyCents(discountCents, currency)}
@@ -269,7 +276,7 @@ export const PosCart: React.FC<PosCartProps> = ({
             )}
 
             <div className="flex justify-between py-1.5 border-t border-border text-base font-bold text-foreground">
-              <span>Net Total Due:</span>
+              <span>{t('sales.netTotalDue', 'Net Total Due')}:</span>
               <span className="font-mono text-primary" data-testid="pos-net-total">
                 {formatMoneyCents(netTotalCents, currency)}
               </span>

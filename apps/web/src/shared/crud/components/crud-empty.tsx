@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Button } from '@kinergy-platform/ui';
 import { FolderOpen, SearchX, RotateCcw, ShieldAlert, CheckCircle2 } from 'lucide-react';
 import type { CrudEmptyProps } from '../types/crud-state.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export const CrudEmpty: React.FC<CrudEmptyProps> = ({
   type = 'dataset',
@@ -11,28 +12,50 @@ export const CrudEmpty: React.FC<CrudEmptyProps> = ({
   onResetFilters,
   className = '',
 }) => {
+  const { locale, t } = useTranslation();
   const isFiltered = type === 'filtered';
   const isUnauthorized = type === 'unauthorized';
   const isHealthy = type === 'healthy';
 
-  const defaultTitle = isFiltered
-    ? 'No matching records found'
-    : isUnauthorized
-      ? 'Access restricted'
-      : isHealthy
-        ? 'All items operational'
-        : 'No records found';
+  const defaultTitle =
+    locale === 'es'
+      ? isFiltered
+        ? t('common.noResults', 'No se encontraron registros coincidentes.')
+        : isUnauthorized
+          ? t('auth.forbiddenTitle', 'Acceso denegado')
+          : isHealthy
+            ? t('dashboard.attention.allClearTitle', 'Todas las colas operativas están al día')
+            : t('crud.emptyTitle', 'No se encontraron registros')
+      : isFiltered
+        ? 'No matching records found'
+        : isUnauthorized
+          ? 'Access restricted'
+          : isHealthy
+            ? 'All items operational'
+            : 'No records found';
 
-  const defaultDescription = isFiltered
-    ? 'No records match your active search or filter criteria. Try clearing search or resetting filters.'
-    : isUnauthorized
-      ? 'You do not have sufficient permissions to view the contents of this section.'
-      : isHealthy
-        ? 'All records meet operational baselines. No attention or corrective action required.'
-        : 'There are currently no records available. Create your first record to get started.';
+  const defaultDescription =
+    locale === 'es'
+      ? isFiltered
+        ? 'Ningún registro coincide con tu búsqueda o filtros activos. Intenta limpiar la búsqueda o restablecer los filtros.'
+        : isUnauthorized
+          ? t('auth.forbiddenMessage', 'No tienes permisos para ver esta página.')
+          : isHealthy
+            ? t(
+                'dashboard.attention.allClearDescription',
+                'No hay alertas críticas ni elementos pendientes que requieran acción inmediata.',
+              )
+            : t('crud.emptyDescription', 'No hay elementos para mostrar en este momento.')
+      : isFiltered
+        ? 'No records match your active search or filter criteria. Try clearing search or resetting filters.'
+        : isUnauthorized
+          ? 'You do not have sufficient permissions to view the contents of this section.'
+          : isHealthy
+            ? 'All records meet operational baselines. No attention or corrective action required.'
+            : 'There are currently no records available. Create your first record to get started.';
 
-  const displayTitle = title ?? defaultTitle;
-  const displayDescription = description ?? defaultDescription;
+  const displayTitle = title ? t(title, title) : defaultTitle;
+  const displayDescription = description ? t(description, description) : defaultDescription;
 
   const renderIcon = () => {
     if (isFiltered) {
@@ -79,7 +102,7 @@ export const CrudEmpty: React.FC<CrudEmptyProps> = ({
           aria-label="Reset active search and filters"
         >
           <RotateCcw className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
-          Reset Filters
+          {locale === 'es' ? t('common.clearFilters', 'Limpiar filtros') : 'Reset Filters'}
         </Button>
       ) : null}
     </div>

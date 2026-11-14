@@ -14,6 +14,7 @@ import {
   StateView,
 } from '@kinergy-platform/ui';
 import { useUserProfileQuery } from '../api/settings-queries';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Skeleton Fallback
@@ -68,6 +69,7 @@ export const SettingsProfileSection: React.FC<SettingsProfileSectionProps> = ({
   simulationState,
 }) => {
   const { data: profile, isLoading, isError, error, refetch } = useUserProfileQuery();
+  const { locale, t, formatDate } = useTranslation();
 
   // When simulationState is explicitly provided (dev panel / test harness),
   // derive effective flags PURELY from the override — do NOT mix with TanStack
@@ -84,10 +86,18 @@ export const SettingsProfileSection: React.FC<SettingsProfileSectionProps> = ({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Authenticated User Profile</CardTitle>
+            <CardTitle>
+              {locale === 'es'
+                ? t('settings.profile.title', 'Perfil del empleado autenticado')
+                : 'Authenticated User Profile'}
+            </CardTitle>
             <CardDescription>
-              Demonstrates async 4-State Contract (Loading/Skeleton, Error, Empty, Success) via
-              useUserProfileQuery + StateView.
+              {locale === 'es'
+                ? t(
+                    'settings.profile.subtitle',
+                    'Identidad y permisos de rol asignados a tu sesión activa.',
+                  )
+                : 'Demonstrates async 4-State Contract (Loading/Skeleton, Error, Empty, Success) via useUserProfileQuery + StateView.'}
             </CardDescription>
           </div>
           <Badge variant="secondary">A5.6 Profile State</Badge>
@@ -102,11 +112,15 @@ export const SettingsProfileSection: React.FC<SettingsProfileSectionProps> = ({
           errorMessage={error?.message ?? 'Failed to load user profile from settings service.'}
           onRetry={() => void refetch()}
           isEmpty={effectiveEmpty}
-          emptyTitle="No Profile Found"
-          emptyDescription="No authenticated user profile is associated with this session context."
+          emptyTitle={locale === 'es' ? 'No se encontró perfil' : 'No Profile Found'}
+          emptyDescription={
+            locale === 'es'
+              ? 'No hay ningún perfil de usuario autenticado asociado a esta sesión.'
+              : 'No authenticated user profile is associated with this session context.'
+          }
           emptyAction={
             <Button variant="outline" size="sm" onClick={() => void refetch()}>
-              Retry Profile Fetch
+              {locale === 'es' ? 'Reintentar carga de perfil' : 'Retry Profile Fetch'}
             </Button>
           }
         >
@@ -133,8 +147,8 @@ export const SettingsProfileSection: React.FC<SettingsProfileSectionProps> = ({
                   <p className="font-semibold text-foreground text-sm">{profile.displayName}</p>
                   <p className="text-xs text-muted-foreground">{profile.email}</p>
                   <p className="text-xs text-muted-foreground">
-                    Member since:{' '}
-                    {new Date(profile.createdAt).toLocaleDateString('en-US', {
+                    {locale === 'es' ? 'Miembro desde:' : 'Member since:'}{' '}
+                    {formatDate(profile.createdAt, {
                       year: 'numeric',
                       month: 'long',
                     })}

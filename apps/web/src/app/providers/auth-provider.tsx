@@ -76,3 +76,12 @@ export const useAuth = (): AuthContextState => {
   }
   return context;
 };
+
+/**
+ * `useOptionalAuth` — Non-throwing consumer hook for contexts (such as `LocaleProvider`)
+ * that synchronize with the authenticated employee when inside `<AuthProvider>`,
+ * while remaining safe to render standalone in isolated unit tests.
+ */
+export const useOptionalAuth = (): AuthContextState | undefined => {
+  return useContext(AuthContext);
+};

@@ -12,6 +12,7 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '../../../../app/providers/auth-provider';
+import { useTranslation } from '../../../../app/providers/locale-provider';
 import { useResourceOverview } from '../hooks';
 import {
   OverallResourceValueCard,
@@ -22,6 +23,7 @@ import {
 
 export const ResourceOverviewPage: React.FC = () => {
   const { currentUser, hasPermission, hasRole } = useAuth();
+  const { t } = useTranslation();
   const [includeArchived, setIncludeArchived] = React.useState(false);
 
   // Administrative or composed permission check aligned with NestJS ResourceOverviewController:
@@ -211,17 +213,21 @@ export const ResourceOverviewPage: React.FC = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Resource Overview</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              {t('Resource Overview', 'Resource Overview')}
+            </h1>
             <Badge
               variant="outline"
               className="hidden sm:inline-flex border-primary/40 text-primary"
             >
-              Enterprise Dashboard
+              {t('resources.enterpriseDashboard', 'Enterprise Dashboard')}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Live operational status and consolidated balance sheet valuation across consumable
-            inventory and fixed assets.
+            {t(
+              'Live operational status and consolidated balance sheet valuation across consumable inventory and fixed assets.',
+              'Live operational status and consolidated balance sheet valuation across consumable inventory and fixed assets.',
+            )}
           </p>
         </div>
 
@@ -235,7 +241,7 @@ export const ResourceOverviewPage: React.FC = () => {
               className="h-3.5 w-3.5 rounded border-border text-primary focus:ring-primary"
               aria-label="Include soft-archived and retired items in overview"
             />
-            <span>Include Archived</span>
+            <span>{t('resources.includeArchived', 'Include Archived')}</span>
           </label>
 
           <Button
@@ -247,18 +253,18 @@ export const ResourceOverviewPage: React.FC = () => {
             className="h-8 text-xs"
           >
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('common.refresh', 'Refresh')}
           </Button>
 
           <Button asChild variant="outline" size="sm" className="h-8 text-xs">
             <Link to="/resources/inventory">
-              <Boxes className="mr-1.5 h-3.5 w-3.5" /> Inventory
+              <Boxes className="mr-1.5 h-3.5 w-3.5" /> {t('breadcrumbs.inventory', 'Inventory')}
             </Link>
           </Button>
 
           <Button asChild variant="outline" size="sm" className="h-8 text-xs">
             <Link to="/resources/assets">
-              <Landmark className="mr-1.5 h-3.5 w-3.5" /> Fixed Assets
+              <Landmark className="mr-1.5 h-3.5 w-3.5" /> {t('nav.assets', 'Fixed Assets')}
             </Link>
           </Button>
         </div>

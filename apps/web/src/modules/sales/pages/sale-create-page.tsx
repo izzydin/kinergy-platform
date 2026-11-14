@@ -30,6 +30,7 @@ import { createSaleSchema, type CreateSaleFormData } from '../schemas/create-sal
 import { useCreateSale } from '../hooks/use-sales-mutations';
 import { VALID_SALE_SOURCE_TYPES } from '../types/sales.types';
 import { useAuth } from '../../../app/providers/auth-provider';
+import { useTranslation } from '../../../app/providers/locale-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { SALES_ROUTES } from '../routes/sales-routes';
 import { formatMoneyCents, toCents } from '../utils/financial-math';
@@ -64,6 +65,7 @@ export const SOURCE_TYPE_LABELS: Record<string, string> = {
 export const SaleCreatePage: React.FC = () => {
   const navigate = useNavigate();
   const auth = useAuth();
+  const { t } = useTranslation();
   const createSaleMutation = useCreateSale();
 
   // Permission check: sales.create
@@ -244,15 +246,13 @@ export const SaleCreatePage: React.FC = () => {
     setPosCartItems([]);
   };
 
-  const handleStartNewSale = (preserveClient: boolean = false) => {
+  const handleStartNewSale = () => {
     posCheckout.resetPos();
     setPosCartItems([]);
-    if (!preserveClient) {
-      setPosClientId('');
-      setPosSelectedClient(null);
-      setPosIsWalkIn(false);
-      setValue('clientId', '', { shouldDirty: true });
-    }
+    setPosClientId('');
+    setPosSelectedClient(null);
+    setPosIsWalkIn(false);
+    setValue('clientId', '', { shouldDirty: true });
     setPosOrderDiscount(undefined);
   };
 
@@ -366,23 +366,37 @@ export const SaleCreatePage: React.FC = () => {
             data-testid="back-to-directory-btn"
           >
             <Link to={SALES_ROUTES.list()}>
-              <ArrowLeft className="h-4 w-4" /> Back to Directory
+              <ArrowLeft className="h-4 w-4" /> {t('sales.backToDirectory', 'Back to Directory')}
             </Link>
           </Button>
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                {viewMode === 'pos' ? 'Point of Sale (POS) Station' : 'Create Commercial Sale'}
+                {viewMode === 'pos'
+                  ? t('sales.posTitle', 'Point of Sale (POS) Station')
+                  : t('sales.createCommercialSale', 'Create Commercial Sale')}
               </h1>
-              {viewMode === 'pos' && <h2 className="sr-only">Create Commercial Sale</h2>}
+              {viewMode === 'pos' && (
+                <h2 className="sr-only">
+                  {t('sales.createCommercialSale', 'Create Commercial Sale')}
+                </h2>
+              )}
               <Badge variant="outline" className="text-xs">
-                {viewMode === 'pos' ? 'Live POS Terminal' : 'DRAFT Session'}
+                {viewMode === 'pos'
+                  ? t('sales.livePosTerminal', 'Live POS Terminal')
+                  : t('sales.draftSession', 'DRAFT Session')}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               {viewMode === 'pos'
-                ? 'Quick checkout for gym memberships, clinical therapy sessions, cafe meals, beverages, and facility room rentals.'
-                : 'Initialize a commercial checkout agreement. Line items and discounts will be authoritatively computed upon submission.'}
+                ? t(
+                    'sales.posSubtitle',
+                    'Quick checkout for gym memberships, clinical therapy sessions, cafe meals, beverages, and facility room rentals.',
+                  )
+                : t(
+                    'sales.manualSubtitle',
+                    'Initialize a commercial checkout agreement. Line items and discounts will be authoritatively computed upon submission.',
+                  )}
             </p>
           </div>
         </div>
@@ -397,7 +411,8 @@ export const SaleCreatePage: React.FC = () => {
             className="h-7 text-xs px-2.5 font-medium"
             data-testid="switch-to-pos-view-btn"
           >
-            <ShoppingBag className="h-3.5 w-3.5 mr-1" /> Point of Sale (POS)
+            <ShoppingBag className="h-3.5 w-3.5 mr-1" />{' '}
+            {t('sales.pointOfSaleView', 'Point of Sale (POS)')}
           </Button>
           <Button
             type="button"
@@ -407,7 +422,8 @@ export const SaleCreatePage: React.FC = () => {
             className="h-7 text-xs px-2.5 font-medium"
             data-testid="switch-to-manual-view-btn"
           >
-            <Tag className="h-3.5 w-3.5 mr-1" /> Standard Agreement Form
+            <Tag className="h-3.5 w-3.5 mr-1" />{' '}
+            {t('sales.standardAgreementForm', 'Standard Agreement Form')}
           </Button>
         </div>
       </div>
@@ -435,7 +451,10 @@ export const SaleCreatePage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                 <span>
-                  <strong className="text-foreground">Previous Transaction:</strong> Sale{' '}
+                  <strong className="text-foreground">
+                    {t('sales.previousTransaction', 'Previous Transaction:')}
+                  </strong>{' '}
+                  {t('sales.saleWord', 'Sale')}{' '}
                   <span className="font-mono font-medium">
                     {posCheckout.lastCompletedSale.saleId}
                   </span>
@@ -445,7 +464,8 @@ export const SaleCreatePage: React.FC = () => {
                     </span>
                   )}
                   {' — '}
-                  {posCheckout.lastCompletedSale.clientName || 'Walk-in Guest'}
+                  {posCheckout.lastCompletedSale.clientName ||
+                    t('sales.walkInCustomer', 'Walk-in Guest')}
                   {' ('}
                   {formatMoneyCents(
                     toCents(posCheckout.lastCompletedSale.totalAmount),
@@ -461,7 +481,7 @@ export const SaleCreatePage: React.FC = () => {
                     state={{ from: '/sales/new' }}
                     data-testid="pos-view-last-receipt-btn"
                   >
-                    <Receipt className="h-3.5 w-3.5" /> View Receipt
+                    <Receipt className="h-3.5 w-3.5" /> {t('sales.viewReceipt', 'View Receipt')}
                   </Link>
                 </Button>
                 <Button

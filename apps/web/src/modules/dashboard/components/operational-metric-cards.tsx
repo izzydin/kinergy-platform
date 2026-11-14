@@ -17,6 +17,7 @@ import {
   useTodayAppointments,
   useDailySalesTotal,
 } from '../api/operational-dashboard-queries';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 /**
  * 1. Gym Check-ins Today Card (Real-time Operational Indicator)
@@ -24,6 +25,7 @@ import {
 export const GymCheckInsCard: React.FC = () => {
   const { canViewGymCheckIns } = useDashboardAccess();
   const { data, isLoading, isError, refetch } = useTodayGymCheckIns();
+  const { locale, t } = useTranslation();
 
   if (!canViewGymCheckIns) {
     return null;
@@ -36,7 +38,9 @@ export const GymCheckInsCard: React.FC = () => {
     >
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle className="text-sm font-medium text-muted-foreground">
-          Gym Check-ins Today
+          {locale === 'es'
+            ? t('dashboard.metrics.gymCheckInsToday', 'Ingresos al gimnasio hoy')
+            : 'Gym Check-ins Today'}
         </CardTitle>
         <div className="p-2 rounded-lg bg-primary/10 text-primary">
           <Users className="w-4 h-4" aria-hidden="true" />
@@ -51,7 +55,9 @@ export const GymCheckInsCard: React.FC = () => {
         ) : isError ? (
           <div className="space-y-2 py-1" data-testid="gym-checkins-error">
             <p className="text-xs text-destructive font-medium">
-              Unable to load today&apos;s attendance
+              {locale === 'es'
+                ? 'No se pudo cargar la asistencia de hoy'
+                : "Unable to load today's attendance"}
             </p>
             <Button
               variant="outline"
@@ -59,7 +65,8 @@ export const GymCheckInsCard: React.FC = () => {
               onClick={() => void refetch()}
               className="h-7 text-xs gap-1.5"
             >
-              <RefreshCw className="w-3 h-3" aria-hidden="true" /> Retry
+              <RefreshCw className="w-3 h-3" aria-hidden="true" />{' '}
+              {locale === 'es' ? t('common.retry', 'Reintentar') : 'Retry'}
             </Button>
           </div>
         ) : (
@@ -69,15 +76,21 @@ export const GymCheckInsCard: React.FC = () => {
                 {data?.grantedCount ?? 0}
               </div>
               <Badge variant="success" className="text-[11px] px-1.5 py-0 font-normal">
-                Granted
+                {locale === 'es' ? 'Autorizados' : 'Granted'}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {(data?.grantedCount ?? 0) === 0 && (data?.deniedCount ?? 0) === 0
-                ? 'No check-ins recorded today'
-                : `${data?.uniqueClientsCount ?? 0} unique client(s)${
-                    (data?.deniedCount ?? 0) > 0 ? ` · ${data?.deniedCount} denied` : ''
-                  }`}
+                ? locale === 'es'
+                  ? 'Sin ingresos registrados hoy'
+                  : 'No check-ins recorded today'
+                : locale === 'es'
+                  ? `${data?.uniqueClientsCount ?? 0} cliente(s) único(s)${
+                      (data?.deniedCount ?? 0) > 0 ? ` · ${data?.deniedCount} denegados` : ''
+                    }`
+                  : `${data?.uniqueClientsCount ?? 0} unique client(s)${
+                      (data?.deniedCount ?? 0) > 0 ? ` · ${data?.deniedCount} denied` : ''
+                    }`}
             </p>
           </div>
         )}
@@ -88,7 +101,8 @@ export const GymCheckInsCard: React.FC = () => {
             className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
             data-testid="gym-checkins-link"
           >
-            Open Attendance Log <ArrowRight className="w-3 h-3" aria-hidden="true" />
+            {locale === 'es' ? 'Abrir registro de ingreso' : 'Open Attendance Log'}{' '}
+            <ArrowRight className="w-3 h-3" aria-hidden="true" />
           </Link>
         </div>
       </CardContent>
@@ -102,6 +116,7 @@ export const GymCheckInsCard: React.FC = () => {
 export const LowStockAlertsCard: React.FC = () => {
   const { canViewLowStock } = useDashboardAccess();
   const { data, isLoading, isError, refetch } = useLowStockAlerts();
+  const { locale, t } = useTranslation();
 
   if (!canViewLowStock) {
     return null;
@@ -117,7 +132,9 @@ export const LowStockAlertsCard: React.FC = () => {
     >
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle className="text-sm font-medium text-muted-foreground">
-          Low-Stock Alerts
+          {locale === 'es'
+            ? t('dashboard.metrics.lowStockAlerts', 'Alertas de stock bajo')
+            : 'Low-Stock Alerts'}
         </CardTitle>
         <div
           className={`p-2 rounded-lg ${
@@ -139,14 +156,19 @@ export const LowStockAlertsCard: React.FC = () => {
           </div>
         ) : isError ? (
           <div className="space-y-2 py-1" data-testid="low-stock-error">
-            <p className="text-xs text-destructive font-medium">Unable to load stock alerts</p>
+            <p className="text-xs text-destructive font-medium">
+              {locale === 'es'
+                ? 'No se pudieron cargar las alertas de stock'
+                : 'Unable to load stock alerts'}
+            </p>
             <Button
               variant="outline"
               size="sm"
               onClick={() => void refetch()}
               className="h-7 text-xs gap-1.5"
             >
-              <RefreshCw className="w-3 h-3" aria-hidden="true" /> Retry
+              <RefreshCw className="w-3 h-3" aria-hidden="true" />{' '}
+              {locale === 'es' ? t('common.retry', 'Reintentar') : 'Retry'}
             </Button>
           </div>
         ) : (
@@ -160,18 +182,28 @@ export const LowStockAlertsCard: React.FC = () => {
                   variant={outOfStockCount > 0 ? 'destructive' : 'warning'}
                   className="text-[11px] px-1.5 py-0 font-normal"
                 >
-                  {outOfStockCount > 0 ? `${outOfStockCount} Out of Stock` : 'Needs Restock'}
+                  {outOfStockCount > 0
+                    ? locale === 'es'
+                      ? `${outOfStockCount} sin stock`
+                      : `${outOfStockCount} Out of Stock`
+                    : locale === 'es'
+                      ? 'Requiere reposición'
+                      : 'Needs Restock'}
                 </Badge>
               ) : (
                 <Badge variant="success" className="text-[11px] px-1.5 py-0 font-normal">
-                  Healthy
+                  {locale === 'es' ? 'Óptimo' : 'Healthy'}
                 </Badge>
               )}
             </div>
             <p className="text-xs text-muted-foreground mt-1">
               {count === 0
-                ? 'All active inventory items stocked'
-                : `${count} active item(s) at or below reorder threshold`}
+                ? locale === 'es'
+                  ? 'Todos los artículos activos tienen stock suficiente'
+                  : 'All active inventory items stocked'
+                : locale === 'es'
+                  ? `${count} artículo(s) activo(s) en o bajo el mínimo`
+                  : `${count} active item(s) at or below reorder threshold`}
             </p>
           </div>
         )}
@@ -182,7 +214,8 @@ export const LowStockAlertsCard: React.FC = () => {
             className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
             data-testid="low-stock-link"
           >
-            Review Low Stock <ArrowRight className="w-3 h-3" aria-hidden="true" />
+            {locale === 'es' ? 'Revisar stock bajo' : 'Review Low Stock'}{' '}
+            <ArrowRight className="w-3 h-3" aria-hidden="true" />
           </Link>
         </div>
       </CardContent>
@@ -196,6 +229,7 @@ export const LowStockAlertsCard: React.FC = () => {
 export const TodayAppointmentsCard: React.FC = () => {
   const { canViewAppointments } = useDashboardAccess();
   const { data, isLoading, isError, refetch } = useTodayAppointments();
+  const { locale, t } = useTranslation();
 
   if (!canViewAppointments) {
     return null;
@@ -207,27 +241,48 @@ export const TodayAppointmentsCard: React.FC = () => {
   const buildBreakdownText = () => {
     if (!breakdown || activeCount === 0) {
       if ((breakdown?.cancelled ?? 0) > 0) {
-        return `No active sessions · ${breakdown?.cancelled ?? 0} cancelled`;
+        return locale === 'es'
+          ? `Sin sesiones activas · ${breakdown?.cancelled ?? 0} canceladas`
+          : `No active sessions · ${breakdown?.cancelled ?? 0} cancelled`;
       }
-      return 'No appointments scheduled today';
+      return locale === 'es'
+        ? 'No hay citas programadas para hoy'
+        : 'No appointments scheduled today';
     }
 
     const parts: string[] = [];
     const readyOrActive =
       (breakdown.confirmed ?? 0) + (breakdown.checkedIn ?? 0) + (breakdown.inProgress ?? 0);
     if (readyOrActive > 0) {
-      parts.push(`${readyOrActive} confirmed/in-clinic`);
+      parts.push(
+        locale === 'es'
+          ? `${readyOrActive} confirmadas/en sala`
+          : `${readyOrActive} confirmed/in-clinic`,
+      );
     }
     if (breakdown.scheduled > 0) {
-      parts.push(`${breakdown.scheduled} unconfirmed`);
+      parts.push(
+        locale === 'es'
+          ? `${breakdown.scheduled} sin confirmar`
+          : `${breakdown.scheduled} unconfirmed`,
+      );
     }
     if (breakdown.completed > 0) {
-      parts.push(`${breakdown.completed} completed`);
+      parts.push(
+        locale === 'es' ? `${breakdown.completed} completadas` : `${breakdown.completed} completed`,
+      );
     }
     if (breakdown.cancelled > 0) {
-      parts.push(`${breakdown.cancelled} cancelled`);
+      parts.push(
+        locale === 'es' ? `${breakdown.cancelled} canceladas` : `${breakdown.cancelled} cancelled`,
+      );
     }
-    return parts.join(' · ') || `${activeCount} active appointment(s) today`;
+    return (
+      parts.join(' · ') ||
+      (locale === 'es'
+        ? `${activeCount} cita(s) activa(s) hoy`
+        : `${activeCount} active appointment(s) today`)
+    );
   };
 
   return (
@@ -237,7 +292,9 @@ export const TodayAppointmentsCard: React.FC = () => {
     >
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle className="text-sm font-medium text-muted-foreground">
-          Today&apos;s Appointments
+          {locale === 'es'
+            ? t('dashboard.metrics.todaysAppointments', 'Citas de hoy')
+            : "Today's Appointments"}
         </CardTitle>
         <div className="p-2 rounded-lg bg-primary/10 text-primary">
           <Calendar className="w-4 h-4" aria-hidden="true" />
@@ -252,7 +309,9 @@ export const TodayAppointmentsCard: React.FC = () => {
         ) : isError ? (
           <div className="space-y-2 py-1" data-testid="appointments-error">
             <p className="text-xs text-destructive font-medium">
-              Unable to load today&apos;s appointments
+              {locale === 'es'
+                ? 'No se pudieron cargar las citas de hoy'
+                : "Unable to load today's appointments"}
             </p>
             <Button
               variant="outline"
@@ -260,7 +319,8 @@ export const TodayAppointmentsCard: React.FC = () => {
               onClick={() => void refetch()}
               className="h-7 text-xs gap-1.5"
             >
-              <RefreshCw className="w-3 h-3" aria-hidden="true" /> Retry
+              <RefreshCw className="w-3 h-3" aria-hidden="true" />{' '}
+              {locale === 'es' ? t('common.retry', 'Reintentar') : 'Retry'}
             </Button>
           </div>
         ) : (
@@ -273,7 +333,13 @@ export const TodayAppointmentsCard: React.FC = () => {
                 variant={activeCount > 0 ? 'info' : 'secondary'}
                 className="text-[11px] px-1.5 py-0 font-normal"
               >
-                {activeCount === 1 ? '1 Active' : `${activeCount} Active`}
+                {locale === 'es'
+                  ? activeCount === 1
+                    ? '1 Activa'
+                    : `${activeCount} Activas`
+                  : activeCount === 1
+                    ? '1 Active'
+                    : `${activeCount} Active`}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1" data-testid="appointments-breakdown">
@@ -288,7 +354,8 @@ export const TodayAppointmentsCard: React.FC = () => {
             className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
             data-testid="appointments-link"
           >
-            Open Schedule <ArrowRight className="w-3 h-3" aria-hidden="true" />
+            {locale === 'es' ? 'Abrir agenda' : 'Open Schedule'}{' '}
+            <ArrowRight className="w-3 h-3" aria-hidden="true" />
           </Link>
         </div>
       </CardContent>
@@ -302,6 +369,7 @@ export const TodayAppointmentsCard: React.FC = () => {
 export const DailySalesTotalCard: React.FC = () => {
   const { canViewDailySales } = useDashboardAccess();
   const { data, isLoading, isError, refetch } = useDailySalesTotal();
+  const { locale, t } = useTranslation();
 
   if (!canViewDailySales) {
     return null;
@@ -317,7 +385,9 @@ export const DailySalesTotalCard: React.FC = () => {
     >
       <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
         <CardTitle className="text-sm font-medium text-muted-foreground">
-          Daily Sales Total
+          {locale === 'es'
+            ? t('dashboard.metrics.dailySalesTotal', 'Total de ventas del día')
+            : 'Daily Sales Total'}
         </CardTitle>
         <div className="p-2 rounded-lg bg-primary/10 text-primary">
           <DollarSign className="w-4 h-4" aria-hidden="true" />
@@ -332,7 +402,9 @@ export const DailySalesTotalCard: React.FC = () => {
         ) : isError ? (
           <div className="space-y-2 py-1" data-testid="daily-sales-error">
             <p className="text-xs text-destructive font-medium">
-              Unable to load today&apos;s sales total
+              {locale === 'es'
+                ? 'No se pudo cargar el total de ventas de hoy'
+                : "Unable to load today's sales total"}
             </p>
             <Button
               variant="outline"
@@ -340,7 +412,8 @@ export const DailySalesTotalCard: React.FC = () => {
               onClick={() => void refetch()}
               className="h-7 text-xs gap-1.5"
             >
-              <RefreshCw className="w-3 h-3" aria-hidden="true" /> Retry
+              <RefreshCw className="w-3 h-3" aria-hidden="true" />{' '}
+              {locale === 'es' ? t('common.retry', 'Reintentar') : 'Retry'}
             </Button>
           </div>
         ) : (
@@ -353,13 +426,17 @@ export const DailySalesTotalCard: React.FC = () => {
                 variant={completedCount > 0 ? 'success' : 'secondary'}
                 className="text-[11px] px-1.5 py-0 font-normal"
               >
-                Settled
+                {locale === 'es' ? 'Cobrado' : 'Settled'}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground mt-1" data-testid="daily-sales-subtitle">
               {completedCount === 0
-                ? 'No settled payments recorded today'
-                : `Collected across ${completedCount} completed payment(s) today`}
+                ? locale === 'es'
+                  ? 'Sin pagos cobrados registrados hoy'
+                  : 'No settled payments recorded today'
+                : locale === 'es'
+                  ? `Recaudado en ${completedCount} pago(s) completado(s) hoy`
+                  : `Collected across ${completedCount} completed payment(s) today`}
             </p>
           </div>
         )}
@@ -370,7 +447,8 @@ export const DailySalesTotalCard: React.FC = () => {
             className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
             data-testid="daily-sales-link"
           >
-            View Payment Ledger <ArrowRight className="w-3 h-3" aria-hidden="true" />
+            {locale === 'es' ? 'Ver historial de pagos' : 'View Payment Ledger'}{' '}
+            <ArrowRight className="w-3 h-3" aria-hidden="true" />
           </Link>
         </div>
       </CardContent>

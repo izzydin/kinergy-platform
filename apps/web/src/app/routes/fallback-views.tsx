@@ -1,25 +1,36 @@
 import { AlertTriangle, ArrowLeft, Lock, ShieldAlert } from 'lucide-react';
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useTranslation } from '../providers/locale-provider';
 
 /**
  * 404 Not Found View Component
  */
-export const NotFoundView: React.FC<{ message?: string }> = ({
-  message = 'The requested application view or resource does not exist.',
-}) => {
+export const NotFoundView: React.FC<{ message?: string }> = ({ message }) => {
+  const { locale, t } = useTranslation();
+  const displayMessage =
+    message ??
+    (locale === 'es'
+      ? t('auth.notFoundMessage', 'La página solicitada no existe o fue trasladada.')
+      : 'The requested application view or resource does not exist.');
+
   return (
     <div className="flex min-h-[450px] flex-col items-center justify-center p-8 text-center">
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-500 shadow-inner">
         <AlertTriangle className="h-8 w-8" />
       </div>
-      <h2 className="font-extrabold text-3xl tracking-tight">404 — View Not Found</h2>
-      <p className="mt-2 max-w-md text-muted-foreground text-sm">{message}</p>
+      <h2 className="font-extrabold text-3xl tracking-tight">
+        {locale === 'es'
+          ? `404 — ${t('auth.notFoundTitle', 'Página no encontrada')}`
+          : '404 — View Not Found'}
+      </h2>
+      <p className="mt-2 max-w-md text-muted-foreground text-sm">{displayMessage}</p>
       <Link
         to="/"
         className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground text-sm shadow transition-colors hover:bg-primary/90"
       >
-        <ArrowLeft className="h-4 w-4" /> Return to Overview
+        <ArrowLeft className="h-4 w-4" />{' '}
+        {locale === 'es' ? t('auth.goHome', 'Ir al inicio') : 'Return to Overview'}
       </Link>
     </div>
   );
@@ -28,9 +39,14 @@ export const NotFoundView: React.FC<{ message?: string }> = ({
 /**
  * 403 Forbidden Access Denied View Component
  */
-export const ForbiddenView: React.FC<{ message?: string }> = ({
-  message = 'You do not possess the required security permissions to access this feature view.',
-}) => {
+export const ForbiddenView: React.FC<{ message?: string }> = ({ message }) => {
+  const { locale, t } = useTranslation();
+  const displayMessage =
+    message ??
+    (locale === 'es'
+      ? t('auth.forbiddenMessage', 'No tienes permisos para ver esta página.')
+      : 'You do not possess the required security permissions to access this feature view.');
+
   return (
     <div
       role="alert"
@@ -41,14 +57,17 @@ export const ForbiddenView: React.FC<{ message?: string }> = ({
         <ShieldAlert className="h-8 w-8" />
       </div>
       <h2 className="font-extrabold text-3xl tracking-tight text-destructive">
-        403 — Access Denied
+        {locale === 'es'
+          ? `403 — ${t('auth.forbiddenTitle', 'Acceso denegado')}`
+          : '403 — Access Denied'}
       </h2>
-      <p className="mt-2 max-w-md text-muted-foreground text-sm">{message}</p>
+      <p className="mt-2 max-w-md text-muted-foreground text-sm">{displayMessage}</p>
       <Link
         to="/"
         className="mt-6 inline-flex items-center gap-2 rounded-lg border border-border bg-background px-4 py-2 font-medium text-foreground text-sm transition-colors hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
       >
-        <ArrowLeft className="h-4 w-4" /> Return to Dashboard
+        <ArrowLeft className="h-4 w-4" />{' '}
+        {locale === 'es' ? t('nav.dashboard', 'Panel principal') : 'Return to Dashboard'}
       </Link>
     </div>
   );
@@ -57,9 +76,14 @@ export const ForbiddenView: React.FC<{ message?: string }> = ({
 /**
  * 401 Unauthenticated Session View Component
  */
-export const UnauthenticatedView: React.FC<{ message?: string }> = ({
-  message = 'Your authentication session has expired. Please log in again to continue.',
-}) => {
+export const UnauthenticatedView: React.FC<{ message?: string }> = ({ message }) => {
+  const { locale, t } = useTranslation();
+  const displayMessage =
+    message ??
+    (locale === 'es'
+      ? t('auth.unauthenticatedMessage', 'Inicia sesión para acceder a este recurso.')
+      : 'Your authentication session has expired. Please log in again to continue.');
+
   return (
     <div
       role="alert"
@@ -69,13 +93,17 @@ export const UnauthenticatedView: React.FC<{ message?: string }> = ({
       <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
         <Lock className="h-8 w-8" />
       </div>
-      <h2 className="font-extrabold text-3xl tracking-tight">401 — Session Expired</h2>
-      <p className="mt-2 max-w-md text-muted-foreground text-sm">{message}</p>
+      <h2 className="font-extrabold text-3xl tracking-tight">
+        {locale === 'es'
+          ? `401 — ${t('auth.unauthenticatedTitle', 'Autenticación requerida')}`
+          : '401 — Session Expired'}
+      </h2>
+      <p className="mt-2 max-w-md text-muted-foreground text-sm">{displayMessage}</p>
       <Link
         to="/auth/login"
         className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 font-medium text-primary-foreground text-sm shadow transition-colors hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
       >
-        Log In Again
+        {locale === 'es' ? t('auth.goToLogin', 'Ir al inicio de sesión') : 'Log In Again'}
       </Link>
     </div>
   );

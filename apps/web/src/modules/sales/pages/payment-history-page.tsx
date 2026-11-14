@@ -8,6 +8,7 @@ import { PaymentStatusBadge } from '../components/payment-status-badge';
 import { PaymentMethodBadge } from '../components/payment-method-badge';
 import { MoneyDisplay } from '../components/money-display';
 import { useAuth } from '../../../app/providers/auth-provider';
+import { useTranslation } from '../../../app/providers/locale-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { SALES_ROUTES } from '../routes/sales-routes';
 import {
@@ -19,6 +20,7 @@ import {
 
 export const PaymentHistoryPage: React.FC = () => {
   const auth = useAuth();
+  const { t } = useTranslation();
   const location = useLocation();
 
   // Permission verification: payments.read (or payments.manage)
@@ -69,14 +71,17 @@ export const PaymentHistoryPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              Payment Tenders History
+              {t('sales.paymentTendersHistoryTitle', 'Payment Tenders History')}
             </h1>
             <Badge variant="outline" className="hidden sm:inline-flex">
-              Financial Audit
+              {t('sales.financialAudit', 'Financial Audit')}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Chronological audit log of all payment tenders registered across sales orders.
+            {t(
+              'sales.paymentTendersHistorySubtitle',
+              'Chronological audit log of all payment tenders registered across sales orders.',
+            )}
           </p>
         </div>
 
@@ -89,12 +94,13 @@ export const PaymentHistoryPage: React.FC = () => {
             className="h-8 text-xs gap-1.5"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('common.refresh', 'Refresh')}
           </Button>
 
           <Button asChild variant="outline" size="sm">
             <Link to={SALES_ROUTES.list()}>
-              <ShoppingBag className="mr-1.5 h-4 w-4" /> View Sales Orders
+              <ShoppingBag className="mr-1.5 h-4 w-4" />{' '}
+              {t('sales.viewSalesOrders', 'View Sales Orders')}
             </Link>
           </Button>
         </div>

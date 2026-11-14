@@ -26,6 +26,7 @@ import {
   type DashboardAppointmentItem,
 } from '../api/operational-dashboard-queries';
 import type { AppointmentStatus } from '../../scheduling/types/scheduling.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 const MAX_VISIBLE_SCHEDULE_ITEMS = 8;
 
@@ -58,6 +59,7 @@ export const DashboardTodaysSchedule: React.FC = () => {
   const { canViewAppointments, canCreateAppointment } = useDashboardAccess();
   const { data, isLoading, isError, refetch } = useTodayAppointments();
   const businessDay = getTodayOperationalBusinessDay();
+  const { locale, t } = useTranslation();
 
   if (!canViewAppointments) {
     return null;
@@ -73,10 +75,14 @@ export const DashboardTodaysSchedule: React.FC = () => {
         <div>
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <Calendar className="w-4 h-4 text-primary" aria-hidden="true" />
-            <span>Today&apos;s Schedule</span>
+            <span>
+              {locale === 'es' ? t('dashboard.schedule.title', 'Citas de hoy') : "Today's Schedule"}
+            </span>
           </CardTitle>
           <CardDescription className="text-xs mt-0.5">
-            Chronological clinic and training appointments for {businessDay.displayLabel} (UTC)
+            {locale === 'es'
+              ? `Agenda cronológica clínica y de entrenamiento para ${businessDay.displayLabel} (UTC)`
+              : `Chronological clinic and training appointments for ${businessDay.displayLabel} (UTC)`}
           </CardDescription>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -84,13 +90,21 @@ export const DashboardTodaysSchedule: React.FC = () => {
             <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5">
               <Link to="/scheduling/book" data-testid="schedule-book-appointment-link">
                 <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Book Appointment</span>
+                <span>
+                  {locale === 'es'
+                    ? t('dashboard.schedule.bookNew', 'Agendar cita')
+                    : 'Book Appointment'}
+                </span>
               </Link>
             </Button>
           )}
           <Button asChild variant="ghost" size="sm" className="h-8 text-xs gap-1">
             <Link to="/scheduling" data-testid="schedule-open-calendar-link">
-              <span>Full Calendar</span>
+              <span>
+                {locale === 'es'
+                  ? t('dashboard.schedule.viewCalendar', 'Abrir calendario')
+                  : 'Full Calendar'}
+              </span>
               <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
             </Link>
           </Button>
@@ -119,10 +133,14 @@ export const DashboardTodaysSchedule: React.FC = () => {
             data-testid="todays-schedule-error"
           >
             <p className="text-sm font-medium text-destructive">
-              Unable to load today&apos;s appointment schedule
+              {locale === 'es'
+                ? 'No se pudo cargar la agenda de citas de hoy'
+                : "Unable to load today's appointment schedule"}
             </p>
             <p className="text-xs text-muted-foreground mt-1 mb-3">
-              Please verify your connection and retry loading the daily agenda.
+              {locale === 'es'
+                ? 'Verifica tu conexión e intenta cargar la agenda diaria nuevamente.'
+                : 'Please verify your connection and retry loading the daily agenda.'}
             </p>
             <Button
               variant="outline"
@@ -131,7 +149,7 @@ export const DashboardTodaysSchedule: React.FC = () => {
               className="h-8 text-xs gap-1.5"
             >
               <RefreshCw className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>Retry Schedule</span>
+              <span>{locale === 'es' ? 'Reintentar agenda' : 'Retry Schedule'}</span>
             </Button>
           </div>
         ) : visibleItems.length === 0 ? (
@@ -143,16 +161,20 @@ export const DashboardTodaysSchedule: React.FC = () => {
               <CalendarCheck className="w-5 h-5" aria-hidden="true" />
             </div>
             <p className="text-sm font-medium text-foreground">
-              No appointments scheduled for today
+              {locale === 'es'
+                ? t('dashboard.schedule.emptyTitle', 'No hay citas programadas para hoy')
+                : 'No appointments scheduled for today'}
             </p>
             <p className="text-xs text-muted-foreground mt-1 max-w-sm">
-              There are no active appointments booked for {businessDay.displayLabel}.
+              {locale === 'es'
+                ? `No hay citas activas reservadas para ${businessDay.displayLabel}.`
+                : `There are no active appointments booked for ${businessDay.displayLabel}.`}
             </p>
             {canCreateAppointment && (
               <Button asChild variant="outline" size="sm" className="mt-3 h-8 text-xs gap-1.5">
                 <Link to="/scheduling/book">
                   <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Schedule New Appointment</span>
+                  <span>{locale === 'es' ? 'Agendar nueva cita' : 'Schedule New Appointment'}</span>
                 </Link>
               </Button>
             )}
@@ -203,9 +225,15 @@ export const DashboardTodaysSchedule: React.FC = () => {
                             data-testid="schedule-item-staff-name"
                           >
                             <Stethoscope className="w-3 h-3 shrink-0" aria-hidden="true" />
-                            <span>Staff: {item.therapistName}</span>
+                            <span>
+                              {locale === 'es' ? 'Personal:' : 'Staff:'} {item.therapistName}
+                            </span>
                           </span>
-                          {item.roomId && <span>· Room: {item.roomId}</span>}
+                          {item.roomId && (
+                            <span>
+                              · {locale === 'es' ? 'Sala:' : 'Room:'} {item.roomId}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -216,10 +244,14 @@ export const DashboardTodaysSchedule: React.FC = () => {
                         className="text-[11px] font-medium"
                         data-testid="schedule-item-status"
                       >
-                        {statusBadge.label}
+                        {locale === 'es'
+                          ? t(statusBadge.label, statusBadge.label)
+                          : statusBadge.label}
                       </Badge>
                       <Button asChild variant="ghost" size="sm" className="h-7 px-2 text-xs">
-                        <Link to="/scheduling">View</Link>
+                        <Link to="/scheduling">
+                          {locale === 'es' ? t('common.view', 'Ver') : 'View'}
+                        </Link>
                       </Button>
                     </div>
                   </div>

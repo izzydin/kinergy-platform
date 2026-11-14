@@ -5,10 +5,12 @@ import { useAuth } from '../../../app/providers/auth-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { CrudError } from '../../../shared/crud';
 import { TreatmentHistoryList } from '../components/treatment-history-list';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export const ClientTreatmentHistoryPage: React.FC = () => {
   const { clientId } = useParams<{ clientId: string }>();
   const navigate = useNavigate();
+  const { locale, t } = useTranslation();
 
   let canRead = true;
   try {
@@ -55,15 +57,20 @@ export const ClientTreatmentHistoryPage: React.FC = () => {
             <div className="space-y-1">
               <div className="flex items-center space-x-2 text-xs text-slate-500">
                 <Link to="/clients" className="hover:text-indigo-600">
-                  Clients Directory
+                  {locale === 'es' ? 'Directorio de clientes' : 'Clients Directory'}
                 </Link>
                 <span>/</span>
                 <span className="font-mono text-slate-700">{clientId}</span>
               </div>
               <h1 className="text-2xl font-bold text-slate-900">
-                Client Profile & Clinical Records
+                {locale === 'es'
+                  ? t('kinesiology.historyTitle', 'Historial clínico del paciente')
+                  : 'Client Profile & Clinical Records'}
               </h1>
-              <p className="text-xs text-slate-500 font-mono">Client Reference ID: {clientId}</p>
+              <p className="text-xs text-slate-500 font-mono">
+                {locale === 'es' ? 'ID de referencia del cliente:' : 'Client Reference ID:'}{' '}
+                {clientId}
+              </p>
             </div>
           </div>
 
@@ -73,19 +80,19 @@ export const ClientTreatmentHistoryPage: React.FC = () => {
               to={`/clients/${clientId}`}
               className="pb-3 text-slate-500 hover:text-slate-700 border-b-2 border-transparent transition-colors"
             >
-              Overview
+              {locale === 'es' ? 'Resumen' : 'Overview'}
             </Link>
             <Link
               to={`/clients/${clientId}/timeline`}
               className="pb-3 text-slate-500 hover:text-slate-700 border-b-2 border-transparent transition-colors"
             >
-              Activity Timeline
+              {locale === 'es' ? 'Línea de tiempo' : 'Activity Timeline'}
             </Link>
             <Link
               to={`/clients/${clientId}/treatments`}
               className="pb-3 text-indigo-600 border-b-2 border-indigo-600 font-semibold"
             >
-              Treatment History
+              {locale === 'es' ? 'Historial de tratamientos' : 'Treatment History'}
             </Link>
           </div>
         </CardContent>

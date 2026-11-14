@@ -2,6 +2,7 @@ import * as React from 'react';
 import { Alert, AlertDescription, AlertTitle, Button } from '@kinergy-platform/ui';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import type { CrudErrorProps } from '../types/crud-state.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 function sanitizeErrorMessage(rawError?: string | Error | null): string {
   if (!rawError) {
@@ -32,15 +33,24 @@ function sanitizeErrorMessage(rawError?: string | Error | null): string {
 }
 
 export const CrudError: React.FC<CrudErrorProps> = ({
-  title = 'Failed to load data',
+  title,
   error,
   correlationId,
   onRetry,
-  retryLabel = 'Retry',
+  retryLabel,
   secondaryAction,
   className = '',
 }) => {
-  const displayMessage = sanitizeErrorMessage(error);
+  const { locale, t, translateError } = useTranslation();
+  const resolvedTitle =
+    title ??
+    (locale === 'es'
+      ? t('crud.errorTitle', 'No se pudieron cargar los datos')
+      : 'Failed to load data');
+  const resolvedRetryLabel =
+    retryLabel ?? (locale === 'es' ? t('common.retry', 'Reintentar') : 'Retry');
+  const sanitized = sanitizeErrorMessage(error);
+  const displayMessage = locale === 'es' ? translateError(error, sanitized) : sanitized;
 
   return (
     <div className={`w-full ${className}`}>
@@ -51,7 +61,7 @@ export const CrudError: React.FC<CrudErrorProps> = ({
         <div className="flex items-start gap-3.5">
           <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" aria-hidden="true" />
           <div className="space-y-1">
-            <AlertTitle className="text-base font-semibold">{title}</AlertTitle>
+            <AlertTitle className="text-base font-semibold">{resolvedTitle}</AlertTitle>
             <AlertDescription className="text-sm text-destructive/90 leading-relaxed">
               {displayMessage}
             </AlertDescription>
@@ -69,10 +79,10 @@ export const CrudError: React.FC<CrudErrorProps> = ({
               size="sm"
               onClick={onRetry}
               className="border-destructive/40 hover:bg-destructive/10 text-destructive shadow-sm"
-              aria-label={`${retryLabel} operation`}
+              aria-label={`${resolvedRetryLabel} operation`}
             >
               <RefreshCw className="mr-2 h-3.5 w-3.5" aria-hidden="true" />
-              {retryLabel}
+              {resolvedRetryLabel}
             </Button>
           )}
         </div>

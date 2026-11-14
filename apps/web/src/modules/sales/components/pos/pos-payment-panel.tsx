@@ -3,6 +3,7 @@ import { Card, CardContent, Button, Input, Spinner } from '@kinergy-platform/ui'
 import { Banknote, QrCode, CheckCircle2, AlertCircle, FileText, DollarSign } from 'lucide-react';
 import type { PosPaymentMethod } from './pos-types';
 import { formatMoneyCents, centsToDecimal, toCents } from '../../utils/financial-math';
+import { useTranslation } from '../../../../app/providers/locale-provider';
 
 export interface PosPaymentPanelProps {
   netTotalCents: number;
@@ -29,6 +30,7 @@ export const PosPaymentPanel: React.FC<PosPaymentPanelProps> = ({
   onCheckout,
   onSaveDraft,
 }) => {
+  const { t } = useTranslation();
   const [selectedMethod, setSelectedMethod] = useState<PosPaymentMethod>('CASH');
   const [tenderAmount, setTenderAmount] = useState<number>(centsToDecimal(netTotalCents));
   const [qrReference, setQrReference] = useState<string>('');
@@ -52,10 +54,10 @@ export const PosPaymentPanel: React.FC<PosPaymentPanelProps> = ({
       <CardContent className="p-4 space-y-4">
         <div className="flex items-center justify-between border-b border-border pb-2.5">
           <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Payment & Checkout
+            {t('sales.paymentAndCheckout', 'Payment & Checkout')}
           </span>
           <span className="text-xs font-mono font-bold text-primary">
-            Payable: {formatMoneyCents(netTotalCents, currency)}
+            {t('sales.payable', 'Payable:')} {formatMoneyCents(netTotalCents, currency)}
           </span>
         </div>
 
@@ -74,7 +76,7 @@ export const PosPaymentPanel: React.FC<PosPaymentPanelProps> = ({
             } ${isCartEmpty ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             data-testid="pos-pay-cash-btn"
           >
-            <Banknote className="h-4 w-4" /> CASH Tender
+            <Banknote className="h-4 w-4" /> {t('sales.cashTender', 'CASH Tender')}
           </button>
 
           <button
@@ -90,7 +92,7 @@ export const PosPaymentPanel: React.FC<PosPaymentPanelProps> = ({
             } ${isCartEmpty ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             data-testid="pos-pay-qr-btn"
           >
-            <QrCode className="h-4 w-4" /> QR Digital
+            <QrCode className="h-4 w-4" /> {t('sales.qrDigital', 'QR Digital')}
           </button>
         </div>
 
@@ -99,7 +101,7 @@ export const PosPaymentPanel: React.FC<PosPaymentPanelProps> = ({
           <div className="p-3 rounded-lg border border-border bg-muted/20 space-y-2.5 text-xs">
             <div className="flex items-center justify-between">
               <label htmlFor="pos-cash-tender" className="font-medium text-foreground">
-                Cash Tendered ({currency}):
+                {t('sales.cashTendered', 'Cash Tendered')} ({currency}):
               </label>
               <Button
                 type="button"
@@ -109,7 +111,7 @@ export const PosPaymentPanel: React.FC<PosPaymentPanelProps> = ({
                 className="h-6 text-[11px] px-2"
                 data-testid="pos-exact-cash-btn"
               >
-                Exact ${centsToDecimal(netTotalCents).toFixed(2)}
+                {t('sales.exact', 'Exact')} ${centsToDecimal(netTotalCents).toFixed(2)}
               </Button>
             </div>
 
@@ -145,14 +147,18 @@ export const PosPaymentPanel: React.FC<PosPaymentPanelProps> = ({
 
             {/* Change Calculation */}
             <div className="flex items-center justify-between pt-1 border-t border-border/50">
-              <span className="text-muted-foreground font-medium">Change to Return:</span>
+              <span className="text-muted-foreground font-medium">
+                {t('sales.changeToReturn', 'Change to Return:')}
+              </span>
               <span
                 className={`font-mono font-bold ${
                   isUnderpaid ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400'
                 }`}
                 data-testid="pos-change-display"
               >
-                {isUnderpaid ? 'Underpaid' : formatMoneyCents(changeCents, currency)}
+                {isUnderpaid
+                  ? t('sales.underpaid', 'Underpaid')
+                  : formatMoneyCents(changeCents, currency)}
               </span>
             </div>
             {isUnderpaid && (
@@ -228,11 +234,11 @@ export const PosPaymentPanel: React.FC<PosPaymentPanelProps> = ({
           >
             {isSubmitting ? (
               <>
-                <Spinner className="h-4 w-4" /> Processing...
+                <Spinner className="h-4 w-4" /> {t('common.processing', 'Processing...')}
               </>
             ) : (
               <>
-                <CheckCircle2 className="h-4 w-4" /> Complete Sale (
+                <CheckCircle2 className="h-4 w-4" /> {t('sales.completeSale', 'Complete Sale')} (
                 {formatMoneyCents(netTotalCents, currency)})
               </>
             )}
@@ -246,7 +252,8 @@ export const PosPaymentPanel: React.FC<PosPaymentPanelProps> = ({
             className="w-full h-8 text-xs text-muted-foreground hover:text-foreground gap-1.5"
             data-testid="pos-save-draft-btn"
           >
-            <FileText className="h-3.5 w-3.5" /> Save as Draft Order (Pay Later)
+            <FileText className="h-3.5 w-3.5" />{' '}
+            {t('sales.saveAsDraft', 'Save as Draft Order (Pay Later)')}
           </Button>
         </div>
       </CardContent>

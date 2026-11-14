@@ -1,7 +1,7 @@
-# Kinergy Platform — MVP Demonstration Environment Guide & Presenter Manual
+# Kinergy Platform â€” MVP Demonstration Environment Guide & Presenter Manual
 
 **Document ID:** `DOC-ENV-011`  
-**Milestone:** 11.2 — Professional MVP Demo Documentation  
+**Milestone:** 11.2 â€” Professional MVP Demo Documentation  
 **Version:** `2.0.0`  
 **Status:** **ACTIVE & OPERATIONAL**  
 **Document Ownership:** Platform Architecture Team, Product Delivery Lead, QA Lead  
@@ -49,19 +49,19 @@ The following operational capabilities are deliberately excluded from MVP demons
 The demonstration environment executes the real NestJS API and React 18 SPA, persisting directly to an authentic PostgreSQL relational engine. Mock in-memory backends and SQLite shims are strictly prohibited.
 
 ```
-┌─────────────────────────────────────────┐          HTTP / REST (Port 3000)          ┌─────────────────────────────────────────┐
-│        React 18 / Vite SPA Client       │ ────────────────────────────────────────► │             NestJS REST API             │
-│    (Port 8080 Demo / Port 5173 Dev)     │                                           │               (Port 3000)               │
-│    (Modules: Gym, Clinic, POS, Admin)   │ ◄──────────────────────────────────────── │         (Zod Validation, RBAC)          │
-└─────────────────────────────────────────┘                                           └────────────────────┬────────────────────┘
-                                                                                                           │
-                                                                                            Prisma Client  │ (TCP 5433 / 5432)
-                                                                                                           ▼
-                                                                                      ┌─────────────────────────────────────────┐
-                                                                                      │           PostgreSQL 16 / 18            │
-                                                                                      │             (kinergy_dev)               │
-                                                                                      │       (16 Relational Migrations)        │
-                                                                                      └─────────────────────────────────────────┘
+â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”          HTTP / REST (Port 3000)          â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+â”‚        React 18 / Vite SPA Client       â”‚ â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â–º â”‚             NestJS REST API             â”‚
+â”‚    (Port 8080 Demo / Port 5173 Dev)     â”‚                                           â”‚               (Port 3000)               â”‚
+â”‚    (Modules: Gym, Clinic, POS, Admin)   â”‚ â—„â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ â”‚         (Zod Validation, RBAC)          â”‚
+â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜                                           â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                                                                                                           â”‚
+                                                                                            Prisma Client  â”‚ (TCP 5433 / 5432)
+                                                                                                           â–¼
+                                                                                      â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+                                                                                      â”‚           PostgreSQL 16 / 18            â”‚
+                                                                                      â”‚             (kinergy_dev)               â”‚
+                                                                                      â”‚       (16 Relational Migrations)        â”‚
+                                                                                      â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
 ```
 
 ### Module Boundary Directory Mapping
@@ -369,7 +369,7 @@ Both runtime layers normalize role comparisons:
 
 ---
 
-### 6.5 Main Operational Business Dashboard (`/dashboard` — Prompt 84321)
+### 6.5 Main Operational Business Dashboard (`/dashboard` â€” Prompt 84321)
 
 The main dashboard at `/dashboard` provides a role-aware operational cockpit backed strictly by persisted PostgreSQL records across the Gym Attendance, Consumable Inventory, Scheduling, and Sales & Payments bounded contexts. All development/simulation controls (`4-State UI Simulator`, `System Health & Notification Infrastructure`, `Recent Platform Activity`, and `Quick System Check`) have been removed from the production interface.
 
@@ -401,11 +401,11 @@ All daily dashboard metrics share a single authoritative facility business-day w
      - **Pending Payment Orders**: Finalized sales in `PENDING_PAYMENT` status awaiting payment settlement (`/sales/:id`).
 3. **Quick Actions**:
    - Permission-gated shortcuts to daily operational workflows:
-     - **Register Gym Check-in** (`/gym/attendance` — requires `attendance.create` / `clients.read`)
-     - **Create Appointment** (`/scheduling/book` — requires `appointments.create`)
-     - **Create Sale** (`/sales/new` — requires `sales.create`)
-     - **Register Client** (`/clients/new` — requires `clients.write`)
-     - **Receive Inventory** (`/resources/inventory` — requires `inventory.write` / `inventory.read`)
+     - **Register Gym Check-in** (`/gym/attendance` â€” requires `attendance.create` / `clients.read`)
+     - **Create Appointment** (`/scheduling/book` â€” requires `appointments.create`)
+     - **Create Sale** (`/sales/new` â€” requires `sales.create`)
+     - **Register Client** (`/clients/new` â€” requires `clients.write`)
+     - **Receive Inventory** (`/resources/inventory` â€” requires `inventory.write` / `inventory.read`)
 4. **Recent Business Activity**:
    - Omitted in MVP because no cross-domain operational event-stream endpoint exists; individual domain audit trails remain accessible within Client Timelines (`/clients/:id/timeline`), Inventory Movement Ledgers (`/resources/inventory/:id/movements`), and Payment History (`/sales/payments`).
 
@@ -553,7 +553,7 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 > [!IMPORTANT]
 > **Authoritative Deployment Mode & Frontend URL Notice**:
 >
-> - **Option B: Dedicated Containerized Demo (`pnpm demo:up` — Default & Recommended)**:
+> - **Option B: Dedicated Containerized Demo (`pnpm demo:up` â€” Default & Recommended)**:
 >   - **Frontend Web SPA & Ingress:** **`http://localhost:8080/login`** (or `http://localhost:8080`). All client browser navigation for this option **must** target port **`8080`**.
 >   - **Direct Backend API / Docs:** `http://localhost:3000` (Swagger: `http://localhost:3000/api/docs`).
 >   - **Relational Database:** `127.0.0.1:5433`.
@@ -597,13 +597,13 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 6. **Turnstile Check-In**:
    - Navigate to `/gym/attendance` (`http://localhost:8080/gym/attendance`).
    - Search for Carlos Rivera and click **Check In**.
-   - Show green indicator: `GRANTED — Access Permitted`.
+   - Show green indicator: `GRANTED â€” Access Permitted`.
 7. **Anti-Passback Security Demonstration**:
    - Immediately click **Check In** again for Carlos Rivera.
-   - Show yellow/red indicator: `DENIED — Rapid Duplicate Check-In Cooldown Active` (5-minute security cooldown).
+   - Show yellow/red indicator: `DENIED â€” Rapid Duplicate Check-In Cooldown Active` (5-minute security cooldown).
 8. **Negative Ingress Security Demonstrations**:
-   - Search for **David Kim** (`CLI-2026-00005`) $\to$ Click **Check In** $\to$ Red indicator: `DENIED — Membership Expired on 2026-09-01`.
-   - Search for **Maria Gonzalez** (`CLI-2026-00004`) $\to$ Click **Check In** $\to$ Blue/Yellow indicator: `DENIED — Membership Frozen (Medical Hold)`.
+   - Search for **David Kim** (`CLI-2026-00005`) $\to$ Click **Check In** $\to$ Red indicator: `DENIED â€” Membership Expired on 2026-09-01`.
+   - Search for **Maria Gonzalez** (`CLI-2026-00004`) $\to$ Click **Check In** $\to$ Blue/Yellow indicator: `DENIED â€” Membership Frozen (Medical Hold)`.
 
 > [!NOTE]
 > **Business Disclosure**: Attendance turnstiles operate on an **agreement-first** model, validating active membership status and date validity. Linking strict unpaid sales ledger balances to turnstile gate denial is configurable per business policy.
@@ -636,19 +636,19 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 4. **SOAP Charting**:
    - In the clinical workspace, enter clinical notes:
      - **Subjective**: Patient reports persistent shoulder stiffness after overhead training; pain 3/10.
-     - **Objective**: Range of motion restricted in abduction (140°); impingement test mildly positive.
+     - **Objective**: Range of motion restricted in abduction (140Â°); impingement test mildly positive.
      - **Assessment**: Subacromial irritation responding favorably to manual therapy.
      - **Plan**: Prescribed rotator cuff strengthening and scapular stabilization drills.
    - Click **Save Draft Notes**. Point out that drafts can be incrementally updated during the encounter.
 5. **Medico-Legal Immutability Locking & Integrated Therapist Checkout**:
    - Click **Complete Session**.
    - The integrated checkout modal opens displaying the client's full name, authoritative service fee ($85.00), and settlement options.
-   - **Option A — Complete & Collect Payment**:
+   - **Option A â€” Complete & Collect Payment**:
      - Select payment method: **CASH** (with dynamic tender and change calculator) or **QR Code** (with transaction reference).
      - Confirm payment details and submit.
      - The system locks clinical documentation (immutability), completes the treatment session, orchestrates the Sales module to create exactly one Sale, completes Payment (`PAID`), issues the official receipt, and updates financial records.
      - A dedicated success view displays the receipt number and provides one-click navigation to **View Official Receipt** (`/sales/:id/receipt`).
-   - **Option B — Complete Treatment (Already Paid)**:
+   - **Option B â€” Complete Treatment (Already Paid)**:
      - If the client paid upfront at the front desk before the encounter, select **Already Paid**.
      - The system verifies the existing settled payment linked to the session and completes it with zero duplicate charges.
 6. **Receptionist Commercial Overview & Audit Visibility**:
@@ -808,16 +808,14 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
      - Select **Cash** tender, enter `$10.00`, and click **Complete Sale ($5.50)**.
      - Authoritative settlement transitions Sale 1 to `PAID`, produces Payment 1, decrements stock ($41 $\to$ 40), and displays receipt confirmation `REC-2026-XXXXX`.
    - **Station Transition Options**:
-     - The POS Confirmation station presents two options:
-       - **Start Next Sale**: Clears cart and unselects customer for walk-in or new customer ingress.
-       - **Keep Customer (Carlos Rivera)**: Preserves customer selection while regenerating the station idempotency key and clearing cart items.
+     - The POS Confirmation station presents a single **Start Next Sale** action (`pos-new-sale-btn`) that clears the cart and always resets customer selection. The former "Keep Customer" option was removed.
    - **Purchase 2 (Carlos Rivera - Protein Bar Again)**:
-     - Click **Keep Customer (Carlos Rivera)** or click **Start Next Sale** and re-select `Carlos Rivera`.
+     - Click **Start Next Sale** and re-select `Carlos Rivera`.
      - Add **Organic Whey Protein Bar** ($5.50) again.
      - Select **Cash** tender, enter `$10.00`, and click **Complete Sale ($5.50)**.
      - **Verification**: The transaction creates a distinct new `Sale` (Sale 2 $\neq$ Sale 1), transitions from `DRAFT` to `PENDING_PAYMENT` to `PAID`, generates Payment 2, decrements stock ($40 $\to$ 39), and issues Receipt 2. Historical Sale 1 remains immutable in `PAID` status.
    - **Purchase 3 (Carlos Rivera - Drink)**:
-     - Re-select `Carlos Rivera` (or click **Keep Customer**).
+     - Re-select `Carlos Rivera`.
      - Add **Electrolyte Hydration Drink** ($3.00).
      - Tender Cash `$5.00` and complete the sale.
      - Distinct Sale 3 is created, settled, and issued Receipt 3.
@@ -853,6 +851,24 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 
 ---
 
+### 8.6 Language Support (English / Español)
+
+- Employees can switch between **English** (`en`, default) and **Español** (`es`, Latin American) from the user menu, `/settings/general`, or the login screen. The UI updates immediately without reload.
+- The preference is stored per employee (by user ID and email) in the browser, survives refresh and logout/login, and is isolated between accounts.
+- Only UI text, dates, numbers and API error messages are localized. User-entered data (client/product names) is untouched; currency remains `USD` and monetary values/integer-cent math are unchanged.
+- Implementation: `apps/web/src/shared/i18n/` (dictionaries, phrase map, formatters, error translator) and `LocaleProvider`.
+
+---
+
+### 8.6 Language Support (English / EspaÃ±ol)
+
+- Employees can switch between **English** (`en`, default) and **EspaÃ±ol** (`es`, Latin American) from the user menu, `/settings/general`, or the login screen. The UI updates immediately without reload.
+- The preference is stored per employee (by user ID and email) in the browser, survives refresh and logout/login, and is isolated between accounts.
+- Only UI text, dates, numbers and API error messages are localized. User-entered data (client/product names) is untouched; currency remains `USD` and monetary values/integer-cent math are unchanged.
+- Implementation: `apps/web/src/shared/i18n/` (dictionaries, phrase map, formatters, error translator) and `LocaleProvider`.
+
+---
+
 ## 9. Financial & Payment Integrity Rules
 
 1. **Integer Cents Precision**: All monetary values are processed internally in integer cents to prevent floating-point rounding errors.
@@ -885,17 +901,17 @@ curl -I http://localhost:5173           # SPA direct (Dev Option A)
 
 ```
                                   INCIDENT DETECTED DURING DEMO
-                                                │
-               ┌────────────────────────────────┼────────────────────────────────┐
-               ▼                                ▼                                ▼
+                                                â”‚
+               â”Œâ”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¼â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”
+               â–¼                                â–¼                                â–¼
       [PostgreSQL Offline]             [Port Collision / API Crash]     [Authentication Failure]
-               │                                │                                │
+               â”‚                                â”‚                                â”‚
       docker compose up -d postgres    Stop conflicting process          Verify .env credentials
-               │                                │                                │
+               â”‚                                â”‚                                â”‚
       Check port 5433 (pg_isready)     Restart: pnpm dev:api             Use: DemoPass123!
-               │                                │                                │
-               └────────────────────────┬───────┴────────────────────────────────┘
-                                        ▼
+               â”‚                                â”‚                                â”‚
+               â””â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”¬â”€â”€â”€â”€â”€â”€â”€â”´â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”˜
+                                        â–¼
                                  [RESUME RUNBOOK]
 ```
 
@@ -960,7 +976,7 @@ pnpm db:seed
 
 ### Incident 7: Clients Module "Failed to load data / Failed to fetch"
 
-- **Symptom**: Navigating to `/clients` displays `Failed to load data — Failed to fetch` or HTTP 502 Bad Gateway.
+- **Symptom**: Navigating to `/clients` displays `Failed to load data â€” Failed to fetch` or HTTP 502 Bad Gateway.
 - **Root Cause & Diagnosis**:
   - **API Connectivity / Exception Failure (HTTP 502)**: The backend API process crashed or threw an unhandled exception during client entity deserialization, causing Nginx to return 502 Bad Gateway. Check backend container logs:
     ```powershell
@@ -1100,10 +1116,10 @@ Verify all items before commencing a client demonstration:
 The Kinergy platform has undergone formal rehearsal audit and has achieved an **UNCONDITIONAL GO** certification for all business, investor, and client demonstrations.
 
 For full certification artifacts, automated test matrices, and executive sign-off details, refer to:
-👉 **[Milestone 11.8 Final Demo Rehearsal and Readiness Certification Report](../demo/MILESTONE-11-8-FINAL-DEMO-ACCEPTANCE.md)**
+ðŸ‘‰ **[Milestone 11.8 Final Demo Rehearsal and Readiness Certification Report](../demo/MILESTONE-11-8-FINAL-DEMO-ACCEPTANCE.md)**
 
 ---
 
 _Document Author: Platform Architecture Team_  
 _Approved by: Product Delivery Lead, QA Lead, DevOps Lead, Business Acceptance Manager_  
-_Last Certified: 2026-11-05 (Commit `3a14fb5`) — UNCONDITIONAL GO_
+_Last Certified: 2026-11-05 (Commit `3a14fb5`) â€” UNCONDITIONAL GO_

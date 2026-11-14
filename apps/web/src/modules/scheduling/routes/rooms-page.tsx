@@ -16,9 +16,11 @@ import {
   RoomAvailabilityChecker,
 } from '../components/rooms';
 import { FACILITY_TIMEZONE } from '../utils/calendar-date.utils';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export const RoomsPage: React.FC = () => {
   const auth = useAuth();
+  const { locale, t } = useTranslation();
 
   const canRead = Boolean(
     typeof auth.hasPermission === 'function'
@@ -132,15 +134,28 @@ export const RoomsPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Room & Resource Directory
+              {locale === 'es'
+                ? t('scheduling.roomsTitle', 'Salas e instalaciones')
+                : 'Room & Resource Directory'}
             </h1>
             <span className="text-xs px-2.5 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
-              {rooms.length} {rooms.length === 1 ? 'Room' : 'Rooms'}
+              {rooms.length}{' '}
+              {locale === 'es'
+                ? rooms.length === 1
+                  ? 'Sala'
+                  : 'Salas'
+                : rooms.length === 1
+                  ? 'Room'
+                  : 'Rooms'}
             </span>
           </div>
           <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Authoritative room capacities, equipment feature tags, and temporal maintenance windows
-            ({FACILITY_TIMEZONE}).
+            {locale === 'es'
+              ? `${t(
+                  'scheduling.roomsSubtitle',
+                  'Supervisa salas de terapia, áreas de rehabilitación y disponibilidad de alquiler por hora.',
+                )} (${FACILITY_TIMEZONE})`
+              : `Authoritative room capacities, equipment feature tags, and temporal maintenance windows (${FACILITY_TIMEZONE}).`}
           </p>
         </div>
 
@@ -156,7 +171,9 @@ export const RoomsPage: React.FC = () => {
             aria-label="Refresh room list"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">Refresh</span>
+            <span className="hidden sm:inline">
+              {locale === 'es' ? t('common.refresh', 'Actualizar') : 'Refresh'}
+            </span>
           </Button>
 
           <Button
@@ -167,13 +184,21 @@ export const RoomsPage: React.FC = () => {
             className={`text-xs gap-1.5 ${showAvailabilityChecker ? 'bg-muted' : ''}`}
           >
             <Wrench className="h-3.5 w-3.5" />
-            <span>{showAvailabilityChecker ? 'Hide Availability Tool' : 'Live Availability'}</span>
+            <span>
+              {showAvailabilityChecker
+                ? locale === 'es'
+                  ? 'Ocultar disponibilidad'
+                  : 'Hide Availability Tool'
+                : locale === 'es'
+                  ? 'Disponibilidad en vivo'
+                  : 'Live Availability'}
+            </span>
           </Button>
 
           <Link to="/scheduling">
             <Button type="button" variant="outline" size="sm" className="text-xs gap-1.5">
               <Calendar className="h-3.5 w-3.5" />
-              <span>Calendar</span>
+              <span>{locale === 'es' ? 'Calendario' : 'Calendar'}</span>
             </Button>
           </Link>
 
@@ -186,7 +211,7 @@ export const RoomsPage: React.FC = () => {
               aria-label="Add Room"
             >
               <Plus className="h-4 w-4" />
-              <span>Add Room</span>
+              <span>{locale === 'es' ? 'Agregar sala' : 'Add Room'}</span>
             </Button>
           )}
         </div>

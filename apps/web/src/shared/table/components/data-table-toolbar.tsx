@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import React from 'react';
 import { cn } from '../../lib/utils';
 import type { DataTableToolbarProps } from '../types/data-table-toolbar.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 /**
  * DataTableToolbar Component
@@ -19,6 +20,8 @@ export function DataTableToolbar({
   actions,
   className,
 }: DataTableToolbarProps): React.ReactElement {
+  const { locale, t } = useTranslation();
+
   return (
     <div
       className={cn(
@@ -38,7 +41,7 @@ export function DataTableToolbar({
             onClick={onResetFilters}
             className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground lg:px-3"
           >
-            Reset
+            {locale === 'es' ? t('common.clear', 'Limpiar') : 'Reset'}
             <X className="ml-1.5 h-3.5 w-3.5" aria-hidden="true" />
           </Button>
         )}

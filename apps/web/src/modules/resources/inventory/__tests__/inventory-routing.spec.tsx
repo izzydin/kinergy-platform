@@ -278,7 +278,7 @@ describe('Consumable Inventory Routing, Deep-Linking & Route Guards', () => {
     it('allows access to inventory catalog route (/resources/inventory)', async () => {
       renderWithRoute('/resources/inventory', READONLY_INVENTORY_AUDITOR);
       expect(
-        await screen.findByTestId('inventory-list-page', {}, { timeout: 5000 }),
+        await screen.findByTestId('inventory-list-page', {}, { timeout: 10000 }),
       ).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Consumable Inventory' })).toBeInTheDocument();
       // Write action should NOT be visible

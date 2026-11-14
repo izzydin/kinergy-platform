@@ -2,6 +2,7 @@ import React from 'react';
 import { Badge } from '@kinergy-platform/ui';
 import { FileText, Clock, Coins, CheckCircle2, XCircle, RotateCcw } from 'lucide-react';
 import type { SaleStatus } from '../types/sales-query.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export interface SaleStatusBadgeProps {
   status: SaleStatus;
@@ -9,6 +10,8 @@ export interface SaleStatusBadgeProps {
 }
 
 export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, className }) => {
+  const { t } = useTranslation();
+
   switch (status) {
     case 'DRAFT':
       return (
@@ -18,7 +21,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
           aria-label="Sale status: Draft"
         >
           <FileText className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Draft</span>
+          <span>{t('DRAFT', 'Draft')}</span>
         </Badge>
       );
     case 'PENDING_PAYMENT':
@@ -29,7 +32,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
           aria-label="Sale status: Pending Payment"
         >
           <Clock className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Pending Payment</span>
+          <span>{t('PENDING_PAYMENT', 'Pending Payment')}</span>
         </Badge>
       );
     case 'PARTIALLY_PAID':
@@ -40,7 +43,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
           aria-label="Sale status: Partially Paid"
         >
           <Coins className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Partially Paid</span>
+          <span>{t('PARTIALLY_PAID', 'Partially Paid')}</span>
         </Badge>
       );
     case 'PAID':
@@ -51,7 +54,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
           aria-label="Sale status: Paid"
         >
           <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Paid</span>
+          <span>{t('PAID', 'Paid')}</span>
         </Badge>
       );
     case 'COMPLETED':
@@ -62,7 +65,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
           aria-label="Sale status: Completed"
         >
           <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Completed</span>
+          <span>{t('COMPLETED', 'Completed')}</span>
         </Badge>
       );
     case 'CANCELLED':
@@ -73,7 +76,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
           aria-label="Sale status: Cancelled"
         >
           <XCircle className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Cancelled</span>
+          <span>{t('CANCELLED', 'Cancelled')}</span>
         </Badge>
       );
     case 'REFUNDED':
@@ -84,7 +87,7 @@ export const SaleStatusBadge: React.FC<SaleStatusBadgeProps> = ({ status, classN
           aria-label="Sale status: Refunded"
         >
           <RotateCcw className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Refunded</span>
+          <span>{t('REFUNDED', 'Refunded')}</span>
         </Badge>
       );
     default:

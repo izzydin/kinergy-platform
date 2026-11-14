@@ -10,6 +10,7 @@ import { useClientFilters } from '../hooks/use-client-filters';
 import { useClientList } from '../hooks/use-client-queries';
 import { ClientTableToolbar } from '../components/client-table-toolbar';
 import { ClientListTable } from '../components/client-list-table';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export interface ClientListPageProps {
   onCreateClient?: () => void;
@@ -18,6 +19,7 @@ export interface ClientListPageProps {
 export const ClientListPage: React.FC<ClientListPageProps> = ({ onCreateClient }) => {
   const auth = useAuth();
   const navigate = useNavigate();
+  const { locale, t } = useTranslation();
 
   const canRead = Boolean(
     typeof auth.hasPermission === 'function'
@@ -99,9 +101,16 @@ export const ClientListPage: React.FC<ClientListPageProps> = ({ onCreateClient }
     <CrudListLayout
       header={
         <CrudListHeader
-          title="Clients"
-          description="Search, filter, and manage client profiles and clinical records across facilities."
-          badge={<Badge variant="outline">Directory</Badge>}
+          title={locale === 'es' ? t('clients.title', 'Clientes y pacientes') : 'Clients'}
+          description={
+            locale === 'es'
+              ? t(
+                  'clients.subtitle',
+                  'Gestiona expedientes de pacientes, datos de contacto y perfiles clínicos o de gimnasio.',
+                )
+              : 'Search, filter, and manage client profiles and clinical records across facilities.'
+          }
+          badge={<Badge variant="outline">{locale === 'es' ? 'Directorio' : 'Directory'}</Badge>}
           action={
             <HasPermission name="client:write">
               <Button
@@ -113,7 +122,11 @@ export const ClientListPage: React.FC<ClientListPageProps> = ({ onCreateClient }
                 data-testid="header-create-client-button"
               >
                 <PlusCircle className="h-4 w-4" aria-hidden="true" />
-                <span>Create Client</span>
+                <span>
+                  {locale === 'es'
+                    ? t('clients.registerClient', 'Registrar cliente')
+                    : 'Create Client'}
+                </span>
               </Button>
             </HasPermission>
           }

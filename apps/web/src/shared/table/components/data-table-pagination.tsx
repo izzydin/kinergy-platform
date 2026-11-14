@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-r
 import React from 'react';
 import { cn } from '../../lib/utils';
 import type { DataTablePaginationProps } from '../types/data-table.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 /**
  * DataTablePagination Component
@@ -28,6 +29,7 @@ export function DataTablePagination({
 
   const canGoPrevious = currentPage > 1;
   const canGoNext = currentPage < totalPages;
+  const { locale, t } = useTranslation();
 
   return (
     <nav
@@ -41,7 +43,15 @@ export function DataTablePagination({
       <div className="flex items-center text-xs">
         {typeof selectedCount === 'number' && selectedCount > 0 ? (
           <span>
-            {selectedCount} of {totalCount} row(s) selected.
+            {locale === 'es'
+              ? `${selectedCount} de ${totalCount} fila(s) seleccionada(s).`
+              : `${selectedCount} of ${totalCount} row(s) selected.`}
+          </span>
+        ) : locale === 'es' ? (
+          <span>
+            Mostrando <strong className="font-semibold text-foreground">{startRecord}</strong> a{' '}
+            <strong className="font-semibold text-foreground">{endRecord}</strong> de{' '}
+            <strong className="font-semibold text-foreground">{totalCount}</strong> resultados
           </span>
         ) : (
           <span>
@@ -57,7 +67,7 @@ export function DataTablePagination({
         {onPageSizeChange && (
           <div className="flex items-center space-x-2">
             <label htmlFor="data-table-page-size" className="text-xs font-medium">
-              Rows per page
+              {locale === 'es' ? t('crud.rowsPerPage', 'Filas por página') : 'Rows per page'}
             </label>
             <select
               id="data-table-page-size"
@@ -77,7 +87,12 @@ export function DataTablePagination({
 
         {/* Page X of Y Metric */}
         <div className="text-xs font-medium text-foreground">
-          Page {currentPage} of {totalPages}
+          {locale === 'es'
+            ? t('crud.pageOf', 'Página {page} de {totalPages}', {
+                page: currentPage,
+                totalPages,
+              })
+            : `Page ${currentPage} of ${totalPages}`}
         </div>
 
         {/* Pagination Buttons */}

@@ -1018,12 +1018,12 @@ describe('POS Station Experience (/sales/new)', () => {
       });
     });
 
-    it('allows retaining the selected client across successive sales via Keep Customer button', async () => {
+    it('does not render Keep Customer button and resets selected client when starting next sale', async () => {
       let saleCounter = 10;
       (salesApi.createSale as jest.Mock).mockImplementation(() =>
         Promise.resolve({
           ...mockSaleTemplate,
-          id: `sale_keep_client_${saleCounter++}`,
+          id: `sale_reset_client_${saleCounter++}`,
           status: 'DRAFT',
         }),
       );
@@ -1058,16 +1058,17 @@ describe('POS Station Experience (/sales/new)', () => {
 
       await waitFor(() => {
         expect(screen.getByTestId('pos-confirmation-view')).toBeInTheDocument();
-        expect(screen.getByTestId('pos-new-sale-same-client-btn')).toBeInTheDocument();
       });
 
-      // 2. Click "Keep Customer" to start next sale for Carlos
-      fireEvent.click(screen.getByTestId('pos-new-sale-same-client-btn'));
+      // Verify "Keep Customer" button is completely absent
+      expect(screen.queryByTestId('pos-new-sale-same-client-btn')).not.toBeInTheDocument();
+      expect(screen.queryByText(/Keep Customer/i)).not.toBeInTheDocument();
 
-      // Verify cart is cleared, but Carlos Rivera remains selected in client combobox
+      // 2. Click "Start Next Sale" and verify both cart and customer selection are reset
+      fireEvent.click(screen.getByTestId('pos-new-sale-btn'));
+
       expect(screen.getByTestId('pos-empty-cart')).toBeInTheDocument();
-      expect(screen.getByTestId('selected-client-card')).toBeInTheDocument();
-      expect(screen.getByTestId('selected-client-card')).toHaveTextContent(/cli_seed_carlos/);
+      expect(screen.queryByTestId('selected-client-card')).not.toBeInTheDocument();
     });
   });
 

@@ -6,8 +6,10 @@ import { useLowStockItems } from '../hooks';
 import { LowStockAttentionQueue } from '../components/low-stock-attention-queue';
 import { ReceiveStockDialog } from '../components/receive-stock-dialog';
 import type { InventoryProductVM } from '../types';
+import { useTranslation } from '../../../../app/providers/locale-provider';
 
 export const LowStockPage: React.FC = () => {
+  const { t } = useTranslation();
   const { data: items, isLoading, isFetching, isError, error, refetch } = useLowStockItems();
   const [selectedProduct, setSelectedProduct] = useState<InventoryProductVM | null>(null);
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
@@ -23,7 +25,8 @@ export const LowStockPage: React.FC = () => {
       <div className="flex items-center justify-between">
         <Button asChild variant="ghost" size="sm">
           <Link to="/resources/inventory">
-            <ArrowLeft className="mr-1.5 h-4 w-4" /> Back to Catalog
+            <ArrowLeft className="mr-1.5 h-4 w-4" />{' '}
+            {t('resources.backToCatalog', 'Back to Catalog')}
           </Link>
         </Button>
         <div className="flex items-center gap-2">
@@ -37,14 +40,17 @@ export const LowStockPage: React.FC = () => {
             className="h-8 text-xs gap-1.5"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('common.refresh', 'Refresh')}
           </Button>
           <Button asChild variant="outline" size="sm">
             <Link to="/resources/inventory/overview">
-              <Boxes className="mr-1.5 h-4 w-4" /> Inventory Overview
+              <Boxes className="mr-1.5 h-4 w-4" />{' '}
+              {t('resources.inventoryOverview', 'Inventory Overview')}
             </Link>
           </Button>
-          <Badge variant="outline">Operational Attention View</Badge>
+          <Badge variant="outline">
+            {t('resources.operationalAttentionView', 'Operational Attention View')}
+          </Badge>
         </div>
       </div>
 
@@ -56,11 +62,13 @@ export const LowStockPage: React.FC = () => {
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Low Stock Attention Queue
+              {t('Low Stock Attention Queue', 'Low Stock Attention Queue')}
             </h1>
             <p className="text-sm text-muted-foreground">
-              Operational triage queue identifying depleted consumables and items at or below
-              minimum threshold.
+              {t(
+                'Operational triage queue identifying depleted consumables and items at or below minimum threshold.',
+                'Operational triage queue identifying depleted consumables and items at or below minimum threshold.',
+              )}
             </p>
           </div>
         </div>

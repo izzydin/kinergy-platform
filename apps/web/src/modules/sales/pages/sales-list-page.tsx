@@ -9,11 +9,13 @@ import { SalesFilterBar } from '../components/sales-filter-bar';
 import { SalesListTable } from '../components/sales-list-table';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
+import { useTranslation } from '../../../app/providers/locale-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
 import type { SaleSortField, SaleStatus } from '../types/sales-query.types';
 
 export const SalesListPage: React.FC = () => {
   const auth = useAuth();
+  const { t } = useTranslation();
   const canRead = Boolean(
     typeof auth.hasPermission === 'function'
       ? auth.hasPermission('sales.read')
@@ -120,13 +122,18 @@ export const SalesListPage: React.FC = () => {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Sales Directory</h1>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              {t('Sales Directory', 'Sales Directory')}
+            </h1>
             <Badge variant="outline" className="hidden sm:inline-flex">
-              Orders Log
+              {t('sales.ordersLog', 'Orders Log')}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Browse, search, and audit commercial sales agreements with real-time status tracking.
+            {t(
+              'Browse, search, and audit commercial sales agreements with real-time status tracking.',
+              'Browse, search, and audit commercial sales agreements with real-time status tracking.',
+            )}
           </p>
         </div>
 
@@ -134,20 +141,20 @@ export const SalesListPage: React.FC = () => {
         <div className="flex flex-wrap items-center gap-2.5">
           <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5">
             <Link to="/sales">
-              <LayoutDashboard className="h-3.5 w-3.5" /> Overview
+              <LayoutDashboard className="h-3.5 w-3.5" /> {t('breadcrumbs.overview', 'Overview')}
             </Link>
           </Button>
 
           <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5">
             <Link to="/sales/payments">
-              <CreditCard className="h-3.5 w-3.5" /> Payments
+              <CreditCard className="h-3.5 w-3.5" /> {t('breadcrumbs.payments', 'Payments')}
             </Link>
           </Button>
 
           <HasPermission name="sales.create">
             <Button asChild variant="default" size="sm" className="h-8 text-xs gap-1.5">
               <Link to="/sales/new">
-                <PlusCircle className="h-3.5 w-3.5" /> Create Sale
+                <PlusCircle className="h-3.5 w-3.5" /> {t('sales.createSale', 'Create Sale')}
               </Link>
             </Button>
           </HasPermission>

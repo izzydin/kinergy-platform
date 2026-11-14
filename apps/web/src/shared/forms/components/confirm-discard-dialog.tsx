@@ -8,6 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@kinergy-platform/ui';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export interface ConfirmDiscardDialogProps {
   /** Whether the confirmation dialog is open. Controlled by the dirty guard. */
@@ -74,12 +75,32 @@ export const ConfirmDiscardDialog: React.FC<ConfirmDiscardDialogProps> = ({
   open,
   onConfirm,
   onCancel,
-  title = 'Discard unsaved changes?',
-  description = 'You have unsaved changes that will be lost if you leave this page. Are you sure you want to discard them?',
-  confirmLabel = 'Discard changes',
-  cancelLabel = 'Keep editing',
+  title,
+  description,
+  confirmLabel,
+  cancelLabel,
 }) => {
   const cancelBtnRef = React.useRef<HTMLButtonElement>(null);
+  const { locale, t } = useTranslation();
+
+  const resolvedTitle =
+    title ??
+    (locale === 'es'
+      ? t('crud.discardModalTitle', '¿Descartar cambios sin guardar?')
+      : 'Discard unsaved changes?');
+  const resolvedDescription =
+    description ??
+    (locale === 'es'
+      ? t(
+          'crud.discardModalDescription',
+          'Tienes modificaciones sin guardar que se perderán si sales de esta pantalla.',
+        )
+      : 'You have unsaved changes that will be lost if you leave this page. Are you sure you want to discard them?');
+  const resolvedConfirmLabel =
+    confirmLabel ??
+    (locale === 'es' ? t('crud.discardChanges', 'Descartar cambios') : 'Discard changes');
+  const resolvedCancelLabel =
+    cancelLabel ?? (locale === 'es' ? t('crud.keepEditing', 'Seguir editando') : 'Keep editing');
 
   return (
     <Dialog
@@ -104,8 +125,8 @@ export const ConfirmDiscardDialog: React.FC<ConfirmDiscardDialogProps> = ({
         }}
       >
         <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogTitle>{resolvedTitle}</DialogTitle>
+          <DialogDescription>{resolvedDescription}</DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button
@@ -115,7 +136,7 @@ export const ConfirmDiscardDialog: React.FC<ConfirmDiscardDialogProps> = ({
             onClick={onCancel}
             data-testid="confirm-discard-cancel-btn"
           >
-            {cancelLabel}
+            {resolvedCancelLabel}
           </Button>
           <Button
             type="button"
@@ -123,7 +144,7 @@ export const ConfirmDiscardDialog: React.FC<ConfirmDiscardDialogProps> = ({
             onClick={onConfirm}
             data-testid="confirm-discard-confirm-btn"
           >
-            {confirmLabel}
+            {resolvedConfirmLabel}
           </Button>
         </DialogFooter>
       </DialogContent>

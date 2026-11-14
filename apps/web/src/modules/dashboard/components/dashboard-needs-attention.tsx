@@ -26,6 +26,7 @@ import {
   formatMinorUnitsAsCurrency,
 } from '../api/operational-dashboard-queries';
 import type { SaleSummaryDTO } from '../../sales/types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 function formatSaleAmount(sale: SaleSummaryDTO): string {
   if (sale.total?.formatted) {
@@ -49,6 +50,7 @@ function formatSaleAmount(sale: SaleSummaryDTO): string {
  */
 export const DashboardNeedsAttention: React.FC = () => {
   const { canViewLowStock, canViewAppointments, canViewPendingSales } = useDashboardAccess();
+  const { locale, t } = useTranslation();
 
   const lowStockQuery = useLowStockAlerts();
   const appointmentsQuery = useTodayAppointments();
@@ -91,15 +93,25 @@ export const DashboardNeedsAttention: React.FC = () => {
         <div>
           <CardTitle className="text-base font-semibold flex items-center gap-2">
             <AlertTriangle className="w-4 h-4 text-warning-text" aria-hidden="true" />
-            <span>Needs Attention</span>
+            <span>
+              {locale === 'es'
+                ? t('dashboard.attention.title', 'Requiere atención')
+                : 'Needs Attention'}
+            </span>
           </CardTitle>
           <CardDescription className="text-xs mt-0.5">
-            Actionable stock, scheduling, and payment items requiring staff follow-up
+            {locale === 'es'
+              ? t(
+                  'dashboard.attention.subtitle',
+                  'Alertas operativas que requieren seguimiento del personal.',
+                )
+              : 'Actionable stock, scheduling, and payment items requiring staff follow-up'}
           </CardDescription>
         </div>
         {!isLoadingAny && totalActionableCount > 0 && (
           <Badge variant="warning" className="text-xs font-medium shrink-0">
-            {totalLowStockCount + actionableAppointments.length + totalPendingSalesCount} Open
+            {totalLowStockCount + actionableAppointments.length + totalPendingSalesCount}{' '}
+            {locale === 'es' ? 'Abiertas' : 'Open'}
           </Badge>
         )}
       </CardHeader>
@@ -123,11 +135,17 @@ export const DashboardNeedsAttention: React.FC = () => {
               <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
             </div>
             <p className="text-sm font-medium text-foreground">
-              All clear — no operational issues require immediate attention
+              {locale === 'es'
+                ? t('dashboard.attention.allClearTitle', 'Todas las colas operativas están al día')
+                : 'All clear — no operational issues require immediate attention'}
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              Inventory thresholds, today&apos;s appointments, and payment settlements are up to
-              date.
+              {locale === 'es'
+                ? t(
+                    'dashboard.attention.allClearDescription',
+                    'No hay alertas críticas de stock bajo ni ventas pendientes que requieran acción inmediata.',
+                  )
+                : "Inventory thresholds, today's appointments, and payment settlements are up to date."}
             </p>
           </div>
         ) : (
@@ -138,13 +156,18 @@ export const DashboardNeedsAttention: React.FC = () => {
                 <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   <span className="inline-flex items-center gap-1.5">
                     <Package className="w-3.5 h-3.5 text-warning-text" aria-hidden="true" />
-                    <span>Inventory Replenishment ({totalLowStockCount})</span>
+                    <span>
+                      {locale === 'es'
+                        ? `Reposición de inventario (${totalLowStockCount})`
+                        : `Inventory Replenishment (${totalLowStockCount})`}
+                    </span>
                   </span>
                   <Link
                     to="/resources/inventory/low-stock"
                     className="text-primary hover:underline normal-case font-medium inline-flex items-center gap-1"
                   >
-                    Restock queue <ArrowRight className="w-3 h-3" aria-hidden="true" />
+                    {locale === 'es' ? 'Ver stock bajo' : 'Restock queue'}{' '}
+                    <ArrowRight className="w-3 h-3" aria-hidden="true" />
                   </Link>
                 </div>
 
@@ -163,18 +186,24 @@ export const DashboardNeedsAttention: React.FC = () => {
                           {item.name}
                         </Link>
                         <p className="text-[11px] text-muted-foreground">
-                          SKU: {item.sku} · On hand:{' '}
+                          SKU: {item.sku} · {locale === 'es' ? 'Disponible:' : 'On hand:'}{' '}
                           <span className="font-medium text-foreground">
                             {item.currentStock} {item.unitOfMeasure}
                           </span>{' '}
-                          (min {item.reorderThreshold})
+                          ({locale === 'es' ? 'mín.' : 'min'} {item.reorderThreshold})
                         </p>
                       </div>
                       <Badge
                         variant={item.isOutOfStock ? 'destructive' : 'warning'}
                         className="text-[10px] shrink-0"
                       >
-                        {item.isOutOfStock ? 'Out of Stock' : 'Low Stock'}
+                        {item.isOutOfStock
+                          ? locale === 'es'
+                            ? 'Sin stock'
+                            : 'Out of Stock'
+                          : locale === 'es'
+                            ? 'Stock bajo'
+                            : 'Low Stock'}
                       </Badge>
                     </div>
                   ))}
@@ -188,13 +217,18 @@ export const DashboardNeedsAttention: React.FC = () => {
                 <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   <span className="inline-flex items-center gap-1.5">
                     <CalendarClock className="w-3.5 h-3.5 text-primary" aria-hidden="true" />
-                    <span>Appointments Awaiting Action ({actionableAppointments.length})</span>
+                    <span>
+                      {locale === 'es'
+                        ? `Citas pendientes de acción (${actionableAppointments.length})`
+                        : `Appointments Awaiting Action (${actionableAppointments.length})`}
+                    </span>
                   </span>
                   <Link
                     to="/scheduling"
                     className="text-primary hover:underline normal-case font-medium inline-flex items-center gap-1"
                   >
-                    Manage schedule <ArrowRight className="w-3 h-3" aria-hidden="true" />
+                    {locale === 'es' ? 'Gestionar agenda' : 'Manage schedule'}{' '}
+                    <ArrowRight className="w-3 h-3" aria-hidden="true" />
                   </Link>
                 </div>
 
@@ -217,7 +251,13 @@ export const DashboardNeedsAttention: React.FC = () => {
                         variant={appt.status === 'CHECKED_IN' ? 'warning' : 'secondary'}
                         className="text-[10px] shrink-0"
                       >
-                        {appt.status === 'CHECKED_IN' ? 'Ready to Start' : 'Unconfirmed'}
+                        {appt.status === 'CHECKED_IN'
+                          ? locale === 'es'
+                            ? 'Lista para iniciar'
+                            : 'Ready to Start'
+                          : locale === 'es'
+                            ? 'Sin confirmar'
+                            : 'Unconfirmed'}
                       </Badge>
                     </div>
                   ))}
@@ -231,13 +271,18 @@ export const DashboardNeedsAttention: React.FC = () => {
                 <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                   <span className="inline-flex items-center gap-1.5">
                     <CreditCard className="w-3.5 h-3.5 text-warning-text" aria-hidden="true" />
-                    <span>Pending Payment Orders ({totalPendingSalesCount})</span>
+                    <span>
+                      {locale === 'es'
+                        ? `Órdenes pendientes de pago (${totalPendingSalesCount})`
+                        : `Pending Payment Orders (${totalPendingSalesCount})`}
+                    </span>
                   </span>
                   <Link
                     to="/sales/list?status=PENDING_PAYMENT"
                     className="text-primary hover:underline normal-case font-medium inline-flex items-center gap-1"
                   >
-                    Open orders <ArrowRight className="w-3 h-3" aria-hidden="true" />
+                    {locale === 'es' ? 'Ver órdenes' : 'Open orders'}{' '}
+                    <ArrowRight className="w-3 h-3" aria-hidden="true" />
                   </Link>
                 </div>
 
@@ -253,14 +298,17 @@ export const DashboardNeedsAttention: React.FC = () => {
                           to={`/sales/${encodeURIComponent(sale.id)}`}
                           className="text-xs font-semibold text-foreground hover:text-primary hover:underline truncate block"
                         >
-                          Order #{sale.id.slice(0, 8)} · {formatSaleAmount(sale)}
+                          {locale === 'es' ? 'Orden' : 'Order'} #{sale.id.slice(0, 8)} ·{' '}
+                          {formatSaleAmount(sale)}
                         </Link>
                         <p className="text-[11px] text-muted-foreground">
-                          {sale.itemCount} item(s) · Finalized awaiting payment settlement
+                          {locale === 'es'
+                            ? `${sale.itemCount} artículo(s) · Pendiente de cobro`
+                            : `${sale.itemCount} item(s) · Finalized awaiting payment settlement`}
                         </p>
                       </div>
                       <Badge variant="warning" className="text-[10px] shrink-0">
-                        Pending Payment
+                        {locale === 'es' ? 'Pendiente de pago' : 'Pending Payment'}
                       </Badge>
                     </div>
                   ))}
@@ -276,7 +324,9 @@ export const DashboardNeedsAttention: React.FC = () => {
             data-testid="needs-attention-error"
           >
             <span className="text-destructive font-medium">
-              Some operational alerts could not be refreshed.
+              {locale === 'es'
+                ? 'Algunas alertas operativas no pudieron actualizarse.'
+                : 'Some operational alerts could not be refreshed.'}
             </span>
             <Button
               variant="outline"
@@ -284,7 +334,8 @@ export const DashboardNeedsAttention: React.FC = () => {
               onClick={handleRetryAll}
               className="h-7 text-xs gap-1"
             >
-              <RefreshCw className="w-3 h-3" aria-hidden="true" /> Retry
+              <RefreshCw className="w-3 h-3" aria-hidden="true" />{' '}
+              {locale === 'es' ? t('common.retry', 'Reintentar') : 'Retry'}
             </Button>
           </div>
         )}

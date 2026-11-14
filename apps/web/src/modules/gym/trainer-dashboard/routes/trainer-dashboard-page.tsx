@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Button, Badge, Card, CardHeader, CardTitle, CardContent } from '@kinergy-platform/ui';
 import { useAuth } from '../../../../app/providers/auth-provider';
+import { useTranslation } from '../../../../app/providers/locale-provider';
 import {
   useTrainerDashboardSummary,
   useAssignedClients,
@@ -20,6 +21,7 @@ import { ClientSearchResultDTO } from '../types';
 
 export const TrainerDashboardPage: React.FC = () => {
   const { currentUser } = useAuth();
+  const { t } = useTranslation();
   const trainerId = currentUser?.id ?? '';
 
   const {
@@ -140,12 +142,15 @@ export const TrainerDashboardPage: React.FC = () => {
         <div>
           <div className="flex items-center space-x-3">
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-              Trainer Operational Dashboard
+              {t('gym.trainerTitle', 'Trainer Operational Dashboard')}
             </h1>
-            <Badge variant="secondary">Gym Operations</Badge>
+            <Badge variant="secondary">{t('Gym Operations', 'Gym Operations')}</Badge>
           </div>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Real-time client assignments, membership status, and facility check-ins for{' '}
+            {t(
+              'Real-time client assignments, membership status, and facility check-ins for',
+              'Real-time client assignments, membership status, and facility check-ins for',
+            )}{' '}
             <span className="font-semibold text-slate-700 dark:text-slate-200">
               {currentUser?.email ?? 'Assigned Trainer'}
             </span>
@@ -153,7 +158,7 @@ export const TrainerDashboardPage: React.FC = () => {
         </div>
         <div className="flex items-center space-x-3">
           <Button variant="outline" size="sm" onClick={handleRefreshAll} className="text-xs">
-            🔄 Refresh Dashboard
+            🔄 {t('gym.refreshDashboard', 'Refresh Dashboard')}
           </Button>
         </div>
       </div>

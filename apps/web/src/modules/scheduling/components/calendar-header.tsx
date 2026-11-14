@@ -14,6 +14,7 @@ import { FACILITY_TIMEZONE } from '../utils/calendar-date.utils';
 import type { CalendarViewMode } from '../hooks/use-calendar-url-state';
 import type { RoomModel } from '../types/scheduling.types';
 import { APPOINTMENT_STATUSES } from '../types/scheduling.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export interface CalendarHeaderProps {
   view: CalendarViewMode;
@@ -54,6 +55,8 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
   onResetFilters,
   onStartBooking,
 }) => {
+  const { locale, t } = useTranslation();
+
   return (
     <header className="space-y-3 pb-3 border-b border-border">
       {/* Top Bar: Navigation, Date Title, Timezone, View Switcher & Booking Action */}
@@ -78,7 +81,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
               }`}
               aria-label="Jump to current date"
             >
-              Today
+              {locale === 'es' ? t('scheduling.todayButton', 'Hoy') : 'Today'}
             </button>
             <button
               type="button"
@@ -124,7 +127,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                 view === 'day' ? 'bg-background text-foreground shadow-xs' : 'hover:text-foreground'
               }`}
             >
-              Day
+              {locale === 'es' ? t('scheduling.dayView', 'Día') : 'Day'}
             </button>
             <button
               type="button"
@@ -137,7 +140,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                   : 'hover:text-foreground'
               }`}
             >
-              Week
+              {locale === 'es' ? t('scheduling.weekView', 'Semana') : 'Week'}
             </button>
             <button
               type="button"
@@ -150,7 +153,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
                   : 'hover:text-foreground'
               }`}
             >
-              Month
+              {locale === 'es' ? 'Mes' : 'Month'}
             </button>
           </div>
 
@@ -164,7 +167,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
               aria-label="View room directory"
             >
               <DoorClosed className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Rooms</span>
+              <span>{locale === 'es' ? 'Salas' : 'Rooms'}</span>
             </Button>
           </Link>
 
@@ -177,7 +180,11 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
               aria-label="Book new appointment"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              <span>Book Appointment</span>
+              <span>
+                {locale === 'es'
+                  ? t('scheduling.bookAppointment', 'Agendar cita')
+                  : 'Book Appointment'}
+              </span>
             </Button>
           )}
         </div>
@@ -188,7 +195,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
         {/* Room Filter */}
         <div className="flex items-center gap-1">
           <label htmlFor="filter-room" className="font-medium text-muted-foreground shrink-0">
-            Room:
+            {locale === 'es' ? 'Sala:' : 'Room:'}
           </label>
           <select
             id="filter-room"
@@ -197,7 +204,9 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
             className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
             aria-label="Filter calendar by room"
           >
-            <option value="">All Rooms</option>
+            <option value="">
+              {locale === 'es' ? t('scheduling.allRooms', 'Todas las salas') : 'All Rooms'}
+            </option>
             {rooms.map((room) => (
               <option key={room.id} value={room.id}>
                 {room.name} {room.status === 'UNAVAILABLE' ? '(Unavailable)' : ''}
@@ -209,12 +218,12 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
         {/* Therapist Filter */}
         <div className="flex items-center gap-1">
           <label htmlFor="filter-therapist" className="font-medium text-muted-foreground shrink-0">
-            Therapist:
+            {locale === 'es' ? 'Especialista:' : 'Therapist:'}
           </label>
           <input
             id="filter-therapist"
             type="text"
-            placeholder="Therapist ID..."
+            placeholder={locale === 'es' ? 'ID especialista...' : 'Therapist ID...'}
             value={selectedTherapistId || ''}
             onChange={(e) => onTherapistChange(e.target.value.trim() || undefined)}
             className="h-8 w-32 rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
@@ -225,7 +234,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
         {/* Status Filter */}
         <div className="flex items-center gap-1">
           <label htmlFor="filter-status" className="font-medium text-muted-foreground shrink-0">
-            Status:
+            {locale === 'es' ? 'Estado:' : 'Status:'}
           </label>
           <select
             id="filter-status"
@@ -234,10 +243,12 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
             className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
             aria-label="Filter calendar by appointment status"
           >
-            <option value="">All Statuses</option>
+            <option value="">
+              {locale === 'es' ? t('clients.allStatuses', 'Todos los estados') : 'All Statuses'}
+            </option>
             {APPOINTMENT_STATUSES.map((status) => (
               <option key={status} value={status}>
-                {status}
+                {locale === 'es' ? t(status, status) : status}
               </option>
             ))}
           </select>
@@ -253,7 +264,9 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
             aria-label="Clear all calendar filters"
           >
             <FilterX className="h-3.5 w-3.5" aria-hidden="true" />
-            <span>Clear Filters</span>
+            <span>
+              {locale === 'es' ? t('common.clearFilters', 'Limpiar filtros') : 'Clear Filters'}
+            </span>
           </Button>
         )}
       </div>

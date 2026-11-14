@@ -18,6 +18,7 @@ import { MoneyDisplay } from '../components/money-display';
 import { PaymentMethodBadge } from '../components/payment-method-badge';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
+import { useTranslation } from '../../../app/providers/locale-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { CrudLoading, CrudEmpty, CrudError } from '../../../shared/crud';
 import { SALES_ROUTES } from '../routes/sales-routes';
@@ -187,6 +188,7 @@ export const ReceiptViewPage: React.FC = () => {
   const { saleId } = useParams<{ saleId: string }>();
   const location = useLocation();
   const auth = useAuth();
+  const { t, formatDateTime } = useTranslation();
   const [printFormat, setPrintFormat] = useState<ReceiptPrintFormat>('standard');
   const [issueError, setIssueError] = useState<string | null>(null);
   const [issuedReceipt, setIssuedReceipt] = useState<ReceiptDTO | null>(null);
@@ -503,7 +505,7 @@ export const ReceiptViewPage: React.FC = () => {
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm">
             <Link to={backTo}>
-              <ArrowLeft className="h-4 w-4 mr-1" /> Back to Sale
+              <ArrowLeft className="h-4 w-4 mr-1" /> {t('sales.backToSale', 'Back to Sale')}
             </Link>
           </Button>
           <div>
@@ -511,10 +513,13 @@ export const ReceiptViewPage: React.FC = () => {
               className="text-xl font-bold tracking-tight text-foreground"
               data-testid="receipt-page-title"
             >
-              Official Receipt Document
+              {t('sales.officialReceiptTitle', 'Official Receipt Document')}
             </h1>
             <p className="text-xs text-muted-foreground">
-              Read-only proof-of-payment voucher snapshotted upon full payment settlement
+              {t(
+                'sales.officialReceiptSubtitle',
+                'Read-only proof-of-payment voucher snapshotted upon full payment settlement',
+              )}
             </p>
           </div>
         </div>
@@ -523,7 +528,7 @@ export const ReceiptViewPage: React.FC = () => {
           {/* Format Selector */}
           <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
             <label htmlFor="receipt-format-select" className="font-medium whitespace-nowrap">
-              Format:
+              {t('sales.format', 'Format:')}
             </label>
             <select
               id="receipt-format-select"
@@ -532,9 +537,9 @@ export const ReceiptViewPage: React.FC = () => {
               className="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs"
               data-testid="receipt-format-selector"
             >
-              <option value="standard">Standard (Document)</option>
-              <option value="80mm">80mm POS Thermal</option>
-              <option value="58mm">58mm Compact Thermal</option>
+              <option value="standard">{t('sales.standardDocument', 'Standard (Document)')}</option>
+              <option value="80mm">{t('sales.thermal80mm', '80mm POS Thermal')}</option>
+              <option value="58mm">{t('sales.thermal58mm', '58mm Compact Thermal')}</option>
             </select>
           </div>
 
@@ -550,11 +555,13 @@ export const ReceiptViewPage: React.FC = () => {
             >
               {reprintMutation.isPending ? (
                 <>
-                  <RefreshCw className="h-3.5 w-3.5 animate-spin" /> Recording Reprint...
+                  <RefreshCw className="h-3.5 w-3.5 animate-spin" />{' '}
+                  {t('sales.recordingReprint', 'Recording Reprint...')}
                 </>
               ) : (
                 <>
-                  <Copy className="h-3.5 w-3.5" /> Record Official Reprint
+                  <Copy className="h-3.5 w-3.5" />{' '}
+                  {t('sales.recordOfficialReprint', 'Record Official Reprint')}
                 </>
               )}
             </Button>
@@ -568,7 +575,7 @@ export const ReceiptViewPage: React.FC = () => {
             className="gap-1.5 h-8 text-xs"
             data-testid="receipt-download-button"
           >
-            <Download className="h-3.5 w-3.5" /> Download Receipt
+            <Download className="h-3.5 w-3.5" /> {t('sales.downloadReceipt', 'Download Receipt')}
           </Button>
 
           {/* Browser Print Trigger */}
@@ -579,7 +586,7 @@ export const ReceiptViewPage: React.FC = () => {
             className="gap-1.5 h-8 text-xs"
             data-testid="receipt-print-button"
           >
-            <Printer className="h-3.5 w-3.5" /> Print Receipt
+            <Printer className="h-3.5 w-3.5" /> {t('sales.printReceipt', 'Print Receipt')}
           </Button>
         </div>
       </div>
@@ -600,7 +607,7 @@ export const ReceiptViewPage: React.FC = () => {
           <CardHeader className="text-center border-b border-border pb-6 space-y-2">
             <div className="flex items-center justify-center gap-2">
               <Badge variant="outline" className="text-xs uppercase tracking-wider">
-                Official Proof of Purchase
+                {t('sales.officialProofOfPurchase', 'Official Proof of Purchase')}
               </Badge>
               {receipt.status && (
                 <Badge variant="secondary" className="text-xs">
@@ -621,13 +628,17 @@ export const ReceiptViewPage: React.FC = () => {
               >
                 COPY / DUPLICATE VOUCHER — REPRINT #{receipt.reprintCount}
                 {receipt.lastReprintedAt
-                  ? ` (Last: ${new Date(receipt.lastReprintedAt).toLocaleString()})`
+                  ? ` (Last: ${formatDateTime(receipt.lastReprintedAt)})`
                   : ''}
               </div>
             ) : null}
             <div className="text-xs text-muted-foreground space-y-0.5 font-mono">
-              <div>Order Reference: {receipt.saleReference}</div>
-              <div>Issued: {new Date(receipt.issuedAt).toLocaleString()}</div>
+              <div>
+                {t('sales.orderReference', 'Order Reference')}: {receipt.saleReference}
+              </div>
+              <div>
+                {t('sales.issuedAtLabel', 'Issued')}: {formatDateTime(receipt.issuedAt)}
+              </div>
             </div>
           </CardHeader>
 
@@ -638,7 +649,7 @@ export const ReceiptViewPage: React.FC = () => {
               data-testid="receipt-client-snapshot"
             >
               <span className="font-semibold text-muted-foreground uppercase tracking-wider block">
-                Billed To
+                {t('sales.billedTo', 'Billed To')}
               </span>
               {receipt.clientSnapshot ? (
                 <div className="font-medium text-sm">
@@ -660,29 +671,31 @@ export const ReceiptViewPage: React.FC = () => {
                   )}
                 </div>
               ) : (
-                <div className="text-muted-foreground italic">Walk-in Customer</div>
+                <div className="text-muted-foreground italic">
+                  {t('sales.walkInCustomer', 'Walk-in Customer')}
+                </div>
               )}
             </div>
 
             {/* Line Items Table (Frozen Snapshot Preserved) */}
             <div className="space-y-2" data-testid="receipt-items-table">
               <span className="font-semibold text-xs text-muted-foreground uppercase tracking-wider block">
-                Purchased Items
+                {t('sales.purchasedItems', 'Purchased Items')}
               </span>
               <table className="w-full text-xs" aria-label="Purchased items">
                 <thead>
                   <tr className="border-b border-border text-muted-foreground">
                     <th scope="col" className="py-1.5 text-left font-medium">
-                      Item Description
+                      {t('sales.itemDescription', 'Item Description')}
                     </th>
                     <th scope="col" className="py-1.5 text-center font-medium">
-                      Qty
+                      {t('sales.qty', 'Qty')}
                     </th>
                     <th scope="col" className="py-1.5 text-right font-medium">
-                      Unit Price
+                      {t('sales.unitPrice', 'Unit Price')}
                     </th>
                     <th scope="col" className="py-1.5 text-right font-medium">
-                      Total
+                      {t('sales.total', 'Total')}
                     </th>
                   </tr>
                 </thead>
@@ -716,13 +729,13 @@ export const ReceiptViewPage: React.FC = () => {
               data-testid="receipt-totals-breakdown"
             >
               <div className="flex justify-between text-muted-foreground">
-                <span>Subtotal:</span>
+                <span>{t('sales.subtotal', 'Subtotal')}:</span>
                 <MoneyDisplay value={receipt.subtotal} />
               </div>
 
               {Boolean(receipt.discountTotal?.amount && receipt.discountTotal.amount > 0) && (
                 <div className="flex justify-between text-emerald-600 dark:text-emerald-400">
-                  <span>Total Discount Applied:</span>
+                  <span>{t('sales.totalDiscountApplied', 'Total Discount Applied:')}</span>
                   <span>
                     -<MoneyDisplay value={receipt.discountTotal} />
                   </span>
@@ -730,7 +743,9 @@ export const ReceiptViewPage: React.FC = () => {
               )}
 
               <div className="flex justify-between text-base font-bold font-mono border-t border-border pt-2 text-foreground">
-                <span>Total Paid ({receipt.currency}):</span>
+                <span>
+                  {t('sales.totalPaidLabel', 'Total Paid')} ({receipt.currency}):
+                </span>
                 <MoneyDisplay value={receipt.total} />
               </div>
             </div>
@@ -741,7 +756,7 @@ export const ReceiptViewPage: React.FC = () => {
               data-testid="receipt-payments-snapshot"
             >
               <span className="font-semibold text-muted-foreground uppercase tracking-wider block">
-                Tender Settlement Records
+                {t('sales.tenderSettlementRecords', 'Tender Settlement Records')}
               </span>
               {receipt.payments.map((p) => (
                 <div
@@ -765,11 +780,17 @@ export const ReceiptViewPage: React.FC = () => {
 
             {/* Legal / Voucher Footer */}
             <div className="pt-6 border-t border-dashed border-border text-center text-[10px] text-muted-foreground space-y-1">
-              <p>Thank you for your business at Kinergy Platform.</p>
+              <p>
+                {t(
+                  'sales.receiptFooterThankYou',
+                  'Thank you for your business at Kinergy Platform.',
+                )}
+              </p>
               <p data-testid="receipt-audit-disclaimer">
-                Official proof-of-purchase voucher snapshotted upon settlement. Viewing,
-                downloading, or printing this document is strictly read-only and does not create,
-                settle, or alter server payment records or transaction lifecycle states.
+                {t(
+                  'sales.receiptFooterDisclaimer',
+                  'Official proof-of-purchase voucher snapshotted upon settlement. Viewing, downloading, or printing this document is strictly read-only and does not create, settle, or alter server payment records or transaction lifecycle states.',
+                )}
               </p>
             </div>
           </CardContent>

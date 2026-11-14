@@ -4,6 +4,7 @@ import { PlusCircle, RefreshCw } from 'lucide-react';
 import { DataTableSearch, DataTableFacetedFilter, DataTableToolbar } from '../../../shared/table';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import type { ClientStatus } from '../types/client.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export interface ClientTableToolbarProps {
   search: string;
@@ -33,6 +34,8 @@ export const ClientTableToolbar: React.FC<ClientTableToolbarProps> = ({
   isRefreshing = false,
   onCreateClick,
 }) => {
+  const { locale, t } = useTranslation();
+
   return (
     <DataTableToolbar
       isFiltered={isFiltered}
@@ -41,14 +44,18 @@ export const ClientTableToolbar: React.FC<ClientTableToolbarProps> = ({
         <DataTableSearch
           value={search}
           onChange={onSearchChange}
-          placeholder="Search by name, email, phone, reference..."
+          placeholder={
+            locale === 'es'
+              ? t('clients.searchPlaceholder', 'Buscar por nombre, correo, teléfono o documento...')
+              : 'Search by name, email, phone, reference...'
+          }
           ariaLabel="Search client profiles"
         />
       }
       filters={
         <div className="flex items-center gap-2">
           <DataTableFacetedFilter<ClientStatus>
-            title="Status"
+            title={locale === 'es' ? t('common.status', 'Estado') : 'Status'}
             options={STATUS_OPTIONS}
             selectedValues={status}
             onSelect={(selected) => {
@@ -92,7 +99,11 @@ export const ClientTableToolbar: React.FC<ClientTableToolbarProps> = ({
               data-testid="create-client-button"
             >
               <PlusCircle className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Create Client</span>
+              <span>
+                {locale === 'es'
+                  ? t('clients.registerClient', 'Registrar cliente')
+                  : 'Create Client'}
+              </span>
             </Button>
           </HasPermission>
         </div>

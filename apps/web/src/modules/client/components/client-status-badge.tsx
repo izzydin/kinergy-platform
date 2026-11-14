@@ -2,6 +2,7 @@ import React from 'react';
 import { Badge } from '@kinergy-platform/ui';
 import { CheckCircle2, Archive } from 'lucide-react';
 import type { ClientStatus } from '../types/client.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export interface ClientStatusBadgeProps {
   status: ClientStatus;
@@ -9,6 +10,8 @@ export interface ClientStatusBadgeProps {
 }
 
 export const ClientStatusBadge: React.FC<ClientStatusBadgeProps> = ({ status, className }) => {
+  const { locale, t } = useTranslation();
+
   switch (status) {
     case 'ACTIVE':
       return (
@@ -18,7 +21,7 @@ export const ClientStatusBadge: React.FC<ClientStatusBadgeProps> = ({ status, cl
           aria-label="Client status: Active"
         >
           <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Active</span>
+          <span>{locale === 'es' ? t('clients.status.ACTIVE', 'Activo') : 'Active'}</span>
         </Badge>
       );
     case 'ARCHIVED':
@@ -29,7 +32,7 @@ export const ClientStatusBadge: React.FC<ClientStatusBadgeProps> = ({ status, cl
           aria-label="Client status: Archived"
         >
           <Archive className="h-3 w-3 shrink-0" aria-hidden="true" />
-          <span>Archived</span>
+          <span>{locale === 'es' ? t('clients.status.ARCHIVED', 'Archivado') : 'Archived'}</span>
         </Badge>
       );
     default:

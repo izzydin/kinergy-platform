@@ -10,6 +10,7 @@ import {
 } from '@kinergy-platform/ui';
 import { UserPlus, CalendarPlus, ShoppingCart, PackagePlus, QrCode, Zap } from 'lucide-react';
 import { useDashboardAccess } from '../api/operational-dashboard-queries';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export interface OperationalQuickActionItem {
   readonly id: string;
@@ -40,44 +41,82 @@ export const DashboardQuickActions: React.FC<DashboardQuickActionsProps> = ({
     canReceiveInventory,
     canRegisterCheckIn,
   } = useDashboardAccess();
+  const { locale, t } = useTranslation();
 
   const allActions: OperationalQuickActionItem[] = [
     {
       id: 'register-check-in',
-      label: 'Register Gym Check-in',
-      description: 'Verify membership eligibility and record client arrival',
+      label:
+        locale === 'es'
+          ? t('dashboard.quickActions.registerCheckIn', 'Registro de ingreso')
+          : 'Register Gym Check-in',
+      description:
+        locale === 'es'
+          ? t(
+              'dashboard.quickActions.registerCheckInDesc',
+              'Validar membresía y registrar entrada al gimnasio',
+            )
+          : 'Verify membership eligibility and record client arrival',
       to: '/gym/attendance',
       icon: QrCode,
       enabled: canRegisterCheckIn,
     },
     {
       id: 'create-appointment',
-      label: 'Create Appointment',
-      description: 'Book a clinic evaluation, treatment, or training session',
+      label:
+        locale === 'es'
+          ? t('dashboard.quickActions.bookAppointment', 'Agendar cita')
+          : 'Create Appointment',
+      description:
+        locale === 'es'
+          ? t(
+              'dashboard.quickActions.bookAppointmentDesc',
+              'Programar una sesión de kinesiología o sala del centro',
+            )
+          : 'Book a clinic evaluation, treatment, or training session',
       to: '/scheduling/book',
       icon: CalendarPlus,
       enabled: canCreateAppointment,
     },
     {
       id: 'create-sale',
-      label: 'Create Sale',
-      description: 'Open POS checkout for retail products or services',
+      label:
+        locale === 'es' ? t('dashboard.quickActions.newSalePos', 'Nueva venta PDV') : 'Create Sale',
+      description:
+        locale === 'es'
+          ? t(
+              'dashboard.quickActions.newSalePosDesc',
+              'Vender membresías, sesiones, alimentos, bebidas o alquiler de salas',
+            )
+          : 'Open POS checkout for retail products or services',
       to: '/sales/new',
       icon: ShoppingCart,
       enabled: canCreateSale,
     },
     {
       id: 'register-client',
-      label: 'Register Client',
-      description: 'Create a new client profile and contact record',
+      label:
+        locale === 'es'
+          ? t('dashboard.quickActions.registerClient', 'Registrar cliente')
+          : 'Register Client',
+      description:
+        locale === 'es'
+          ? t(
+              'dashboard.quickActions.registerClientDesc',
+              'Crear un nuevo perfil de paciente o miembro del gimnasio',
+            )
+          : 'Create a new client profile and contact record',
       to: '/clients/new',
       icon: UserPlus,
       enabled: canRegisterClient,
     },
     {
       id: 'receive-inventory',
-      label: 'Receive Inventory',
-      description: 'Inspect catalog stock levels and record stock receipts',
+      label: locale === 'es' ? 'Recibir inventario' : 'Receive Inventory',
+      description:
+        locale === 'es'
+          ? 'Inspeccionar niveles de stock y registrar entradas de inventario'
+          : 'Inspect catalog stock levels and record stock receipts',
       to: '/resources/inventory',
       icon: PackagePlus,
       enabled: canReceiveInventory,
@@ -158,10 +197,19 @@ export const DashboardQuickActions: React.FC<DashboardQuickActionsProps> = ({
       <CardHeader className="pb-3 border-b border-border/60">
         <CardTitle className="text-base font-semibold flex items-center gap-2">
           <Zap className="w-4 h-4 text-primary" aria-hidden="true" />
-          <span>Quick Actions</span>
+          <span>
+            {locale === 'es'
+              ? t('dashboard.quickActions.title', 'Acciones rápidas')
+              : 'Quick Actions'}
+          </span>
         </CardTitle>
         <CardDescription className="text-xs mt-0.5">
-          Direct shortcuts to common front-desk, clinical, and inventory workflows
+          {locale === 'es'
+            ? t(
+                'dashboard.quickActions.subtitle',
+                'Accesos directos a las tareas frecuentes de recepción y clínica.',
+              )
+            : 'Direct shortcuts to common front-desk, clinical, and inventory workflows'}
         </CardDescription>
       </CardHeader>
       <CardContent className="pt-4">

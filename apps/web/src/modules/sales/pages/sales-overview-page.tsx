@@ -23,6 +23,7 @@ import {
 import { useSalesOverviewMetrics } from '../hooks/use-sales-queries';
 import { HasPermission } from '../../../app/routes/permission-guard';
 import { useAuth } from '../../../app/providers/auth-provider';
+import { useTranslation } from '../../../app/providers/locale-provider';
 import { ForbiddenView } from '../../../app/routes/fallback-views';
 import { CrudLoading, CrudEmpty, CrudError } from '../../../shared/crud';
 import { SaleStatusBadge } from '../components/sale-status-badge';
@@ -31,6 +32,7 @@ import type { SaleStatus } from '../types/sales-query.types';
 
 export const SalesOverviewPage: React.FC = () => {
   const auth = useAuth();
+  const { t, formatDate } = useTranslation();
   const canRead = Boolean(
     typeof auth.hasPermission === 'function'
       ? auth.hasPermission('sales.read')
@@ -62,14 +64,17 @@ export const SalesOverviewPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              Sales & Payments Overview
+              {t('Sales & Payments Overview', 'Sales & Payments Overview')}
             </h1>
             <Badge variant="outline" className="hidden sm:inline-flex">
-              Financial Hub
+              {t('sales.financialHub', 'Financial Hub')}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Commercial checkout agreements, order lifecycles, and recent sales activity.
+            {t(
+              'Commercial checkout agreements, order lifecycles, and recent sales activity.',
+              'Commercial checkout agreements, order lifecycles, and recent sales activity.',
+            )}
           </p>
         </div>
 
@@ -85,25 +90,25 @@ export const SalesOverviewPage: React.FC = () => {
             aria-label="Refresh sales overview"
           >
             <RefreshCw className={`h-3.5 w-3.5 ${isFetching ? 'animate-spin' : ''}`} />
-            Refresh
+            {t('common.refresh', 'Refresh')}
           </Button>
 
           <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5">
             <Link to="/sales/list">
-              <ShoppingBag className="h-3.5 w-3.5" /> All Sales
+              <ShoppingBag className="h-3.5 w-3.5" /> {t('sales.allSales', 'All Sales')}
             </Link>
           </Button>
 
           <Button asChild variant="outline" size="sm" className="h-8 text-xs gap-1.5">
             <Link to="/sales/payments">
-              <CreditCard className="h-3.5 w-3.5" /> Payment History
+              <CreditCard className="h-3.5 w-3.5" /> {t('sales.paymentHistory', 'Payment History')}
             </Link>
           </Button>
 
           <HasPermission name="sales.create">
             <Button asChild variant="default" size="sm" className="h-8 text-xs gap-1.5">
               <Link to="/sales/new">
-                <PlusCircle className="h-3.5 w-3.5" /> Create Sale
+                <PlusCircle className="h-3.5 w-3.5" /> {t('sales.createSale', 'Create Sale')}
               </Link>
             </Button>
           </HasPermission>
@@ -116,7 +121,7 @@ export const SalesOverviewPage: React.FC = () => {
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Awaiting Payment
+              {t('sales.awaitingPayment', 'Awaiting Payment')}
             </CardTitle>
             <Clock className="h-4 w-4 text-amber-500" />
           </CardHeader>
@@ -129,14 +134,18 @@ export const SalesOverviewPage: React.FC = () => {
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-1">
-              Finalized checkout agreements pending payment settlement
+              {t(
+                'sales.awaitingPaymentDesc',
+                'Finalized checkout agreements pending payment settlement',
+              )}
             </p>
             <div className="mt-3">
               <Link
                 to="/sales/list?status=PENDING_PAYMENT"
                 className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
               >
-                View pending orders <ArrowRight className="h-3 w-3" />
+                {t('sales.viewPendingOrders', 'View pending orders')}{' '}
+                <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
           </CardContent>
@@ -146,7 +155,7 @@ export const SalesOverviewPage: React.FC = () => {
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Draft Checkout Sessions
+              {t('sales.draftCheckoutSessions', 'Draft Checkout Sessions')}
             </CardTitle>
             <FileText className="h-4 w-4 text-blue-500" />
           </CardHeader>
@@ -159,14 +168,14 @@ export const SalesOverviewPage: React.FC = () => {
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-1">
-              Open carts and checkout drafts in preparation
+              {t('sales.draftCheckoutDesc', 'Open carts and checkout drafts in preparation')}
             </p>
             <div className="mt-3">
               <Link
                 to="/sales/list?status=DRAFT"
                 className="text-xs font-medium text-primary hover:underline inline-flex items-center gap-1"
               >
-                View draft orders <ArrowRight className="h-3 w-3" />
+                {t('sales.viewDraftOrders', 'View draft orders')} <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
           </CardContent>
@@ -176,7 +185,7 @@ export const SalesOverviewPage: React.FC = () => {
         <Card className="border-border bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">
-              Settled Sales
+              {t('sales.settledSales', 'Settled Sales')}
             </CardTitle>
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
           </CardHeader>
@@ -192,14 +201,14 @@ export const SalesOverviewPage: React.FC = () => {
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-1">
-              Fully tendered sales ready for receipt issuance
+              {t('sales.settledSalesDesc', 'Fully tendered sales ready for receipt issuance')}
             </p>
             <div className="mt-3">
               <Link
                 to="/sales/list?status=PAID"
                 className="text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline inline-flex items-center gap-1"
               >
-                View paid orders <ArrowRight className="h-3 w-3" />
+                {t('sales.viewPaidOrders', 'View paid orders')} <ArrowRight className="h-3 w-3" />
               </Link>
             </div>
           </CardContent>
@@ -237,8 +246,12 @@ export const SalesOverviewPage: React.FC = () => {
               <PlusCircle className="h-4 w-4" />
             </div>
             <div>
-              <div className="text-sm font-semibold text-foreground">Create New Sale</div>
-              <div className="text-xs text-muted-foreground">Start commercial checkout</div>
+              <div className="text-sm font-semibold text-foreground">
+                {t('sales.createNewSale', 'Create New Sale')}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {t('sales.startCommercialCheckout', 'Start commercial checkout')}
+              </div>
             </div>
           </Link>
         </HasPermission>
@@ -251,8 +264,12 @@ export const SalesOverviewPage: React.FC = () => {
             <ShoppingBag className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-foreground">Sales Directory</div>
-            <div className="text-xs text-muted-foreground">Search and filter all orders</div>
+            <div className="text-sm font-semibold text-foreground">
+              {t('sales.salesDirectory', 'Sales Directory')}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {t('sales.searchAndFilterOrders', 'Search and filter all orders')}
+            </div>
           </div>
         </Link>
 
@@ -264,8 +281,12 @@ export const SalesOverviewPage: React.FC = () => {
             <CreditCard className="h-4 w-4" />
           </div>
           <div>
-            <div className="text-sm font-semibold text-foreground">Payment History</div>
-            <div className="text-xs text-muted-foreground">Audit payment settlements</div>
+            <div className="text-sm font-semibold text-foreground">
+              {t('sales.paymentHistory', 'Payment History')}
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {t('sales.auditPaymentSettlements', 'Audit payment settlements')}
+            </div>
           </div>
         </Link>
       </div>
@@ -274,14 +295,19 @@ export const SalesOverviewPage: React.FC = () => {
       <Card className="border-border bg-card">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle className="text-lg">Recent Commercial Agreements</CardTitle>
+            <CardTitle className="text-lg">
+              {t('sales.recentAgreementsTitle', 'Recent Commercial Agreements')}
+            </CardTitle>
             <CardDescription>
-              Most recently initiated commercial checkouts and orders.
+              {t(
+                'sales.recentAgreementsSubtitle',
+                'Most recently initiated commercial checkouts and orders.',
+              )}
             </CardDescription>
           </div>
           <Button asChild variant="ghost" size="sm" className="text-xs gap-1">
             <Link to="/sales/list">
-              <span>View full directory</span>
+              <span>{t('sales.viewFullDirectory', 'View full directory')}</span>
               <ArrowRight className="h-3 w-3" />
             </Link>
           </Button>
@@ -343,18 +369,19 @@ export const SalesOverviewPage: React.FC = () => {
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground flex items-center gap-2">
+                        <span>{formatDate(sale.createdAt)}</span>
+                        <span>·</span>
                         <span>
-                          {new Date(sale.createdAt).toLocaleDateString(undefined, {
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric',
-                          })}
+                          {sale.clientId
+                            ? `${t('sales.clientPrefix', 'Client')} ${sale.clientId}`
+                            : t('sales.walkIn', 'Walk-in')}
                         </span>
                         <span>·</span>
-                        <span>{sale.clientId ? `Client ${sale.clientId}` : 'Walk-in'}</span>
-                        <span>·</span>
                         <span>
-                          {sale.itemCount} {sale.itemCount === 1 ? 'item' : 'items'}
+                          {sale.itemCount}{' '}
+                          {sale.itemCount === 1
+                            ? t('sales.itemSingular', 'item')
+                            : t('sales.itemPlural', 'items')}
                         </span>
                       </div>
                     </div>
@@ -362,7 +389,7 @@ export const SalesOverviewPage: React.FC = () => {
                     <div className="flex items-center justify-between sm:justify-end gap-3 self-end sm:self-auto">
                       <MoneyDisplay value={sale.total} className="text-sm font-semibold" />
                       <Button asChild variant="ghost" size="sm" className="h-8 px-2.5 text-xs">
-                        <Link to={`/sales/${sale.id}`}>View</Link>
+                        <Link to={`/sales/${sale.id}`}>{t('common.view', 'View')}</Link>
                       </Button>
                     </div>
                   </div>

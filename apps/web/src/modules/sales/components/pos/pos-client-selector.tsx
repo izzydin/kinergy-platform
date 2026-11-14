@@ -3,6 +3,7 @@ import { Card, CardContent, Button, Badge } from '@kinergy-platform/ui';
 import { User, UserCheck, RefreshCw, X } from 'lucide-react';
 import { ClientSelector } from '../../../gym/memberships/components/client-selector';
 import type { ClientModel } from '../../../client/types/client.types';
+import { useTranslation } from '../../../../app/providers/locale-provider';
 
 export interface PosClientSelectorProps {
   selectedClientId?: string;
@@ -21,23 +22,27 @@ export const PosClientSelector: React.FC<PosClientSelectorProps> = ({
   onToggleWalkIn,
   disabled = false,
 }) => {
+  const { t } = useTranslation();
+
   return (
     <Card className="border-border bg-card" data-testid="pos-client-selector">
       <CardContent className="p-4 space-y-3">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border pb-3">
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold text-foreground">Customer Selection</span>
+            <span className="text-sm font-semibold text-foreground">
+              {t('sales.customerSelection', 'Customer Selection')}
+            </span>
             {isWalkIn ? (
               <Badge variant="secondary" className="text-[11px] font-normal">
-                Walk-in Guest
+                {t('sales.walkInCustomer', 'Walk-in Guest')}
               </Badge>
             ) : selectedClientId ? (
               <Badge
                 variant="outline"
                 className="text-[11px] font-normal border-primary text-primary"
               >
-                Identified Client
+                {t('sales.identifiedClient', 'Identified Client')}
               </Badge>
             ) : null}
           </div>
@@ -53,7 +58,8 @@ export const PosClientSelector: React.FC<PosClientSelectorProps> = ({
               className="h-7 text-xs px-2.5"
               data-testid="pos-mode-client-btn"
             >
-              <UserCheck className="h-3.5 w-3.5 mr-1" /> Registered Client
+              <UserCheck className="h-3.5 w-3.5 mr-1" />{' '}
+              {t('sales.registeredClient', 'Registered Client')}
             </Button>
             <Button
               type="button"
@@ -64,7 +70,7 @@ export const PosClientSelector: React.FC<PosClientSelectorProps> = ({
               className="h-7 text-xs px-2.5"
               data-testid="pos-mode-walkin-btn"
             >
-              <User className="h-3.5 w-3.5 mr-1" /> Walk-in / Guest
+              <User className="h-3.5 w-3.5 mr-1" /> {t('sales.walkInGuest', 'Walk-in / Guest')}
             </Button>
           </div>
         </div>
@@ -79,10 +85,14 @@ export const PosClientSelector: React.FC<PosClientSelectorProps> = ({
                 ?
               </div>
               <div>
-                <p className="font-medium text-foreground">Anonymous Walk-in Customer</p>
+                <p className="font-medium text-foreground">
+                  {t('sales.anonymousWalkIn', 'Anonymous Walk-in Customer')}
+                </p>
                 <p className="text-[11px] text-muted-foreground">
-                  Retail purchase (food, beverages, goods) without recording customer account
-                  profile.
+                  {t(
+                    'sales.anonymousWalkInDescription',
+                    'Retail purchase (food, beverages, goods) without recording customer account profile.',
+                  )}
                 </p>
               </div>
             </div>
@@ -93,7 +103,7 @@ export const PosClientSelector: React.FC<PosClientSelectorProps> = ({
               onClick={() => onToggleWalkIn(false)}
               className="text-xs h-7 text-primary"
             >
-              Assign Client
+              {t('sales.assignClient', 'Assign Client')}
             </Button>
           </div>
         ) : selectedClientId && selectedClient ? (
@@ -141,7 +151,7 @@ export const PosClientSelector: React.FC<PosClientSelectorProps> = ({
                 className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
                 data-testid="pos-change-client-btn"
               >
-                <RefreshCw className="h-3 w-3 mr-1" /> Change
+                <RefreshCw className="h-3 w-3 mr-1" /> {t('sales.changeClient', 'Change')}
               </Button>
               <Button
                 type="button"
@@ -162,20 +172,25 @@ export const PosClientSelector: React.FC<PosClientSelectorProps> = ({
               htmlFor="pos-client-search"
               className="text-xs font-medium text-foreground block"
             >
-              Search & Select Customer *
+              {t('sales.searchCustomerLabel', 'Search & Select Customer *')}
             </label>
             <ClientSelector
               id="pos-client-search"
               value={selectedClientId}
               onChange={(clientId, client) => onSelectClient(clientId, client)}
               disabled={disabled}
-              placeholder="Search by client name, phone number, or client code..."
+              placeholder={t(
+                'sales.searchCustomerPlaceholder',
+                'Search by client name, phone number, or client code...',
+              )}
               autoFocus
               data-testid="pos-client-combobox"
             />
             <p className="text-[11px] text-muted-foreground">
-              Search active clients by name, phone, or code. To sell without a client, click
-              "Walk-in / Guest".
+              {t(
+                'sales.searchCustomerHelper',
+                'Search active clients by name, phone, or code. To sell without a client, click "Walk-in / Guest".',
+              )}
             </p>
           </div>
         )}

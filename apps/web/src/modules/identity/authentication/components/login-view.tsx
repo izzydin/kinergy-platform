@@ -19,6 +19,7 @@ import {
 import { AlertCircle } from 'lucide-react';
 import React from 'react';
 import { useLoginForm } from '../hooks/use-login-form';
+import { useTranslation } from '../../../../app/providers/locale-provider';
 
 export interface LoginViewProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Optional completion callback triggered after successful login */
@@ -37,6 +38,7 @@ export interface LoginViewProps extends React.HTMLAttributes<HTMLDivElement> {
 export const LoginView = React.forwardRef<HTMLDivElement, LoginViewProps>(
   ({ className, onSuccess, ...props }, ref) => {
     const { form, errors, isSubmitting, authError, handleSubmit } = useLoginForm({ onSuccess });
+    const { locale, t, translateError } = useTranslation();
 
     const onSubmitForm = async (e: React.FormEvent<HTMLFormElement>) => {
       e.preventDefault();
@@ -51,10 +53,15 @@ export const LoginView = React.forwardRef<HTMLDivElement, LoginViewProps>(
       >
         <CardHeader className="p-0 pb-6 text-center">
           <CardTitle as="h1" className="text-2xl font-bold tracking-tight text-foreground">
-            Sign In
+            {locale === 'es' ? t('auth.signInButton', 'Iniciar sesión') : 'Sign In'}
           </CardTitle>
           <CardDescription className="text-sm text-muted-foreground">
-            Enter your credentials to access your account
+            {locale === 'es'
+              ? t(
+                  'auth.signInSubtitle',
+                  'Ingresa tus credenciales de personal para acceder al espacio de trabajo Kinergy.',
+                )
+              : 'Enter your credentials to access your account'}
           </CardDescription>
         </CardHeader>
 
@@ -68,20 +75,30 @@ export const LoginView = React.forwardRef<HTMLDivElement, LoginViewProps>(
             {authError ? (
               <Alert variant="destructive" className="animate-in fade-in-50 duration-200">
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Authentication Failed</AlertTitle>
-                <AlertDescription>{authError}</AlertDescription>
+                <AlertTitle>
+                  {locale === 'es'
+                    ? t('auth.authFailedTitle', 'Error de autenticación')
+                    : 'Authentication Failed'}
+                </AlertTitle>
+                <AlertDescription>
+                  {locale === 'es' ? translateError(authError, authError) : authError}
+                </AlertDescription>
               </Alert>
             ) : null}
 
             <FormField>
               <FormLabel htmlFor="login-email" required>
-                Email Address
+                {locale === 'es' ? t('auth.emailLabel', 'Correo electrónico') : 'Email Address'}
               </FormLabel>
               <FormControl>
                 <Input
                   id="login-email"
                   type="email"
-                  placeholder="name@company.com"
+                  placeholder={
+                    locale === 'es'
+                      ? t('auth.emailPlaceholder', 'nombre@empresa.com')
+                      : 'name@company.com'
+                  }
                   autoComplete="username"
                   disabled={isSubmitting}
                   aria-invalid={Boolean(errors.email)}
@@ -96,7 +113,7 @@ export const LoginView = React.forwardRef<HTMLDivElement, LoginViewProps>(
 
             <FormField>
               <FormLabel htmlFor="login-password" required>
-                Password
+                {locale === 'es' ? t('auth.passwordLabel', 'Contraseña') : 'Password'}
               </FormLabel>
               <FormControl>
                 <PasswordInput
@@ -124,7 +141,7 @@ export const LoginView = React.forwardRef<HTMLDivElement, LoginViewProps>(
               disabled={isSubmitting}
               isLoading={isSubmitting}
             >
-              Sign In
+              {locale === 'es' ? t('auth.signInButton', 'Iniciar sesión') : 'Sign In'}
             </Button>
           </form>
         </CardContent>

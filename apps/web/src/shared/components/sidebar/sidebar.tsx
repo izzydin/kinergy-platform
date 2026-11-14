@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { useNavigation } from '../../../app/navigation';
 import type { NavigationItem } from '../../../app/navigation/navigation.types';
+import { useTranslation } from '../../../app/providers/locale-provider';
 
 export interface SidebarProps {
   /** Optional brand title header slot */
@@ -32,6 +33,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const location = useLocation();
   const { sections } = useNavigation();
+  const { t } = useTranslation();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -163,7 +165,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {/* Section Header Title */}
               {(!isCollapsed || isMobileOpen) && section.title && (
                 <h3 className="px-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-[#C1CBC3] select-none">
-                  {section.title}
+                  {t(section.title, section.title)}
                 </h3>
               )}
 
@@ -171,6 +173,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               {section.items.map((item) => {
                 const IconComponent = typeof item.icon === 'function' ? item.icon : undefined;
                 const active = isItemActive(item);
+                const localizedLabel = t(item.label, item.label);
 
                 return (
                   <NavLink
@@ -178,7 +181,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     to={item.path}
                     end={item.path === '/'}
                     aria-current={active ? 'page' : undefined}
-                    title={isCollapsed && !isMobileOpen ? item.label : undefined}
+                    title={isCollapsed && !isMobileOpen ? localizedLabel : undefined}
                     className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 font-medium text-sm transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-green ${
                       active
                         ? 'bg-brand-forest text-white shadow-md font-semibold'
@@ -207,7 +210,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     {/* Label & Badge (Shown when expanded) */}
                     {(!isCollapsed || isMobileOpen) && (
                       <>
-                        <span className="flex-1 truncate">{item.label}</span>
+                        <span className="flex-1 truncate">{localizedLabel}</span>
                         {item.badge !== undefined && (
                           <span
                             className={`rounded-full px-2 py-0.5 text-xs font-bold ${
@@ -245,7 +248,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ) : (
               <>
                 <ChevronLeft className="h-4 w-4" />
-                <span>Collapse Sidebar</span>
+                <span>{t('nav.collapseSidebar', 'Collapse Sidebar')}</span>
               </>
             )}
           </button>
