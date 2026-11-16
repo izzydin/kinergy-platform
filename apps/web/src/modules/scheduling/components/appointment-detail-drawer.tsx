@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@kinergy-platform/ui';
 import { useAuth } from '../../../app/providers/auth-provider';
@@ -28,13 +28,13 @@ import { CalendarStatusBadge, ConflictBadge } from './calendar-status-badge';
 import type { AppointmentModel, CalendarSlotDTO, RoomModel } from '../types/scheduling.types';
 import { useAppointmentDetail } from '../hooks/use-scheduling-queries';
 import {
-  useCancelAppointmentMutation,
   useCheckInAppointmentMutation,
   useCompleteAppointmentMutation,
   useConfirmAppointmentMutation,
   useMarkNoShowMutation,
   useStartAppointmentMutation,
 } from '../hooks/use-scheduling-mutations';
+import { CancelAppointmentModal } from './cancel-appointment-modal';
 import {
   RecurrenceScopeDialog,
   EditSingleOccurrenceModal,
@@ -72,9 +72,11 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
     enabled: isOpen && Boolean(targetApptId),
   });
 
-  const appointment = remoteAppointment
-    ? ({ ...propAppointment, ...remoteAppointment } as AppointmentModel | CalendarSlotDTO)
-    : propAppointment;
+  const appointment = useMemo(() => {
+    if (!remoteAppointment) return propAppointment;
+    if (!propAppointment) return remoteAppointment as AppointmentModel | CalendarSlotDTO;
+    return { ...propAppointment, ...remoteAppointment } as AppointmentModel | CalendarSlotDTO;
+  }, [propAppointment, remoteAppointment]);
   let navigate: ReturnType<typeof useNavigate> | undefined;
   try {
     navigate = useNavigate();
@@ -99,9 +101,7 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
       ? canTreatKinesiology
       : (authContext?.hasPermission('kinesiology.sessions.treat') ?? false);
 
-  const [cancelReason, setCancelReason] = useState('');
-  const [showCancelPrompt, setShowCancelPrompt] = useState(false);
-  const [cancelError, setCancelError] = useState('');
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
   // Scoped Recurrence Modals State
   const [scopeDialogAction, setScopeDialogAction] = useState<'edit' | 'cancel' | null>(null);
@@ -114,31 +114,55 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
   const checkInMutation = useCheckInAppointmentMutation();
   const startMutation = useStartAppointmentMutation();
   const completeMutation = useCompleteAppointmentMutation();
-  const cancelMutation = useCancelAppointmentMutation();
   const noShowMutation = useMarkNoShowMutation();
 
-  // Reset form when drawer opens or appointment changes
-  useEffect(() => {
-    setShowCancelPrompt(false);
-    setCancelReason('');
-    setCancelError('');
-    setScopeDialogAction(null);
-    setIsEditSingleModalOpen(false);
-    setIsEditFutureModalOpen(false);
-    setIsSkipModalOpen(false);
-    setIsCancelSeriesModalOpen(false);
-  }, [appointment, isOpen]);
+  const prevTargetIdRef = useRef<string | null>(null);
 
-  // Handle Escape key
+  // Reset child dialogs and transient state only when drawer closes or when switching appointments
+  useEffect(() => {
+    if (!isOpen) {
+      setIsCancelModalOpen(false);
+      setScopeDialogAction(null);
+      setIsEditSingleModalOpen(false);
+      setIsEditFutureModalOpen(false);
+      setIsSkipModalOpen(false);
+      setIsCancelSeriesModalOpen(false);
+    } else if (
+      targetApptId &&
+      prevTargetIdRef.current &&
+      prevTargetIdRef.current !== targetApptId
+    ) {
+      setIsCancelModalOpen(false);
+      setScopeDialogAction(null);
+      setIsEditSingleModalOpen(false);
+      setIsEditFutureModalOpen(false);
+      setIsSkipModalOpen(false);
+      setIsCancelSeriesModalOpen(false);
+    }
+    prevTargetIdRef.current = targetApptId ?? null;
+  }, [isOpen, targetApptId]);
+
+  const isAnyChildModalOpen =
+    isCancelModalOpen ||
+    isEditSingleModalOpen ||
+    isEditFutureModalOpen ||
+    isSkipModalOpen ||
+    isCancelSeriesModalOpen ||
+    Boolean(scopeDialogAction);
+
+  // Handle Escape key: do not dismiss drawer if any child dialog/modal is open
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
+        if (isAnyChildModalOpen) {
+          return;
+        }
         onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, isAnyChildModalOpen]);
 
   if (!isOpen || !appointment) {
     return null;
@@ -181,17 +205,14 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
   const canCheckIn = appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED';
   const canStart = appointment.status === 'CHECKED_IN';
   const canComplete = appointment.status === 'IN_PROGRESS';
-  const canCancel =
-    ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'].includes(appointment.status) && !showCancelPrompt;
-  const canMarkNoShow =
-    ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'].includes(appointment.status) && !showCancelPrompt;
+  const canCancel = ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'].includes(appointment.status);
+  const canMarkNoShow = ['SCHEDULED', 'CONFIRMED'].includes(appointment.status);
 
   const isPending =
     confirmMutation.isPending ||
     checkInMutation.isPending ||
     startMutation.isPending ||
     completeMutation.isPending ||
-    cancelMutation.isPending ||
     noShowMutation.isPending;
 
   const handleConfirm = () => {
@@ -225,23 +246,6 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
     );
   };
 
-  const handleExecuteCancel = () => {
-    if (!cancelReason.trim()) {
-      setCancelError('An operational cancellation reason is required.');
-      return;
-    }
-    setCancelError('');
-    cancelMutation.mutate(
-      { id: apptId, payload: { reason: cancelReason.trim() } },
-      {
-        onSuccess: () => {
-          setShowCancelPrompt(false);
-          onClose();
-        },
-      },
-    );
-  };
-
   return (
     <div
       className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs transition-opacity"
@@ -250,7 +254,15 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
       aria-label="Appointment details and management"
     >
       {/* Click outside backdrop to close */}
-      <div className="flex-1" onClick={onClose} aria-hidden="true" />
+      <div
+        className="flex-1"
+        onClick={() => {
+          if (!isAnyChildModalOpen) {
+            onClose();
+          }
+        }}
+        aria-hidden="true"
+      />
 
       {/* Drawer Container */}
       <div className="w-full max-w-md bg-background border-l border-border h-full shadow-2xl flex flex-col overflow-y-auto animate-in slide-in-from-right duration-200">
@@ -661,7 +673,7 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
                       ) {
                         setScopeDialogAction('cancel');
                       } else {
-                        setShowCancelPrompt(true);
+                        setIsCancelModalOpen(true);
                       }
                     }}
                     disabled={isPending}
@@ -673,42 +685,6 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
                   </Button>
                 )}
               </div>
-
-              {/* Inline Cancellation Prompt (For single non-recurring appointments) */}
-              {showCancelPrompt && (
-                <div className="p-3 rounded-lg border border-destructive/40 bg-destructive/5 space-y-2 animate-in fade-in">
-                  <p className="text-xs font-semibold text-destructive">
-                    Reason for cancellation (mandatory):
-                  </p>
-                  <input
-                    type="text"
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value)}
-                    placeholder="e.g. Client requested cancellation via phone"
-                    className="w-full text-xs rounded-md border border-input bg-background px-2.5 py-1.5 shadow-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-ring"
-                    autoFocus
-                  />
-                  {cancelError && <p className="text-xs text-destructive">{cancelError}</p>}
-                  <div className="flex items-center gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={handleExecuteCancel}
-                      disabled={isPending}
-                    >
-                      Confirm Cancellation
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setShowCancelPrompt(false)}
-                      disabled={isPending}
-                    >
-                      Dismiss
-                    </Button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -737,6 +713,13 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
         onClose={() => setIsEditSingleModalOpen(false)}
         appointment={appointment}
         rooms={rooms}
+        onSuccess={() => onClose()}
+      />
+
+      <CancelAppointmentModal
+        isOpen={isCancelModalOpen}
+        onClose={() => setIsCancelModalOpen(false)}
+        appointment={appointment}
         onSuccess={() => onClose()}
       />
 

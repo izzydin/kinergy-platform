@@ -269,6 +269,7 @@ export class AppointmentsController {
   }
 
   @Patch('appointments/:id/reschedule')
+  @Post('appointments/:id/reschedule')
   @HttpCode(HttpStatus.OK)
   @Roles('ADMIN', 'SUPER_ADMIN', 'RECEPTIONIST', 'THERAPIST', 'TRAINER')
   @Permissions('appointments.create')
@@ -278,10 +279,27 @@ export class AppointmentsController {
     @Body() dto: Record<string, unknown>,
   ) {
     const newStartTime = typeof dto?.newStartTime === 'string' ? dto.newStartTime.trim() : '';
-    const newEndTime = typeof dto?.newEndTime === 'string' ? dto.newEndTime.trim() : '';
+    let newEndTime = typeof dto?.newEndTime === 'string' ? dto.newEndTime.trim() : '';
     const newRoomId = typeof dto?.newRoomId === 'string' ? dto.newRoomId.trim() : undefined;
 
-    if (!newStartTime || !newEndTime) {
+    if (!newStartTime) {
+      throw new BadRequestException('newStartTime is required for rescheduling.');
+    }
+
+    if (!newEndTime) {
+      try {
+        const existing = await this.appointmentRepository.findById(id);
+        if (existing) {
+          const durationMs = existing.timeRange.duration().toMilliseconds();
+          const startMs = new Date(newStartTime).getTime();
+          newEndTime = new Date(startMs + durationMs).toISOString();
+        }
+      } catch {
+        // Fallback to error check below if appointment not found
+      }
+    }
+
+    if (!newEndTime) {
       throw new BadRequestException('newStartTime and newEndTime are required for rescheduling.');
     }
 

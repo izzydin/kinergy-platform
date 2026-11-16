@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Alert, AlertDescription, AlertTitle, Button } from '@kinergy-platform/ui';
 import { AlertCircle, RotateCcw, X } from 'lucide-react';
 import type { AppointmentModel, CalendarSlotDTO } from '../../types/scheduling.types';
@@ -24,6 +24,26 @@ export const CancelSeriesModal: React.FC<CancelSeriesModalProps> = ({
 
   const [reason, setReason] = useState('');
   const [serverError, setServerError] = useState<string | null>(null);
+
+  // Sync state on open/close
+  useEffect(() => {
+    if (isOpen) {
+      setReason('');
+      setServerError(null);
+    }
+  }, [isOpen]);
+
+  // Handle Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, onClose]);
 
   if (!isOpen || !seriesId) return null;
 
@@ -57,12 +77,21 @@ export const CancelSeriesModal: React.FC<CancelSeriesModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs p-4 animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="cancel-series-title"
+      data-testid="cancel-series-dialog"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !cancelSeriesMutation.isPending) {
+          onClose();
+        }
+      }}
     >
-      <div className="w-full max-w-md rounded-xl border border-destructive/40 bg-card shadow-2xl overflow-hidden animate-in zoom-in-95">
+      <div
+        className="w-full max-w-md rounded-xl border border-destructive/40 bg-card shadow-2xl overflow-hidden animate-in zoom-in-95"
+        onClick={(e) => e.stopPropagation()}
+      >
         <form onSubmit={handleSubmit}>
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-5 py-4 bg-destructive/10">

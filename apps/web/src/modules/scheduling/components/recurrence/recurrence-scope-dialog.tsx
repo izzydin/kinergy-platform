@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Button } from '@kinergy-platform/ui';
 import { CalendarDays, CalendarRange, RotateCcw, X, ArrowRight } from 'lucide-react';
 import type { AppointmentModel, CalendarSlotDTO } from '../../types/scheduling.types';
@@ -21,6 +21,17 @@ export const RecurrenceScopeDialog: React.FC<RecurrenceScopeDialogProps> = ({
   actionType,
   onSelectScope,
 }) => {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const occurrenceIndex =
@@ -33,12 +44,21 @@ export const RecurrenceScopeDialog: React.FC<RecurrenceScopeDialogProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs p-4 animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="recurrence-scope-title"
+      data-testid="recurrence-scope-dialog"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
-      <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95">
+      <div
+        className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-border px-5 py-4 bg-muted/20">
           <div className="flex items-center gap-2.5">

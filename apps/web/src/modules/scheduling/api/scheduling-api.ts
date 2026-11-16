@@ -103,6 +103,7 @@ export const schedulingApi = {
       {
         newStartTime: payload.newStartTime,
         newEndTime: payload.newEndTime,
+        newRoomId: payload.newRoomId?.trim() || undefined,
         reason: payload.reason?.trim() || undefined,
       },
     );

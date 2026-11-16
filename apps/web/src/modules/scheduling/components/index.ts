@@ -6,5 +6,6 @@ export * from './day-view-grid';
 export * from './month-view-grid';
 export * from './appointment-detail-drawer';
 export * from './appointment-booking-wizard';
+export * from './cancel-appointment-modal';
 export * from './recurrence';
 export * from './rooms';

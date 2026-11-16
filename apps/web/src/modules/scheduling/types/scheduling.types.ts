@@ -94,6 +94,8 @@ export interface CreateAppointmentInputDTO {
 export interface RescheduleAppointmentInputDTO {
   readonly newStartTime: string; // UTC ISO 8601
   readonly newEndTime: string; // UTC ISO 8601
+  readonly newRoomId?: string;
+  readonly newTherapistId?: string;
   readonly reason?: string;
 }
 

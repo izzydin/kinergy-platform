@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Alert, AlertDescription, AlertTitle, Button } from '@kinergy-platform/ui';
 import { AlertCircle, CalendarRange, Clock, MapPin, Stethoscope, X } from 'lucide-react';
 import type { AppointmentModel, CalendarSlotDTO, RoomModel } from '../../types/scheduling.types';
@@ -55,6 +55,18 @@ export const EditFutureSeriesModal: React.FC<EditFutureSeriesModalProps> = ({
   const [roomId, setRoomId] = useState(appointment.roomId || '');
   const [serverError, setServerError] = useState<string | null>(null);
 
+  // Handle Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        e.stopPropagation();
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isOpen, onClose]);
+
   if (!isOpen || !seriesId) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -88,12 +100,21 @@ export const EditFutureSeriesModal: React.FC<EditFutureSeriesModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs p-4 animate-in fade-in"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in"
       role="dialog"
       aria-modal="true"
       aria-labelledby="edit-future-title"
+      data-testid="edit-future-series-dialog"
+      onClick={(e) => {
+        if (e.target === e.currentTarget && !editFutureMutation.isPending) {
+          onClose();
+        }
+      }}
     >
-      <div className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95">
+      <div
+        className="w-full max-w-lg rounded-xl border border-border bg-card shadow-2xl overflow-hidden animate-in zoom-in-95"
+        onClick={(e) => e.stopPropagation()}
+      >
         <form onSubmit={handleSubmit}>
           {/* Header */}
           <div className="flex items-center justify-between border-b border-border px-5 py-4 bg-muted/20">

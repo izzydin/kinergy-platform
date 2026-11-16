@@ -18,6 +18,7 @@ jest.mock('../hooks/use-treatment-session');
 jest.mock('../hooks/use-treatment-mutations');
 jest.mock('../hooks/use-client-treatment-history');
 jest.mock('../../scheduling/hooks/use-scheduling-mutations', () => ({
+  useRescheduleAppointmentMutation: () => ({ mutate: jest.fn(), isPending: false }),
   useCancelAppointmentMutation: () => ({ mutate: jest.fn(), isPending: false }),
   useCheckInAppointmentMutation: () => ({ mutate: jest.fn(), isPending: false }),
   useCompleteAppointmentMutation: () => ({ mutate: jest.fn(), isPending: false }),
