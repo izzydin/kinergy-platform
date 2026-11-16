@@ -401,6 +401,22 @@ describe('Gym Management Genuine Database Persistence Integration (ADR-0080)', (
       const byPartial = await memberRepo.search('SearchableL');
       expect(byPartial.some((m) => m.id.value === membership.id.value)).toBe(true);
 
+      // Search by multi-term partial names
+      const byMultiTerm = await memberRepo.search('SearchableF SearchableL');
+      expect(byMultiTerm.some((m) => m.id.value === membership.id.value)).toBe(true);
+
+      // Search with accented query matching normalized name
+      const byAccent = await memberRepo.search('SéarchableFirst');
+      expect(byAccent.some((m) => m.id.value === membership.id.value)).toBe(true);
+
+      // Whitespace-only search returns all memberships
+      const byWhitespace = await memberRepo.search('   ');
+      expect(byWhitespace.length).toBeGreaterThan(0);
+
+      // Non-matching query returns empty array
+      const byNonExistent = await memberRepo.search('NonExistentNameXYZ999');
+      expect(byNonExistent.length).toBe(0);
+
       // Cleanup test client
       await prisma.client.delete({ where: { id: testClient.id } }).catch(() => {});
     });

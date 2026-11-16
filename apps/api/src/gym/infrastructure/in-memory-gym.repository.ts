@@ -14,6 +14,11 @@ import {
  */
 export class DefaultGymMembershipRepository implements MembershipRepository {
   private readonly items = new Map<string, Membership>();
+  private readonly clientNames = new Map<string, string>();
+
+  setClientName(clientId: string, clientName: string): void {
+    this.clientNames.set(clientId, clientName);
+  }
 
   async save(membership: Membership): Promise<void> {
     this.items.set(membership.id.value, membership);
@@ -28,14 +33,29 @@ export class DefaultGymMembershipRepository implements MembershipRepository {
   }
 
   async search(query: string): Promise<Membership[]> {
-    const trimmed = query.trim().toLowerCase();
-    if (!trimmed) {
+    const normalize = (s: string) =>
+      (s || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .trim();
+
+    const normalized = normalize(query);
+    if (!normalized) {
       return this.findAll();
     }
+    const terms = normalized.split(/\s+/).filter(Boolean);
+
     return Array.from(this.items.values()).filter((m) => {
-      const clientIdMatch = m.clientId.toLowerCase().includes(trimmed);
-      const idMatch = m.id.value.toLowerCase().includes(trimmed);
-      return clientIdMatch || idMatch;
+      const normClientId = normalize(m.clientId);
+      const normId = normalize(m.id.value);
+      const normClientName = normalize(this.clientNames.get(m.clientId) ?? '');
+
+      const clientIdMatch = normClientId.includes(normalized);
+      const idMatch = normId.includes(normalized);
+      const nameMatch = normClientName ? terms.every((t) => normClientName.includes(t)) : false;
+
+      return clientIdMatch || idMatch || nameMatch;
     });
   }
 

@@ -3,6 +3,14 @@ import { MembershipRepository } from '../../../../domain/repositories/membership
 import { Membership } from '../../../../domain/membership/membership.aggregate';
 import { PrismaMembershipMapper } from '../mappers/prisma-membership.mapper';
 
+function normalizeSearchText(text: string): string {
+  return (text || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+
 export class PrismaMembershipRepository implements MembershipRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
@@ -51,23 +59,30 @@ export class PrismaMembershipRepository implements MembershipRepository {
       return this.findAll();
     }
 
+    const normalizedQuery = normalizeSearchText(trimmed);
     const terms = trimmed.split(/\s+/).filter(Boolean);
 
-    // Look up client candidates matching UUID, reference number, or multi-term name
+    // Look up client candidates matching UUID, reference number, multi-term name, or accent-normalized name
     const matchingClients = await this.prisma.client.findMany({
       where: {
         OR: [
           { id: { contains: trimmed, mode: 'insensitive' } },
           { referenceNumber: { contains: trimmed, mode: 'insensitive' } },
+          { normalizedSearchName: { contains: normalizedQuery } },
           {
-            AND: terms.map((term) => ({
-              OR: [
-                { firstName: { contains: term, mode: 'insensitive' } },
-                { lastName: { contains: term, mode: 'insensitive' } },
-                { referenceNumber: { contains: term, mode: 'insensitive' } },
-                { normalizedSearchName: { contains: term.toLowerCase() } },
-              ],
-            })),
+            AND: terms.map((term) => {
+              const normTerm = normalizeSearchText(term);
+              return {
+                OR: [
+                  { firstName: { contains: term, mode: 'insensitive' } },
+                  { firstName: { contains: normTerm, mode: 'insensitive' } },
+                  { lastName: { contains: term, mode: 'insensitive' } },
+                  { lastName: { contains: normTerm, mode: 'insensitive' } },
+                  { referenceNumber: { contains: term, mode: 'insensitive' } },
+                  { normalizedSearchName: { contains: normTerm } },
+                ],
+              };
+            }),
           },
         ],
       },
