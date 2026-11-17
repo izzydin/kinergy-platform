@@ -187,6 +187,27 @@ export interface AssetLocationVM {
 }
 
 /**
+ * Facility Option Room View Model
+ */
+export interface FacilityRoomOptionVM {
+  id: string;
+  name: string;
+}
+
+/**
+ * Tenant Accessible Facility View Model
+ */
+export interface FacilityOptionVM {
+  id: string;
+  name: string;
+  code: string;
+  status: 'ACTIVE' | 'INACTIVE';
+  tenantId: string;
+  description?: string;
+  rooms?: FacilityRoomOptionVM[];
+}
+
+/**
  * Fixed Asset View Model (Standard REST Entity Representation)
  * Note: Purchase acquisition cost and fair value carrying amount are
  * deliberately excluded from the general asset DTO for financial confidentiality.

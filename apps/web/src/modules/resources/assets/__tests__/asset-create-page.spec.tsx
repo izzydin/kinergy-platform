@@ -16,6 +16,35 @@ jest.mock('../hooks/use-assets-mutations', () => ({
   useCreateAsset: jest.fn(),
 }));
 
+jest.mock('../hooks/use-assets-queries', () => {
+  const actual = jest.requireActual('../hooks/use-assets-queries');
+  return {
+    ...actual,
+    useFacilitiesList: jest.fn().mockReturnValue({
+      data: [
+        {
+          id: 'fac-main',
+          name: 'Main Facility - Central Campus',
+          code: 'FAC-MAIN',
+          status: 'ACTIVE',
+          tenantId: 'tenant-kinergy-main',
+        },
+        {
+          id: 'fac-west',
+          name: 'West Campus - Cardio & Rehab Center',
+          code: 'FAC-WEST',
+          status: 'ACTIVE',
+          tenantId: 'tenant-kinergy-main',
+        },
+      ],
+      isLoading: false,
+      isError: false,
+      error: null,
+      refetch: jest.fn(),
+    }),
+  };
+});
+
 describe('AssetCreatePage & AssetCreateForm Integration', () => {
   jest.setTimeout(15000);
   let queryClient: QueryClient;

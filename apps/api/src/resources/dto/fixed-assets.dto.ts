@@ -40,6 +40,43 @@ export class AssetLocationDto {
   description?: string;
 }
 
+export class FacilityRoomOptionDto {
+  @ApiProperty({ description: 'Room identifier', example: 'studio-b-facility' })
+  id!: string;
+
+  @ApiProperty({ description: 'Human-readable room name', example: 'Studio B - Movement Room' })
+  name!: string;
+}
+
+export class FacilityOptionDto {
+  @ApiProperty({ description: 'Unique facility identifier', example: 'fac-main' })
+  id!: string;
+
+  @ApiProperty({
+    description: 'Human-readable facility name',
+    example: 'Main Facility - Central Campus',
+  })
+  name!: string;
+
+  @ApiProperty({ description: 'Facility business code', example: 'FAC-MAIN' })
+  code!: string;
+
+  @ApiProperty({ description: 'Operational status of facility', example: 'ACTIVE' })
+  status!: 'ACTIVE' | 'INACTIVE';
+
+  @ApiProperty({ description: 'Owning tenant identifier', example: 'tenant-kinergy-main' })
+  tenantId!: string;
+
+  @ApiPropertyOptional({ description: 'Detailed campus or location description' })
+  description?: string;
+
+  @ApiPropertyOptional({
+    description: 'List of rooms belonging to this facility',
+    type: [FacilityRoomOptionDto],
+  })
+  rooms?: FacilityRoomOptionDto[];
+}
+
 export class CreateFixedAssetRequestDto {
   @ApiProperty({ description: 'Unique asset tag barcode identifier', example: 'AST-KNE-2026-001' })
   @IsString()

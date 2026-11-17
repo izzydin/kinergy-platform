@@ -9,6 +9,8 @@ import {
   ASSET_CONDITION_REGISTRY,
 } from '../types';
 import { Input, Card, CardContent } from '@kinergy-platform/ui';
+import { Search, AlertCircle, RefreshCw } from 'lucide-react';
+import { useFacilitiesList } from '../hooks';
 import {
   Form,
   FormControl,
@@ -98,6 +100,61 @@ export const AssetCreateForm: React.FC<AssetCreateFormProps> = ({
   } = form;
 
   const [isNavigatingPostSubmit, setIsNavigatingPostSubmit] = React.useState(false);
+
+  const {
+    data: facilities,
+    isLoading: isFacilitiesLoading,
+    isError: isFacilitiesError,
+    error: facilitiesError,
+    refetch: refetchFacilities,
+  } = useFacilitiesList();
+
+  const [facilitySearch, setFacilitySearch] = React.useState('');
+
+  const availableFacilities = React.useMemo(() => {
+    if (!facilities) return [];
+    return facilities.filter((f) => f.status === 'ACTIVE');
+  }, [facilities]);
+
+  const filteredFacilities = React.useMemo(() => {
+    if (!facilitySearch.trim()) return availableFacilities;
+    const q = facilitySearch.trim().toLowerCase();
+    return availableFacilities.filter(
+      (f) =>
+        f.name.toLowerCase().includes(q) ||
+        f.code.toLowerCase().includes(q) ||
+        f.id.toLowerCase().includes(q),
+    );
+  }, [availableFacilities, facilitySearch]);
+
+  const selectedFacilityId = form.watch('location.facilityId');
+  const selectedFacility = React.useMemo(() => {
+    return availableFacilities.find((f) => f.id === selectedFacilityId);
+  }, [availableFacilities, selectedFacilityId]);
+
+  // Single-facility auto-selection
+  React.useEffect(() => {
+    if (!isFacilitiesLoading && availableFacilities.length === 1 && availableFacilities[0]) {
+      const single = availableFacilities[0];
+      const current = form.getValues('location.facilityId');
+      if (!current) {
+        form.setValue('location.facilityId', single.id, {
+          shouldValidate: true,
+          shouldDirty: false,
+        });
+      }
+    }
+  }, [availableFacilities, isFacilitiesLoading, form]);
+
+  // Invalidate selection if selected facility becomes unavailable
+  React.useEffect(() => {
+    if (!isFacilitiesLoading && availableFacilities.length > 0) {
+      const current = form.getValues('location.facilityId');
+      if (current && !availableFacilities.some((f) => f.id === current)) {
+        form.setValue('location.facilityId', '', { shouldValidate: true, shouldDirty: true });
+      }
+    }
+  }, [availableFacilities, isFacilitiesLoading, form]);
 
   // Dirty guard intercepts internal navigation and beforeunload when edits are unsaved
   const {
@@ -293,9 +350,97 @@ export const AssetCreateForm: React.FC<AssetCreateFormProps> = ({
                       name="location.facilityId"
                       render={({ field }) => (
                         <FormItem>
-                          <FormLabel required>Facility Code</FormLabel>
+                          <FormLabel required htmlFor="facility-select">
+                            Facility Code
+                          </FormLabel>
                           <FormControl>
-                            <Input placeholder="e.g. fac-main or Facility 1" {...field} />
+                            {isFacilitiesLoading ? (
+                              <div
+                                role="status"
+                                className="flex h-10 w-full items-center gap-2 rounded-md border border-input bg-muted/40 px-3 py-2 text-sm text-muted-foreground"
+                              >
+                                <RefreshCw className="h-4 w-4 animate-spin text-primary" />
+                                <span>Loading facilities...</span>
+                              </div>
+                            ) : isFacilitiesError ? (
+                              <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive">
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold flex items-center gap-1.5">
+                                    <AlertCircle className="h-4 w-4" />
+                                    Failed to load facilities
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => refetchFacilities()}
+                                    className="font-medium underline hover:no-underline"
+                                  >
+                                    Retry
+                                  </button>
+                                </div>
+                                <p className="mt-1 text-muted-foreground">
+                                  {facilitiesError instanceof Error
+                                    ? facilitiesError.message
+                                    : 'Could not connect to tenant facility registry.'}
+                                </p>
+                              </div>
+                            ) : availableFacilities.length === 0 ? (
+                              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400">
+                                <div className="flex items-center gap-1.5 font-medium">
+                                  <AlertCircle className="h-4 w-4" />
+                                  <span>No accessible facilities available</span>
+                                </div>
+                                <p className="mt-1 text-muted-foreground">
+                                  No active facilities are registered for your organization. Contact
+                                  an administrator to configure facility access.
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="space-y-2">
+                                {availableFacilities.length > 2 && (
+                                  <div className="relative">
+                                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                                    <Input
+                                      placeholder="Filter facilities by name or code..."
+                                      value={facilitySearch}
+                                      onChange={(e) => setFacilitySearch(e.target.value)}
+                                      className="h-8 pl-8 text-xs"
+                                      aria-label="Filter facilities"
+                                    />
+                                  </div>
+                                )}
+                                <select
+                                  id="facility-select"
+                                  data-testid="facility-select"
+                                  aria-label="Facility Code"
+                                  className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                                  {...field}
+                                >
+                                  <option value="">-- Select a Facility --</option>
+                                  {filteredFacilities.map((fac) => (
+                                    <option key={fac.id} value={fac.id}>
+                                      {fac.name} ({fac.code || fac.id})
+                                    </option>
+                                  ))}
+                                </select>
+                                {selectedFacility && (
+                                  <div className="text-xs text-muted-foreground flex items-center gap-1.5">
+                                    <span className="font-medium text-foreground">
+                                      {selectedFacility.name}
+                                    </span>
+                                    <span>•</span>
+                                    <span className="font-mono">{selectedFacility.code}</span>
+                                    {selectedFacility.description && (
+                                      <>
+                                        <span>•</span>
+                                        <span className="truncate">
+                                          {selectedFacility.description}
+                                        </span>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </FormControl>
                           <FormDescription>
                             Authoritative enterprise facility campus identifier.
@@ -315,10 +460,24 @@ export const AssetCreateForm: React.FC<AssetCreateFormProps> = ({
                           <FormControl>
                             <Input
                               placeholder="e.g. room-cardio-1 or Studio B"
+                              list={
+                                selectedFacility?.rooms && selectedFacility.rooms.length > 0
+                                  ? 'facility-rooms-datalist'
+                                  : undefined
+                              }
                               {...field}
                               value={field.value ?? ''}
                             />
                           </FormControl>
+                          {selectedFacility?.rooms && selectedFacility.rooms.length > 0 && (
+                            <datalist id="facility-rooms-datalist">
+                              {selectedFacility.rooms.map((room) => (
+                                <option key={room.id} value={room.id}>
+                                  {room.name}
+                                </option>
+                              ))}
+                            </datalist>
+                          )}
                           <FormDescription>
                             Physical room or studio within the facility.
                           </FormDescription>
@@ -576,7 +735,12 @@ export const AssetCreateForm: React.FC<AssetCreateFormProps> = ({
                     isSubmitting={isSubmitting}
                     disabled={!isDirty}
                   />
-                  <FormSubmitButton isSubmitting={isSubmitting}>Commission Asset</FormSubmitButton>
+                  <FormSubmitButton
+                    isSubmitting={isSubmitting}
+                    disabled={isFacilitiesLoading || availableFacilities.length === 0}
+                  >
+                    Commission Asset
+                  </FormSubmitButton>
                 </FormActions>
               </FormLayout>
             </form>

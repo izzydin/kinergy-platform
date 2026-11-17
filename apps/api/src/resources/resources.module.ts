@@ -38,6 +38,8 @@ import {
   GetFixedAssetValuationSummaryHandler,
   GetCombinedResourceValuationHandler,
   GetResourceOverviewHandler,
+  DefaultTenantFacilityCatalogService,
+  TenantFacilityCatalogPort,
 } from '@kinergy-platform/core';
 import { InventoryController } from './controllers/inventory.controller';
 import { FixedAssetsController } from './controllers/fixed-assets.controller';
@@ -45,6 +47,7 @@ import { ResourceValuationController } from './controllers/resource-valuation.co
 import { ResourceOverviewController } from './controllers/resource-overview.controller';
 
 export const RESOURCES_EVENT_PUBLISHER_TOKEN = 'ResourcesEventPublisherPort';
+export const TENANT_FACILITY_CATALOG_TOKEN = 'TenantFacilityCatalogPort';
 
 class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
   async publish(_events: Parameters<ResourcesEventPublisherPort['publish']>[0]): Promise<void> {}
@@ -71,6 +74,10 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
     {
       provide: RESOURCES_EVENT_PUBLISHER_TOKEN,
       useClass: DefaultResourcesEventPublisher,
+    },
+    {
+      provide: TENANT_FACILITY_CATALOG_TOKEN,
+      useFactory: () => new DefaultTenantFacilityCatalogService(),
     },
 
     // Consumable Inventory Command Handlers
@@ -170,9 +177,16 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
     // Fixed Assets Command Handlers
     {
       provide: CreateFixedAssetHandler,
-      useFactory: (repo: PrismaFixedAssetRepository, publisher: ResourcesEventPublisherPort) =>
-        new CreateFixedAssetHandler(repo, publisher),
-      inject: [PrismaFixedAssetRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+      useFactory: (
+        repo: PrismaFixedAssetRepository,
+        publisher: ResourcesEventPublisherPort,
+        facilityCatalog: TenantFacilityCatalogPort,
+      ) => new CreateFixedAssetHandler(repo, publisher, facilityCatalog),
+      inject: [
+        PrismaFixedAssetRepository,
+        RESOURCES_EVENT_PUBLISHER_TOKEN,
+        TENANT_FACILITY_CATALOG_TOKEN,
+      ],
     },
     {
       provide: UpdateFixedAssetDetailsHandler,
@@ -182,9 +196,16 @@ class DefaultResourcesEventPublisher implements ResourcesEventPublisherPort {
     },
     {
       provide: TransferFixedAssetLocationHandler,
-      useFactory: (repo: PrismaFixedAssetRepository, publisher: ResourcesEventPublisherPort) =>
-        new TransferFixedAssetLocationHandler(repo, publisher),
-      inject: [PrismaFixedAssetRepository, RESOURCES_EVENT_PUBLISHER_TOKEN],
+      useFactory: (
+        repo: PrismaFixedAssetRepository,
+        publisher: ResourcesEventPublisherPort,
+        facilityCatalog: TenantFacilityCatalogPort,
+      ) => new TransferFixedAssetLocationHandler(repo, publisher, facilityCatalog),
+      inject: [
+        PrismaFixedAssetRepository,
+        RESOURCES_EVENT_PUBLISHER_TOKEN,
+        TENANT_FACILITY_CATALOG_TOKEN,
+      ],
     },
     {
       provide: ChangeFixedAssetStatusHandler,

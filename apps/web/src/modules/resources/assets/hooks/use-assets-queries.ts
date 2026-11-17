@@ -7,6 +7,17 @@ import type {
 } from '../types';
 
 /**
+ * Retrieves accessible facilities for the authenticated tenant
+ */
+export function useFacilitiesList() {
+  return useQuery({
+    queryKey: assetsQueryKeys.facilities(),
+    queryFn: () => assetsApi.getFacilities(),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+}
+
+/**
  * Retrieves static asset category taxonomy metadata for form dropdowns and inspection rules
  */
 export function useAssetCategories() {

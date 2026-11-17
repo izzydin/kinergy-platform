@@ -9,10 +9,7 @@ import {
 } from '@prisma/client';
 import { FixedAsset } from '../../../../domain/assets/fixed-asset.aggregate';
 import { AssetId } from '../../../../domain/assets/value-objects/asset-id.vo';
-import {
-  AssetLocation,
-  AssetLocationProps,
-} from '../../../../domain/assets/value-objects/asset-location.vo';
+import { AssetLocation } from '../../../../domain/assets/value-objects/asset-location.vo';
 import { Money } from '../../../../domain/inventory/value-objects/money.vo';
 import { AssetCategory } from '../../../../domain/assets/enums/asset-category.enum';
 import { AssetStatus } from '../../../../domain/assets/enums/asset-status.enum';
@@ -27,7 +24,45 @@ export type PrismaFixedAssetWithRelations = PrismaFixedAssetModel & {
 
 export class PrismaFixedAssetMapper {
   public static toDomain(raw: PrismaFixedAssetWithRelations): FixedAsset {
-    const location = AssetLocation.create(raw.location as unknown as AssetLocationProps);
+    const rawLoc =
+      raw.location && typeof raw.location === 'object' && !Array.isArray(raw.location)
+        ? (raw.location as Record<string, unknown>)
+        : {};
+
+    const facilityId =
+      typeof rawLoc.facilityId === 'string' && rawLoc.facilityId.trim().length > 0
+        ? rawLoc.facilityId.trim()
+        : typeof rawLoc.facility === 'string' && rawLoc.facility.trim().length > 0
+          ? rawLoc.facility === 'Main Facility'
+            ? 'fac-main'
+            : rawLoc.facility.trim()
+          : typeof rawLoc.facility_id === 'string' && rawLoc.facility_id.trim().length > 0
+            ? rawLoc.facility_id.trim()
+            : 'fac-main';
+
+    const roomId =
+      typeof rawLoc.roomId === 'string' && rawLoc.roomId.trim().length > 0
+        ? rawLoc.roomId.trim()
+        : typeof rawLoc.room === 'string' && rawLoc.room.trim().length > 0
+          ? rawLoc.room.trim()
+          : undefined;
+
+    const zone =
+      typeof rawLoc.zone === 'string' && rawLoc.zone.trim().length > 0
+        ? rawLoc.zone.trim()
+        : undefined;
+
+    const description =
+      typeof rawLoc.description === 'string' && rawLoc.description.trim().length > 0
+        ? rawLoc.description.trim()
+        : undefined;
+
+    const location = AssetLocation.create({
+      facilityId,
+      roomId,
+      zone,
+      description,
+    });
     const historyEvents = raw.historyEvents
       ? raw.historyEvents.map(PrismaAssetHistoryEventMapper.toDomain)
       : [];

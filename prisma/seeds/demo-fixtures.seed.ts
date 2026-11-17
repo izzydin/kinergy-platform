@@ -797,7 +797,12 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       currentEstimatedValueCurrency: 'USD',
       condition: AssetCondition.EXCELLENT,
       status: AssetStatus.ACTIVE,
-      location: { facility: 'Main Facility', room: 'Cardio Zone' },
+      location: {
+        facilityId: 'fac-main',
+        roomId: 'studio-b-facility',
+        zone: 'Cardio Zone',
+        description: 'Main Facility - Cardio Zone',
+      },
       tenantId,
     },
     {
@@ -814,7 +819,12 @@ export async function seedDemoFixtures(prisma: PrismaClient): Promise<DemoFixtur
       currentEstimatedValueCurrency: 'USD',
       condition: AssetCondition.EXCELLENT,
       status: AssetStatus.ACTIVE,
-      location: { facility: 'Main Facility', room: 'Room 1 - Kinesiology Therapy Suite' },
+      location: {
+        facilityId: 'fac-main',
+        roomId: 'room-seed-kinesio-01',
+        zone: 'Room 1 - Kinesiology Therapy Suite',
+        description: 'Room 1 - Kinesiology Therapy Suite',
+      },
       tenantId,
     },
   ];

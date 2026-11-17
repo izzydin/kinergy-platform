@@ -4,6 +4,7 @@ import { TransferFixedAssetLocationCommand } from '../commands/transfer-fixed-as
 import { FixedAssetDTO } from '../dtos/fixed-asset.dto';
 import { FixedAssetRepositoryInterface } from '../../domain/assets/repositories/fixed-asset.repository.interface';
 import { ResourcesEventPublisherPort } from '../ports/resources-event-publisher.port';
+import { TenantFacilityCatalogPort } from '../ports/tenant-facility-catalog.port';
 import { AssetId } from '../../domain/assets/value-objects/asset-id.vo';
 import { AssetLocation } from '../../domain/assets/value-objects/asset-location.vo';
 import { FixedAssetDtoMapper } from '../mappers/fixed-asset-dto.mapper';
@@ -15,6 +16,7 @@ export class TransferFixedAssetLocationHandler implements CommandHandler<
   constructor(
     private readonly assetRepository: FixedAssetRepositoryInterface,
     private readonly eventPublisher?: ResourcesEventPublisherPort,
+    private readonly facilityCatalog?: TenantFacilityCatalogPort,
   ) {}
 
   async execute(
@@ -46,7 +48,19 @@ export class TransferFixedAssetLocationHandler implements CommandHandler<
         return ApplicationResult.fail(`Fixed asset with ID '${input.id}' was not found.`);
       }
 
-      // 4. Validate and construct destination AssetLocation Value Object
+      // 4. Validate facility existence and tenant ownership
+      if (this.facilityCatalog) {
+        const facilityAccess = await this.facilityCatalog.validateFacilityAccess(
+          asset.tenantId || input.tenantId || 'tenant-kinergy-main',
+          input.location.facilityId,
+          input.actorId,
+        );
+        if (!facilityAccess.valid) {
+          return ApplicationResult.fail(facilityAccess.reason || 'Invalid facility selection.');
+        }
+      }
+
+      // 5. Validate and construct destination AssetLocation Value Object
       const targetLocation = AssetLocation.create({
         facilityId: input.location.facilityId,
         roomId: input.location.roomId,

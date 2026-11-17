@@ -13,6 +13,9 @@ export const assetsQueryKeys = {
   // Categories Taxonomy Metadata
   categories: () => [...assetsQueryKeys.all, 'categories'] as const,
 
+  // Tenant Facilities Catalog
+  facilities: () => [...assetsQueryKeys.all, 'facilities'] as const,
+
   // Hardware Scanner Barcode / RFID Tag Lookup
   tag: (tag: string) => [...assetsQueryKeys.all, 'tag', tag] as const,
 

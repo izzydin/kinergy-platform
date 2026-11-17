@@ -5,7 +5,9 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Inject,
   NotFoundException,
+  Optional,
   Param,
   Patch,
   Post,
@@ -48,6 +50,8 @@ import {
   GetFixedAssetValuationSummaryHandler,
   AssetCategory,
   FixedAssetSortBy,
+  TenantFacilityCatalogPort,
+  DefaultTenantFacilityCatalogService,
 } from '@kinergy-platform/core';
 import {
   CreateFixedAssetRequestDto,
@@ -65,6 +69,7 @@ import {
   FixedAssetResponseDto,
   FixedAssetValuationResponseDto,
   FixedAssetValuationSummaryResponseDto,
+  FacilityOptionDto,
 } from '../dto';
 
 const ASSET_CATEGORIES_METADATA: AssetCategoryMetadataDto[] = [
@@ -127,6 +132,8 @@ const getErrorMessage = (error: unknown): string => {
 @UseGuards(AuthenticationGuard, AuthorizationGuard)
 @Controller('api/v1/resources/assets')
 export class FixedAssetsController {
+  private readonly facilityCatalog: TenantFacilityCatalogPort;
+
   constructor(
     private readonly createFixedAssetHandler: CreateFixedAssetHandler,
     private readonly updateFixedAssetDetailsHandler: UpdateFixedAssetDetailsHandler,
@@ -142,7 +149,40 @@ export class FixedAssetsController {
     private readonly getMaintenanceHistoryHandler: GetMaintenanceHistoryHandler,
     private readonly getAssetValueHandler: GetAssetValueHandler,
     private readonly getFixedAssetValuationSummaryHandler: GetFixedAssetValuationSummaryHandler,
-  ) {}
+    @Optional() @Inject('TenantFacilityCatalogPort') facilityCatalog?: TenantFacilityCatalogPort,
+  ) {
+    this.facilityCatalog = facilityCatalog ?? new DefaultTenantFacilityCatalogService();
+  }
+
+  @Get('facilities')
+  @HttpCode(HttpStatus.OK)
+  @Roles('ADMIN', 'SUPER_ADMIN', 'OWNER', 'TRAINER', 'RECEPTIONIST')
+  @Permissions('assets.read')
+  @ApiOperation({
+    summary: 'List accessible facilities for the authenticated tenant',
+    description:
+      'Retrieves the list of facilities belonging to the caller tenant for asset physical location assignments.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Tenant facilities retrieved successfully.',
+    type: [FacilityOptionDto],
+  })
+  public async getFacilities(
+    @CurrentUser() user: AuthenticatedUserContext,
+  ): Promise<FacilityOptionDto[]> {
+    const tenantId = user?.tenantId ?? 'tenant-kinergy-main';
+    const facilities = await this.facilityCatalog.getFacilitiesForTenant(tenantId);
+    return facilities.map((f) => ({
+      id: f.id,
+      name: f.name,
+      code: f.code,
+      status: f.status,
+      tenantId: f.tenantId,
+      description: f.description,
+      rooms: f.rooms ? f.rooms.map((r) => ({ id: r.id, name: r.name })) : undefined,
+    }));
+  }
 
   @Get('categories')
   @HttpCode(HttpStatus.OK)
@@ -213,8 +253,21 @@ export class FixedAssetsController {
     @Query() queryDto: ListFixedAssetsQueryDto,
     @CurrentUser() user: AuthenticatedUserContext,
   ): Promise<PaginatedFixedAssetResponseDto> {
+    const tenantId = user?.tenantId ?? 'tenant-kinergy-main';
+
+    if (queryDto.facilityId) {
+      const facilityAccess = await this.facilityCatalog.validateFacilityAccess(
+        tenantId,
+        queryDto.facilityId,
+        user?.userId,
+      );
+      if (!facilityAccess.valid) {
+        throw new BadRequestException(facilityAccess.reason || 'Invalid facility parameter.');
+      }
+    }
+
     const query = new ListFixedAssetsQuery({
-      tenantId: user?.tenantId ?? 'default_tenant',
+      tenantId,
       filter: {
         search: queryDto.search,
         category: queryDto.category,

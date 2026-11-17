@@ -18,6 +18,7 @@ import type {
   UpdateFixedAssetConditionInputVM,
   RecordAssetMaintenanceInputVM,
   UpdateFixedAssetValuationInputVM,
+  FacilityOptionVM,
 } from '../types';
 
 /**
@@ -25,6 +26,13 @@ import type {
  * Consumes NestJS FixedAssetsController (/api/v1/resources/assets)
  */
 export const assetsApi = {
+  /**
+   * Retrieves accessible facilities for the authenticated tenant
+   */
+  async getFacilities(): Promise<FacilityOptionVM[]> {
+    return httpClient.get<FacilityOptionVM[]>('/api/v1/resources/assets/facilities');
+  },
+
   /**
    * Retrieves static equipment category taxonomy metadata
    */

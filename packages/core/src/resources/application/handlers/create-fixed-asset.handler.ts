@@ -4,6 +4,7 @@ import { CreateFixedAssetCommand } from '../commands/create-fixed-asset.command'
 import { FixedAssetDTO } from '../dtos/fixed-asset.dto';
 import { FixedAssetRepositoryInterface } from '../../domain/assets/repositories/fixed-asset.repository.interface';
 import { ResourcesEventPublisherPort } from '../ports/resources-event-publisher.port';
+import { TenantFacilityCatalogPort } from '../ports/tenant-facility-catalog.port';
 import { FixedAsset } from '../../domain/assets/fixed-asset.aggregate';
 import { AssetLocation } from '../../domain/assets/value-objects/asset-location.vo';
 import { Money } from '../../domain/inventory/value-objects/money.vo';
@@ -16,6 +17,7 @@ export class CreateFixedAssetHandler implements CommandHandler<
   constructor(
     private readonly assetRepository: FixedAssetRepositoryInterface,
     private readonly eventPublisher?: ResourcesEventPublisherPort,
+    private readonly facilityCatalog?: TenantFacilityCatalogPort,
   ) {}
 
   async execute(command: CreateFixedAssetCommand): Promise<ApplicationResult<FixedAssetDTO>> {
@@ -55,7 +57,19 @@ export class CreateFixedAssetHandler implements CommandHandler<
           )
         : purchaseValue;
 
-      // 4. Location construction & validation
+      // 4. Validate facility existence and tenant ownership
+      if (this.facilityCatalog) {
+        const facilityAccess = await this.facilityCatalog.validateFacilityAccess(
+          input.tenantId ?? 'tenant-kinergy-main',
+          input.location.facilityId,
+          input.actorId,
+        );
+        if (!facilityAccess.valid) {
+          return ApplicationResult.fail(facilityAccess.reason || 'Invalid facility selection.');
+        }
+      }
+
+      // 5. Location construction & validation
       const location = AssetLocation.create({
         facilityId: input.location.facilityId,
         roomId: input.location.roomId,
