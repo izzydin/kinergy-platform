@@ -316,17 +316,18 @@ export class Appointment implements AggregateRoot<AppointmentId> {
 
   /**
    * Marks the appointment as NO_SHOW and records AppointmentNoShowEvent.
-   * Allowed from SCHEDULED or CONFIRMED status.
+   * Allowed from SCHEDULED, CONFIRMED, or RESCHEDULED status.
    */
   public markNoShow(reason?: string, clock?: Clock): void {
     if (
       this._status !== AppointmentStatus.SCHEDULED &&
-      this._status !== AppointmentStatus.CONFIRMED
+      this._status !== AppointmentStatus.CONFIRMED &&
+      this._status !== AppointmentStatus.RESCHEDULED
     ) {
       throw new InvalidAppointmentTransitionException(
         this._status,
         AppointmentStatus.NO_SHOW,
-        `Marking NO_SHOW is only allowed for SCHEDULED or CONFIRMED appointments. Current status: '${this._status}'.`,
+        `Marking NO_SHOW is only allowed for SCHEDULED, CONFIRMED, or RESCHEDULED appointments. Current status: '${this._status}'.`,
       );
     }
 
@@ -344,16 +345,18 @@ export class Appointment implements AggregateRoot<AppointmentId> {
 
   /**
    * Reschedules the appointment to a new TimeRange and records AppointmentRescheduledEvent.
+   * Allowed from SCHEDULED, CONFIRMED, or RESCHEDULED status.
    */
   public reschedule(newTimeRange: TimeRange, clock?: Clock): void {
     if (
       this._status !== AppointmentStatus.SCHEDULED &&
-      this._status !== AppointmentStatus.CONFIRMED
+      this._status !== AppointmentStatus.CONFIRMED &&
+      this._status !== AppointmentStatus.RESCHEDULED
     ) {
       throw new InvalidAppointmentTransitionException(
         this._status,
         AppointmentStatus.RESCHEDULED,
-        `Rescheduling is only allowed for SCHEDULED or CONFIRMED appointments. Current status: '${this._status}'.`,
+        `Rescheduling is only allowed for SCHEDULED, CONFIRMED, or RESCHEDULED appointments. Current status: '${this._status}'.`,
       );
     }
 

@@ -216,6 +216,98 @@ describe('Appointment Aggregate Root', () => {
       expect(events).toHaveLength(1);
       expect(events[0]).toBeInstanceOf(AppointmentRescheduledEvent);
     });
+
+    it('should allow rescheduling an already RESCHEDULED appointment again', () => {
+      const appt = Appointment.create(createDefaultProps(), clock);
+      const range1 = TimeRange.create(
+        new Date('2026-08-04T14:00:00.000Z'),
+        new Date('2026-08-04T15:00:00.000Z'),
+      );
+      appt.reschedule(range1, clock);
+      expect(appt.status).toBe(AppointmentStatus.RESCHEDULED);
+      expect(appt.version).toBe(2);
+
+      const range2 = TimeRange.create(
+        new Date('2026-08-05T10:00:00.000Z'),
+        new Date('2026-08-05T11:00:00.000Z'),
+      );
+      appt.pullEvents();
+      appt.reschedule(range2, clock);
+
+      expect(appt.status).toBe(AppointmentStatus.RESCHEDULED);
+      expect(appt.timeRange.equals(range2)).toBe(true);
+      expect(appt.version).toBe(3);
+
+      const events = appt.pullEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(AppointmentRescheduledEvent);
+    });
+
+    it('should allow cancelling a RESCHEDULED appointment', () => {
+      const appt = Appointment.create(createDefaultProps(), clock);
+      const range = TimeRange.create(
+        new Date('2026-08-04T14:00:00.000Z'),
+        new Date('2026-08-04T15:00:00.000Z'),
+      );
+      appt.reschedule(range, clock);
+      expect(appt.status).toBe(AppointmentStatus.RESCHEDULED);
+
+      appt.pullEvents();
+      appt.cancel('Client unable to attend rescheduled slot', clock);
+
+      expect(appt.status).toBe(AppointmentStatus.CANCELLED);
+      expect(appt.cancellationReason).toBe('Client unable to attend rescheduled slot');
+      expect(appt.version).toBe(3);
+
+      const events = appt.pullEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(AppointmentCancelledEvent);
+    });
+
+    it('should allow marking a RESCHEDULED appointment as NO_SHOW', () => {
+      const appt = Appointment.create(createDefaultProps(), clock);
+      const range = TimeRange.create(
+        new Date('2026-08-04T14:00:00.000Z'),
+        new Date('2026-08-04T15:00:00.000Z'),
+      );
+      appt.reschedule(range, clock);
+      expect(appt.status).toBe(AppointmentStatus.RESCHEDULED);
+
+      appt.pullEvents();
+      appt.markNoShow('Client absent from rescheduled appointment', clock);
+
+      expect(appt.status).toBe(AppointmentStatus.NO_SHOW);
+      expect(appt.cancellationReason).toBe('Client absent from rescheduled appointment');
+      expect(appt.version).toBe(3);
+
+      const events = appt.pullEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toBeInstanceOf(AppointmentNoShowEvent);
+    });
+
+    it('should reject rescheduling when appointment is IN_PROGRESS', () => {
+      const appt = Appointment.create(createDefaultProps(), clock);
+      appt.checkIn(clock);
+      appt.start(clock);
+      expect(appt.status).toBe(AppointmentStatus.IN_PROGRESS);
+
+      const range = TimeRange.create(
+        new Date('2026-08-04T14:00:00.000Z'),
+        new Date('2026-08-04T15:00:00.000Z'),
+      );
+      expect(() => appt.reschedule(range, clock)).toThrow(InvalidAppointmentTransitionException);
+    });
+
+    it('should reject marking NO_SHOW when appointment is IN_PROGRESS', () => {
+      const appt = Appointment.create(createDefaultProps(), clock);
+      appt.checkIn(clock);
+      appt.start(clock);
+      expect(appt.status).toBe(AppointmentStatus.IN_PROGRESS);
+
+      expect(() => appt.markNoShow('Client walked out', clock)).toThrow(
+        InvalidAppointmentTransitionException,
+      );
+    });
   });
 
   describe('Room and Therapist Assignments', () => {

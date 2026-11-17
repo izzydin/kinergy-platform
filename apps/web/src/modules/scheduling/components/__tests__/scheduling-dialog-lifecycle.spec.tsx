@@ -287,7 +287,7 @@ describe('Scheduling Dialog Lifecycle & Interaction Integrity', () => {
   });
 
   describe('No-Show Domain Invariants', () => {
-    it('displays "Mark No-Show" for SCHEDULED and CONFIRMED appointments only', () => {
+    it('displays "Mark No-Show" for SCHEDULED, CONFIRMED, and RESCHEDULED appointments only', () => {
       const { rerender } = renderWithQuery(
         <AppointmentDetailDrawer
           appointment={{ ...mockAppointment, status: 'SCHEDULED' }}
@@ -315,6 +315,19 @@ describe('Scheduling Dialog Lifecycle & Interaction Integrity', () => {
       rerender(
         <QueryClientProvider client={createTestQueryClient()}>
           <AppointmentDetailDrawer
+            appointment={{ ...mockAppointment, status: 'RESCHEDULED' }}
+            isOpen={true}
+            onClose={jest.fn()}
+          />
+        </QueryClientProvider>,
+      );
+      expect(
+        screen.getByRole('button', { name: /Mark appointment as no-show/i }),
+      ).toBeInTheDocument();
+
+      rerender(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <AppointmentDetailDrawer
             appointment={{ ...mockAppointment, status: 'CHECKED_IN' }}
             isOpen={true}
             onClose={jest.fn()}
@@ -322,6 +335,131 @@ describe('Scheduling Dialog Lifecycle & Interaction Integrity', () => {
         </QueryClientProvider>,
       );
       // Checked in appointments MUST NOT show Mark No-Show button
+      expect(screen.queryByRole('button', { name: /Mark appointment as no-show/i })).toBeNull();
+    });
+  });
+
+  describe('Consistent Actions for Rescheduled Appointments', () => {
+    it('displays Reschedule, Cancel, Mark No-Show, Check In, and Confirm for RESCHEDULED appointment', () => {
+      renderWithQuery(
+        <AppointmentDetailDrawer
+          appointment={{ ...mockAppointment, status: 'RESCHEDULED' }}
+          isOpen={true}
+          onClose={jest.fn()}
+        />,
+      );
+
+      expect(screen.getByRole('button', { name: /Reschedule appointment/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Cancel appointment/i })).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: /Mark appointment as no-show/i }),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Check in client/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /Confirm appointment/i })).toBeInTheDocument();
+    });
+
+    it('permits rescheduling an already RESCHEDULED appointment a second time', async () => {
+      const rescheduleSpy = jest
+        .spyOn(schedulingApiModule.schedulingApi, 'rescheduleAppointment')
+        .mockResolvedValueOnce({
+          ...mockAppointment,
+          status: 'RESCHEDULED',
+          startTime: '2026-08-05T10:00:00.000Z',
+          endTime: '2026-08-05T11:00:00.000Z',
+        });
+
+      renderWithQuery(
+        <AppointmentDetailDrawer
+          appointment={{ ...mockAppointment, status: 'RESCHEDULED' }}
+          isOpen={true}
+          onClose={jest.fn()}
+        />,
+      );
+
+      // Open Reschedule dialog
+      fireEvent.click(screen.getByRole('button', { name: /Reschedule appointment/i }));
+      await screen.findByTestId('edit-single-occurrence-dialog');
+
+      // Reason is required
+      const reasonInput = screen.getByLabelText(/Reschedule Reason/i);
+      fireEvent.change(reasonInput, {
+        target: { value: 'Second reschedule: doctor request' },
+      });
+
+      // Submit
+      fireEvent.click(screen.getByRole('button', { name: /Save Changes/i }));
+
+      await waitFor(() => {
+        expect(rescheduleSpy).toHaveBeenCalledTimes(1);
+      });
+      const [calledId, calledPayload] = rescheduleSpy.mock.calls[0]!;
+      expect(calledId).toBe(mockAppointment.id);
+      expect(calledPayload.reason).toBe('Second reschedule: doctor request');
+    });
+
+    it('permits cancelling an already RESCHEDULED appointment', async () => {
+      const cancelSpy = jest
+        .spyOn(schedulingApiModule.schedulingApi, 'cancelAppointment')
+        .mockResolvedValueOnce({
+          ...mockAppointment,
+          status: 'CANCELLED',
+          cancellationReason: 'Client could not attend rescheduled slot',
+        });
+
+      renderWithQuery(
+        <AppointmentDetailDrawer
+          appointment={{ ...mockAppointment, status: 'RESCHEDULED' }}
+          isOpen={true}
+          onClose={jest.fn()}
+        />,
+      );
+
+      // Open Cancel dialog
+      fireEvent.click(screen.getByRole('button', { name: /Cancel appointment/i }));
+      await screen.findByTestId('cancel-appointment-dialog');
+
+      // Reason is required
+      const reasonInput = screen.getByLabelText(/Reason for Cancellation/i);
+      fireEvent.change(reasonInput, {
+        target: { value: 'Client could not attend rescheduled slot' },
+      });
+
+      // Submit
+      fireEvent.click(screen.getByRole('button', { name: /Confirm Cancellation/i }));
+
+      await waitFor(() => {
+        expect(cancelSpy).toHaveBeenCalledTimes(1);
+      });
+      const [calledId, calledPayload] = cancelSpy.mock.calls[0]!;
+      expect(calledId).toBe(mockAppointment.id);
+      expect(calledPayload.reason).toBe('Client could not attend rescheduled slot');
+    });
+
+    it('hides operational scheduling actions when status is IN_PROGRESS or COMPLETED', () => {
+      const { rerender } = renderWithQuery(
+        <AppointmentDetailDrawer
+          appointment={{ ...mockAppointment, status: 'IN_PROGRESS' }}
+          isOpen={true}
+          onClose={jest.fn()}
+        />,
+      );
+
+      expect(screen.queryByRole('button', { name: /Reschedule appointment/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Cancel appointment/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Mark appointment as no-show/i })).toBeNull();
+
+      rerender(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <AppointmentDetailDrawer
+            appointment={{ ...mockAppointment, status: 'COMPLETED' }}
+            isOpen={true}
+            onClose={jest.fn()}
+          />
+        </QueryClientProvider>,
+      );
+
+      expect(screen.queryByRole('button', { name: /Reschedule appointment/i })).toBeNull();
+      expect(screen.queryByRole('button', { name: /Cancel appointment/i })).toBeNull();
       expect(screen.queryByRole('button', { name: /Mark appointment as no-show/i })).toBeNull();
     });
   });

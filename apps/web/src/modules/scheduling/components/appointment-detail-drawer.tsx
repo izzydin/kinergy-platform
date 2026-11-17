@@ -201,12 +201,15 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
   const hasConflict = Boolean('hasConflict' in appointment && appointment.hasConflict);
 
   // Status transitions
-  const canConfirm = appointment.status === 'SCHEDULED';
-  const canCheckIn = appointment.status === 'SCHEDULED' || appointment.status === 'CONFIRMED';
+  const canConfirm = appointment.status === 'SCHEDULED' || appointment.status === 'RESCHEDULED';
+  const canCheckIn = ['SCHEDULED', 'CONFIRMED', 'RESCHEDULED'].includes(appointment.status);
   const canStart = appointment.status === 'CHECKED_IN';
   const canComplete = appointment.status === 'IN_PROGRESS';
-  const canCancel = ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN'].includes(appointment.status);
-  const canMarkNoShow = ['SCHEDULED', 'CONFIRMED'].includes(appointment.status);
+  const canCancel = ['SCHEDULED', 'CONFIRMED', 'CHECKED_IN', 'RESCHEDULED'].includes(
+    appointment.status,
+  );
+  const canMarkNoShow = ['SCHEDULED', 'CONFIRMED', 'RESCHEDULED'].includes(appointment.status);
+  const canReschedule = ['SCHEDULED', 'CONFIRMED', 'RESCHEDULED'].includes(appointment.status);
 
   const isPending =
     confirmMutation.isPending ||
@@ -623,7 +626,7 @@ export const AppointmentDetailDrawer: React.FC<AppointmentDetailDrawerProps> = (
                 )}
 
                 {/* Reschedule Button */}
-                {['SCHEDULED', 'CONFIRMED'].includes(appointment.status) && (
+                {canReschedule && (
                   <Button
                     size="sm"
                     variant="outline"
