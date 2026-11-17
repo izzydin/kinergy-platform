@@ -247,6 +247,7 @@ describe('Payment Error Architecture & Classification Matrix', () => {
       expect(() => {
         Payment.createCompleted(
           {
+            tenantId: 'tenant-1',
             saleId: SaleId.create('sale-amt'),
             method: PaymentMethod.CASH,
             amount: Money.create(0, 'USD'),

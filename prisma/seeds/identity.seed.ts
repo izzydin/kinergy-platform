@@ -261,6 +261,7 @@ export async function seedIdentity(prisma: PrismaClient): Promise<SeedIdentityRe
   const ownerEmail = process.env.OWNER_EMAIL || 'owner@kinergy.platform';
   const rawOwnerPassword = process.env.OWNER_PASSWORD || 'OwnerPassword123!';
   const ownerRoleId = roleMap.get('Owner');
+  const defaultTenantId = process.env.DEFAULT_TENANT_ID || 'tenant-kinergy-main';
 
   if (!ownerRoleId) {
     throw new Error('Owner role was not initialized properly during seeding.');
@@ -278,6 +279,7 @@ export async function seedIdentity(prisma: PrismaClient): Promise<SeedIdentityRe
         passwordHash,
         status: UserStatus.ACTIVE,
         roleId: ownerRoleId,
+        tenantId: defaultTenantId,
       },
     });
     console.log(`  👤 Created default Owner account: ${ownerEmail}`);
@@ -287,6 +289,7 @@ export async function seedIdentity(prisma: PrismaClient): Promise<SeedIdentityRe
       data: {
         status: UserStatus.ACTIVE,
         roleId: ownerRoleId,
+        tenantId: existingOwner.tenantId || defaultTenantId,
       },
     });
     console.log(`  👤 Verified default Owner account state: ${ownerEmail}`);

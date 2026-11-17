@@ -55,6 +55,7 @@ describe('TherapistTreatmentCheckoutService Unit Tests', () => {
     status: 'ACTIVE',
     roles: ['Therapist'],
     permissions: ['sales.create', 'payments.create', 'receipts.read'],
+    tenantId: 'tenant_mock_1',
   });
 
   beforeEach(() => {

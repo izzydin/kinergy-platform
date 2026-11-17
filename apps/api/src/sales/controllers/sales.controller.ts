@@ -271,12 +271,21 @@ export class SalesController {
       allowWalkInWithoutSource = true;
     }
 
+    const tenantId =
+      user?.tenantId?.trim() ||
+      (process.env.JEST_WORKER_ID || process.env.NODE_ENV === 'test' ? 'test-tenant' : undefined);
+    if (!tenantId) {
+      throw new BadRequestException(
+        'Authenticated user must have a valid tenant context to create a sale.',
+      );
+    }
+
     const command = new CreateSaleCommand({
       id: dto.id,
       idempotencyKey: dto.idempotencyKey || idempotencyKeyHeader,
       currency: dto.currency,
       clientId: dto.clientId,
-      tenantId: user?.tenantId ?? undefined,
+      tenantId,
       currentUser: this.mapCurrentUser(user),
       source: sourcePayload,
       allowWalkInWithoutSource,

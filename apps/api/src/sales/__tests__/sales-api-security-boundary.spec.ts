@@ -378,6 +378,7 @@ describe('Sale API Security Boundary & Aggregate Integrity Specification', () =>
       // 2. Attempt coordination with PENDING payment (not completed)
       const pendingPayment = Payment.createPending({
         id: PaymentId.create('pay_pending_01'),
+        tenantId: 'test-tenant',
         saleId: SaleId.create(sale.id),
         method: PaymentMethod.CASH,
         amount: Money.create(50.0, 'USD'),
@@ -391,6 +392,7 @@ describe('Sale API Security Boundary & Aggregate Integrity Specification', () =>
       // 3. Attempt coordination with payment belonging to another sale
       const otherSalePayment = Payment.createCompleted({
         id: PaymentId.create('pay_other_sale_01'),
+        tenantId: 'test-tenant',
         saleId: SaleId.create('sale_other_999'),
         method: PaymentMethod.CASH,
         amount: Money.create(50.0, 'USD'),

@@ -64,6 +64,9 @@ export class CreateSaleHandler implements SalesCommandHandler<
         enforceSaleTenantIsolation(input.tenantId, input.currentUser.tenantId);
       }
 
+      const resolvedTenantId =
+        input.tenantId?.trim() || input.currentUser?.tenantId?.trim() || undefined;
+
       // 1. Precondition Validation: Tenant boundary
       if (input.tenantId !== undefined && input.tenantId !== null) {
         if (input.tenantId.trim() === '') {
@@ -526,7 +529,7 @@ export class CreateSaleHandler implements SalesCommandHandler<
         const sale = Sale.create(
           {
             id: effectiveId ? SaleId.create(effectiveId) : undefined,
-            tenantId: input.tenantId ? input.tenantId.trim() : undefined,
+            tenantId: resolvedTenantId,
             clientId: resolvedClientId,
             currency,
             source,

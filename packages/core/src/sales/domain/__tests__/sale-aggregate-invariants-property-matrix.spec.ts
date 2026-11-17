@@ -85,6 +85,7 @@ function captureSaleSnapshot(sale: Sale): SaleSnapshot {
 
 describe('Senior Financial Systems Invariant Property Matrix: Sale Aggregate', () => {
   const clock = new DeterministicClock(new Date('2026-09-28T14:00:00.000Z'));
+  const testTenantId = 'tenant_kinergy_prime';
   const source = SourceReference.create({
     sourceType: SourceType.INVENTORY_ITEM,
     sourceId: 'inv-item-alpha-01',
@@ -441,6 +442,7 @@ describe('Senior Financial Systems Invariant Property Matrix: Sale Aggregate', (
           const p = Payment.createPending(
             {
               id: PaymentId.create('pay-pending'),
+              tenantId: testTenantId,
               saleId: sale.id,
               method: PaymentMethod.QR,
               amount: sale.total,
@@ -457,6 +459,7 @@ describe('Senior Financial Systems Invariant Property Matrix: Sale Aggregate', (
           const p = Payment.createPending(
             {
               id: PaymentId.create('pay-failed'),
+              tenantId: testTenantId,
               saleId: sale.id,
               method: PaymentMethod.QR,
               amount: sale.total,
@@ -474,6 +477,7 @@ describe('Senior Financial Systems Invariant Property Matrix: Sale Aggregate', (
           const p = Payment.createPending(
             {
               id: PaymentId.create('pay-cancelled'),
+              tenantId: testTenantId,
               saleId: sale.id,
               method: PaymentMethod.CASH,
               amount: sale.total,
@@ -492,6 +496,7 @@ describe('Senior Financial Systems Invariant Property Matrix: Sale Aggregate', (
           const p = Payment.createCompleted(
             {
               id: PaymentId.create('pay-foreign'),
+              tenantId: testTenantId,
               saleId: foreignSaleId,
               method: PaymentMethod.CASH,
               amount: Money.create(100.0, 'USD'),
@@ -508,6 +513,7 @@ describe('Senior Financial Systems Invariant Property Matrix: Sale Aggregate', (
           const p = Payment.createCompleted(
             {
               id: PaymentId.create('pay-currency-mismatch'),
+              tenantId: testTenantId,
               saleId: sale.id,
               method: PaymentMethod.CASH,
               amount: Money.create(100.0, 'EUR'),
@@ -524,6 +530,7 @@ describe('Senior Financial Systems Invariant Property Matrix: Sale Aggregate', (
           const p = Payment.createCompleted(
             {
               id: PaymentId.create('pay-underpaid'),
+              tenantId: testTenantId,
               saleId: sale.id,
               method: PaymentMethod.CASH,
               amount: Money.create(40.0, 'USD'),

@@ -26,6 +26,7 @@ import { InvalidPaymentStatusException } from '../../domain/exceptions/invalid-p
 import { InvalidPaymentAmountException } from '../../domain/exceptions/invalid-payment-amount.exception';
 import { InvalidPaymentMethodException } from '../../domain/exceptions/invalid-payment-method.exception';
 import { PaymentUnauthorizedException } from '../exceptions/payment-unauthorized.exception';
+import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
 import { checkPaymentAuthorization, enforceTenantIsolation } from '../shared/payment-authorization';
 
 /**
@@ -141,6 +142,14 @@ export class CreatePaymentHandler implements SalesCommandHandler<
 
       // Enforce multi-tenant boundary isolation
       enforceTenantIsolation(sale.tenantId, input.tenantId);
+
+      if (!sale.tenantId || sale.tenantId.trim() === '') {
+        return SalesApplicationResult.fail(
+          new InvalidSaleStateException(
+            `Sale '${sale.id.value}' does not have a valid tenantId. Payment cannot be created.`,
+          ),
+        );
+      }
 
       // Verify Sale status is payable (must be PENDING_PAYMENT or PARTIALLY_PAID)
       if (sale.status !== SaleStatus.PENDING_PAYMENT && sale.status !== SaleStatus.PARTIALLY_PAID) {

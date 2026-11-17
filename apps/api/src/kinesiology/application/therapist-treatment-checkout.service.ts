@@ -391,6 +391,13 @@ export class TherapistTreatmentCheckoutService {
       throw new BadRequestException("paymentMethod must be 'CASH' or 'QR'.");
     }
 
+    const tenantId = currentUser?.tenantId?.trim();
+    if (!tenantId) {
+      throw new BadRequestException(
+        'Authenticated user must have a valid tenant context to checkout a treatment session.',
+      );
+    }
+
     // 1. Complete Session if not yet completed (ensures clinical SOAP notes are sealed)
     if (session.status === 'SCHEDULED') {
       throw new UnprocessableEntityException(
@@ -421,7 +428,7 @@ export class TherapistTreatmentCheckoutService {
 
       const createSaleRes = await this.createSaleHandler.execute(
         new CreateSaleCommand({
-          tenantId: currentUser?.tenantId ?? undefined,
+          tenantId,
           clientId: session.clientId,
           currency: billingInfo.price.currency,
           source: {
@@ -489,7 +496,7 @@ export class TherapistTreatmentCheckoutService {
 
     const paymentRes = await this.createPaymentHandler.execute(
       new CreatePaymentCommand({
-        tenantId: currentUser?.tenantId ?? undefined,
+        tenantId,
         saleId: targetSaleId,
         amount: paymentAmount,
         method: paymentMethod as PaymentMethod,
@@ -529,7 +536,7 @@ export class TherapistTreatmentCheckoutService {
       try {
         const rcptRes = await this.issueReceiptHandler.execute(
           new IssueReceiptCommand({
-            tenantId: currentUser?.tenantId ?? undefined,
+            tenantId,
             saleId: targetSaleId,
             currentUser: toSaleUser(currentUser),
           }),
@@ -537,6 +544,8 @@ export class TherapistTreatmentCheckoutService {
         if (rcptRes.isSuccess) {
           receiptId = rcptRes.getValue().id;
           receiptNumber = rcptRes.getValue().receiptNumber;
+        } else {
+          this.logger.warn(`Receipt issuance after payment failed: ${rcptRes.getError()}`);
         }
       } catch (err) {
         this.logger.warn(`Receipt issuance after payment: ${err}`);

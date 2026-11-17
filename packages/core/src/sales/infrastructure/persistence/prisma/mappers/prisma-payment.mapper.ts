@@ -78,7 +78,7 @@ export class PrismaPaymentMapper {
 
     return Payment.reconstitute({
       id: PaymentId.create(raw.id),
-      tenantId: raw.tenantId ? raw.tenantId.trim() : 'default',
+      tenantId: raw.tenantId ? raw.tenantId.trim() : '',
       saleId: SaleId.create(raw.saleId),
       method: raw.method as unknown as PaymentMethod,
       amount,

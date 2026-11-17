@@ -16,6 +16,7 @@ import { Receipt } from '../../domain/receipt.aggregate';
 import { SaleNotFoundException } from '../exceptions/sale-not-found.exception';
 import { ReceiptIssuanceRejectedException } from '../exceptions/receipt-issuance-rejected.exception';
 import { DuplicateReceiptException } from '../../domain/exceptions/duplicate-receipt.exception';
+import { InvalidSaleStateException } from '../../domain/exceptions/invalid-sale-state.exception';
 import {
   checkReceiptAuthorization,
   enforceReceiptTenantIsolation,
@@ -53,6 +54,15 @@ export class IssueReceiptHandler implements SalesCommandHandler<
 
       // 3. Multi-Tenant Isolation
       enforceReceiptTenantIsolation(sale.tenantId, input.tenantId);
+
+      if (!sale.tenantId || sale.tenantId.trim() === '') {
+        return SalesApplicationResult.fail(
+          new InvalidSaleStateException(
+            `Sale '${sale.id.value}' does not have a valid tenantId to issue a receipt.`,
+          ),
+        );
+      }
+      const tenantId = sale.tenantId.trim();
 
       // 4. Strict Idempotency Check (ADR-0117 Invariant 10, 11)
       const existingReceipt = await this.receiptRepository.findBySaleId(sale.id, sale.tenantId);
@@ -121,10 +131,7 @@ export class IssueReceiptHandler implements SalesCommandHandler<
       let receipt: Receipt | null = null;
 
       for (let seqAttempt = 0; seqAttempt < maxSequenceAttempts; seqAttempt++) {
-        const receiptNumber = await this.receiptRepository.getNextReceiptNumber(
-          sale.tenantId ?? 'default',
-          year,
-        );
+        const receiptNumber = await this.receiptRepository.getNextReceiptNumber(tenantId, year);
 
         const candidate = Receipt.fromSettledSale(
           {
@@ -146,7 +153,7 @@ export class IssueReceiptHandler implements SalesCommandHandler<
           if (saveErr instanceof DuplicateReceiptException) {
             const existingByNumber = await this.receiptRepository.findByReceiptNumber(
               receiptNumber,
-              sale.tenantId,
+              tenantId,
             );
             if (
               existingByNumber &&
@@ -161,7 +168,7 @@ export class IssueReceiptHandler implements SalesCommandHandler<
       }
 
       if (!receipt) {
-        throw new DuplicateReceiptException(sale.id.value, sale.tenantId ?? 'default');
+        throw new DuplicateReceiptException(sale.id.value, tenantId);
       }
 
       // 11. Domain Event Dispatching

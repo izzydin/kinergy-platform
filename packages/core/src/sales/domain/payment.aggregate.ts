@@ -236,7 +236,13 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
         ? params.reference
         : PaymentReference.from(params.reference);
 
-    const tenantId = params.tenantId ? params.tenantId.trim() : 'default';
+    const tenantId = params.tenantId ? params.tenantId.trim() : '';
+    if (!tenantId) {
+      throw new PaymentDomainException(
+        'Payment must have a valid non-empty tenantId.',
+        'INVALID_PAYMENT_PROPS',
+      );
+    }
 
     const payment = new Payment({
       id,
@@ -304,7 +310,13 @@ export class Payment implements Entity<PaymentId>, AggregateRoot<PaymentId> {
         ? params.reference
         : PaymentReference.from(params.reference);
 
-    const tenantId = params.tenantId ? params.tenantId.trim() : 'default';
+    const tenantId = params.tenantId ? params.tenantId.trim() : '';
+    if (!tenantId) {
+      throw new PaymentDomainException(
+        'Payment must have a valid non-empty tenantId.',
+        'INVALID_PAYMENT_PROPS',
+      );
+    }
 
     return new Payment({
       id,

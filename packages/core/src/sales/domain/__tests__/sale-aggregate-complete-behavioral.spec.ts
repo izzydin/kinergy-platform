@@ -60,6 +60,7 @@ class InMemoryPaymentRepo implements PaymentRepositoryPort {
 
 describe('Master Behavioral Test Suite: Sale Aggregate', () => {
   const clock = new DeterministicClock(new Date('2026-09-28T12:00:00.000Z'));
+  const testTenantId = 'tenant_kinergy_prime';
 
   const validSource = SourceReference.create({
     sourceType: SourceType.INVENTORY_ITEM,
@@ -608,6 +609,7 @@ describe('Master Behavioral Test Suite: Sale Aggregate', () => {
       const payment = Payment.createCompleted(
         {
           id: PaymentId.create('pay-001'),
+          tenantId: testTenantId,
           saleId: sale.id,
           method: PaymentMethod.CASH,
           amount: Money.create(100.0, 'USD'),
@@ -666,6 +668,7 @@ describe('Master Behavioral Test Suite: Sale Aggregate', () => {
       const payment = Payment.createPending(
         {
           id: PaymentId.create('pay-pending-01'),
+          tenantId: testTenantId,
           saleId: sale.id,
           method: PaymentMethod.QR,
           amount: Money.create(50.0, 'USD'),
@@ -701,6 +704,7 @@ describe('Master Behavioral Test Suite: Sale Aggregate', () => {
       const payment = Payment.createPending(
         {
           id: PaymentId.create('pay-failed-01'),
+          tenantId: testTenantId,
           saleId: sale.id,
           method: PaymentMethod.QR,
           amount: Money.create(50.0, 'USD'),
@@ -737,6 +741,7 @@ describe('Master Behavioral Test Suite: Sale Aggregate', () => {
       const payment = Payment.createPending(
         {
           id: PaymentId.create('pay-cancelled-01'),
+          tenantId: testTenantId,
           saleId: sale.id,
           method: PaymentMethod.CASH,
           amount: Money.create(50.0, 'USD'),
@@ -773,6 +778,7 @@ describe('Master Behavioral Test Suite: Sale Aggregate', () => {
       const paymentForB = Payment.createCompleted(
         {
           id: PaymentId.create('pay-for-B'),
+          tenantId: testTenantId,
           saleId: SaleId.create('sale-B'),
           method: PaymentMethod.CASH,
           amount: Money.create(50.0, 'USD'),
@@ -808,6 +814,7 @@ describe('Master Behavioral Test Suite: Sale Aggregate', () => {
       const partialPayment = Payment.createCompleted(
         {
           id: PaymentId.create('pay-partial-01'),
+          tenantId: testTenantId,
           saleId: sale.id,
           method: PaymentMethod.CASH,
           amount: Money.create(40.0, 'USD'), // $40 is less than $100
