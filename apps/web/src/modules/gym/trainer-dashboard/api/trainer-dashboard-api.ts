@@ -43,6 +43,7 @@ export const trainerDashboardApi = {
         search: params?.search || params?.query,
         status: params?.status,
         statuses: params?.statuses ? params.statuses.join(',') : undefined,
+        assignmentFilter: params?.assignmentFilter,
         horizonDays: params?.horizonDays,
         asOfDate: params?.asOfDate,
         page: params?.page,

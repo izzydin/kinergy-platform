@@ -74,6 +74,15 @@ export class AssignedClientsQueryDto {
   status?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter clients by trainer assignment relationship',
+    enum: ['ALL', 'ASSIGNED_TO_ME', 'OTHER_TRAINERS', 'UNASSIGNED'],
+    default: 'ALL',
+  })
+  @IsOptional()
+  @IsIn(['ALL', 'ASSIGNED_TO_ME', 'OTHER_TRAINERS', 'UNASSIGNED'])
+  assignmentFilter?: 'ALL' | 'ASSIGNED_TO_ME' | 'OTHER_TRAINERS' | 'UNASSIGNED';
+
+  @ApiPropertyOptional({
     description: 'Optional trainer identifier filter',
     example: 'usr_trainer_123',
   })

@@ -35,19 +35,27 @@ export class GetTrainerDashboardSummaryHandler implements QueryHandler<
         return ApplicationResult.fail('Trainer ID cannot be empty.');
       }
 
+      const trimmedTrainerId = input.trainerId.trim();
+      const isFacilityWide =
+        trimmedTrainerId.toUpperCase() === 'FACILITY' || trimmedTrainerId.toUpperCase() === 'ALL';
+
       const evalDate = input.asOfDate ? new Date(input.asOfDate) : this.clock.now();
       const horizonDays = input.horizonDays !== undefined ? Math.max(1, input.horizonDays) : 7;
       const horizonMs = horizonDays * 24 * 60 * 60 * 1000;
       const timezone = input.timezone ?? 'UTC';
       const facilityId = input.facilityId ?? 'main';
 
-      // 1. Fetch assigned memberships
+      // 1. Fetch memberships based on scope
       let memberships: Membership[] = [];
-      if (this.membershipRepository.findByTrainerId) {
-        memberships = await this.membershipRepository.findByTrainerId(input.trainerId.trim());
+      if (isFacilityWide) {
+        if (this.membershipRepository.findAll) {
+          memberships = await this.membershipRepository.findAll();
+        }
+      } else if (this.membershipRepository.findByTrainerId) {
+        memberships = await this.membershipRepository.findByTrainerId(trimmedTrainerId);
       } else {
         const all = await this.membershipRepository.findAll();
-        memberships = all.filter((m) => m.trainerAssignment?.trainerId === input.trainerId.trim());
+        memberships = all.filter((m) => m.trainerAssignment?.trainerId === trimmedTrainerId);
       }
 
       const assignedClientIds = new Set<string>();
@@ -56,7 +64,16 @@ export class GetTrainerDashboardSummaryHandler implements QueryHandler<
       let frozenCount = 0;
 
       for (const mem of memberships) {
-        assignedClientIds.add(mem.clientId);
+        if (isFacilityWide) {
+          if (
+            mem.trainerAssignment?.trainerId &&
+            mem.trainerAssignment.trainerId.trim().length > 0
+          ) {
+            assignedClientIds.add(mem.clientId);
+          }
+        } else {
+          assignedClientIds.add(mem.clientId);
+        }
 
         const isCurrentlyFrozen = mem.isCurrentlyFrozen(evalDate);
         if (isCurrentlyFrozen || mem.status === MembershipStatus.FROZEN) {
@@ -73,17 +90,23 @@ export class GetTrainerDashboardSummaryHandler implements QueryHandler<
         }
       }
 
-      // 2. Fetch today's check-ins for assigned clients
+      // 2. Fetch today's check-ins and distinct client visits
+      const gymDay = GymDay.fromUtc(evalDate, timezone, facilityId);
+      const dayRecords = await this.attendanceRepository.findByGymDay(
+        gymDay.toString(),
+        facilityId,
+      );
+
       let todayCheckInsCount = 0;
-      if (assignedClientIds.size > 0) {
-        const gymDay = GymDay.fromUtc(evalDate, timezone, facilityId);
-        const dayRecords = await this.attendanceRepository.findByGymDay(
-          gymDay.toString(),
-          facilityId,
-        );
-        for (const record of dayRecords) {
-          if (record.result === AccessResult.GRANTED && assignedClientIds.has(record.clientId)) {
+      let todayGrantedCheckInsCount = 0;
+      const uniqueVisitingClientIds = new Set<string>();
+
+      for (const record of dayRecords) {
+        if (record.result === AccessResult.GRANTED) {
+          todayGrantedCheckInsCount++;
+          if (isFacilityWide || assignedClientIds.has(record.clientId)) {
             todayCheckInsCount++;
+            uniqueVisitingClientIds.add(record.clientId);
           }
         }
       }
@@ -95,8 +118,12 @@ export class GetTrainerDashboardSummaryHandler implements QueryHandler<
         totalAssignedClients: assignedClientIds.size,
         activeMembershipsCount: activeCount,
         expiringMembershipsCount: expiringCount,
+        expiringSoonMembershipsCount: expiringCount,
         frozenMembershipsCount: frozenCount,
         todayCheckInsCount,
+        todayGrantedCheckInsCount: isFacilityWide ? todayGrantedCheckInsCount : todayCheckInsCount,
+        todayClientVisitsCount: uniqueVisitingClientIds.size,
+        todayTotalCheckInsCount: dayRecords.length,
       };
 
       return ApplicationResult.ok(summaryDTO);

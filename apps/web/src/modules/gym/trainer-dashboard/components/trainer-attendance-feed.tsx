@@ -41,7 +41,9 @@ export const TrainerAttendanceFeed: React.FC<TrainerAttendanceFeedProps> = ({
           </span>
           <CardTitle className="text-base font-bold text-foreground">Today's Check-Ins</CardTitle>
           <Badge variant="secondary" size="sm">
-            {grantedCount} / {totalVisits} Granted
+            {totalVisits === 0 && grantedCount === 0
+              ? '0 Check-Ins'
+              : `${grantedCount} / ${Math.max(totalVisits, grantedCount)} Granted`}
           </Badge>
         </div>
         {isFetching && !isLoading && (

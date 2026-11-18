@@ -10,11 +10,14 @@ import {
   MembershipStatus,
   AccessResult,
   CheckInMethod,
+  MembershipRepository,
+  AttendanceRecordRepository,
 } from '@kinergy-platform/core';
 import { AuthenticatedUserPayload } from '../../platform/identity/decorators';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
 import { IClientFacade, CLIENT_FACADE_TOKEN } from '@kinergy-platform/client-domain';
+import { MEMBERSHIP_REPOSITORY_TOKEN, ATTENDANCE_RECORD_REPOSITORY_TOKEN } from '../gym.tokens';
 
 describe('Phase 5.6-E: TrainerDashboardController API & Architecture Spec', () => {
   let controller: TrainerDashboardController;
@@ -190,6 +193,27 @@ describe('Phase 5.6-E: TrainerDashboardController API & Architecture Spec', () =
       );
     });
 
+    it('returns zeroed summary safely when user has no trainer ID and is not elevated', async () => {
+      const emptyUser: AuthenticatedUserPayload = {
+        id: '',
+        email: 'empty@kinergy.com',
+        status: 'ACTIVE',
+        roles: ['Trainer'],
+        permissions: ['clients.read'],
+      };
+
+      const response = await controller.getSummary(emptyUser);
+
+      expect(response).toBeDefined();
+      expect(response.trainerId).toBe('');
+      expect(response.totalAssignedClients).toBe(0);
+      expect(response.activeMembershipsCount).toBe(0);
+      expect(response.expiringMembershipsCount).toBe(0);
+      expect(response.frozenMembershipsCount).toBe(0);
+      expect(response.todayCheckInsCount).toBe(0);
+      expect(summaryHandler.execute).not.toHaveBeenCalled();
+    });
+
     it('throws BadRequestException on handler failure', async () => {
       summaryHandler.execute.mockResolvedValueOnce(ApplicationResult.fail('Database failure'));
 
@@ -215,6 +239,8 @@ describe('Phase 5.6-E: TrainerDashboardController API & Architecture Spec', () =
   describe('2b. GET /clients with ClientFacade (Facility-Wide Client Visibility)', () => {
     let facadeController: TrainerDashboardController;
     let mockClientFacade: jest.Mocked<IClientFacade>;
+    let mockMembershipRepo: Partial<MembershipRepository>;
+    let mockAttendanceRepo: Partial<AttendanceRecordRepository>;
 
     beforeEach(async () => {
       mockClientFacade = {
@@ -262,6 +288,51 @@ describe('Phase 5.6-E: TrainerDashboardController API & Architecture Spec', () =
         }),
       };
 
+      mockMembershipRepo = {
+        findByClientId: jest.fn().mockImplementation((clientId: string) => {
+          if (clientId === 'cli-001') {
+            return Promise.resolve([
+              {
+                id: { value: 'mem-001' },
+                planId: 'plan-pro',
+                status: MembershipStatus.ACTIVE,
+                period: { startDate: new Date('2026-01-01'), endDate: new Date('2026-12-31') },
+                trainerAssignment: {
+                  trainerId: 'usr_trainer_007',
+                  assignedAt: new Date('2026-01-01'),
+                },
+                createdAt: new Date('2026-01-01'),
+              },
+            ]);
+          }
+          if (clientId === 'cli-002') {
+            return Promise.resolve([
+              {
+                id: { value: 'mem-002' },
+                planId: 'plan-basic',
+                status: MembershipStatus.ACTIVE,
+                period: { startDate: new Date('2026-02-01'), endDate: new Date('2026-12-31') },
+                trainerAssignment: {
+                  trainerId: 'usr_trainer_other',
+                  assignedAt: new Date('2026-02-01'),
+                },
+                createdAt: new Date('2026-02-01'),
+              },
+            ]);
+          }
+          return Promise.resolve([]);
+        }),
+      };
+
+      mockAttendanceRepo = {
+        findByClientId: jest.fn().mockImplementation((clientId: string) => {
+          if (clientId === 'cli-001') {
+            return Promise.resolve([{ checkInTime: new Date('2026-08-20T10:00:00.000Z') }]);
+          }
+          return Promise.resolve([]);
+        }),
+      };
+
       const module: TestingModule = await Test.createTestingModule({
         controllers: [TrainerDashboardController],
         providers: [
@@ -270,6 +341,8 @@ describe('Phase 5.6-E: TrainerDashboardController API & Architecture Spec', () =
           { provide: GetExpiringMembershipsHandler, useValue: expiringHandler },
           { provide: GetDailyAttendanceHandler, useValue: attendanceHandler },
           { provide: CLIENT_FACADE_TOKEN, useValue: mockClientFacade },
+          { provide: MEMBERSHIP_REPOSITORY_TOKEN, useValue: mockMembershipRepo },
+          { provide: ATTENDANCE_RECORD_REPOSITORY_TOKEN, useValue: mockAttendanceRepo },
         ],
       })
         .overrideGuard(AuthenticationGuard)
@@ -281,7 +354,7 @@ describe('Phase 5.6-E: TrainerDashboardController API & Architecture Spec', () =
       facadeController = module.get<TrainerDashboardController>(TrainerDashboardController);
     });
 
-    it('returns all facility clients including client names, emails, phones, and reference numbers', async () => {
+    it('returns all facility clients including client names, emails, phones, reference numbers, trainer assignment, and last attendance', async () => {
       const response = await facadeController.getAssignedClients(mockTrainerUser, {
         page: 1,
         limit: 20,
@@ -294,9 +367,50 @@ describe('Phase 5.6-E: TrainerDashboardController API & Architecture Spec', () =
       expect(response.items[0]?.email).toBe('alice@example.com');
       expect(response.items[0]?.phone).toBe('+15551234567');
       expect(response.items[0]?.referenceNumber).toBe('REF-001');
+      expect(response.items[0]?.assignedTrainerId).toBe('usr_trainer_007');
+      expect(response.items[0]?.lastAttendanceDate).toBe('2026-08-20T10:00:00.000Z');
+
+      expect(response.items[1]?.clientId).toBe('cli-002');
+      expect(response.items[1]?.assignedTrainerId).toBe('usr_trainer_other');
+      expect(response.items[1]?.lastAttendanceDate).toBeNull();
+
       expect(mockClientFacade.searchClients).toHaveBeenCalledWith(
         expect.objectContaining({ page: 1, limit: 20 }),
       );
+    });
+
+    it('filters roster by ASSIGNED_TO_ME correctly', async () => {
+      const response = await facadeController.getAssignedClients(mockTrainerUser, {
+        assignmentFilter: 'ASSIGNED_TO_ME',
+        page: 1,
+        limit: 20,
+      });
+
+      expect(response.items).toHaveLength(1);
+      expect(response.items[0]?.clientId).toBe('cli-001');
+      expect(response.items[0]?.assignedTrainerId).toBe('usr_trainer_007');
+    });
+
+    it('filters roster by OTHER_TRAINERS correctly', async () => {
+      const response = await facadeController.getAssignedClients(mockTrainerUser, {
+        assignmentFilter: 'OTHER_TRAINERS',
+        page: 1,
+        limit: 20,
+      });
+
+      expect(response.items).toHaveLength(1);
+      expect(response.items[0]?.clientId).toBe('cli-002');
+      expect(response.items[0]?.assignedTrainerId).toBe('usr_trainer_other');
+    });
+
+    it('filters roster by UNASSIGNED correctly', async () => {
+      const response = await facadeController.getAssignedClients(mockTrainerUser, {
+        assignmentFilter: 'UNASSIGNED',
+        page: 1,
+        limit: 20,
+      });
+
+      expect(response.items).toHaveLength(0);
     });
 
     it('passes search query to ClientFacade when search term is provided', async () => {
@@ -339,6 +453,53 @@ describe('Phase 5.6-E: TrainerDashboardController API & Architecture Spec', () =
           }),
         }),
       );
+    });
+  });
+
+  describe('5. Role Comparison & Facility Metrics Reconciliation', () => {
+    it('provides facility-wide attendance when requested by elevated Owner without specific trainer filter', async () => {
+      const response = await controller.getAttendance(mockAdminUser, {
+        date: '2026-08-22',
+      });
+
+      expect(attendanceHandler.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({
+            assignedClientIds: undefined,
+          }),
+        }),
+      );
+      expect(response.total).toBe(1);
+      expect(response.grantedCount).toBe(1);
+    });
+
+    it('ensures grantedCount is calculated within assigned cohort when trainerId is scoped', async () => {
+      const response = await controller.getAttendance(mockTrainerUser, {
+        date: '2026-08-22',
+      });
+
+      expect(response.grantedCount).toBeLessThanOrEqual(response.total);
+      expect(response.total).toBeGreaterThanOrEqual(response.grantedCount);
+    });
+
+    it('returns facility-wide summary for Owner and trainer-specific summary for Trainer', async () => {
+      // Trainer query
+      const trainerSummary = await controller.getSummary(mockTrainerUser);
+      expect(summaryHandler.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({ trainerId: 'usr_trainer_007' }),
+        }),
+      );
+      expect(trainerSummary.totalAssignedClients).toBe(15);
+
+      // Elevated Owner query without trainer filter resolves to FACILITY
+      const ownerSummary = await controller.getSummary(mockAdminUser);
+      expect(summaryHandler.execute).toHaveBeenCalledWith(
+        expect.objectContaining({
+          input: expect.objectContaining({ trainerId: 'FACILITY' }),
+        }),
+      );
+      expect(ownerSummary.totalAssignedClients).toBe(15);
     });
   });
 });

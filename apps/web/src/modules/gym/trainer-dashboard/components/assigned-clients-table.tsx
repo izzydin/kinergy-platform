@@ -20,11 +20,14 @@ interface AssignedClientsTableProps {
   sortBy?: string;
   sortOrder?: 'ASC' | 'DESC';
   statusFilter: string;
+  assignmentFilter?: string;
   searchTerm: string;
+  currentTrainerId?: string;
   onPageChange: (newPage: number) => void;
   onLimitChange: (newLimit: number) => void;
   onSortChange: (newSortBy: 'daysRemaining' | 'endDate' | 'startDate' | 'assignedAt') => void;
   onStatusFilterChange: (newStatus: string) => void;
+  onAssignmentFilterChange?: (newAssignmentFilter: string) => void;
   onSearchChange: (newSearch: string) => void;
   onRetry: () => void;
   onSelectClient?: (clientId: string) => void;
@@ -39,11 +42,14 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
   sortBy = 'daysRemaining',
   sortOrder = 'ASC',
   statusFilter,
+  assignmentFilter = 'ALL',
   searchTerm,
+  currentTrainerId,
   onPageChange,
   onLimitChange,
   onSortChange,
   onStatusFilterChange,
+  onAssignmentFilterChange,
   onSearchChange,
   onRetry,
   onSelectClient,
@@ -134,6 +140,43 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
     );
   };
 
+  const getTrainerBadge = (assignedTrainerId?: string | null) => {
+    if (!assignedTrainerId) {
+      return (
+        <Badge variant="secondary" size="sm" data-testid="trainer-badge-unassigned">
+          Unassigned
+        </Badge>
+      );
+    }
+    if (currentTrainerId && assignedTrainerId === currentTrainerId) {
+      return (
+        <Badge variant="default" size="sm" data-testid="trainer-badge-me">
+          Assigned to You
+        </Badge>
+      );
+    }
+    return (
+      <Badge
+        variant="outline"
+        size="sm"
+        data-testid="trainer-badge-other"
+        title={assignedTrainerId}
+      >
+        {assignedTrainerId.length > 16 ? `${assignedTrainerId.slice(0, 14)}...` : assignedTrainerId}
+      </Badge>
+    );
+  };
+
+  const getInitials = (name?: string, id?: string) => {
+    if (!name && !id) return 'CL';
+    const source = (name || id || '').trim();
+    const parts = source.split(/\s+/);
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+      return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
+    }
+    return source.slice(0, 2).toUpperCase();
+  };
+
   return (
     <Card
       className="border border-border bg-card shadow-sm"
@@ -167,6 +210,20 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
               className="text-xs px-2.5 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               aria-label="Filter roster"
             />
+            {onAssignmentFilterChange && (
+              <select
+                value={assignmentFilter || 'ALL'}
+                onChange={(e) => onAssignmentFilterChange(e.target.value)}
+                className="text-xs px-2.5 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                aria-label="Filter by trainer assignment"
+                data-testid="assignment-filter-select"
+              >
+                <option value="ALL">All Facility Clients</option>
+                <option value="ASSIGNED_TO_ME">Assigned to You</option>
+                <option value="OTHER_TRAINERS">Other Trainers</option>
+                <option value="UNASSIGNED">Unassigned</option>
+              </select>
+            )}
             <select
               value={statusFilter}
               onChange={(e) => onStatusFilterChange(e.target.value)}
@@ -203,8 +260,8 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
             <p className="text-base font-semibold">No facility clients found</p>
             <p className="sr-only">No assigned clients found</p>
             <p className="text-xs mt-1">
-              {searchTerm || statusFilter !== 'ALL'
-                ? 'Try adjusting your search or status filter.'
+              {searchTerm || statusFilter !== 'ALL' || assignmentFilter !== 'ALL'
+                ? 'Try adjusting your search or filters.'
                 : 'No clients are currently assigned to your roster.'}
             </p>
           </div>
@@ -218,6 +275,9 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
                 <tr>
                   <th scope="col" className="px-4 py-3">
                     Client
+                  </th>
+                  <th scope="col" className="px-4 py-3">
+                    Assignment
                   </th>
                   <th scope="col" className="px-4 py-3">
                     Plan
@@ -240,6 +300,9 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
                     Days Remaining{' '}
                     {sortBy === 'daysRemaining' ? (sortOrder === 'ASC' ? '▲' : '▼') : ''}
                   </th>
+                  <th scope="col" className="px-4 py-3">
+                    Last Check-in
+                  </th>
                   <th scope="col" className="px-4 py-3 text-right">
                     Actions
                   </th>
@@ -249,44 +312,62 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
                 {displayedItems.map((item) => (
                   <tr key={item.membershipId} className="hover:bg-muted/40 transition-colors">
                     <td className="px-4 py-3 font-semibold text-foreground">
-                      <div>
-                        <Link
-                          to={`/clients/${item.clientId}`}
-                          className="hover:underline text-primary focus:outline-none focus:ring-2 focus:ring-ring rounded font-medium"
+                      <div className="flex items-center space-x-2.5">
+                        <div
+                          className="w-7 h-7 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-[11px] shrink-0 border border-primary/20"
+                          aria-hidden="true"
                         >
-                          {item.fullName || item.clientName || item.clientId}
-                        </Link>
-                      </div>
-                      {(item.email || item.phone) && (
-                        <div className="text-[11px] text-muted-foreground font-normal truncate max-w-xs">
-                          {item.email}
-                          {item.phone && <span className="ml-1">• {item.phone}</span>}
+                          {getInitials(item.fullName || item.clientName, item.clientId)}
                         </div>
-                      )}
-                      <span className="text-[10px] text-muted-foreground font-normal">
-                        {item.referenceNumber && (
-                          <span className="mr-1.5 font-mono text-[9px] bg-muted px-1 py-0.5 rounded">
-                            {item.referenceNumber}
+                        <div className="min-w-0">
+                          <Link
+                            to={`/clients/${item.clientId}`}
+                            className="hover:underline text-primary focus:outline-none focus:ring-2 focus:ring-ring rounded font-medium truncate block"
+                          >
+                            {item.fullName || item.clientName || item.clientId}
+                          </Link>
+                          {(item.email || item.phone) && (
+                            <div className="text-[11px] text-muted-foreground font-normal truncate max-w-xs">
+                              {item.email}
+                              {item.phone && <span className="ml-1">• {item.phone}</span>}
+                            </div>
+                          )}
+                          <span className="text-[10px] text-muted-foreground font-normal">
+                            {item.referenceNumber && (
+                              <span className="mr-1.5 font-mono text-[9px] bg-muted px-1 py-0.5 rounded">
+                                {item.referenceNumber}
+                              </span>
+                            )}
+                            Mem:{' '}
+                            <Link
+                              to={`/gym/memberships/${item.membershipId}`}
+                              className="hover:underline text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded"
+                            >
+                              {item.membershipId}
+                            </Link>
                           </span>
-                        )}
-                        Mem:{' '}
-                        <Link
-                          to={`/gym/memberships/${item.membershipId}`}
-                          className="hover:underline text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded"
-                        >
-                          {item.membershipId}
-                        </Link>
-                      </span>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {getTrainerBadge(item.assignedTrainerId)}
                     </td>
                     <td className="px-4 py-3 text-foreground font-medium">{item.planName}</td>
                     <td className="px-4 py-3">
                       {getStatusBadge(item.status, item.isCurrentlyFrozen)}
                     </td>
-                    <td className="px-4 py-3 text-muted-foreground">
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
                       {new Date(item.startDate).toLocaleDateString()} —{' '}
                       {new Date(item.endDate).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">{getDaysRemainingBadge(item)}</td>
+                    <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                      {item.lastAttendanceDate ? (
+                        <span>{new Date(item.lastAttendanceDate).toLocaleDateString()}</span>
+                      ) : (
+                        <span className="text-muted-foreground/60 italic">No visits yet</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end space-x-1">
                         <Link

@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { TrainerDashboardPage } from '../routes/trainer-dashboard-page';
 import { useAuth } from '../../../../app/providers/auth-provider';
@@ -41,6 +41,7 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
       {
         membershipId: 'mem_101',
         clientId: 'client_alpha',
+        fullName: 'client_alpha',
         planId: 'plan_std',
         planName: 'Standard Monthly',
         status: 'ACTIVE',
@@ -51,10 +52,13 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
         isExpired: false,
         isCurrentlyFrozen: false,
         assignedAt: '2026-08-01T00:00:00.000Z',
+        assignedTrainerId: 'usr_trainer_1',
+        lastAttendanceDate: '2026-08-20T10:00:00.000Z',
       },
       {
         membershipId: 'mem_102',
         clientId: 'client_beta',
+        fullName: 'client_beta',
         planId: 'plan_vip',
         planName: 'VIP Training Pass',
         status: 'FROZEN',
@@ -65,9 +69,28 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
         isExpired: false,
         isCurrentlyFrozen: true,
         assignedAt: '2026-07-01T00:00:00.000Z',
+        assignedTrainerId: null,
+        lastAttendanceDate: null,
+      },
+      {
+        membershipId: 'mem_103',
+        clientId: 'client_gamma',
+        fullName: 'client_gamma',
+        planId: 'plan_basic',
+        planName: 'Basic Membership',
+        status: 'ACTIVE',
+        startDate: '2026-06-01T00:00:00.000Z',
+        endDate: '2026-12-01T00:00:00.000Z',
+        daysRemaining: 100,
+        isExpiringSoon: false,
+        isExpired: false,
+        isCurrentlyFrozen: false,
+        assignedAt: '2026-06-01T00:00:00.000Z',
+        assignedTrainerId: 'usr_trainer_99',
+        lastAttendanceDate: '2026-08-15T09:00:00.000Z',
       },
     ],
-    total: 2,
+    total: 3,
     page: 1,
     limit: 10,
     totalPages: 1,
@@ -251,5 +274,76 @@ describe('Phase 5.6-F: Trainer Dashboard Frontend Spec', () => {
 
     // Other sections like roster remain accessible
     expect(screen.getAllByText('Assigned Client Roster')[0]).toBeInTheDocument();
+  });
+
+  it('5. Displays facility-wide client roster with assignment badges and last attendance dates', () => {
+    renderDashboard();
+
+    // Verification of trainer assignment badges
+    expect(screen.getByTestId('trainer-badge-me')).toHaveTextContent('Assigned to You');
+    expect(screen.getByTestId('trainer-badge-unassigned')).toHaveTextContent('Unassigned');
+    expect(screen.getByTestId('trainer-badge-other')).toHaveTextContent('usr_trainer_99');
+
+    // Verification of last check-in dates
+    expect(screen.getByText('No visits yet')).toBeInTheDocument();
+    expect(
+      screen.getByText(new Date('2026-08-20T10:00:00.000Z').toLocaleDateString()),
+    ).toBeInTheDocument();
+  });
+
+  it('6. Supports assignment filter dropdown for facility-wide roster navigation', () => {
+    renderDashboard();
+
+    const assignmentSelect = screen.getByTestId('assignment-filter-select');
+    expect(assignmentSelect).toBeInTheDocument();
+
+    fireEvent.change(assignmentSelect, { target: { value: 'ASSIGNED_TO_ME' } });
+    expect(assignmentSelect).toHaveValue('ASSIGNED_TO_ME');
+  });
+
+  it('7. Safely sanitizes malformed numbers in KPI summary banner without rendering corrupt suffixes', () => {
+    mockUseSummary.mockReturnValue({
+      data: {
+        totalAssignedClients: 2,
+        activeMembershipsCount: '1,m' as unknown as number,
+        expiringSoonMembershipsCount: 0,
+        frozenMembershipsCount: 2,
+        todayGrantedCheckInsCount: 4,
+        asOfDate: '2026-08-22T00:00:00.000Z',
+        horizonDays: 7,
+      },
+      isLoading: false,
+      isError: false,
+      refetch: jest.fn(),
+    });
+
+    renderDashboard();
+
+    // Verify Active Passes displays sanitized '1', never '1,m'
+    const banner = screen.getByTestId('kpi-banner-container');
+    expect(screen.queryByText('1,m')).not.toBeInTheDocument();
+    expect(within(banner).getByText('1')).toBeInTheDocument();
+  });
+
+  it('8. Attendance feed badge reconciles numerator and denominator safely', () => {
+    mockUseTrainerAttendance.mockReturnValue({
+      data: {
+        items: [],
+        total: 4,
+        grantedCount: 4,
+        page: 1,
+        limit: 20,
+        totalPages: 1,
+      },
+      isLoading: false,
+      isError: false,
+      isFetching: false,
+      refetch: jest.fn(),
+    });
+
+    renderDashboard();
+
+    expect(screen.getByText('4 / 4 Granted')).toBeInTheDocument();
+    expect(screen.queryByText('4 / 0 Granted')).not.toBeInTheDocument();
   });
 });

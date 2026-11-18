@@ -22,7 +22,8 @@ import { ClientSearchResultDTO } from '../types';
 export const TrainerDashboardPage: React.FC = () => {
   const { currentUser } = useAuth();
   const { t } = useTranslation();
-  const trainerId = currentUser?.id ?? '';
+  const isElevated = currentUser?.roles?.includes('Admin') || currentUser?.roles?.includes('Owner');
+  const trainerId = isElevated ? '' : (currentUser?.id ?? '');
 
   const {
     clientParams,
@@ -32,11 +33,13 @@ export const TrainerDashboardPage: React.FC = () => {
     sortOrder,
     searchTerm,
     statusFilter,
+    assignmentFilter,
     selectedClientId,
     setSearch,
     setPage,
     setLimit,
     setStatusFilter,
+    setAssignmentFilter,
     setSelectedClientId,
     setRosterSort,
   } = useTrainerFilters();
@@ -152,7 +155,7 @@ export const TrainerDashboardPage: React.FC = () => {
               'Real-time client assignments, membership status, and facility check-ins for',
             )}{' '}
             <span className="font-semibold text-foreground">
-              {currentUser?.email ?? 'Assigned Trainer'}
+              {isElevated ? 'Facility Operations' : (currentUser?.email ?? 'Assigned Trainer')}
             </span>
           </p>
         </div>
@@ -192,11 +195,14 @@ export const TrainerDashboardPage: React.FC = () => {
             sortBy={sortBy}
             sortOrder={sortOrder}
             statusFilter={statusFilter}
+            assignmentFilter={assignmentFilter}
             searchTerm={searchTerm}
+            currentTrainerId={trainerId}
             onPageChange={setPage}
             onLimitChange={setLimit}
             onSortChange={setRosterSort}
             onStatusFilterChange={setStatusFilter}
+            onAssignmentFilterChange={setAssignmentFilter}
             onSearchChange={setSearch}
             onRetry={refetchClients}
             onSelectClient={handleSelectClientById}

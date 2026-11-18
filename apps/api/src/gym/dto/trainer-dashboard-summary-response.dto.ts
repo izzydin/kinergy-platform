@@ -48,4 +48,32 @@ export class TrainerDashboardSummaryResponseDto {
     example: 8,
   })
   todayCheckInsCount!: number;
+
+  @ApiProperty({
+    description: 'Distinct clients with at least one granted check-in visit today',
+    example: 4,
+    required: false,
+  })
+  todayClientVisitsCount?: number;
+
+  @ApiProperty({
+    description: 'Total granted check-in arrivals today',
+    example: 4,
+    required: false,
+  })
+  todayGrantedCheckInsCount?: number;
+
+  @ApiProperty({
+    description: 'Total check-in attempts today (granted + denied)',
+    example: 4,
+    required: false,
+  })
+  todayTotalCheckInsCount?: number;
+
+  @ApiProperty({
+    description: 'Total memberships expiring within horizonDays',
+    example: 0,
+    required: false,
+  })
+  expiringSoonMembershipsCount?: number;
 }

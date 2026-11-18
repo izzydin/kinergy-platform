@@ -4,6 +4,7 @@ import type { AssignedClientsFilterParams } from '../types';
 
 export interface TrainerFiltersState {
   readonly status?: string;
+  readonly assignmentFilter?: 'ALL' | 'ASSIGNED_TO_ME' | 'OTHER_TRAINERS' | 'UNASSIGNED';
   readonly selectedClientId?: string;
 }
 
@@ -20,15 +21,21 @@ export function useTrainerFilters() {
     defaultSort: { id: 'daysRemaining', desc: false },
     filterParsers: {
       status: (val) => val || undefined,
+      assignmentFilter: (val) =>
+        val === 'ASSIGNED_TO_ME' || val === 'OTHER_TRAINERS' || val === 'UNASSIGNED'
+          ? val
+          : undefined,
       selectedClientId: (val) => val || undefined,
     },
     filterSerializers: {
       status: (val) => val ?? undefined,
+      assignmentFilter: (val) => val ?? undefined,
       selectedClientId: (val) => val ?? undefined,
     },
   });
 
   const statusFilter = state.filters.status || 'ALL';
+  const assignmentFilter = state.filters.assignmentFilter || 'ALL';
 
   // Convert status filter to array for backend
   const backendStatuses = useMemo(() => {
@@ -51,13 +58,26 @@ export function useTrainerFilters() {
       sortBy,
       sortOrder,
       statuses: backendStatuses,
+      assignmentFilter: assignmentFilter === 'ALL' ? undefined : assignmentFilter,
       horizonDays: 7,
     };
-  }, [state.q, state.page, state.limit, sortBy, sortOrder, backendStatuses]);
+  }, [state.q, state.page, state.limit, sortBy, sortOrder, backendStatuses, assignmentFilter]);
 
   const setStatusFilter = useCallback(
     (status: string) => {
       actions.setFilter('status', status === 'ALL' ? undefined : status);
+    },
+    [actions],
+  );
+
+  const setAssignmentFilter = useCallback(
+    (filter: string) => {
+      actions.setFilter(
+        'assignmentFilter',
+        filter === 'ALL'
+          ? undefined
+          : (filter as 'ASSIGNED_TO_ME' | 'OTHER_TRAINERS' | 'UNASSIGNED'),
+      );
     },
     [actions],
   );
@@ -88,12 +108,14 @@ export function useTrainerFilters() {
     sortOrder,
     searchTerm: state.q,
     statusFilter,
+    assignmentFilter,
     selectedClientId: state.filters.selectedClientId,
     isFiltered: state.isFiltered,
     setSearch: actions.setQ,
     setPage: actions.setPage,
     setLimit: actions.setLimit,
     setStatusFilter,
+    setAssignmentFilter,
     setSelectedClientId,
     setRosterSort,
     resetFilters: actions.resetFilters,

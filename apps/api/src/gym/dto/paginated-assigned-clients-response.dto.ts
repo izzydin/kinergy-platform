@@ -51,6 +51,12 @@ export class AssignedClientMembershipItemDto {
 
   @ApiProperty({ example: '2026-08-01T00:00:00.000Z' })
   assignedAt!: string;
+
+  @ApiPropertyOptional({ example: 'usr_trainer_123', nullable: true })
+  assignedTrainerId?: string | null;
+
+  @ApiPropertyOptional({ example: '2026-11-18T10:30:00.000Z', nullable: true })
+  lastAttendanceDate?: string | null;
 }
 
 export class PaginatedAssignedClientsResponseDto {

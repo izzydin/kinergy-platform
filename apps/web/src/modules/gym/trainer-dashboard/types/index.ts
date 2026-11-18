@@ -22,6 +22,8 @@ export interface TrainerDashboardSummaryVM {
   readonly frozenMembershipsCount: number;
   readonly todayGrantedCheckInsCount: number;
   readonly todayCheckInsCount?: number;
+  readonly todayClientVisitsCount?: number;
+  readonly todayTotalCheckInsCount?: number;
   readonly asOfDate: string;
   readonly asOf?: string;
   readonly horizonDays: number;
@@ -48,6 +50,8 @@ export interface AssignedClientMembershipVM {
   readonly email?: string;
   readonly phone?: string;
   readonly referenceNumber?: string;
+  readonly assignedTrainerId?: string | null;
+  readonly lastAttendanceDate?: string | null;
 }
 
 /**
@@ -115,6 +119,7 @@ export interface AssignedClientsFilterParams {
   readonly query?: string;
   readonly status?: string;
   readonly statuses?: string[];
+  readonly assignmentFilter?: 'ALL' | 'ASSIGNED_TO_ME' | 'OTHER_TRAINERS' | 'UNASSIGNED';
   readonly horizonDays?: number;
   readonly asOfDate?: string;
   readonly page?: number;

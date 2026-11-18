@@ -27,6 +27,7 @@ import {
   GetTrainerDashboardSummaryHandler,
 } from '@kinergy-platform/core';
 import { PrismaService } from '../../platform/persistence/prisma/prisma.service';
+import { PrismaClient } from '@prisma/client';
 import { AUTHORIZATION_EVALUATOR } from '../../platform/identity/authorization/authorization-evaluator.interface';
 import { ACCESS_TOKEN_SERVICE } from '../../platform/identity/tokens/access-token.service';
 import { USER_REPOSITORY } from '../../platform/identity/domain';
@@ -60,6 +61,10 @@ const mockPrisma = {
       useValue: mockPrisma,
     },
     {
+      provide: PrismaClient,
+      useValue: mockPrisma,
+    },
+    {
       provide: AUTHORIZATION_EVALUATOR,
       useValue: {
         evaluate: jest.fn().mockResolvedValue(true),
@@ -78,7 +83,13 @@ const mockPrisma = {
       },
     },
   ],
-  exports: [PrismaService, AUTHORIZATION_EVALUATOR, ACCESS_TOKEN_SERVICE, USER_REPOSITORY],
+  exports: [
+    PrismaService,
+    PrismaClient,
+    AUTHORIZATION_EVALUATOR,
+    ACCESS_TOKEN_SERVICE,
+    USER_REPOSITORY,
+  ],
 })
 class GlobalMockPlatformModule {}
 

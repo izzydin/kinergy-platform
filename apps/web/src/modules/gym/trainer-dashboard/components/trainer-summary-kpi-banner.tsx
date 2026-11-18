@@ -41,6 +41,16 @@ export const TrainerSummaryKpiBanner: React.FC<TrainerSummaryKpiBannerProps> = (
     );
   }
 
+  const renderKpiValue = (val: number | string | undefined | null): string => {
+    if (val === null || val === undefined) return '0';
+    if (typeof val === 'number') {
+      return Number.isFinite(val) ? val.toLocaleString() : '0';
+    }
+    const cleaned = String(val).replace(/[^0-9-]/g, '');
+    const parsed = parseInt(cleaned, 10);
+    return Number.isFinite(parsed) ? parsed.toLocaleString() : '0';
+  };
+
   const kpis = [
     {
       id: 'kpi-total-clients',
@@ -84,7 +94,11 @@ export const TrainerSummaryKpiBanner: React.FC<TrainerSummaryKpiBannerProps> = (
     {
       id: 'kpi-today-checkins',
       label: "Today's Client Visits",
-      value: summary?.todayGrantedCheckInsCount ?? summary?.todayCheckInsCount ?? 0,
+      value:
+        summary?.todayClientVisitsCount ??
+        summary?.todayGrantedCheckInsCount ??
+        summary?.todayCheckInsCount ??
+        0,
       icon: '🚪',
       badge: 'Live Attendance',
       badgeVariant: 'default' as const,
@@ -117,7 +131,7 @@ export const TrainerSummaryKpiBanner: React.FC<TrainerSummaryKpiBannerProps> = (
                 <div className="h-8 w-16 bg-muted animate-pulse rounded my-1" />
               ) : (
                 <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${kpi.color}`}>
-                  {kpi.value}
+                  {renderKpiValue(kpi.value)}
                 </div>
               )}
               <p className="text-xs font-medium text-muted-foreground mt-1 truncate">{kpi.label}</p>
