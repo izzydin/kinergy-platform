@@ -23,9 +23,12 @@ export const AssetCategoryBadge: React.FC<AssetCategoryBadgeProps> = ({ category
   return (
     <Badge
       variant="secondary"
-      className={cn('bg-muted text-muted-foreground font-normal text-xs', className)}
+      className={cn(
+        'bg-muted text-muted-foreground font-normal text-xs justify-center text-center',
+        className,
+      )}
     >
-      {displayName}
+      <span className="text-center">{displayName}</span>
     </Badge>
   );
 };

@@ -80,12 +80,15 @@ export const StatusBadge = React.forwardRef<HTMLDivElement, StatusBadgeProps>(
         ref={ref}
         variant={variant}
         size={size}
-        className={cn('inline-flex items-center gap-1.5 font-medium select-none', className)}
+        className={cn(
+          'inline-flex items-center justify-center text-center gap-1.5 font-medium select-none',
+          className,
+        )}
         aria-label={ariaLabel || label}
         {...props}
       >
         {renderedIcon}
-        <span>{label}</span>
+        <span className="text-center">{label}</span>
       </Badge>
     );
   },

@@ -122,11 +122,25 @@ describe('Calendar Components', () => {
       expect(screen.getByText(/Room: Room 101/i)).toBeInTheDocument();
     });
 
-    it('renders client full name in compact weekly view', () => {
+    it('renders only time, status, and client name in compact weekly view (omitting appointment type)', () => {
       render(<AppointmentCard appointment={mockAppointment} variant="compact" />);
-      expect(screen.getByTestId('appointment-card-client-name')).toHaveTextContent('Carlos Rivera');
+      // 1. Appointment time is displayed
       expect(screen.getByText(/10:00 AM – 11:00 AM/i)).toBeInTheDocument();
-      expect(screen.getByText('Physiotherapy Assessment')).toBeInTheDocument();
+      // 2. Client name is displayed
+      expect(screen.getByTestId('appointment-card-client-name')).toHaveTextContent('Carlos Rivera');
+      // 3. Appointment status is displayed
+      expect(screen.getByText('Scheduled')).toBeInTheDocument();
+      // 4. Appointment type is NOT rendered in the weekly card
+      expect(screen.queryByText('Physiotherapy Assessment')).toBeNull();
+
+      // Verifies compact view prevents overflow clipping by hiding tertiary metadata and providing accessible title tooltip
+      const card = screen.getByRole('button');
+      expect(card).toHaveAttribute(
+        'title',
+        '10:00 AM – 11:00 AM • Carlos Rivera • Status: SCHEDULED',
+      );
+      expect(card).toHaveClass('overflow-hidden');
+      expect(screen.queryByText(/Therapist:/i)).toBeNull();
     });
 
     it('renders client full name in month chip view', () => {
@@ -212,6 +226,13 @@ describe('Calendar Components', () => {
       expect(screen.getByRole('button', { name: /Confirm appointment/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Check in client/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /Cancel appointment/i })).toBeInTheDocument();
+    });
+
+    it('retains and exposes appointment type in the appointment details drawer view', () => {
+      renderWithQuery(
+        <AppointmentDetailDrawer appointment={mockAppointment} isOpen={true} onClose={jest.fn()} />,
+      );
+      expect(screen.getByText('Physiotherapy Assessment')).toBeInTheDocument();
     });
 
     it('displays neutral fallback "Client information unavailable" in drawer when client is missing', () => {

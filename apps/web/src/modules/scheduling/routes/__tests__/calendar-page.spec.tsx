@@ -139,12 +139,14 @@ describe('CalendarPage Route Integration', () => {
       screen.getByRole('status', { name: /Loading calendar appointments/i }),
     ).toBeInTheDocument();
 
-    // Wait for appointments to render
+    // Wait for appointments to render with client names (simplified compact weekly card omits appointment type)
     await waitFor(() => {
-      expect(screen.getByText('Kinesiology Consultation')).toBeInTheDocument();
+      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
     });
 
-    expect(screen.getByText('Massage Therapy')).toBeInTheDocument();
+    expect(screen.getByText('John Connor')).toBeInTheDocument();
+    expect(screen.queryByText('Kinesiology Consultation')).toBeNull();
+    expect(screen.queryByText('Massage Therapy')).toBeNull();
     expect(screen.getByText(/America\/New_York/i)).toBeInTheDocument();
   });
 
@@ -167,7 +169,7 @@ describe('CalendarPage Route Integration', () => {
     fireEvent.click(screen.getByRole('button', { name: /Retry/i }));
 
     await waitFor(() => {
-      expect(screen.getByText('Kinesiology Consultation')).toBeInTheDocument();
+      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
     });
   });
 
@@ -175,7 +177,7 @@ describe('CalendarPage Route Integration', () => {
     renderCalendarPage();
 
     await waitFor(() => {
-      expect(screen.getByText('Kinesiology Consultation')).toBeInTheDocument();
+      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
     });
 
     // Switch to Day view
@@ -223,7 +225,7 @@ describe('CalendarPage Route Integration', () => {
     renderCalendarPage();
 
     await waitFor(() => {
-      expect(screen.getByText('Kinesiology Consultation')).toBeInTheDocument();
+      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
     });
 
     // Change room filter
@@ -244,16 +246,19 @@ describe('CalendarPage Route Integration', () => {
     renderCalendarPage();
 
     await waitFor(() => {
-      expect(screen.getByText('Kinesiology Consultation')).toBeInTheDocument();
+      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
     });
+
+    // Weekly card omits appointment type label, but clicking it opens detail drawer which exposes it
+    expect(screen.queryByText('Kinesiology Consultation')).toBeNull();
 
     // Click on appointment card
     const apptCard = screen.getAllByRole('button', {
-      name: /Appointment:.*Kinesiology Consultation/i,
+      name: /Appointment:.*Sarah Connor/i,
     })[0]!;
     fireEvent.click(apptCard);
 
-    // Detail drawer opens
+    // Detail drawer opens and exposes appointment type
     await waitFor(() => {
       expect(
         screen.getByRole('dialog', { name: /Appointment details and management/i }),
@@ -261,6 +266,7 @@ describe('CalendarPage Route Integration', () => {
     });
 
     expect(screen.getByText('Appointment Details')).toBeInTheDocument();
+    expect(screen.getByText('Kinesiology Consultation')).toBeInTheDocument();
 
     // Close drawer
     fireEvent.click(screen.getByRole('button', { name: /Close appointment details/i }));
@@ -291,7 +297,7 @@ describe('CalendarPage Route Integration', () => {
     renderCalendarPage();
 
     await waitFor(() => {
-      expect(screen.getByText('Kinesiology Consultation')).toBeInTheDocument();
+      expect(screen.getByText('Sarah Connor')).toBeInTheDocument();
     });
 
     const bookBtn = screen.getByRole('button', { name: /Book new appointment/i });

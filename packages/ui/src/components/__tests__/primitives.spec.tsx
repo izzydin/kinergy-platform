@@ -122,6 +122,18 @@ describe('Primitive UI Components (@kinergy-platform/ui)', () => {
 
       const badge = screen.getByText('Active');
       expect(badge).toHaveClass('bg-destructive');
+      expect(badge).toHaveClass('justify-center', 'text-center');
+    });
+
+    it('enforces centered text alignment for multi-line badges', () => {
+      render(
+        <Badge variant="outline">
+          Suspended /<br />
+          Frozen
+        </Badge>,
+      );
+      const badge = screen.getByText(/Suspended/i);
+      expect(badge).toHaveClass('justify-center', 'text-center');
     });
   });
 

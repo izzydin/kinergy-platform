@@ -19,72 +19,75 @@ export const MembershipStatusBadge: React.FC<MembershipStatusBadgeProps> = ({
   const normalized = (status ?? '').toUpperCase() as MembershipStatus;
 
   return (
-    <div className="inline-flex items-center gap-1.5" data-testid="membership-status-container">
+    <div
+      className="inline-flex items-center justify-center gap-1.5"
+      data-testid="membership-status-container"
+    >
       {(() => {
         switch (normalized) {
           case 'PENDING':
             return (
               <Badge
                 variant="outline"
-                className={`bg-status-warning-surface text-status-warning border-status-warning-border ${className ?? ''}`}
+                className={`bg-status-warning-surface text-status-warning border-status-warning-border justify-center text-center ${className ?? ''}`}
                 data-testid="membership-status-badge-pending"
               >
-                <Clock className="mr-1 h-3 w-3 inline" />
-                Pending
+                <Clock className="mr-1 h-3 w-3 shrink-0" />
+                <span className="text-center">Pending</span>
               </Badge>
             );
           case 'ACTIVE':
             return (
               <Badge
                 variant="outline"
-                className={`bg-status-success-surface text-status-success border-status-success-border ${className ?? ''}`}
+                className={`bg-status-success-surface text-status-success border-status-success-border justify-center text-center ${className ?? ''}`}
                 data-testid="membership-status-badge-active"
               >
-                <CheckCircle2 className="mr-1 h-3 w-3 inline" />
-                Active
+                <CheckCircle2 className="mr-1 h-3 w-3 shrink-0" />
+                <span className="text-center">Active</span>
               </Badge>
             );
           case 'FROZEN':
             return (
               <Badge
                 variant="outline"
-                className={`bg-status-info-surface text-status-info border-status-info-border ${className ?? ''}`}
+                className={`bg-status-info-surface text-status-info border-status-info-border justify-center text-center ${className ?? ''}`}
                 data-testid="membership-status-badge-frozen"
               >
-                <PauseCircle className="mr-1 h-3 w-3 inline" />
-                Suspended / Frozen
+                <PauseCircle className="mr-1 h-3 w-3 shrink-0" />
+                <span className="text-center">Suspended / Frozen</span>
               </Badge>
             );
           case 'EXPIRED':
             return (
               <Badge
                 variant="outline"
-                className={`bg-muted text-muted-foreground border-border ${className ?? ''}`}
+                className={`bg-muted text-muted-foreground border-border justify-center text-center ${className ?? ''}`}
                 data-testid="membership-status-badge-expired"
               >
-                <AlertCircle className="mr-1 h-3 w-3 inline" />
-                Expired
+                <AlertCircle className="mr-1 h-3 w-3 shrink-0" />
+                <span className="text-center">Expired</span>
               </Badge>
             );
           case 'CANCELLED':
             return (
               <Badge
                 variant="outline"
-                className={`bg-status-danger-surface text-status-danger border-status-danger-border ${className ?? ''}`}
+                className={`bg-status-danger-surface text-status-danger border-status-danger-border justify-center text-center ${className ?? ''}`}
                 data-testid="membership-status-badge-cancelled"
               >
-                <XCircle className="mr-1 h-3 w-3 inline" />
-                Cancelled
+                <XCircle className="mr-1 h-3 w-3 shrink-0" />
+                <span className="text-center">Cancelled</span>
               </Badge>
             );
           default:
             return (
               <Badge
                 variant="outline"
-                className={className}
+                className={`justify-center text-center ${className ?? ''}`}
                 data-testid="membership-status-badge-unknown"
               >
-                {status}
+                <span className="text-center">{status}</span>
               </Badge>
             );
         }
@@ -93,7 +96,7 @@ export const MembershipStatusBadge: React.FC<MembershipStatusBadgeProps> = ({
       {isExpiringSoon && normalized === 'ACTIVE' && (
         <Badge
           variant="outline"
-          className="bg-status-warning-surface text-status-warning border-status-warning-border text-[10px] px-1.5 py-0 animate-pulse"
+          className="bg-status-warning-surface text-status-warning border-status-warning-border text-[10px] px-1.5 py-0 animate-pulse justify-center text-center"
           data-testid="membership-expiring-indicator"
         >
           Expiring Soon

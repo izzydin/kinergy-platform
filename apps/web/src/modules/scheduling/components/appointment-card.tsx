@@ -85,6 +85,13 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
   }
 
   // Week & Day Grid Card
+  const tooltipText =
+    variant === 'compact'
+      ? `${timeDisplay} • ${clientTitle} • Status: ${appointment.status}`
+      : `${timeDisplay} • ${clientTitle} • ${serviceLabel}${
+          appointment.roomId ? ` (Room: ${appointment.roomId})` : ''
+        }`;
+
   return (
     <div
       role="button"
@@ -92,16 +99,19 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
       onClick={() => onSelect?.(appointment)}
       onKeyDown={handleKeyDown}
       style={style}
+      title={tooltipText}
       className={`group relative rounded-md border text-left transition-all shadow-xs cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 select-none overflow-hidden ${
         hasConflict
           ? 'border-rose-400 bg-rose-50/90 text-rose-950 dark:bg-rose-950/30 dark:border-rose-700/60 dark:text-rose-100'
           : 'border-border bg-card/95 text-foreground hover:border-primary/50 hover:shadow-md'
-      } ${variant === 'compact' ? 'p-1.5 text-xs' : 'p-2.5 text-xs'} ${className}`}
-      aria-label={`Appointment: ${timeDisplay}, ${clientTitle}, ${serviceLabel}. Status: ${appointment.status}`}
+      } ${variant === 'compact' ? 'p-1.5 text-xs flex flex-col justify-start' : 'p-2.5 text-xs'} ${className}`}
+      aria-label={`Appointment: ${timeDisplay}, ${clientTitle}. Status: ${appointment.status}`}
     >
       {/* 1. Top Header: Time & Badges */}
       <div className="flex items-center justify-between gap-1 mb-1">
-        <span className="font-semibold text-foreground tracking-tight">{timeDisplay}</span>
+        <span className="font-semibold text-foreground tracking-tight text-[11px] leading-tight shrink-0">
+          {timeDisplay}
+        </span>
         <div className="flex items-center gap-1 shrink-0">
           {hasConflict && <ConflictBadge size="sm" />}
           <CalendarStatusBadge status={appointment.status} size="sm" />
@@ -110,40 +120,44 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
       {/* 2. Client Full Name */}
       <div
-        className="font-bold text-foreground truncate text-xs leading-snug tracking-tight mb-0.5"
+        className="font-bold text-foreground truncate text-xs leading-snug tracking-tight"
         data-testid="appointment-card-client-name"
       >
         {clientTitle}
       </div>
 
-      {/* 3. Service or Appointment Type */}
-      <div className="font-medium text-primary-800 dark:text-primary-300 truncate text-[11px] mb-1">
-        {serviceLabel}
-      </div>
+      {/* 3. Service or Appointment Type (Detailed view only) */}
+      {variant === 'detailed' && (
+        <div className="font-medium text-primary-800 dark:text-primary-300 truncate text-[11px] leading-tight mt-1 mb-0.5">
+          {serviceLabel}
+        </div>
+      )}
 
-      {/* 4. Assessment Summary / Note (Detailed view) */}
+      {/* 4. Assessment Summary / Note (Detailed view only) */}
       {variant === 'detailed' && assessmentSummary && (
         <div className="text-[11px] text-muted-foreground italic truncate mb-1 line-clamp-1">
           Assessment: {assessmentSummary}
         </div>
       )}
 
-      {/* 5. Resource Metadata */}
-      <div className="space-y-0.5 text-muted-foreground text-[11px]">
-        {appointment.therapistId && (
-          <div className="flex items-center gap-1 truncate">
-            <Stethoscope className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
-            <span className="truncate">Therapist: {appointment.therapistId.slice(0, 8)}</span>
-          </div>
-        )}
+      {/* 5. Resource Metadata (Detailed view only) */}
+      {variant === 'detailed' && (
+        <div className="space-y-0.5 text-muted-foreground text-[11px] mt-1">
+          {appointment.therapistId && (
+            <div className="flex items-center gap-1 truncate">
+              <Stethoscope className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
+              <span className="truncate">Therapist: {appointment.therapistId.slice(0, 8)}</span>
+            </div>
+          )}
 
-        {appointment.roomId && (
-          <div className="flex items-center gap-1 truncate">
-            <MapPin className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
-            <span className="truncate">Room: {appointment.roomId}</span>
-          </div>
-        )}
-      </div>
+          {appointment.roomId && (
+            <div className="flex items-center gap-1 truncate">
+              <MapPin className="h-3 w-3 shrink-0 text-slate-400" aria-hidden="true" />
+              <span className="truncate">Room: {appointment.roomId}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

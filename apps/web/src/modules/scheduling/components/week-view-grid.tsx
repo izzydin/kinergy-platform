@@ -150,7 +150,7 @@ export const WeekViewGrid: React.FC<WeekViewGridProps> = ({
                     style={{
                       top: `${topPercent}%`,
                       height: `${heightPercent}%`,
-                      minHeight: '44px',
+                      minHeight: '52px',
                     }}
                   >
                     <AppointmentCard

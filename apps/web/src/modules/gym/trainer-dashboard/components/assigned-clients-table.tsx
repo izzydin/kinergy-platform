@@ -184,7 +184,7 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
     >
       <CardHeader className="p-4 border-b border-border">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="text-primary font-bold" aria-hidden="true">
               📋
             </span>
@@ -192,10 +192,10 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
               Facility Clients
               <span className="sr-only">Assigned Client Roster</span>
             </CardTitle>
-            <Badge variant="secondary" size="sm">
+            <Badge variant="secondary" size="sm" className="justify-center text-center">
               Facility Roster
             </Badge>
-            <Badge variant="secondary" size="sm">
+            <Badge variant="secondary" size="sm" className="justify-center text-center">
               {total} Total
             </Badge>
           </div>
