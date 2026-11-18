@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { changePassword, updateUserProfile } from './settings-api';
+import { changePassword, revokeAllSessions, updateUserProfile } from './settings-api';
 import { settingsKeys } from './settings-query-keys';
 import type { ChangePasswordInput, UpdateProfileInput } from './settings-api';
 import type { UserProfileViewModel } from '../../dashboard/types';
@@ -82,6 +82,19 @@ export function useChangePasswordMutation() {
   return useMutation<{ success: boolean }, Error, ChangePasswordInput>({
     mutationFn: (data) => changePassword(data),
     // No retry: password changes are non-idempotent operations
+    retry: false,
+  });
+}
+
+/**
+ * useRevokeAllSessionsMutation
+ *
+ * Sends a global session revocation request to POST /api/v1/auth/logout.
+ * Invalidates all refresh tokens for the current user on the backend.
+ */
+export function useRevokeAllSessionsMutation() {
+  return useMutation<{ success: boolean }, Error, void>({
+    mutationFn: () => revokeAllSessions(),
     retry: false,
   });
 }

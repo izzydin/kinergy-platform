@@ -10,7 +10,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
   Dialog,
@@ -34,17 +33,26 @@ import {
   ToastTitle,
   ToastViewport,
 } from '@kinergy-platform/ui';
+import { KeyRound, Laptop } from 'lucide-react';
 import { securitySettingsSchema, type SecuritySettingsFormValues } from '../types';
-import { useChangePasswordMutation } from '../api/settings-mutations';
+import { useChangePasswordMutation, useRevokeAllSessionsMutation } from '../api/settings-mutations';
+import { useTranslation } from '../../../app/providers/locale-provider';
+import { useOptionalAuth } from '../../../app/providers/auth-provider';
 
 export const SecuritySettingsForm: React.FC = () => {
-  const [simulateError, setSimulateError] = useState<boolean>(false);
+  const { locale, t } = useTranslation();
+  const auth = useOptionalAuth();
+
+  const isEs = locale === 'es';
+
   const [submitStatus, setSubmitStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
   const [sessionsRevokedToast, setSessionsRevokedToast] = useState<boolean>(false);
+  const [isRevokeDialogOpen, setIsRevokeDialogOpen] = useState<boolean>(false);
 
   const changePasswordMutation = useChangePasswordMutation();
+  const revokeAllSessionsMutation = useRevokeAllSessionsMutation();
 
   const {
     register,
@@ -57,7 +65,7 @@ export const SecuritySettingsForm: React.FC = () => {
       currentPassword: '',
       newPassword: '',
       confirmPassword: '',
-      twoFactorAuth: true,
+      twoFactorAuth: false,
     },
   });
 
@@ -66,14 +74,6 @@ export const SecuritySettingsForm: React.FC = () => {
     setToastMessage(null);
     setServerErrorMessage(null);
 
-    if (simulateError) {
-      setSubmitStatus('error');
-      setServerErrorMessage(
-        'Current password validation failed on security server. Please verify your credentials.',
-      );
-      return;
-    }
-
     try {
       await changePasswordMutation.mutateAsync({
         currentPassword: data.currentPassword,
@@ -81,7 +81,14 @@ export const SecuritySettingsForm: React.FC = () => {
       });
 
       setSubmitStatus('success');
-      setToastMessage('Security credential policy updated successfully.');
+      setToastMessage(
+        isEs
+          ? t(
+              'settings.security.passwordUpdatedSuccess',
+              'Tu contraseña ha sido actualizada exitosamente.',
+            )
+          : 'Security credential policy updated successfully.',
+      );
       reset();
     } catch (error) {
       setSubmitStatus('error');
@@ -93,95 +100,333 @@ export const SecuritySettingsForm: React.FC = () => {
     }
   };
 
-  const handleRevokeAllSessions = () => {
+  const handleRevokeAllSessions = async () => {
     setSessionsRevokedToast(true);
+    setIsRevokeDialogOpen(false);
+
+    try {
+      await revokeAllSessionsMutation.mutateAsync();
+      if (auth && typeof auth.logout === 'function') {
+        setTimeout(() => {
+          void auth.logout();
+        }, 1500);
+      }
+    } catch {
+      // Retain the notification to confirm revocation initiation
+    }
   };
 
   return (
     <ToastProvider>
-      <Card className="w-full">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Security & Password Policy</CardTitle>
-              <CardDescription>
-                Validates PasswordInput primitives, Password strength Zod schemas, Dialog revocation
-                modal, and Toasts.
-              </CardDescription>
+      <div className="space-y-6" data-testid="security-settings-form-wrapper">
+        {/* 1. Password Management Card */}
+        <Card className="w-full border-border bg-card shadow-sm">
+          <CardHeader>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <KeyRound className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <CardTitle className="text-xl">
+                    {isEs
+                      ? t('settings.security.passwordSection.title', 'Gestión de contraseña')
+                      : 'Password'}
+                  </CardTitle>
+                </div>
+                <CardDescription>
+                  {isEs
+                    ? t(
+                        'settings.security.passwordSection.description',
+                        'Actualiza la contraseña utilizada para iniciar sesión en todos los servicios de Kinergy.',
+                      )
+                    : 'Update the password used to authenticate your account across all Kinergy services.'}
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="w-fit text-xs border-primary/30 text-primary">
+                {isEs ? 'Credenciales' : 'Credentials'}
+              </Badge>
             </div>
-            <Badge variant="secondary">Security Contract</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-            {/* 1. Status Alert */}
-            {submitStatus === 'error' && (
-              <Alert variant="destructive" data-testid="security-form-error">
-                <AlertTitle>Password Update Failed</AlertTitle>
-                <AlertDescription>
-                  {serverErrorMessage ||
-                    'Current password validation failed on security server. Please verify your credentials.'}
-                </AlertDescription>
-              </Alert>
-            )}
+          </CardHeader>
 
-            {submitStatus === 'success' && (
-              <Alert variant="default" data-testid="security-form-success">
-                <AlertTitle>Credentials Updated</AlertTitle>
-                <AlertDescription>
-                  Your security password has been updated and active tokens refreshed.
-                </AlertDescription>
-              </Alert>
-            )}
+          <CardContent>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+              {/* Status Alerts */}
+              {submitStatus === 'error' && (
+                <Alert variant="destructive" data-testid="security-form-error">
+                  <AlertTitle>
+                    {isEs
+                      ? t(
+                          'settings.security.passwordSection.errorAlertTitle',
+                          'Error al actualizar contraseña',
+                        )
+                      : 'Password Update Failed'}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {serverErrorMessage ||
+                      'Current password validation failed on security server. Please verify your credentials.'}
+                  </AlertDescription>
+                </Alert>
+              )}
 
-            {/* 2. PasswordInput: Current Password */}
-            <FormField isInvalid={Boolean(errors.currentPassword)}>
-              <FormLabel required>Current Password</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  {...register('currentPassword')}
-                  placeholder="••••••••••••"
-                  data-testid="current-password-input"
-                />
-              </FormControl>
-              <FormHelperText>
-                Enter your existing account password to confirm identity.
-              </FormHelperText>
-              <FormErrorMessage>{errors.currentPassword?.message}</FormErrorMessage>
-            </FormField>
+              {submitStatus === 'success' && (
+                <Alert variant="default" data-testid="security-form-success">
+                  <AlertTitle>
+                    {isEs
+                      ? t(
+                          'settings.security.passwordSection.successAlertTitle',
+                          'Credenciales actualizadas',
+                        )
+                      : 'Credentials Updated'}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {isEs
+                      ? t(
+                          'settings.security.passwordSection.successAlertDesc',
+                          'Tu contraseña de cuenta ha sido actualizada exitosamente.',
+                        )
+                      : 'Your security password has been updated and active tokens refreshed.'}
+                  </AlertDescription>
+                </Alert>
+              )}
 
-            {/* 3. PasswordInput: New Password */}
-            <FormField isInvalid={Boolean(errors.newPassword)}>
-              <FormLabel required>New Security Password</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  {...register('newPassword')}
-                  placeholder="••••••••••••"
-                  data-testid="new-password-input"
-                />
-              </FormControl>
-              <FormHelperText>
-                Must contain at least 8 characters, 1 uppercase letter, and 1 numeric digit.
-              </FormHelperText>
-              <FormErrorMessage>{errors.newPassword?.message}</FormErrorMessage>
-            </FormField>
+              {/* Password Policy Guidelines Box */}
+              <div className="rounded-lg border border-border bg-muted/20 p-4 text-xs text-muted-foreground space-y-1.5">
+                <p className="font-semibold text-foreground text-xs">
+                  {isEs
+                    ? t(
+                        'settings.security.passwordSection.requirementsTitle',
+                        'Requisitos de la contraseña',
+                      )
+                    : 'Password Requirements:'}
+                </p>
+                <ul className="list-disc list-inside space-y-0.5">
+                  <li>
+                    {isEs
+                      ? t(
+                          'settings.security.passwordSection.reqLength',
+                          'Al menos 8 caracteres (se recomiendan 12+ para máxima seguridad)',
+                        )
+                      : 'At least 8 characters (12+ recommended for maximum security)'}
+                  </li>
+                  <li>
+                    {isEs
+                      ? t(
+                          'settings.security.passwordSection.reqUppercase',
+                          'Al menos 1 letra mayúscula (A-Z)',
+                        )
+                      : 'At least 1 uppercase letter (A-Z)'}
+                  </li>
+                  <li>
+                    {isEs
+                      ? t(
+                          'settings.security.passwordSection.reqNumber',
+                          'Al menos 1 dígito numérico (0-9)',
+                        )
+                      : 'At least 1 numeric digit (0-9)'}
+                  </li>
+                  <li>
+                    {isEs
+                      ? t(
+                          'settings.security.passwordSection.reqHistory',
+                          'Debe ser distinta de tu contraseña actual y las últimas 5 utilizadas',
+                        )
+                      : 'Must differ from your current password and previous 5 passwords'}
+                  </li>
+                </ul>
+              </div>
 
-            {/* 4. PasswordInput: Confirm Password */}
-            <FormField isInvalid={Boolean(errors.confirmPassword)}>
-              <FormLabel required>Confirm New Password</FormLabel>
-              <FormControl>
-                <PasswordInput
-                  {...register('confirmPassword')}
-                  placeholder="••••••••••••"
-                  data-testid="confirm-password-input"
-                />
-              </FormControl>
-              <FormHelperText>Re-enter your new password to verify accuracy.</FormHelperText>
-              <FormErrorMessage>{errors.confirmPassword?.message}</FormErrorMessage>
-            </FormField>
+              {/* Input: Current Password */}
+              <FormField isInvalid={Boolean(errors.currentPassword)}>
+                <FormLabel required>
+                  {isEs
+                    ? t('settings.security.currentPassword', 'Contraseña actual')
+                    : 'Current Password'}
+                </FormLabel>
+                <FormControl>
+                  <PasswordInput
+                    {...register('currentPassword')}
+                    placeholder="••••••••••••"
+                    data-testid="current-password-input"
+                    autoComplete="current-password"
+                  />
+                </FormControl>
+                <FormHelperText>
+                  {isEs
+                    ? t(
+                        'settings.security.passwordSection.currentHelper',
+                        'Ingresa tu contraseña actual para confirmar tu identidad.',
+                      )
+                    : 'Enter your existing account password to confirm identity.'}
+                </FormHelperText>
+                <FormErrorMessage>{errors.currentPassword?.message}</FormErrorMessage>
+              </FormField>
 
-            {/* 5. Session Revocation Modal Trigger */}
-            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/20 p-4">
+              {/* Input: New Password */}
+              <FormField isInvalid={Boolean(errors.newPassword)}>
+                <FormLabel required>
+                  {isEs
+                    ? t('settings.security.newPassword', 'Nueva contraseña')
+                    : 'New Security Password'}
+                </FormLabel>
+                <FormControl>
+                  <PasswordInput
+                    {...register('newPassword')}
+                    placeholder="••••••••••••"
+                    data-testid="new-password-input"
+                    autoComplete="new-password"
+                  />
+                </FormControl>
+                <FormHelperText>
+                  {isEs
+                    ? t(
+                        'settings.security.passwordSection.newHelper',
+                        'Debe contener al menos 8 caracteres, 1 mayúscula y 1 número.',
+                      )
+                    : 'Must contain at least 8 characters, 1 uppercase letter, and 1 numeric digit.'}
+                </FormHelperText>
+                <FormErrorMessage>{errors.newPassword?.message}</FormErrorMessage>
+              </FormField>
+
+              {/* Input: Confirm Password */}
+              <FormField isInvalid={Boolean(errors.confirmPassword)}>
+                <FormLabel required>
+                  {isEs
+                    ? t('settings.security.confirmPassword', 'Confirmar nueva contraseña')
+                    : 'Confirm New Password'}
+                </FormLabel>
+                <FormControl>
+                  <PasswordInput
+                    {...register('confirmPassword')}
+                    placeholder="••••••••••••"
+                    data-testid="confirm-password-input"
+                    autoComplete="new-password"
+                  />
+                </FormControl>
+                <FormHelperText>
+                  {isEs
+                    ? t(
+                        'settings.security.passwordSection.confirmHelper',
+                        'Vuelve a ingresar la nueva contraseña para verificar que coincidan.',
+                      )
+                    : 'Re-enter your new password to verify accuracy.'}
+                </FormHelperText>
+                <FormErrorMessage>{errors.confirmPassword?.message}</FormErrorMessage>
+              </FormField>
+
+              {/* Submit Action */}
+              <div className="flex justify-end pt-2">
+                <Button
+                  type="submit"
+                  variant="default"
+                  size="sm"
+                  isLoading={isSubmitting || changePasswordMutation.isPending}
+                  loadingText={
+                    isEs
+                      ? t(
+                          'settings.security.passwordSection.submittingText',
+                          'Actualizando contraseña...',
+                        )
+                      : 'Updating Password...'
+                  }
+                  disabled={isSubmitting || changePasswordMutation.isPending}
+                  data-testid="security-submit-btn"
+                >
+                  {isEs
+                    ? t('settings.security.passwordSection.submitText', 'Actualizar contraseña')
+                    : 'Update Password'}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* 2. Active Session Control Card */}
+        <Card
+          className="w-full border-border bg-card shadow-sm"
+          data-testid="active-sessions-section"
+        >
+          <CardHeader>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Laptop className="h-5 w-5 text-primary" aria-hidden="true" />
+                  <CardTitle className="text-xl">
+                    {isEs
+                      ? t('settings.security.sessions.title', 'Sesiones activas')
+                      : 'Active sessions'}
+                  </CardTitle>
+                </div>
+                <CardDescription>
+                  {isEs
+                    ? t(
+                        'settings.security.sessions.description',
+                        'Revisa y gestiona los dispositivos que han iniciado sesión en tu cuenta.',
+                      )
+                    : 'Review and manage devices currently signed in to your account.'}
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="w-fit text-xs border-primary/30 text-primary">
+                {isEs ? 'Control de sesión' : 'Session Control'}
+              </Badge>
+            </div>
+          </CardHeader>
+
+          <CardContent className="space-y-6">
+            {/* Current Active Session Indicator */}
+            <div className="rounded-lg border border-border bg-muted/20 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-foreground text-sm">
+                      {isEs
+                        ? t('settings.security.sessions.currentDeviceTitle', 'Sesión activa actual')
+                        : 'Current Active Session'}
+                    </span>
+                    <Badge
+                      variant="secondary"
+                      className="text-xs bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                    >
+                      {isEs
+                        ? t('settings.security.sessions.currentDeviceBadge', 'Sesión actual')
+                        : 'Current Session'}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {isEs
+                      ? t(
+                          'settings.security.sessions.currentDeviceDesc',
+                          'Autenticado mediante credenciales seguras JWT bearer en este navegador.',
+                        )
+                      : 'Authenticated via secure JWT bearer credentials on this browser.'}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full bg-emerald-500"
+                    aria-hidden="true"
+                  />
+                  <span>{isEs ? 'En línea' : 'Online / Active'}</span>
+                </div>
+              </div>
+
+              <div className="mt-3 grid grid-cols-1 gap-2 border-t border-border/50 pt-3 sm:grid-cols-2 text-xs">
+                <div>
+                  <span className="text-muted-foreground">
+                    {isEs ? 'Tipo de token:' : 'Token Type:'}{' '}
+                  </span>
+                  <span className="font-mono text-foreground">Bearer JWT (Stateless)</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">
+                    {isEs ? 'Ventana de expiración:' : 'Expiry Window:'}{' '}
+                  </span>
+                  <span className="text-foreground">15 min access · 7 days refresh</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Session Revocation Block */}
+            <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted/10 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="font-semibold text-foreground text-sm">Active Session Control</h3>
                 <p className="text-xs text-muted-foreground">
@@ -190,28 +435,46 @@ export const SecuritySettingsForm: React.FC = () => {
                 </p>
               </div>
 
-              <Dialog>
+              <Dialog open={isRevokeDialogOpen} onOpenChange={setIsRevokeDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="destructive" size="sm">
                     Revoke All Sessions
                   </Button>
                 </DialogTrigger>
+
                 <DialogContent>
                   <DialogHeader>
                     <DialogTitle>Confirm Global Session Revocation</DialogTitle>
-                    <DialogDescription>
-                      This action will immediately invalidate all refresh tokens. Users will be
-                      required to re-authenticate.
+                    <DialogDescription className="space-y-2 pt-2">
+                      <span>
+                        This action will immediately invalidate all refresh tokens. Users will be
+                        required to re-authenticate.
+                      </span>
                     </DialogDescription>
                   </DialogHeader>
-                  <DialogFooter className="gap-2">
+
+                  <div className="text-xs text-muted-foreground p-3 rounded-md bg-muted/30 border border-border">
+                    <p>
+                      Already-issued access tokens expire within 15 minutes. To ensure immediate
+                      account safety, your current session will also be terminated and you will need
+                      to sign in again.
+                    </p>
+                  </div>
+
+                  <DialogFooter className="gap-2 sm:gap-0">
                     <DialogClose asChild>
                       <Button variant="outline" size="sm">
                         Cancel
                       </Button>
                     </DialogClose>
                     <DialogClose asChild>
-                      <Button variant="destructive" size="sm" onClick={handleRevokeAllSessions}>
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={handleRevokeAllSessions}
+                        isLoading={revokeAllSessionsMutation.isPending}
+                        disabled={revokeAllSessionsMutation.isPending}
+                      >
                         Confirm Revocation
                       </Button>
                     </DialogClose>
@@ -219,38 +482,9 @@ export const SecuritySettingsForm: React.FC = () => {
                 </DialogContent>
               </Dialog>
             </div>
-
-            {/* 6. Action Bar & Error Simulation */}
-            <div className="flex flex-col gap-3 rounded-lg border border-border p-4 bg-background sm:flex-row sm:items-center sm:justify-between">
-              <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={simulateError}
-                  onChange={(e) => setSimulateError(e.target.checked)}
-                  className="rounded border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                />
-                <span>Simulate Invalid Credential Server Error</span>
-              </label>
-
-              <Button
-                type="submit"
-                variant="default"
-                size="sm"
-                isLoading={isSubmitting || changePasswordMutation.isPending}
-                loadingText="Updating Password..."
-                disabled={isSubmitting || changePasswordMutation.isPending}
-                data-testid="security-submit-btn"
-              >
-                Update Password Policy
-              </Button>
-            </div>
-          </form>
-        </CardContent>
-        <CardFooter className="text-xs text-muted-foreground">
-          Password Input Spec: Includes WAI-ARIA accessible show/hide toggle and validation error
-          visual bindings.
-        </CardFooter>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
       {/* Toast Notification Viewport */}
       <ToastViewport>

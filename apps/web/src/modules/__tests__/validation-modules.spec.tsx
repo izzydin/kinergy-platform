@@ -245,7 +245,9 @@ describe('Step A5 Architectural Validation Modules', () => {
       ).toBeInTheDocument();
 
       renderWithProviders(<SettingsRouter />, { initialEntries: ['/security'] });
-      expect(await screen.findByText('Security & Password Policy')).toBeInTheDocument();
+      expect(
+        await screen.findByRole('heading', { level: 2, name: /^security$/i }),
+      ).toBeInTheDocument();
     });
   });
 });

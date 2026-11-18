@@ -576,13 +576,79 @@ export const es: TranslationDictionary = {
         'Las asignaciones de rol y atributos de identidad son administrados por el administrador del centro.',
     },
     security: {
-      title: 'Seguridad de contraseña y sesión',
-      subtitle: 'Actualiza tu contraseña de acceso o revisa los controles de seguridad activos.',
+      title: 'Seguridad',
+      subtitle: 'Administra tu contraseña, sesiones activas y seguridad de la cuenta.',
       currentPassword: 'Contraseña actual',
       newPassword: 'Nueva contraseña',
       confirmPassword: 'Confirmar nueva contraseña',
       updatePasswordButton: 'Actualizar contraseña',
       passwordUpdatedSuccess: 'Tu contraseña ha sido actualizada exitosamente.',
+      overview: {
+        title: 'Resumen de seguridad de la cuenta',
+        description:
+          'Protecciones de identidad activas y políticas de seguridad de sesión de tu cuenta.',
+        authMethod: 'Método de autenticación',
+        authMethodDesc: 'Identidad empresarial Argon2id con protección de memoria y cómputo',
+        sessionPolicy: 'Política de tokens de sesión',
+        sessionPolicyDesc:
+          'Tokens de acceso con expiración a 15 min y rotación de tokens de refresco a 7 días',
+        mfa: 'Autenticación de dos factores (MFA)',
+        mfaStatus: 'No configurada (Hoja de ruta empresarial)',
+        passwordHistory: 'Protección de historial de contraseñas',
+        passwordHistoryDesc: 'Las últimas 5 contraseñas no pueden reutilizarse',
+        tenantIsolation: 'Aislamiento de organización',
+        tenantIsolationDesc: 'Garantizado por filtros de base de datos y guardias de autorización',
+      },
+      passwordSection: {
+        title: 'Gestión de contraseña',
+        description:
+          'Actualiza la contraseña utilizada para iniciar sesión en todos los servicios de Kinergy.',
+        currentHelper: 'Ingresa tu contraseña actual para confirmar tu identidad.',
+        newHelper: 'Debe contener al menos 8 caracteres, 1 mayúscula y 1 número.',
+        confirmHelper: 'Vuelve a ingresar la nueva contraseña para verificar que coincidan.',
+        requirementsTitle: 'Requisitos de la contraseña',
+        reqLength: 'Al menos 8 caracteres (se recomiendan 12+ para máxima seguridad)',
+        reqUppercase: 'Al menos 1 letra mayúscula (A-Z)',
+        reqNumber: 'Al menos 1 dígito numérico (0-9)',
+        reqHistory: 'Debe ser distinta de tu contraseña actual y las últimas 5 utilizadas',
+        submitText: 'Actualizar contraseña',
+        submittingText: 'Actualizando contraseña...',
+        successAlertTitle: 'Credenciales actualizadas',
+        successAlertDesc: 'Tu contraseña de cuenta ha sido actualizada exitosamente.',
+        errorAlertTitle: 'Error al actualizar contraseña',
+      },
+      sessions: {
+        title: 'Sesiones activas',
+        description: 'Revisa y gestiona los dispositivos que han iniciado sesión en tu cuenta.',
+        currentDeviceTitle: 'Sesión activa actual',
+        currentDeviceBadge: 'Sesión actual',
+        currentDeviceDesc:
+          'Autenticado mediante credenciales seguras JWT bearer en este navegador.',
+        tokenLifecycleTitle: 'Ciclo de vida de tokens y semántica de seguridad',
+        tokenLifecycleDesc:
+          'Los tokens de acceso expiran cada 15 minutos. Los tokens de refresco rotan criptográficamente en cada intercambio.',
+        revokeTitle: 'Revocación global de sesiones',
+        revokeDesc:
+          'Revoca todas las familias de tokens de refresco activas en navegadores secundarios y dispositivos móviles.',
+        revokeButton: 'Revoke All Sessions',
+        dialogTitle: 'Confirm Global Session Revocation',
+        dialogDescription:
+          'This action will immediately invalidate all refresh tokens. Users will be required to re-authenticate.',
+        dialogSemantics:
+          'Los tokens de acceso emitidos expiran en menos de 15 minutos. Por seguridad inmediata, tu sesión actual también finalizará y deberás iniciar sesión nuevamente.',
+        dialogCancel: 'Cancel',
+        dialogConfirm: 'Confirm Revocation',
+        revokingText: 'Revocando sesiones...',
+        revokedToastTitle: 'Sessions Revoked',
+        revokedToastDesc: 'All active platform refresh tokens have been revoked.',
+      },
+      activity: {
+        title: 'Actividad de seguridad reciente',
+        description: 'Registro de auditoría y seguimiento de eventos de seguridad de la cuenta.',
+        noticeTitle: 'Registro de auditoría de la plataforma',
+        noticeDesc:
+          'Los eventos de seguridad (inicios de sesión, cambios de contraseña y revocaciones de sesión) se registran en el servicio de auditoría interno. La visualización en tiempo real se implementará en una versión futura. Si sospechas accesos no autorizados, revoca todas las sesiones inmediatamente.',
+      },
     },
     users: {
       title: 'Usuarios del personal y asignación de roles',

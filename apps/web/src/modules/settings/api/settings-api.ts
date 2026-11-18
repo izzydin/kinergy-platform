@@ -63,6 +63,7 @@ export type ChangePasswordInput = z.infer<typeof changePasswordInputSchema>;
 export const SETTINGS_AUTH_ENDPOINTS = {
   profile: '/api/v1/auth/me',
   changePassword: '/api/v1/auth/change-password',
+  revokeSessions: '/api/v1/auth/logout',
 } as const;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -94,4 +95,17 @@ export async function updateUserProfile(_data: UpdateProfileInput): Promise<User
 export async function changePassword(data: ChangePasswordInput): Promise<{ success: boolean }> {
   const payload = changePasswordInputSchema.parse(data);
   return httpClient.post<{ success: boolean }>(SETTINGS_AUTH_ENDPOINTS.changePassword, payload);
+}
+
+/**
+ * Revokes all active refresh token sessions for the authenticated user.
+ * Authoritative Backend Route: POST /api/v1/auth/logout
+ *
+ * Security Semantics:
+ *  - Revokes all refresh token families in the database.
+ *  - Already-issued JWT access tokens remain cryptographically valid until their 15-minute TTL expires.
+ *  - Subsequent token refresh attempts by any device will be rejected with 401 Unauthorized.
+ */
+export async function revokeAllSessions(): Promise<{ success: boolean }> {
+  return httpClient.post<{ success: boolean }>(SETTINGS_AUTH_ENDPOINTS.revokeSessions);
 }
