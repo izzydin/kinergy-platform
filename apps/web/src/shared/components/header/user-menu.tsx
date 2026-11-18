@@ -1,5 +1,6 @@
 import { Globe, LogOut, Shield } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useInRouterContext, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../app/providers/auth-provider';
 import { useLocale } from '../../../app/providers/locale-provider';
 import { Avatar, AvatarFallback, Badge, Spinner } from '@kinergy-platform/ui';
@@ -7,6 +8,29 @@ import { Avatar, AvatarFallback, Badge, Spinner } from '@kinergy-platform/ui';
 export interface UserMenuProps {
   readonly className?: string;
 }
+
+interface LocationChangeWatcherProps {
+  readonly onRouteChange: () => void;
+}
+
+/**
+ * Route change observer rendered only when inside React Router context.
+ * Automatically invokes callback to dismiss dropdown on page navigation.
+ */
+const LocationChangeWatcher: React.FC<LocationChangeWatcherProps> = ({ onRouteChange }) => {
+  const location = useLocation();
+  const initialPathRef = useRef(location.pathname + location.search + location.hash);
+
+  useEffect(() => {
+    const currentPath = location.pathname + location.search + location.hash;
+    if (currentPath !== initialPathRef.current) {
+      initialPathRef.current = currentPath;
+      onRouteChange();
+    }
+  }, [location.pathname, location.search, location.hash, onRouteChange]);
+
+  return null;
+};
 
 /**
  * Calculates display initials deterministically from name or email.
@@ -55,6 +79,7 @@ export function getUserInitials(name?: string | null, email?: string | null): st
 export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
   const { currentUser, logout } = useAuth();
   const { locale, setLocale, t } = useLocale();
+  const inRouter = useInRouterContext();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -72,12 +97,96 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
     }
   }, []);
 
+  const isInsideInteractionBoundary = useCallback((target: Node | null, event?: Event): boolean => {
+    if (!target) return false;
+
+    // 1. Direct DOM tree containment within menu wrapper, panel, or trigger
+    if (menuRef.current?.contains(target)) return true;
+    if (menuPanelRef.current?.contains(target)) return true;
+    if (triggerRef.current?.contains(target)) return true;
+
+    // 2. Element boundary & portal attributes check (for portal-rendered language select, submenus, or tooltips)
+    const element = target instanceof Element ? target : target.parentElement;
+    if (
+      element?.closest(
+        '[data-user-menu-boundary], [data-user-menu-portal], [data-radix-popper-content-wrapper]',
+      )
+    ) {
+      return true;
+    }
+
+    // 3. Composed path check (supports shadow DOM and portals preserving event path)
+    if (event && typeof event.composedPath === 'function') {
+      const path = event.composedPath();
+      for (const item of path) {
+        if (
+          item === menuRef.current ||
+          item === menuPanelRef.current ||
+          item === triggerRef.current
+        ) {
+          return true;
+        }
+        if (
+          item instanceof Element &&
+          (item.hasAttribute('data-user-menu-boundary') ||
+            item.hasAttribute('data-user-menu-portal') ||
+            item.hasAttribute('data-radix-popper-content-wrapper'))
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }, []);
+
   // Manage auto-focus when menu opens
   useEffect(() => {
     if (isOpen) {
       menuPanelRef.current?.focus();
     }
   }, [isOpen]);
+
+  // Robust outside pointer, keyboard escape, and history navigation dismissal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleOutsidePointer = (event: PointerEvent | MouseEvent | TouchEvent) => {
+      const target = event.target as Node | null;
+      if (!target) return;
+      if (isInsideInteractionBoundary(target, event)) {
+        return;
+      }
+      closeMenu(false);
+    };
+
+    const handleGlobalKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeMenu(true);
+      }
+    };
+
+    const handlePopState = () => {
+      closeMenu(false);
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointer, true);
+    document.addEventListener('mousedown', handleOutsidePointer, true);
+    document.addEventListener('touchstart', handleOutsidePointer, true);
+    window.addEventListener('keydown', handleGlobalKeyDown, true);
+    window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
+
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointer, true);
+      document.removeEventListener('mousedown', handleOutsidePointer, true);
+      document.removeEventListener('touchstart', handleOutsidePointer, true);
+      window.removeEventListener('keydown', handleGlobalKeyDown, true);
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
+  }, [isOpen, closeMenu, isInsideInteractionBoundary]);
 
   const handleLogout = useCallback(async () => {
     if (isLoggingOut) return;
@@ -92,7 +201,7 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
     }
   }, [logout, closeMenu, isLoggingOut]);
 
-  // Handle keyboard escape key press
+  // Handle keyboard escape key press directly on menu container
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -120,19 +229,25 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
   return (
     <div
       ref={menuRef}
+      data-user-menu-boundary="true"
       className={`relative inline-block text-left ${className}`}
       onKeyDown={handleKeyDown}
     >
+      {inRouter && <LocationChangeWatcher onRouteChange={() => closeMenu(false)} />}
+
       {/* Trigger Button */}
       <button
         ref={triggerRef}
         type="button"
+        id="user-menu-trigger"
         onClick={toggleMenu}
         disabled={isLoggingOut}
         aria-busy={isLoggingOut}
         aria-expanded={isOpen}
         aria-haspopup="menu"
+        aria-controls={isOpen ? 'user-account-menu' : undefined}
         aria-label={`User account menu for ${displayName}`}
+        data-user-menu-boundary="true"
         className="flex items-center gap-2 rounded-xl border border-border/60 bg-card/50 p-1.5 text-muted-foreground transition-all hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:opacity-60"
       >
         <Avatar className="h-7 w-7 rounded-lg">
@@ -147,108 +262,101 @@ export const UserMenu: React.FC<UserMenuProps> = ({ className = '' }) => {
 
       {/* Dropdown Menu Panel */}
       {isOpen && (
-        <>
-          {/* Backdrop click dismiss */}
-          <div
-            className="fixed inset-0 z-40 bg-transparent"
-            onClick={() => closeMenu(false)}
-            aria-hidden="true"
-          />
+        <div
+          ref={menuPanelRef}
+          id="user-account-menu"
+          role="menu"
+          tabIndex={-1}
+          aria-orientation="vertical"
+          aria-label="User account options"
+          data-user-menu-boundary="true"
+          className="absolute right-0 z-50 mt-2 w-64 origin-top-right rounded-2xl border border-border/70 bg-popover/95 p-3 text-popover-foreground shadow-xl backdrop-blur-xl transition-all focus:outline-none"
+        >
+          {/* Header: Identity Info */}
+          <div className="flex items-center gap-3 border-b border-border/50 pb-3 px-1">
+            <Avatar className="h-10 w-10 shrink-0 rounded-xl">
+              <AvatarFallback className="rounded-xl bg-primary/15 font-extrabold text-primary text-sm shadow-inner">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex flex-col min-w-0 flex-1">
+              <span className="font-bold text-sm text-foreground truncate">{displayName}</span>
+              <span className="text-xs text-muted-foreground truncate">{currentUser.email}</span>
+              <div className="mt-1 flex items-center gap-1.5">
+                <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-semibold">
+                  <Shield className="mr-1 h-3 w-3 text-primary" />
+                  {primaryRole}
+                </Badge>
+              </div>
+            </div>
+          </div>
 
+          {/* Language Preference Switcher */}
           <div
-            ref={menuPanelRef}
-            role="menu"
-            tabIndex={-1}
-            aria-orientation="vertical"
-            aria-label="User account options"
-            className="absolute right-0 z-50 mt-2 w-64 origin-top-right rounded-2xl border border-border/70 bg-popover/95 p-3 text-popover-foreground shadow-xl backdrop-blur-xl transition-all focus:outline-none"
+            role="group"
+            aria-label={t('nav.switchLanguage', 'Interface Language')}
+            className="border-b border-border/50 py-2.5 px-1 space-y-1.5"
+            data-testid="user-menu-language-selector"
           >
-            {/* Header: Identity Info */}
-            <div className="flex items-center gap-3 border-b border-border/50 pb-3 px-1">
-              <Avatar className="h-10 w-10 shrink-0 rounded-xl">
-                <AvatarFallback className="rounded-xl bg-primary/15 font-extrabold text-primary text-sm shadow-inner">
-                  {initials}
-                </AvatarFallback>
-              </Avatar>
-              <div className="flex flex-col min-w-0 flex-1">
-                <span className="font-bold text-sm text-foreground truncate">{displayName}</span>
-                <span className="text-xs text-muted-foreground truncate">{currentUser.email}</span>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px] font-semibold">
-                    <Shield className="mr-1 h-3 w-3 text-primary" />
-                    {primaryRole}
-                  </Badge>
-                </div>
-              </div>
+            <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground px-1">
+              <Globe className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+              <span>{t('common.language', 'Language')}</span>
             </div>
-
-            {/* Language Preference Switcher */}
-            <div
-              role="group"
-              aria-label={t('nav.switchLanguage', 'Interface Language')}
-              className="border-b border-border/50 py-2.5 px-1 space-y-1.5"
-              data-testid="user-menu-language-selector"
-            >
-              <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground px-1">
-                <Globe className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
-                <span>{t('common.language', 'Language')}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1">
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={locale === 'en'}
-                  data-testid="user-menu-lang-en"
-                  onClick={() => setLocale('en')}
-                  className={`rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                    locale === 'en'
-                      ? 'bg-background text-foreground shadow-sm font-semibold'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  English
-                </button>
-                <button
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={locale === 'es'}
-                  data-testid="user-menu-lang-es"
-                  onClick={() => setLocale('es')}
-                  className={`rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
-                    locale === 'es'
-                      ? 'bg-background text-foreground shadow-sm font-semibold'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Español
-                </button>
-              </div>
-            </div>
-
-            {/* Menu Items (Minimal scope: Current User Info + Logout) */}
-            <div className="pt-2 space-y-1">
+            <div className="grid grid-cols-2 gap-1 rounded-xl bg-muted/50 p-1">
               <button
                 type="button"
-                role="menuitem"
-                disabled={isLoggingOut}
-                aria-disabled={isLoggingOut}
-                onClick={() => void handleLogout()}
-                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+                role="menuitemradio"
+                aria-checked={locale === 'en'}
+                data-testid="user-menu-lang-en"
+                onClick={() => setLocale('en')}
+                className={`rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  locale === 'en'
+                    ? 'bg-background text-foreground shadow-sm font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
               >
-                {isLoggingOut ? (
-                  <Spinner size="sm" className="h-4 w-4" />
-                ) : (
-                  <LogOut className="h-4 w-4" />
-                )}
-                <span>
-                  {isLoggingOut
-                    ? t('nav.signingOut', 'Signing out...')
-                    : t('nav.signOut', 'Sign Out')}
-                </span>
+                English
+              </button>
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={locale === 'es'}
+                data-testid="user-menu-lang-es"
+                onClick={() => setLocale('es')}
+                className={`rounded-lg px-2 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  locale === 'es'
+                    ? 'bg-background text-foreground shadow-sm font-semibold'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Español
               </button>
             </div>
           </div>
-        </>
+
+          {/* Menu Items (Minimal scope: Current User Info + Logout) */}
+          <div className="pt-2 space-y-1">
+            <button
+              type="button"
+              role="menuitem"
+              disabled={isLoggingOut}
+              aria-disabled={isLoggingOut}
+              onClick={() => void handleLogout()}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-destructive transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+            >
+              {isLoggingOut ? (
+                <Spinner size="sm" className="h-4 w-4" />
+              ) : (
+                <LogOut className="h-4 w-4" />
+              )}
+              <span>
+                {isLoggingOut
+                  ? t('nav.signingOut', 'Signing out...')
+                  : t('nav.signOut', 'Sign Out')}
+              </span>
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
