@@ -240,7 +240,9 @@ describe('Step A5 Architectural Validation Modules', () => {
 
     it('renders SettingsRouter sub-routes correctly (lazy pages resolve via Suspense)', async () => {
       renderWithProviders(<SettingsRouter />, { initialEntries: ['/general'] });
-      expect(await screen.findByText('General Workspace Preferences')).toBeInTheDocument();
+      expect(
+        await screen.findByRole('heading', { level: 2, name: /general settings/i }),
+      ).toBeInTheDocument();
 
       renderWithProviders(<SettingsRouter />, { initialEntries: ['/security'] });
       expect(await screen.findByText('Security & Password Policy')).toBeInTheDocument();

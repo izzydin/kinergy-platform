@@ -87,3 +87,11 @@ export const useTheme = (): ThemeContextState => {
   }
   return context;
 };
+
+/**
+ * Non-throwing optional consumer hook for components rendered in isolated tests
+ * without a surrounding <ThemeProvider>.
+ */
+export const useOptionalTheme = (): ThemeContextState | undefined => {
+  return useContext(ThemeContext);
+};

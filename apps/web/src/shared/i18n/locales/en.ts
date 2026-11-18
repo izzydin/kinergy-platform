@@ -480,6 +480,64 @@ export const en = {
       security: 'Security & Password',
       users: 'Users & Roles',
     },
+    general: {
+      title: 'General settings',
+      description: "Manage your organization's profile and general application preferences.",
+      organization: {
+        title: 'Organization profile',
+        description: 'Facility tenant context and enterprise organization parameters.',
+        nameLabel: 'Organization Name',
+        identifierLabel: 'Facility Tenant ID',
+        statusLabel: 'Organization Status',
+        scopeLabel: 'Deployment Scope',
+        contactEmailLabel: 'Support & Administration Contact',
+        multiTenantNotice:
+          'Organization profile and facility parameters are provisioned at the platform level. Contact your system administrator to request updates.',
+        activeStatus: 'Active',
+        scopeValue: 'Multi-Tenant Isolated Facility',
+      },
+      regional: {
+        title: 'Language & Regional Preferences',
+        description:
+          'Select your preferred display language and review regional numerical and date formatting standards.',
+        timezoneLabel: 'System Timezone',
+        timezoneValue: 'Facility Business Timezone (America/New_York / UTC synchronized)',
+        timezoneDescription:
+          'Transactions and appointments are scheduled in facility business time.',
+        currencyLabel: 'Standard Operating Currency',
+        currencyValue: 'USD ($)',
+        currencyDescription: 'Used across POS, sales, billing, and membership pricing.',
+        formatsTitle: 'Regional Format Standards',
+        datePreviewLabel: 'Formatted Date Preview',
+        timePreviewLabel: 'Formatted Time Preview',
+        numberPreviewLabel: 'Formatted Number Preview',
+        currencyPreviewLabel: 'Formatted Currency Preview',
+      },
+      appearance: {
+        title: 'Application Preferences',
+        description: 'Configure interface appearance and visual theme mode.',
+        themeLabel: 'Interface Theme',
+        themeDescription:
+          'Select your preferred visual mode. This preference is saved to your browser session.',
+        lightTheme: 'Light',
+        lightDesc: 'Clean daylight palette with high-contrast text',
+        darkTheme: 'Dark',
+        darkDesc: 'Low-glare dark palette optimized for evening operations',
+        systemTheme: 'System default',
+        systemDesc: 'Automatically match operating system preferences',
+        activeThemeBadge: 'Active Theme',
+      },
+      operational: {
+        title: 'Operational Standards & Policies',
+        description: 'Facility operational defaults and domain module ownership.',
+        schedulingNotice:
+          'Operating business hours, room capacities, and appointment rules are managed in Scheduling.',
+        inventoryNotice:
+          'Product catalog thresholds, stock movements, and asset maintenance intervals are managed in Resources.',
+        securityNotice:
+          'Staff credentials and authentication policies are managed in Security & Users.',
+      },
+    },
     language: {
       cardTitle: 'Language & Regional Preferences',
       cardDescription:

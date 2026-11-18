@@ -8,12 +8,10 @@ import {
   Avatar,
   AvatarFallback,
   AvatarImage,
-  Badge,
   Button,
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
   Dialog,
@@ -82,20 +80,16 @@ export const GeneralSettingsForm: React.FC = () => {
     <ToastProvider>
       <Card className="w-full">
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>General Workspace Preferences</CardTitle>
-              <CardDescription>
-                Validates React Hook Form + Zod resolution, Text Inputs, Avatars, Dialogs, and Form
-                Alerts.
-              </CardDescription>
-            </div>
-            <Badge variant="outline">Form Validation Spec</Badge>
+          <div>
+            <CardTitle>Workspace Details</CardTitle>
+            <CardDescription>
+              Configure workspace profile information and administrative contacts.
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
-            {/* 1. Avatar Update Verification Section */}
+            {/* 1. Avatar Update Section */}
             <div className="flex flex-col gap-4 rounded-lg border border-border bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
                 <Avatar className="h-14 w-14">
@@ -119,8 +113,7 @@ export const GeneralSettingsForm: React.FC = () => {
                   <DialogHeader>
                     <DialogTitle>Update Workspace Avatar</DialogTitle>
                     <DialogDescription>
-                      Validates modal overlay integration, focus trapping, and avatar preview state
-                      updates.
+                      Upload or specify a new image URL for the workspace avatar.
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-3 py-4">
@@ -253,10 +246,6 @@ export const GeneralSettingsForm: React.FC = () => {
             </div>
           </form>
         </CardContent>
-        <CardFooter className="text-xs text-muted-foreground">
-          Form Architecture Verification: Validates strict decoupling of presentational primitives
-          from form state resolvers.
-        </CardFooter>
       </Card>
 
       {/* Toast Notification Viewport */}

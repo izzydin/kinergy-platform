@@ -211,7 +211,7 @@ describe('Track B — Step B3.4: Routing Architecture Integration', () => {
       });
 
       // Verify settings description text inside settings layout
-      expect(screen.getByText(/Form Foundation/i)).toBeInTheDocument();
+      expect(screen.getByText(/Manage workspace preferences/i)).toBeInTheDocument();
     });
 
     it('redirects root path (/) to /dashboard for authenticated user', async () => {

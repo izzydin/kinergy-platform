@@ -494,6 +494,65 @@ export const es: TranslationDictionary = {
       security: 'Seguridad y contraseña',
       users: 'Usuarios y roles',
     },
+    general: {
+      title: 'Configuración general',
+      description:
+        'Administra el perfil de tu organización y las preferencias generales de la aplicación.',
+      organization: {
+        title: 'Perfil de la organización',
+        description: 'Contexto de inquilino de la sede y parámetros de la organización.',
+        nameLabel: 'Nombre de la organización',
+        identifierLabel: 'ID de sede / inquilino',
+        statusLabel: 'Estado de la organización',
+        scopeLabel: 'Alcance de despliegue',
+        contactEmailLabel: 'Contacto de soporte y administración',
+        multiTenantNotice:
+          'El perfil de la organización y los parámetros de la sede se aprovisionan a nivel de plataforma. Contacta a tu administrador de sistemas para solicitar actualizaciones.',
+        activeStatus: 'Activo',
+        scopeValue: 'Sede aislada multi-inquilino',
+      },
+      regional: {
+        title: 'Preferencias de idioma y región',
+        description:
+          'Selecciona tu idioma preferido y revisa los estándares regionales de formato numérico y de fechas.',
+        timezoneLabel: 'Zona horaria del sistema',
+        timezoneValue: 'Zona horaria del centro (America/New_York / Sincronizado UTC)',
+        timezoneDescription:
+          'Las transacciones y citas se programan en el horario comercial de la sede.',
+        currencyLabel: 'Moneda operativa estándar',
+        currencyValue: 'USD ($)',
+        currencyDescription: 'Utilizada en TPV, ventas, facturación y precios de membresías.',
+        formatsTitle: 'Estándares de formato regional',
+        datePreviewLabel: 'Vista previa de fecha',
+        timePreviewLabel: 'Vista previa de hora',
+        numberPreviewLabel: 'Vista previa de número',
+        currencyPreviewLabel: 'Vista previa de moneda',
+      },
+      appearance: {
+        title: 'Preferencias de la aplicación',
+        description: 'Configura la apariencia de la interfaz y el modo de tema visual.',
+        themeLabel: 'Tema de la interfaz',
+        themeDescription:
+          'Selecciona tu modo visual preferido. Esta preferencia se guarda en tu navegador.',
+        lightTheme: 'Claro',
+        lightDesc: 'Paleta diurna limpia con texto de alto contraste',
+        darkTheme: 'Oscuro',
+        darkDesc: 'Paleta oscura de bajo brillo optimizada para jornadas operativas',
+        systemTheme: 'Predeterminado del sistema',
+        systemDesc: 'Coincide automáticamente con la preferencia del sistema operativo',
+        activeThemeBadge: 'Tema activo',
+      },
+      operational: {
+        title: 'Estándares y políticas operativas',
+        description: 'Valores operativos predeterminados de la sede y propiedad de módulos.',
+        schedulingNotice:
+          'Los horarios comerciales, capacidades de sala y reglas de citas se gestionan en Agenda.',
+        inventoryNotice:
+          'Los umbrales de inventario, movimientos de stock y mantenimiento de activos se gestionan en Recursos.',
+        securityNotice:
+          'Las credenciales del personal y las políticas de autenticación se gestionan en Seguridad y Usuarios.',
+      },
+    },
     language: {
       cardTitle: 'Preferencias de idioma y región',
       cardDescription:

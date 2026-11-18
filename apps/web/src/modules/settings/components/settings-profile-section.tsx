@@ -89,7 +89,7 @@ export const SettingsProfileSection: React.FC<SettingsProfileSectionProps> = ({
             <CardTitle>
               {locale === 'es'
                 ? t('settings.profile.title', 'Perfil del empleado autenticado')
-                : 'Authenticated User Profile'}
+                : t('settings.profile.title', 'Authenticated Employee Profile')}
             </CardTitle>
             <CardDescription>
               {locale === 'es'
@@ -97,10 +97,12 @@ export const SettingsProfileSection: React.FC<SettingsProfileSectionProps> = ({
                     'settings.profile.subtitle',
                     'Identidad y permisos de rol asignados a tu sesión activa.',
                   )
-                : 'Demonstrates async 4-State Contract (Loading/Skeleton, Error, Empty, Success) via useUserProfileQuery + StateView.'}
+                : t(
+                    'settings.profile.subtitle',
+                    'Identity and role permissions assigned to your active session.',
+                  )}
             </CardDescription>
           </div>
-          <Badge variant="secondary">A5.6 Profile State</Badge>
         </div>
       </CardHeader>
 
@@ -126,49 +128,61 @@ export const SettingsProfileSection: React.FC<SettingsProfileSectionProps> = ({
         >
           {/* 4. SUCCESS STATE — rendered by StateView when all guards pass */}
           {profile && (
-            <div
-              className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"
-              data-testid="profile-success"
-            >
-              <div className="flex items-center gap-4">
-                <Avatar className="h-14 w-14">
-                  <AvatarImage src={profile.avatarUrl ?? undefined} alt={profile.displayName} />
-                  <AvatarFallback className="font-bold text-lg">
-                    {profile.displayName
-                      .split(' ')
-                      .map((n) => n[0])
-                      .join('')
-                      .slice(0, 2)
-                      .toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
+            <div className="space-y-4" data-testid="profile-success">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-4">
+                  <Avatar className="h-14 w-14">
+                    <AvatarImage src={profile.avatarUrl ?? undefined} alt={profile.displayName} />
+                    <AvatarFallback className="font-bold text-lg">
+                      {profile.displayName
+                        .split(' ')
+                        .map((n) => n[0])
+                        .join('')
+                        .slice(0, 2)
+                        .toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
 
-                <div className="space-y-1">
-                  <p className="font-semibold text-foreground text-sm">{profile.displayName}</p>
-                  <p className="text-xs text-muted-foreground">{profile.email}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {locale === 'es' ? 'Miembro desde:' : 'Member since:'}{' '}
-                    {formatDate(profile.createdAt, {
-                      year: 'numeric',
-                      month: 'long',
-                    })}
-                  </p>
+                  <div className="space-y-1">
+                    <p className="font-semibold text-foreground text-sm">{profile.displayName}</p>
+                    <p className="text-xs text-muted-foreground">{profile.email}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {locale === 'es' ? 'Miembro desde:' : 'Member since:'}{' '}
+                      {formatDate(profile.createdAt, {
+                        year: 'numeric',
+                        month: 'long',
+                      })}
+                    </p>
+                    {profile.tenantId && (
+                      <p className="text-xs text-muted-foreground">
+                        {locale === 'es' ? 'Sede / Inquilino:' : 'Facility Tenant:'}{' '}
+                        <span className="font-mono text-foreground">{profile.tenantId}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {profile.status && (
+                    <Badge
+                      variant="outline"
+                      className="shrink-0 uppercase text-xs"
+                      data-testid="profile-status-badge"
+                    >
+                      {profile.status}
+                    </Badge>
+                  )}
+                  <Badge variant="default" className="shrink-0" data-testid="profile-role-badge">
+                    {profile.role}
+                  </Badge>
                 </div>
               </div>
 
-              <div className="flex items-center gap-2">
-                {profile.status && (
-                  <Badge
-                    variant="outline"
-                    className="shrink-0 uppercase text-xs"
-                    data-testid="profile-status-badge"
-                  >
-                    {profile.status}
-                  </Badge>
+              <div className="rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+                {t(
+                  'settings.profile.readOnlyNotice',
+                  'Employee role assignments and identity attributes are managed by your facility administrator.',
                 )}
-                <Badge variant="default" className="shrink-0" data-testid="profile-role-badge">
-                  {profile.role}
-                </Badge>
               </div>
             </div>
           )}

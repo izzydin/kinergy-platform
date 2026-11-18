@@ -324,10 +324,10 @@ describe('A5.6 — SettingsProfileSection (4-State Contract)', () => {
     });
   });
 
-  it('card header shows section badge and descriptive text', () => {
+  it('card header shows section title and descriptive text without development artifacts', () => {
     renderWithProviders(<SettingsProfileSection simulationState="loading" />);
-    expect(screen.getByText('A5.6 Profile State')).toBeInTheDocument();
-    expect(screen.getByText('Authenticated User Profile')).toBeInTheDocument();
+    expect(screen.queryByText('A5.6 Profile State')).not.toBeInTheDocument();
+    expect(screen.getByText(/authenticated (user|employee) profile/i)).toBeInTheDocument();
   });
 });
 

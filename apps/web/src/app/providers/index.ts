@@ -35,4 +35,4 @@ export {
 export { QueryProvider } from './query-provider';
 export { RootErrorBoundaryProvider } from './root-error-boundary-provider';
 export { RouterProvider } from './router-provider';
-export { ThemeProvider, useTheme, type Theme } from './theme-provider';
+export { ThemeProvider, useTheme, useOptionalTheme, type Theme } from './theme-provider';
