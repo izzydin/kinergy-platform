@@ -54,36 +54,36 @@ export const ClientProfileHeader: React.FC<ClientProfileHeaderProps> = ({
       )}
 
       {/* Profile Header Card */}
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="border-border shadow-sm">
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
             <div className="space-y-2">
               {/* Back Link & Breadcrumbs */}
-              <div className="flex items-center space-x-2 text-xs text-slate-500">
+              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => navigate('/clients')}
-                  className="h-6 px-1.5 text-xs text-slate-500 hover:text-indigo-600 gap-1"
+                  className="h-6 px-1.5 text-xs text-muted-foreground hover:text-primary gap-1"
                   aria-label="Back to client directory"
                 >
                   <ArrowLeft className="h-3 w-3" aria-hidden="true" />
                   <span>Clients Directory</span>
                 </Button>
                 <span>/</span>
-                <span className="font-mono text-slate-700">{client.referenceNumber}</span>
+                <span className="font-mono text-foreground">{client.referenceNumber}</span>
               </div>
 
               {/* Title & Status */}
               <div className="flex flex-wrap items-center gap-3">
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">{displayName}</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">{displayName}</h1>
                 <Badge variant="outline" className="font-mono text-xs">
                   {client.referenceNumber}
                 </Badge>
                 <ClientStatusBadge status={client.status} />
               </div>
 
-              <p className="text-xs text-slate-500 font-mono">
+              <p className="text-xs text-muted-foreground font-mono">
                 System Identifier: <span className="select-all">{client.id}</span>
               </p>
             </div>

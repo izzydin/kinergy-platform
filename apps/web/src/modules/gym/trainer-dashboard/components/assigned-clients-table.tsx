@@ -136,16 +136,16 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
 
   return (
     <Card
-      className="border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm"
+      className="border border-border bg-card shadow-sm"
       data-testid="assigned-clients-table-container"
     >
-      <CardHeader className="p-4 border-b border-slate-100 dark:border-slate-800">
+      <CardHeader className="p-4 border-b border-border">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
-            <span className="text-indigo-500 font-bold" aria-hidden="true">
+            <span className="text-primary font-bold" aria-hidden="true">
               📋
             </span>
-            <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
+            <CardTitle className="text-base font-bold text-foreground">
               Facility Clients
               <span className="sr-only">Assigned Client Roster</span>
             </CardTitle>
@@ -164,13 +164,13 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
               placeholder="Filter by Client or Plan..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               aria-label="Filter roster"
             />
             <select
               value={statusFilter}
               onChange={(e) => onStatusFilterChange(e.target.value)}
-              className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              className="text-xs px-2.5 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
               aria-label="Filter by membership status"
               data-testid="status-filter-select"
             >
@@ -199,7 +199,7 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
             </Button>
           </div>
         ) : displayedItems.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 dark:text-slate-400">
+          <div className="py-12 text-center text-muted-foreground">
             <p className="text-base font-semibold">No facility clients found</p>
             <p className="sr-only">No assigned clients found</p>
             <p className="text-xs mt-1">
@@ -214,7 +214,7 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
               className="w-full text-left text-xs"
               aria-label="Assigned Client Memberships Table"
             >
-              <thead className="bg-slate-50 dark:bg-slate-800/80 text-slate-600 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700 uppercase tracking-wider font-semibold">
+              <thead className="bg-muted/50 text-muted-foreground border-b border-border uppercase tracking-wider font-semibold">
                 <tr>
                   <th scope="col" className="px-4 py-3">
                     Client
@@ -227,14 +227,14 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
                   </th>
                   <th
                     scope="col"
-                    className="px-4 py-3 cursor-pointer hover:text-indigo-600 select-none"
+                    className="px-4 py-3 cursor-pointer hover:text-primary select-none"
                     onClick={() => onSortChange('endDate')}
                   >
                     Valid Period {sortBy === 'endDate' ? (sortOrder === 'ASC' ? '▲' : '▼') : ''}
                   </th>
                   <th
                     scope="col"
-                    className="px-4 py-3 cursor-pointer hover:text-indigo-600 select-none"
+                    className="px-4 py-3 cursor-pointer hover:text-primary select-none"
                     onClick={() => onSortChange('daysRemaining')}
                   >
                     Days Remaining{' '}
@@ -245,49 +245,44 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+              <tbody className="divide-y divide-border">
                 {displayedItems.map((item) => (
-                  <tr
-                    key={item.membershipId}
-                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
-                  >
-                    <td className="px-4 py-3 font-semibold text-slate-900 dark:text-white">
+                  <tr key={item.membershipId} className="hover:bg-muted/40 transition-colors">
+                    <td className="px-4 py-3 font-semibold text-foreground">
                       <div>
                         <Link
                           to={`/clients/${item.clientId}`}
-                          className="hover:underline text-indigo-600 dark:text-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded font-medium"
+                          className="hover:underline text-primary focus:outline-none focus:ring-2 focus:ring-ring rounded font-medium"
                         >
                           {item.fullName || item.clientName || item.clientId}
                         </Link>
                       </div>
                       {(item.email || item.phone) && (
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400 font-normal truncate max-w-xs">
+                        <div className="text-[11px] text-muted-foreground font-normal truncate max-w-xs">
                           {item.email}
                           {item.phone && <span className="ml-1">• {item.phone}</span>}
                         </div>
                       )}
-                      <span className="text-[10px] text-slate-400 font-normal">
+                      <span className="text-[10px] text-muted-foreground font-normal">
                         {item.referenceNumber && (
-                          <span className="mr-1.5 font-mono text-[9px] bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">
+                          <span className="mr-1.5 font-mono text-[9px] bg-muted px-1 py-0.5 rounded">
                             {item.referenceNumber}
                           </span>
                         )}
                         Mem:{' '}
                         <Link
                           to={`/gym/memberships/${item.membershipId}`}
-                          className="hover:underline text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 rounded"
+                          className="hover:underline text-muted-foreground hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded"
                         >
                           {item.membershipId}
                         </Link>
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-slate-700 dark:text-slate-300 font-medium">
-                      {item.planName}
-                    </td>
+                    <td className="px-4 py-3 text-foreground font-medium">{item.planName}</td>
                     <td className="px-4 py-3">
                       {getStatusBadge(item.status, item.isCurrentlyFrozen)}
                     </td>
-                    <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                    <td className="px-4 py-3 text-muted-foreground">
                       {new Date(item.startDate).toLocaleDateString()} —{' '}
                       {new Date(item.endDate).toLocaleDateString()}
                     </td>
@@ -296,7 +291,7 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
                       <div className="flex items-center justify-end space-x-1">
                         <Link
                           to={`/clients/${item.clientId}`}
-                          className="text-xs text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2 py-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                          className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
                           title="View Client Profile"
                         >
                           Profile
@@ -305,7 +300,7 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-800"
+                            className="text-xs text-primary hover:text-primary/80"
                             onClick={() => onSelectClient(item.clientId)}
                           >
                             Details
@@ -322,7 +317,7 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
 
         {/* Pagination Footer */}
         {total > 0 && !isLoading && !isError && (
-          <div className="p-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+          <div className="p-3 border-t border-border flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground">
             <div className="flex items-center space-x-2">
               <span>
                 Showing {Math.min((page - 1) * limit + 1, total)} to {Math.min(page * limit, total)}{' '}
@@ -331,7 +326,7 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
               <select
                 value={limit}
                 onChange={(e) => onLimitChange(Number(e.target.value))}
-                className="px-2 py-1 border border-slate-200 dark:border-slate-700 rounded bg-white dark:bg-slate-800 text-xs"
+                className="px-2 py-1 border border-input rounded bg-background text-foreground text-xs focus:ring-2 focus:ring-ring"
                 aria-label="Items per page"
               >
                 <option value={5}>5 / page</option>
@@ -349,7 +344,7 @@ export const AssignedClientsTable: React.FC<AssignedClientsTableProps> = ({
               >
                 Previous
               </Button>
-              <span className="font-semibold text-slate-700 dark:text-slate-300">
+              <span className="font-semibold text-foreground">
                 Page {page} of {totalPages}
               </span>
               <Button

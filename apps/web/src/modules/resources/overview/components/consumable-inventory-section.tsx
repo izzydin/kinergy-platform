@@ -78,7 +78,7 @@ export const ConsumableInventorySection: React.FC<ConsumableInventorySectionProp
           value={formatCurrency(totalValueAmount, currency)}
           description="Total acquisition cost of stock on hand"
           icon={<DollarSign className="h-5 w-5" />}
-          iconContainerClassName="bg-blue-500/10 text-blue-600 dark:text-blue-400"
+          iconContainerClassName="bg-primary/10 text-primary"
           dataTestId="metric-inventory-value"
           footer={
             <div className="flex items-center justify-between">
@@ -152,7 +152,7 @@ export const ConsumableInventorySection: React.FC<ConsumableInventorySectionProp
           value={totalDistinctItems}
           description="Active catalog product SKUs"
           icon={<Package className="h-5 w-5" />}
-          iconContainerClassName="bg-indigo-500/10 text-indigo-600 dark:text-indigo-400"
+          iconContainerClassName="bg-primary/10 text-primary"
           dataTestId="metric-distinct-items"
           footer={
             <Link

@@ -232,7 +232,7 @@ export const PlanDetailPage: React.FC = () => {
           )}
 
           {isArchived && (
-            <Alert className="bg-slate-100 border-slate-200 text-slate-800 dark:bg-slate-800/40 dark:border-slate-700 dark:text-slate-300">
+            <Alert className="bg-muted border-border text-foreground">
               <ShieldAlert className="h-4 w-4" />
               <AlertTitle>Archived Catalog Item</AlertTitle>
               <AlertDescription className="text-xs">

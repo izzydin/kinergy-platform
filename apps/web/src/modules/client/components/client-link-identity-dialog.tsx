@@ -118,14 +118,14 @@ export const ClientLinkIdentityDialog: React.FC<ClientLinkIdentityDialogProps> =
       <DialogContent className="sm:max-w-md" data-testid="client-link-identity-dialog">
         <DialogHeader>
           <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-600">
+            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
               <Link2 className="h-4 w-4" aria-hidden="true" />
             </div>
             <div>
-              <DialogTitle className="text-base font-bold text-slate-900">
+              <DialogTitle className="text-base font-bold text-foreground">
                 Link User Account Identity
               </DialogTitle>
-              <DialogDescription className="text-xs text-slate-500">
+              <DialogDescription className="text-xs text-muted-foreground">
                 Associate an authenticated user identity with this business profile.
               </DialogDescription>
             </div>
@@ -133,14 +133,14 @@ export const ClientLinkIdentityDialog: React.FC<ClientLinkIdentityDialogProps> =
         </DialogHeader>
 
         {/* Informational Guidance Alert */}
-        <Alert className="bg-slate-50 border-slate-200 py-2.5">
-          <ShieldAlert className="h-4 w-4 text-slate-500" aria-hidden="true" />
-          <AlertTitle className="text-xs font-semibold text-slate-800">
+        <Alert className="bg-muted/40 border-border py-2.5">
+          <ShieldAlert className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          <AlertTitle className="text-xs font-semibold text-foreground">
             One-Way Relationship Policy
           </AlertTitle>
-          <AlertDescription className="text-xs text-slate-600 mt-0.5">
+          <AlertDescription className="text-xs text-muted-foreground mt-0.5">
             Linking binds authentication credentials to{' '}
-            <span className="font-semibold text-slate-900">
+            <span className="font-semibold text-foreground">
               {client?.fullName || client?.referenceNumber}
             </span>
             . In accordance with platform security and domain invariants, unlinking is not supported

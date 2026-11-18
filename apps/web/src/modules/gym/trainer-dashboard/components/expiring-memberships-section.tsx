@@ -32,15 +32,15 @@ export const ExpiringMembershipsSection: React.FC<ExpiringMembershipsSectionProp
 }) => {
   return (
     <Card
-      className="border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm"
+      className="border border-border bg-card shadow-sm"
       data-testid="expiring-memberships-section"
     >
-      <CardHeader className="p-4 border-b border-slate-100 dark:border-slate-800 flex flex-row items-center justify-between">
+      <CardHeader className="p-4 border-b border-border flex flex-row items-center justify-between">
         <div className="flex items-center space-x-2">
           <span className="text-amber-500 font-bold" aria-hidden="true">
             ⏳
           </span>
-          <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
+          <CardTitle className="text-base font-bold text-foreground">
             Expiring Soon (Next {horizonDays} Days)
           </CardTitle>
           <Badge variant="secondary" size="sm">
@@ -50,21 +50,19 @@ export const ExpiringMembershipsSection: React.FC<ExpiringMembershipsSectionProp
       </CardHeader>
       <CardContent className="p-4">
         {isLoading ? (
-          <div className="py-6 flex items-center justify-center space-x-2 text-slate-500">
+          <div className="py-6 flex items-center justify-center space-x-2 text-muted-foreground">
             <Spinner size="sm" />
             <span className="text-xs">Loading expiring memberships...</span>
           </div>
         ) : isError ? (
           <div className="py-4 text-center">
-            <p className="text-xs text-red-600 dark:text-red-400 mb-2">
-              Failed to load expiring memberships.
-            </p>
+            <p className="text-xs text-destructive mb-2">Failed to load expiring memberships.</p>
             <Button variant="outline" size="sm" onClick={onRetry}>
               Retry
             </Button>
           </div>
         ) : expiringItems.length === 0 ? (
-          <div className="py-6 text-center text-slate-500 dark:text-slate-400">
+          <div className="py-6 text-center text-muted-foreground">
             <p className="text-sm font-medium">No memberships expiring soon</p>
             <p className="text-xs mt-1">
               All assigned client passes are currently in good standing.
@@ -82,7 +80,7 @@ export const ExpiringMembershipsSection: React.FC<ExpiringMembershipsSectionProp
                   <div className="flex items-center space-x-2">
                     <Link
                       to={`/clients/${item.clientId}`}
-                      className="font-semibold text-sm text-slate-900 dark:text-white hover:underline focus:outline-none focus:ring-1 focus:ring-amber-500 rounded truncate"
+                      className="font-semibold text-sm text-foreground hover:underline focus:outline-none focus:ring-1 focus:ring-amber-500 rounded truncate"
                     >
                       Client ID: {item.clientId}
                     </Link>
@@ -92,15 +90,11 @@ export const ExpiringMembershipsSection: React.FC<ExpiringMembershipsSectionProp
                         : `${item.daysRemaining}d remaining`}
                     </Badge>
                   </div>
-                  <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 truncate">
-                    Plan:{' '}
-                    <span className="font-medium text-slate-800 dark:text-slate-200">
-                      {item.planName}
-                    </span>{' '}
-                    •{' '}
+                  <p className="text-xs text-muted-foreground mt-1 truncate">
+                    Plan: <span className="font-medium text-foreground">{item.planName}</span> •{' '}
                     <Link
                       to={`/gym/memberships/${item.membershipId}`}
-                      className="hover:underline text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+                      className="hover:underline text-muted-foreground hover:text-foreground"
                     >
                       Mem: {item.membershipId}
                     </Link>{' '}

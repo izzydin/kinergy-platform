@@ -117,7 +117,7 @@ export const RecurrenceScopeDialog: React.FC<RecurrenceScopeDialogProps> = ({
                       Detaches this specific appointment from the recurring series. All past and
                       future recurring appointments remain completely untouched.
                     </p>
-                    <span className="inline-block mt-2 text-[10px] uppercase font-semibold tracking-wider text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900">
+                    <span className="inline-block mt-2 text-[10px] uppercase font-semibold tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded border border-primary/20">
                       Detached Occurrence • Modified Exception
                     </span>
                   </div>

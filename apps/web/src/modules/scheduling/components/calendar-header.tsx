@@ -100,7 +100,7 @@ export const CalendarHeader: React.FC<CalendarHeaderProps> = ({
 
           {/* Facility Timezone Indicator */}
           <div
-            className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-xs font-medium text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700"
+            className="inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground border border-border"
             title={`Authoritative Facility Timezone: ${FACILITY_TIMEZONE}. All schedule slots correspond to clinic operational hours.`}
             role="status"
             aria-label={`Facility timezone: ${FACILITY_TIMEZONE}`}

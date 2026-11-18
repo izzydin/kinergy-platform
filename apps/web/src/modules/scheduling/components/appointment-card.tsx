@@ -71,7 +71,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
       >
         <span className="font-semibold shrink-0 text-[11px]">{startTimeLabel}</span>
         <span
-          className="truncate font-semibold text-slate-900 dark:text-slate-100 flex-1"
+          className="truncate font-semibold text-foreground flex-1"
           data-testid="month-chip-client-name"
         >
           {clientTitle}
@@ -95,15 +95,13 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
       className={`group relative rounded-md border text-left transition-all shadow-xs cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1 select-none overflow-hidden ${
         hasConflict
           ? 'border-rose-400 bg-rose-50/90 text-rose-950 dark:bg-rose-950/30 dark:border-rose-700/60 dark:text-rose-100'
-          : 'border-slate-200 bg-white/95 text-slate-900 dark:border-slate-800 dark:bg-slate-900/90 dark:text-slate-100 hover:border-primary/50 hover:shadow-md'
+          : 'border-border bg-card/95 text-foreground hover:border-primary/50 hover:shadow-md'
       } ${variant === 'compact' ? 'p-1.5 text-xs' : 'p-2.5 text-xs'} ${className}`}
       aria-label={`Appointment: ${timeDisplay}, ${clientTitle}, ${serviceLabel}. Status: ${appointment.status}`}
     >
       {/* 1. Top Header: Time & Badges */}
       <div className="flex items-center justify-between gap-1 mb-1">
-        <span className="font-semibold text-slate-800 dark:text-slate-200 tracking-tight">
-          {timeDisplay}
-        </span>
+        <span className="font-semibold text-foreground tracking-tight">{timeDisplay}</span>
         <div className="flex items-center gap-1 shrink-0">
           {hasConflict && <ConflictBadge size="sm" />}
           <CalendarStatusBadge status={appointment.status} size="sm" />
@@ -112,7 +110,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
       {/* 2. Client Full Name */}
       <div
-        className="font-bold text-slate-950 dark:text-slate-50 truncate text-xs leading-snug tracking-tight mb-0.5"
+        className="font-bold text-foreground truncate text-xs leading-snug tracking-tight mb-0.5"
         data-testid="appointment-card-client-name"
       >
         {clientTitle}
@@ -125,7 +123,7 @@ export const AppointmentCard: React.FC<AppointmentCardProps> = ({
 
       {/* 4. Assessment Summary / Note (Detailed view) */}
       {variant === 'detailed' && assessmentSummary && (
-        <div className="text-[11px] text-slate-600 dark:text-slate-400 italic truncate mb-1 line-clamp-1">
+        <div className="text-[11px] text-muted-foreground italic truncate mb-1 line-clamp-1">
           Assessment: {assessmentSummary}
         </div>
       )}

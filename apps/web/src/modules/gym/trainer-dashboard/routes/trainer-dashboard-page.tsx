@@ -138,20 +138,20 @@ export const TrainerDashboardPage: React.FC = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       {/* Top Header & Context */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border">
         <div>
           <div className="flex items-center space-x-3">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white tracking-tight">
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight">
               {t('gym.trainerTitle', 'Trainer Operational Dashboard')}
             </h1>
             <Badge variant="secondary">{t('Gym Operations', 'Gym Operations')}</Badge>
           </div>
-          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             {t(
               'Real-time client assignments, membership status, and facility check-ins for',
               'Real-time client assignments, membership status, and facility check-ins for',
             )}{' '}
-            <span className="font-semibold text-slate-700 dark:text-slate-200">
+            <span className="font-semibold text-foreground">
               {currentUser?.email ?? 'Assigned Trainer'}
             </span>
           </p>
@@ -219,23 +219,23 @@ export const TrainerDashboardPage: React.FC = () => {
           {/* Selected Client Overview Card */}
           {selectedClient && (
             <Card
-              className="bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/60 shadow-sm"
+              className="bg-muted/40 border border-border shadow-sm"
               data-testid="selected-client-inspection-card"
             >
               <CardHeader className="p-4 pb-2 flex flex-row items-center justify-between">
-                <CardTitle className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-foreground">
                   Client Inspection: {selectedClient.fullName}
                 </CardTitle>
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-6 px-2 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-900"
+                  className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
                   onClick={handleClearSelectedClient}
                 >
                   ✕ Close
                 </Button>
               </CardHeader>
-              <CardContent className="p-4 pt-0 space-y-1.5 text-xs text-indigo-900 dark:text-indigo-200">
+              <CardContent className="p-4 pt-0 space-y-1.5 text-xs text-foreground">
                 <p>
                   <strong>Client ID:</strong> {selectedClient.id}
                 </p>
@@ -251,7 +251,7 @@ export const TrainerDashboardPage: React.FC = () => {
                 <div className="pt-2">
                   <Link
                     to={`/clients/${selectedClient.id}`}
-                    className="inline-flex items-center text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+                    className="inline-flex items-center text-xs font-semibold text-primary hover:underline"
                   >
                     View Full Client Profile →
                   </Link>

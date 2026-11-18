@@ -116,7 +116,7 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
   const getCounterClass = (length: number, max: number) => {
     if (length > max) return 'text-red-600 font-semibold';
     if (length > max * 0.9) return 'text-amber-600 font-medium';
-    return 'text-slate-400';
+    return 'text-muted-foreground';
   };
 
   const onSubmit = async (data: SoapNotesFormData) => {
@@ -155,13 +155,13 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
 
   return (
     <>
-      <Card className="w-full shadow-sm border-slate-200" data-testid="soap-notes-card">
+      <Card className="w-full shadow-sm border-border" data-testid="soap-notes-card">
         <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-3 gap-3">
           <div className="space-y-1">
-            <CardTitle className="text-lg font-semibold text-slate-900">
+            <CardTitle className="text-lg font-semibold text-foreground">
               Clinical SOAP Documentation
             </CardTitle>
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               {isTerminalStatus
                 ? 'Signed clinical documentation — locked & permanently immutable.'
                 : !canEdit
@@ -313,9 +313,9 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
               <div className="flex justify-between items-center">
                 <label
                   htmlFor="soap-subjective"
-                  className="text-sm font-medium text-slate-700 flex items-center gap-1.5"
+                  className="text-sm font-medium text-foreground flex items-center gap-1.5"
                 >
-                  <span className="font-bold text-indigo-700">S</span>
+                  <span className="font-bold text-primary">S</span>
                   <span> — Subjective (Patient Complaints, Symptoms, History)</span>
                 </label>
                 <span
@@ -341,11 +341,11 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
                 }
                 className={cn(
                   'w-full rounded-md border p-2.5 text-sm shadow-sm transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                   errors.subjective
                     ? 'border-red-400 focus:border-red-500 bg-red-50/20'
-                    : 'border-slate-300 focus:border-indigo-500',
-                  (isReadOnly || isSaving) && 'bg-slate-50 text-slate-500 cursor-not-allowed',
+                    : 'border-input bg-background text-foreground focus:border-primary',
+                  (isReadOnly || isSaving) && 'bg-muted text-muted-foreground cursor-not-allowed',
                 )}
                 placeholder="Patient stated pain levels, chief complaints, functional improvements..."
               />
@@ -365,9 +365,9 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
               <div className="flex justify-between items-center">
                 <label
                   htmlFor="soap-objective"
-                  className="text-sm font-medium text-slate-700 flex items-center gap-1.5"
+                  className="text-sm font-medium text-foreground flex items-center gap-1.5"
                 >
-                  <span className="font-bold text-indigo-700">O</span>
+                  <span className="font-bold text-primary">O</span>
                   <span> — Objective (Muscle Tests, Range of Motion, Palpation)</span>
                 </label>
                 <span
@@ -393,11 +393,11 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
                 }
                 className={cn(
                   'w-full rounded-md border p-2.5 text-sm shadow-sm transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                   errors.objective
                     ? 'border-red-400 focus:border-red-500 bg-red-50/20'
-                    : 'border-slate-300 focus:border-indigo-500',
-                  (isReadOnly || isSaving) && 'bg-slate-50 text-slate-500 cursor-not-allowed',
+                    : 'border-input bg-background text-foreground focus:border-primary',
+                  (isReadOnly || isSaving) && 'bg-muted text-muted-foreground cursor-not-allowed',
                 )}
                 placeholder="Kinesiology muscle balance indicators, posture findings, structural tests..."
               />
@@ -417,9 +417,9 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
               <div className="flex justify-between items-center">
                 <label
                   htmlFor="soap-assessment"
-                  className="text-sm font-medium text-slate-700 flex items-center gap-1.5"
+                  className="text-sm font-medium text-foreground flex items-center gap-1.5"
                 >
-                  <span className="font-bold text-indigo-700">A</span>
+                  <span className="font-bold text-primary">A</span>
                   <span> — Assessment (Clinical Analysis, Kinetic Chains)</span>
                 </label>
                 <span
@@ -445,11 +445,11 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
                 }
                 className={cn(
                   'w-full rounded-md border p-2.5 text-sm shadow-sm transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                   errors.assessment
                     ? 'border-red-400 focus:border-red-500 bg-red-50/20'
-                    : 'border-slate-300 focus:border-indigo-500',
-                  (isReadOnly || isSaving) && 'bg-slate-50 text-slate-500 cursor-not-allowed',
+                    : 'border-input bg-background text-foreground focus:border-primary',
+                  (isReadOnly || isSaving) && 'bg-muted text-muted-foreground cursor-not-allowed',
                 )}
                 placeholder="Practitioner diagnostic evaluation, kinetic chain correlations, progress..."
               />
@@ -469,9 +469,9 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
               <div className="flex justify-between items-center">
                 <label
                   htmlFor="soap-plan"
-                  className="text-sm font-medium text-slate-700 flex items-center gap-1.5"
+                  className="text-sm font-medium text-foreground flex items-center gap-1.5"
                 >
-                  <span className="font-bold text-indigo-700">P</span>
+                  <span className="font-bold text-primary">P</span>
                   <span> — Plan (Interventions, Exercises, Follow-up)</span>
                 </label>
                 <span
@@ -493,11 +493,11 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
                 aria-describedby={errors.plan ? 'soap-plan-error soap-plan-desc' : 'soap-plan-desc'}
                 className={cn(
                   'w-full rounded-md border p-2.5 text-sm shadow-sm transition-colors',
-                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-1',
+                  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1',
                   errors.plan
                     ? 'border-red-400 focus:border-red-500 bg-red-50/20'
-                    : 'border-slate-300 focus:border-indigo-500',
-                  (isReadOnly || isSaving) && 'bg-slate-50 text-slate-500 cursor-not-allowed',
+                    : 'border-input bg-background text-foreground focus:border-primary',
+                  (isReadOnly || isSaving) && 'bg-muted text-muted-foreground cursor-not-allowed',
                 )}
                 placeholder="Therapeutic exercise prescription, ergonomic advice, follow-up cadence..."
               />
@@ -509,11 +509,11 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
             </div>
 
             {/* Optional Freeform Observations & Raw Notes Section */}
-            <div className="pt-2 border-t border-slate-100">
+            <div className="pt-2 border-t border-border">
               <button
                 type="button"
                 onClick={() => setShowRawNotes((prev) => !prev)}
-                className="text-xs font-medium text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                className="text-xs font-medium text-primary hover:underline flex items-center gap-1"
                 aria-expanded={showRawNotes}
                 aria-controls="soap-raw-section"
               >
@@ -523,7 +523,7 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
               {showRawNotes && (
                 <div id="soap-raw-section" className="mt-2 space-y-1">
                   <div className="flex justify-between items-center">
-                    <label htmlFor="soap-raw-text" className="text-xs font-medium text-slate-600">
+                    <label htmlFor="soap-raw-text" className="text-xs font-medium text-foreground">
                       Additional Clinical Notes / Raw Dictation (Optional)
                     </label>
                     <span
@@ -547,11 +547,12 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
                     aria-describedby="soap-raw-desc"
                     className={cn(
                       'w-full rounded-md border p-2.5 text-xs shadow-sm font-mono transition-colors',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
                       errors.rawText && !errors.rawText.message?.includes('Total')
                         ? 'border-red-400 focus:border-red-500 bg-red-50/20'
-                        : 'border-slate-300 focus:border-indigo-500',
-                      (isReadOnly || isSaving) && 'bg-slate-50 text-slate-500 cursor-not-allowed',
+                        : 'border-input bg-background text-foreground focus:border-primary',
+                      (isReadOnly || isSaving) &&
+                        'bg-muted text-muted-foreground cursor-not-allowed',
                     )}
                     placeholder="Unstructured observations, verbal patient quotes, legacy charting..."
                   />
@@ -561,8 +562,8 @@ export const SoapNotesForm: React.FC<SoapNotesFormProps> = ({
 
             {/* Bottom Actions and Total Note Metrics */}
             {!isReadOnly && (
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                <div className="text-xs text-slate-500">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-border">
+                <div className="text-xs text-muted-foreground">
                   Total note length:{' '}
                   <span
                     data-testid="soap-total-counter"

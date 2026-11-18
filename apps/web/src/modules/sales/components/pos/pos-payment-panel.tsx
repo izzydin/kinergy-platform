@@ -87,7 +87,7 @@ export const PosPaymentPanel: React.FC<PosPaymentPanelProps> = ({
             onClick={() => setSelectedMethod('QR')}
             className={`flex items-center justify-center gap-2 p-2.5 rounded-lg border text-xs font-semibold transition-all ${
               selectedMethod === 'QR'
-                ? 'border-blue-500 bg-blue-500/10 text-blue-600 dark:text-blue-400 ring-1 ring-blue-500'
+                ? 'border-primary bg-primary/10 text-primary ring-1 ring-primary'
                 : 'border-border bg-card text-muted-foreground hover:bg-muted/50'
             } ${isCartEmpty ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             data-testid="pos-pay-qr-btn"

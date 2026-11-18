@@ -63,10 +63,10 @@ export const MovementHistorySummary: React.FC<MovementHistorySummaryProps> = ({
           {/* 2. Outbound Operations */}
           <div className="p-3 rounded-lg bg-muted/40 border border-border/60">
             <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
-              <TrendingDown className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              <TrendingDown className="h-3.5 w-3.5 text-muted-foreground" />
               <span>Outbound Dispatches</span>
             </div>
-            <div className="text-xl font-bold font-mono text-blue-600 dark:text-blue-400">
+            <div className="text-xl font-bold font-mono text-foreground">
               -{outboundTotal}{' '}
               <span className="text-xs font-sans font-normal text-muted-foreground">
                 {product.unitOfMeasure}

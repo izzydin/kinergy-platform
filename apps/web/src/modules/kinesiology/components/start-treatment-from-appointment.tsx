@@ -137,16 +137,16 @@ export const StartTreatmentFromAppointment: React.FC<StartTreatmentFromAppointme
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Initiate Treatment Session</DialogTitle>
-            <p className="text-sm text-slate-500 mt-1">
+            <p className="text-sm text-muted-foreground mt-1">
               Create a clinical encounter record linked to Appointment #{appointment.id}.
             </p>
           </DialogHeader>
 
           <div className="space-y-4 py-2 text-sm">
-            <div className="grid grid-cols-2 gap-2 bg-slate-50 p-3 rounded-md border border-slate-100 text-xs">
+            <div className="grid grid-cols-2 gap-2 bg-muted/40 p-3 rounded-md border border-border text-xs">
               <div>
-                <span className="text-slate-500">Client Reference:</span>
-                <p className="font-medium text-slate-800" data-testid="client-reference-name">
+                <span className="text-muted-foreground">Client Reference:</span>
+                <p className="font-medium text-foreground" data-testid="client-reference-name">
                   {appointment.clientName &&
                   appointment.clientName !== `Client ${appointment.clientId}`
                     ? appointment.clientName
@@ -154,8 +154,8 @@ export const StartTreatmentFromAppointment: React.FC<StartTreatmentFromAppointme
                 </p>
               </div>
               <div>
-                <span className="text-slate-500">Scheduled Time:</span>
-                <p className="font-medium text-slate-800">
+                <span className="text-muted-foreground">Scheduled Time:</span>
+                <p className="font-medium text-foreground">
                   {new Date(appointment.startTime).toLocaleTimeString(undefined, {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -165,7 +165,7 @@ export const StartTreatmentFromAppointment: React.FC<StartTreatmentFromAppointme
             </div>
 
             <div className="space-y-1">
-              <label htmlFor="initial-notes" className="text-xs font-semibold text-slate-700">
+              <label htmlFor="initial-notes" className="text-xs font-semibold text-foreground">
                 Initial Consultation Notes (Optional)
               </label>
               <textarea
@@ -175,7 +175,7 @@ export const StartTreatmentFromAppointment: React.FC<StartTreatmentFromAppointme
                 disabled={createSession.isPending}
                 onChange={(e) => setInitialNotes(e.target.value)}
                 placeholder="Chief intake complaints, preliminary posture observations..."
-                className="w-full rounded-md border border-slate-300 p-2 text-xs shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 disabled:bg-slate-100"
+                className="w-full rounded-md border border-input bg-background text-foreground p-2 text-xs shadow-sm focus:border-primary focus:ring-1 focus:ring-primary disabled:bg-muted disabled:text-muted-foreground"
               />
             </div>
           </div>

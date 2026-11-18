@@ -221,18 +221,18 @@ export const EditSingleOccurrenceModal: React.FC<EditSingleOccurrenceModalProps>
 
             {/* Notice regarding detachment or reschedule */}
             {isRecurring ? (
-              <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 p-3 text-xs text-blue-900 dark:text-blue-300">
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-foreground">
                 <p className="font-semibold">Authoritative Detach Semantics</p>
-                <p className="text-[11px] mt-0.5 text-blue-800 dark:text-blue-400">
+                <p className="text-[11px] mt-0.5 text-muted-foreground">
                   Rescheduling here records a MODIFIED exception on the parent series and sets{' '}
                   <code>isDetachedFromSeries = true</code>. Future series rolling generation will
                   never overwrite this appointment.
                 </p>
               </div>
             ) : (
-              <div className="rounded-lg border border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20 p-3 text-xs text-blue-900 dark:text-blue-300">
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-xs text-foreground">
                 <p className="font-semibold">Reschedule Parameters</p>
-                <p className="text-[11px] mt-0.5 text-blue-800 dark:text-blue-400">
+                <p className="text-[11px] mt-0.5 text-muted-foreground">
                   Select a new date, time, therapist, or facility room. The system ensures the
                   target slot does not overlap with existing bookings or practitioner constraints.
                 </p>

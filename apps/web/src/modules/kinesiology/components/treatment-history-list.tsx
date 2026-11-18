@@ -111,14 +111,14 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
   const hasActiveFilters = Boolean(currentStatus || therapistId || dateFrom || dateTo);
 
   return (
-    <Card className="w-full shadow-sm border-slate-200">
-      <CardHeader className="space-y-4 pb-4 border-b border-slate-100">
+    <Card className="w-full shadow-sm border-border bg-card">
+      <CardHeader className="space-y-4 pb-4 border-b border-border">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
           <div>
-            <CardTitle className="text-xl font-bold text-slate-900">
+            <CardTitle className="text-xl font-bold text-foreground">
               Clinical Treatment History
             </CardTitle>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-muted-foreground mt-0.5">
               Longitudinal log of kinesiology encounters, muscle assessments, and SOAP clinical
               notes.
             </p>
@@ -151,7 +151,7 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
           <div className="space-y-1">
             <label
               htmlFor="filter-status"
-              className="text-xs font-semibold text-slate-600 uppercase tracking-wider"
+              className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
             >
               Session Status
             </label>
@@ -159,7 +159,7 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
               id="filter-status"
               value={currentStatus ?? ''}
               onChange={(e) => updateFilters({ status: e.target.value || undefined })}
-              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground shadow-sm focus:border-primary focus:ring-1 focus:ring-primary"
             >
               <option value="">All Statuses</option>
               <option value="COMPLETED">Completed</option>
@@ -173,7 +173,7 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
           <div className="space-y-1">
             <label
               htmlFor="filter-date-from"
-              className="text-xs font-semibold text-slate-600 uppercase tracking-wider"
+              className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
             >
               Date From
             </label>
@@ -182,7 +182,7 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
               type="date"
               value={dateFrom ?? ''}
               onChange={(e) => updateFilters({ dateFrom: e.target.value || undefined })}
-              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground shadow-sm focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </div>
 
@@ -190,7 +190,7 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
           <div className="space-y-1">
             <label
               htmlFor="filter-date-to"
-              className="text-xs font-semibold text-slate-600 uppercase tracking-wider"
+              className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
             >
               Date To
             </label>
@@ -199,7 +199,7 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
               type="date"
               value={dateTo ?? ''}
               onChange={(e) => updateFilters({ dateTo: e.target.value || undefined })}
-              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground shadow-sm focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </div>
 
@@ -207,7 +207,7 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
           <div className="space-y-1">
             <label
               htmlFor="filter-therapist"
-              className="text-xs font-semibold text-slate-600 uppercase tracking-wider"
+              className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
             >
               Therapist UUID
             </label>
@@ -217,7 +217,7 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
               placeholder="Search therapist..."
               value={therapistId ?? ''}
               onChange={(e) => updateFilters({ therapistId: e.target.value || undefined })}
-              className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-800 shadow-sm focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs text-foreground shadow-sm focus:border-primary focus:ring-1 focus:ring-primary"
             />
           </div>
         </div>
@@ -267,12 +267,12 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
             {data && data.items.length > 0 && (
               <div className="space-y-4">
                 {/* Semantic Responsive Data Table */}
-                <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <div className="overflow-x-auto rounded-lg border border-border">
                   <table
                     className="w-full text-left border-collapse"
                     aria-label="Client Treatment History Encounters"
                   >
-                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 text-xs uppercase font-semibold">
+                    <thead className="bg-muted/50 border-b border-border text-muted-foreground text-xs uppercase font-semibold">
                       <tr>
                         <th scope="col" className="py-3 px-4">
                           Session Date
@@ -294,21 +294,21 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
                         </th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 text-sm text-slate-800 bg-white">
+                    <tbody className="divide-y divide-border text-sm text-foreground bg-card">
                       {data.items.map((session) => (
                         <tr
                           key={session.sessionId}
                           data-testid={`treatment-session-row-${session.sessionId}`}
-                          className="hover:bg-slate-50/80 transition-colors"
+                          className="hover:bg-muted/40 transition-colors"
                         >
                           {/* Date */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            <div className="font-medium text-slate-900">
+                            <div className="font-medium text-foreground">
                               <time dateTime={session.createdAt}>
                                 {formatSessionDate(session.createdAt)}
                               </time>
                             </div>
-                            <div className="text-xs text-slate-400">
+                            <div className="text-xs text-muted-foreground">
                               <time dateTime={session.createdAt}>
                                 {formatSessionTime(session.createdAt)}
                               </time>
@@ -322,14 +322,14 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
 
                           {/* Therapist */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            <span className="font-mono text-xs text-slate-600 bg-slate-100 px-2 py-0.5 rounded">
+                            <span className="font-mono text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">
                               {session.therapistId}
                             </span>
                           </td>
 
                           {/* Appointment */}
                           <td className="py-3.5 px-4 whitespace-nowrap">
-                            <span className="font-mono text-xs text-slate-600">
+                            <span className="font-mono text-xs text-muted-foreground">
                               {session.appointmentId}
                             </span>
                           </td>
@@ -337,11 +337,11 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
                           {/* Summary */}
                           <td className="py-3.5 px-4 max-w-xs">
                             {session.notesSummary ? (
-                              <p className="text-xs text-slate-600 italic line-clamp-2">
+                              <p className="text-xs text-muted-foreground italic line-clamp-2">
                                 &quot;{session.notesSummary}&quot;
                               </p>
                             ) : (
-                              <span className="text-xs text-slate-400">
+                              <span className="text-xs text-muted-foreground">
                                 {session.hasFullNotes
                                   ? 'Full SOAP notes recorded'
                                   : 'No notes entered'}
@@ -368,10 +368,10 @@ export const TreatmentHistoryList: React.FC<TreatmentHistoryListProps> = ({
                 </div>
 
                 {/* Bounded Pagination Controls */}
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-slate-100">
-                  <p className="text-xs text-slate-500">
-                    Showing page <span className="font-semibold text-slate-700">{data.page}</span>{' '}
-                    of <span className="font-semibold text-slate-700">{data.totalPages}</span> (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground">
+                    Showing page <span className="font-semibold text-foreground">{data.page}</span>{' '}
+                    of <span className="font-semibold text-foreground">{data.totalPages}</span> (
                     {data.total} total sessions)
                   </p>
                   <div className="flex space-x-1">

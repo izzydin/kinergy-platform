@@ -51,23 +51,23 @@ export const ClientTreatmentHistoryPage: React.FC = () => {
   return (
     <div className="space-y-6 p-6 max-w-6xl mx-auto">
       {/* Client Context Profile Header */}
-      <Card className="border-slate-200 shadow-sm">
+      <Card className="border-border shadow-sm">
         <CardContent className="pt-6">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex items-center space-x-2 text-xs text-slate-500">
-                <Link to="/clients" className="hover:text-indigo-600">
+              <div className="flex items-center space-x-2 text-xs text-muted-foreground">
+                <Link to="/clients" className="hover:text-primary">
                   {locale === 'es' ? 'Directorio de clientes' : 'Clients Directory'}
                 </Link>
                 <span>/</span>
-                <span className="font-mono text-slate-700">{clientId}</span>
+                <span className="font-mono text-foreground">{clientId}</span>
               </div>
-              <h1 className="text-2xl font-bold text-slate-900">
+              <h1 className="text-2xl font-bold text-foreground">
                 {locale === 'es'
                   ? t('kinesiology.historyTitle', 'Historial clínico del paciente')
                   : 'Client Profile & Clinical Records'}
               </h1>
-              <p className="text-xs text-slate-500 font-mono">
+              <p className="text-xs text-muted-foreground font-mono">
                 {locale === 'es' ? 'ID de referencia del cliente:' : 'Client Reference ID:'}{' '}
                 {clientId}
               </p>
@@ -75,22 +75,22 @@ export const ClientTreatmentHistoryPage: React.FC = () => {
           </div>
 
           {/* Profile Navigation Tabs */}
-          <div className="flex border-b border-slate-200 mt-6 -mb-6 space-x-6 text-sm font-medium">
+          <div className="flex border-b border-border mt-6 -mb-6 space-x-6 text-sm font-medium">
             <Link
               to={`/clients/${clientId}`}
-              className="pb-3 text-slate-500 hover:text-slate-700 border-b-2 border-transparent transition-colors"
+              className="pb-3 text-muted-foreground hover:text-foreground border-b-2 border-transparent transition-colors"
             >
               {locale === 'es' ? 'Resumen' : 'Overview'}
             </Link>
             <Link
               to={`/clients/${clientId}/timeline`}
-              className="pb-3 text-slate-500 hover:text-slate-700 border-b-2 border-transparent transition-colors"
+              className="pb-3 text-muted-foreground hover:text-foreground border-b-2 border-transparent transition-colors"
             >
               {locale === 'es' ? 'Línea de tiempo' : 'Activity Timeline'}
             </Link>
             <Link
               to={`/clients/${clientId}/treatments`}
-              className="pb-3 text-indigo-600 border-b-2 border-indigo-600 font-semibold"
+              className="pb-3 text-primary border-b-2 border-primary font-semibold"
             >
               {locale === 'es' ? 'Historial de tratamientos' : 'Treatment History'}
             </Link>

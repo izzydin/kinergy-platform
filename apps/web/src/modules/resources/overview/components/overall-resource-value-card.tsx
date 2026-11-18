@@ -135,12 +135,12 @@ export const OverallResourceValueCard: React.FC<OverallResourceValueCardProps> =
             </div>
             <div className="h-2 w-full overflow-hidden rounded-full bg-muted flex">
               <div
-                className="bg-blue-600 dark:bg-blue-500 transition-all duration-500"
+                className="bg-chart-3 transition-all duration-500"
                 style={{ width: `${inventoryPercent}%` }}
                 title={`Consumable Inventory: ${inventoryPercent.toFixed(1)}%`}
               />
               <div
-                className="bg-emerald-600 dark:bg-emerald-500 transition-all duration-500"
+                className="bg-chart-1 transition-all duration-500"
                 style={{ width: `${fixedAssetPercent}%` }}
                 title={`Fixed Assets: ${fixedAssetPercent.toFixed(1)}%`}
               />
@@ -151,12 +151,12 @@ export const OverallResourceValueCard: React.FC<OverallResourceValueCardProps> =
           <div className="grid gap-3 sm:grid-cols-2 pt-1">
             {/* Domain A Contribution Pillar */}
             <div
-              className="rounded-lg border border-border/80 bg-background/60 p-4 transition-colors hover:border-blue-500/40"
+              className="rounded-lg border border-border/80 bg-background/60 p-4 transition-colors hover:border-primary/40"
               data-testid="combined-breakdown-inventory"
             >
               <div className="flex items-center justify-between pb-2">
                 <div className="flex items-center gap-2">
-                  <div className="rounded-md bg-blue-500/10 p-1.5 text-blue-600 dark:text-blue-400">
+                  <div className="rounded-md bg-primary/10 p-1.5 text-primary">
                     <Package className="h-4 w-4" aria-hidden="true" />
                   </div>
                   <div>
@@ -178,7 +178,7 @@ export const OverallResourceValueCard: React.FC<OverallResourceValueCardProps> =
                 </span>
                 <Link
                   to="/resources/inventory"
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:text-primary/80"
                   aria-label="View consumable inventory details"
                 >
                   View Details <ArrowUpRight className="h-3 w-3" />

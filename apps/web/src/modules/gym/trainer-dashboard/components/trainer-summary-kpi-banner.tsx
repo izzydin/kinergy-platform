@@ -49,7 +49,7 @@ export const TrainerSummaryKpiBanner: React.FC<TrainerSummaryKpiBannerProps> = (
       icon: '👥',
       badge: 'Active Roster',
       badgeVariant: 'secondary' as const,
-      color: 'text-indigo-600 dark:text-indigo-400',
+      color: 'text-primary',
     },
     {
       id: 'kpi-active-memberships',
@@ -101,7 +101,7 @@ export const TrainerSummaryKpiBanner: React.FC<TrainerSummaryKpiBannerProps> = (
       {kpis.map((kpi) => (
         <Card
           key={kpi.id}
-          className="border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 shadow-sm backdrop-blur transition-all duration-200 hover:shadow-md"
+          className="border border-border bg-card shadow-sm backdrop-blur transition-all duration-200 hover:shadow-md"
         >
           <CardContent className="p-4 flex flex-col justify-between h-full">
             <div className="flex items-center justify-between mb-2">
@@ -114,15 +114,13 @@ export const TrainerSummaryKpiBanner: React.FC<TrainerSummaryKpiBannerProps> = (
             </div>
             <div>
               {isLoading ? (
-                <div className="h-8 w-16 bg-slate-200 dark:bg-slate-800 animate-pulse rounded my-1" />
+                <div className="h-8 w-16 bg-muted animate-pulse rounded my-1" />
               ) : (
                 <div className={`text-2xl sm:text-3xl font-extrabold tracking-tight ${kpi.color}`}>
                   {kpi.value}
                 </div>
               )}
-              <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 truncate">
-                {kpi.label}
-              </p>
+              <p className="text-xs font-medium text-muted-foreground mt-1 truncate">{kpi.label}</p>
             </div>
           </CardContent>
         </Card>

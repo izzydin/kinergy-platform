@@ -66,7 +66,7 @@ export const TodayAttendanceTable: React.FC<TodayAttendanceTableProps> = ({
         return (
           <Badge
             variant="secondary"
-            className="bg-blue-100 text-blue-900 dark:bg-blue-950/40 dark:text-blue-200 text-[10px] px-2 py-0.5"
+            className="text-[10px] px-2 py-0.5"
             data-testid="attendance-result-badge-frozen"
           >
             FROZEN
@@ -134,11 +134,11 @@ export const TodayAttendanceTable: React.FC<TodayAttendanceTableProps> = ({
         </Card>
 
         <Card className="bg-card shadow-sm border-border/70 p-3">
-          <span className="text-[11px] font-medium text-blue-600 dark:text-blue-400 uppercase tracking-wider block">
+          <span className="text-[11px] font-medium text-primary uppercase tracking-wider block">
             Unique Visitors
           </span>
           <div
-            className="text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5 font-mono"
+            className="text-xl font-bold text-primary mt-0.5 font-mono"
             data-testid="kpi-unique-visitors"
           >
             {summary ? summary.uniqueClientsCount : '-'}

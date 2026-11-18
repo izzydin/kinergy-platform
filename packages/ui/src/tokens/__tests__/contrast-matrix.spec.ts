@@ -396,4 +396,89 @@ describe('WCAG 2.2 AA / AAA Comprehensive Contrast Validation Matrix', () => {
       ).toBe(true);
     });
   });
+
+  describe('8. Dark Mode Contrast Compliance Matrix (WCAG 2.2 AA / AAA)', () => {
+    // Approved Dark Palette Hex Equivalents (Derived from KIN-BRAND-UI-001)
+    const darkTokens = {
+      background: '#0d120f', // 144 15% 6%
+      card: '#202522', // 144 7.2% 13.5% (OFFICIAL_BRAND_TOKENS.kinergyCharcoal)
+      secondary: '#2b332e', // 144 6% 18%
+      foreground: '#f2f6f3', // 140 10% 96%
+      mutedForeground: '#9ea7a1', // 140 5% 65%
+      primary: '#68ce39', // 101.1 60.3% 51.6% (OFFICIAL_BRAND_TOKENS.kinergyGreen)
+      primaryForeground: '#202522', // 144 7.2% 13.5% (OFFICIAL_BRAND_TOKENS.kinergyCharcoal)
+    };
+
+    it('Primary Text on Dark Card (#f2f6f3 on #202522) achieves >= 7.0:1 (passes AAA >= 14.0:1)', () => {
+      const res = validateContrastCompliance(
+        darkTokens.foreground,
+        darkTokens.card,
+        'normal-text',
+        'AAA',
+      );
+      expect(res.ratio).toBeGreaterThanOrEqual(14.0);
+      expect(res.passes).toBe(true);
+    });
+
+    it('Primary Text on Dark Background (#f2f6f3 on #0d120f) achieves >= 7.0:1 (passes AAA >= 17.0:1)', () => {
+      const res = validateContrastCompliance(
+        darkTokens.foreground,
+        darkTokens.background,
+        'normal-text',
+        'AAA',
+      );
+      expect(res.ratio).toBeGreaterThanOrEqual(17.0);
+      expect(res.passes).toBe(true);
+    });
+
+    it('Muted Text on Dark Card (#9ea7a1 on #202522) achieves >= 4.5:1 (passes AA >= 6.0:1)', () => {
+      const res = validateContrastCompliance(
+        darkTokens.mutedForeground,
+        darkTokens.card,
+        'normal-text',
+        'AA',
+      );
+      expect(res.ratio).toBeGreaterThanOrEqual(6.0);
+      expect(res.passes).toBe(true);
+    });
+
+    it('Muted Text on Dark Background (#9ea7a1 on #0d120f) achieves >= 4.5:1 (passes AAA >= 7.0:1)', () => {
+      const res = validateContrastCompliance(
+        darkTokens.mutedForeground,
+        darkTokens.background,
+        'normal-text',
+        'AA',
+      );
+      expect(res.ratio).toBeGreaterThanOrEqual(7.0);
+      expect(res.passes).toBe(true);
+    });
+
+    it('Primary Action in Dark Mode: Charcoal on Green (#202522 on #68ce39) achieves >= 7.0:1 (AAA)', () => {
+      const res = validateContrastCompliance(
+        darkTokens.primaryForeground,
+        darkTokens.primary,
+        'normal-text',
+        'AAA',
+      );
+      expect(res.ratio).toBeGreaterThanOrEqual(7.0);
+      expect(res.passes).toBe(true);
+    });
+
+    it('Focus Ring / Boundary Non-text UI Contrast: Green on Card (#68ce39 on #202522) achieves >= 3.0:1', () => {
+      const ratio = calculateContrastRatio(darkTokens.primary, darkTokens.card);
+      expect(ratio).toBeGreaterThanOrEqual(7.0);
+      expect(isWcagNonTextAccessible(darkTokens.primary, darkTokens.card)).toBe(true);
+    });
+
+    it('Secondary Elevated Surface: Foreground on Secondary (#f2f6f3 on #2b332e) achieves >= 7.0:1 (AAA)', () => {
+      const res = validateContrastCompliance(
+        darkTokens.foreground,
+        darkTokens.secondary,
+        'normal-text',
+        'AAA',
+      );
+      expect(res.ratio).toBeGreaterThanOrEqual(10.0);
+      expect(res.passes).toBe(true);
+    });
+  });
 });

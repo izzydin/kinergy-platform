@@ -5,6 +5,7 @@ import {
   calculateContrastRatio,
   calculateRelativeLuminance,
   CHART_TOKENS,
+  DARK_SEMANTIC_COLORS,
   DESIGN_TOKENS,
   hexToRgb,
   INTERACTION_TOKENS,
@@ -273,6 +274,59 @@ describe('Kinergy Design System Token Engine & Contract Verification', () => {
       expect(DESIGN_TOKENS.status).toEqual(SEMANTIC_STATUS_TOKENS);
       expect(DESIGN_TOKENS.charts).toEqual(CHART_TOKENS);
       expect(DESIGN_TOKENS.interaction).toEqual(INTERACTION_TOKENS);
+    });
+  });
+
+  describe('6. Dark Mode Brand Alignment & Semantic Token Verification', () => {
+    it('verifies DARK_SEMANTIC_COLORS card and popover match official Kinergy Charcoal (#202522)', () => {
+      expect(DARK_SEMANTIC_COLORS.card).toBe('144 7.2% 13.5%');
+      expect(DARK_SEMANTIC_COLORS.popover).toBe('144 7.2% 13.5%');
+      expect(DARK_SEMANTIC_COLORS.primaryForeground).toBe('144 7.2% 13.5%');
+      expect(DARK_SEMANTIC_COLORS.brandForeground).toBe('144 7.2% 13.5%');
+    });
+
+    it('verifies DARK_SEMANTIC_COLORS primary and ring match official Kinergy Green (#68CE39)', () => {
+      expect(DARK_SEMANTIC_COLORS.primary).toBe('101.1 60.3% 51.6%');
+      expect(DARK_SEMANTIC_COLORS.ring).toBe('101.1 60.3% 51.6%');
+      expect(DARK_SEMANTIC_COLORS.brand).toBe('101.1 60.3% 51.6%');
+    });
+
+    it('verifies DARK_SEMANTIC_COLORS background uses deep organic charcoal canvas', () => {
+      expect(DARK_SEMANTIC_COLORS.background).toBe('144 15% 6%');
+    });
+
+    it('verifies DARK_SEMANTIC_COLORS foreground uses crisp high-contrast off-white', () => {
+      expect(DARK_SEMANTIC_COLORS.foreground).toBe('140 10% 96%');
+      expect(DARK_SEMANTIC_COLORS.cardForeground).toBe('140 10% 96%');
+      expect(DARK_SEMANTIC_COLORS.popoverForeground).toBe('140 10% 96%');
+    });
+
+    it('verifies zero legacy slate/blue starter hues (224 or 215) in DARK_SEMANTIC_COLORS', () => {
+      const allValues = Object.values(DARK_SEMANTIC_COLORS);
+      for (const val of allValues) {
+        expect(val).not.toContain('224');
+        expect(val).not.toContain('215');
+        expect(val).not.toContain('217.9');
+      }
+    });
+
+    it('verifies globals.css declares brand-aligned .dark variables and charcoal glass panel', () => {
+      const candidates = [
+        path.resolve(process.cwd(), 'apps/web/src/shared/styles/globals.css'),
+        path.resolve(__dirname, '../../../../../apps/web/src/shared/styles/globals.css'),
+      ];
+      const globalsCssPath = candidates.find((p) => fs.existsSync(p));
+      expect(globalsCssPath).toBeDefined();
+
+      const rawContent = fs.readFileSync(globalsCssPath!, 'utf-8');
+      expect(rawContent).toContain('--card: 144 7.2% 13.5%;');
+      expect(rawContent).toContain('--background: 144 15% 6%;');
+      expect(rawContent).toContain('--foreground: 140 10% 96%;');
+      expect(rawContent).toContain('--primary: 101.1 60.3% 51.6%;');
+      expect(rawContent).toContain('--primary-foreground: 144 7.2% 13.5%;');
+      // Glassmorphism panel grounded in Kinergy Charcoal (32, 37, 34)
+      expect(rawContent).toContain('rgba(32, 37, 34, 0.85)');
+      expect(rawContent).not.toContain('rgba(15, 23, 42');
     });
   });
 });

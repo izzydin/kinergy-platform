@@ -51,14 +51,14 @@ export const ClientTimelineList: React.FC<ClientTimelineListProps> = ({ clientId
   };
 
   return (
-    <Card className="w-full shadow-sm border-slate-200">
-      <CardHeader className="space-y-1 pb-4 border-b border-slate-100">
+    <Card className="w-full shadow-sm border-border bg-card">
+      <CardHeader className="space-y-1 pb-4 border-b border-border">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-xl font-bold text-slate-900">
+            <CardTitle className="text-xl font-bold text-foreground">
               Longitudinal Activity Timeline
             </CardTitle>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-muted-foreground mt-0.5">
               Chronological cross-context audit log of appointments, client milestones, and
               completed treatment sessions.
             </p>
@@ -94,7 +94,7 @@ export const ClientTimelineList: React.FC<ClientTimelineListProps> = ({ clientId
           {data && data.items.length > 0 && (
             <div className="space-y-6">
               {/* Chronological Event Stream */}
-              <div className="relative border-l-2 border-slate-200 ml-4 space-y-6">
+              <div className="relative border-l-2 border-border ml-4 space-y-6">
                 {data.items.map((entry) => {
                   const isKinesiology =
                     entry.sourceModule === 'kinesiology' ||
@@ -104,16 +104,16 @@ export const ClientTimelineList: React.FC<ClientTimelineListProps> = ({ clientId
                     <div key={entry.id} className="relative pl-6">
                       {/* Timeline Dot Indicator */}
                       <span
-                        className={`absolute -left-2 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-white ${
-                          isKinesiology ? 'bg-indigo-600' : 'bg-slate-400'
+                        className={`absolute -left-2 top-1.5 h-3.5 w-3.5 rounded-full border-2 border-background ${
+                          isKinesiology ? 'bg-primary' : 'bg-muted-foreground'
                         }`}
                       />
 
-                      <div className="rounded-lg border border-slate-200 bg-white p-4 shadow-sm hover:border-slate-300 transition-colors space-y-2">
+                      <div className="rounded-lg border border-border bg-card p-4 shadow-sm hover:border-border/80 transition-colors space-y-2">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                           <div className="flex items-center space-x-2">
                             {renderEventBadge(entry)}
-                            <span className="text-xs text-slate-400">
+                            <span className="text-xs text-muted-foreground">
                               {new Date(entry.occurredAt).toLocaleDateString(undefined, {
                                 year: 'numeric',
                                 month: 'short',
@@ -141,15 +141,15 @@ export const ClientTimelineList: React.FC<ClientTimelineListProps> = ({ clientId
                         </div>
 
                         {/* Event Summary */}
-                        <p className="text-sm font-medium text-slate-800">{entry.summary}</p>
+                        <p className="text-sm font-medium text-foreground">{entry.summary}</p>
 
                         {/* Approved Metadata (Zero Clinical Notes Exposed) */}
                         {isKinesiology && (
-                          <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-slate-500">
+                          <div className="flex flex-wrap items-center gap-3 pt-1 text-xs text-muted-foreground">
                             {entry.metadata?.therapistId && (
                               <span>
                                 Therapist:{' '}
-                                <strong className="font-mono text-slate-700">
+                                <strong className="font-mono text-foreground">
                                   {String(entry.metadata.therapistId)}
                                 </strong>
                               </span>
@@ -157,7 +157,7 @@ export const ClientTimelineList: React.FC<ClientTimelineListProps> = ({ clientId
                             {entry.metadata?.appointmentId && (
                               <span>
                                 Appointment:{' '}
-                                <strong className="font-mono text-slate-700">
+                                <strong className="font-mono text-foreground">
                                   {String(entry.metadata.appointmentId)}
                                 </strong>
                               </span>
@@ -172,10 +172,10 @@ export const ClientTimelineList: React.FC<ClientTimelineListProps> = ({ clientId
 
               {/* Bounded Pagination Controls */}
               {data.totalPages > 1 && (
-                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-4 border-t border-slate-100">
-                  <p className="text-xs text-slate-500">
-                    Showing page <span className="font-semibold text-slate-700">{data.page}</span>{' '}
-                    of <span className="font-semibold text-slate-700">{data.totalPages}</span> (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-2 pt-4 border-t border-border">
+                  <p className="text-xs text-muted-foreground">
+                    Showing page <span className="font-semibold text-foreground">{data.page}</span>{' '}
+                    of <span className="font-semibold text-foreground">{data.totalPages}</span> (
                     {data.total} total events)
                   </p>
                   <div className="flex space-x-1">

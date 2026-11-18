@@ -596,10 +596,10 @@ export const SaleCreatePage: React.FC = () => {
       >
         {/* Commercial Agreement Scope Disclaimer */}
         <div
-          className="p-3.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-950 dark:text-blue-200 text-xs flex items-start gap-2.5"
+          className="p-3.5 rounded-lg border border-border bg-muted/40 text-foreground text-xs flex items-start gap-2.5"
           data-testid="sale-create-scope-banner"
         >
-          <Info className="h-4 w-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
+          <Info className="h-4 w-4 shrink-0 mt-0.5 text-primary" />
           <div className="space-y-0.5">
             <span className="font-semibold block">Commercial Agreement Scope:</span>
             <span>

@@ -34,13 +34,13 @@ export const EVENT_TYPE_BADGE_CONFIG: Record<
   },
   [AssetHistoryEventType.UPDATED]: {
     label: 'Metadata Updated',
-    className: 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20',
-    markerColor: 'bg-blue-500',
+    className: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/20',
+    markerColor: 'bg-sky-500',
   },
   [AssetHistoryEventType.TRANSFERRED]: {
     label: 'Relocated',
-    className: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20',
-    markerColor: 'bg-indigo-500',
+    className: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/20',
+    markerColor: 'bg-purple-500',
   },
   [AssetHistoryEventType.STATUS_CHANGED]: {
     label: 'Status Transition',
@@ -69,8 +69,8 @@ export const EVENT_TYPE_BADGE_CONFIG: Record<
   },
   [AssetHistoryEventType.SOLD]: {
     label: 'Liquidated / Sold',
-    className: 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20',
-    markerColor: 'bg-slate-500',
+    className: 'bg-muted text-muted-foreground border-border',
+    markerColor: 'bg-muted-foreground',
   },
 };
 

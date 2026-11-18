@@ -159,37 +159,37 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
             {/* Top Navigation Breadcrumbs */}
             <nav
               aria-label="Breadcrumb"
-              className="flex items-center space-x-2 text-xs text-slate-500"
+              className="flex items-center space-x-2 text-xs text-muted-foreground"
             >
-              <Link to="/clients" className="hover:text-indigo-600">
+              <Link to="/clients" className="hover:text-primary">
                 Clients
               </Link>
               <span aria-hidden="true">/</span>
               <Link
                 to={`/clients/${session.clientId}/treatments`}
-                className="hover:text-indigo-600 font-mono"
+                className="hover:text-primary font-mono"
               >
                 {session.clientId}
               </Link>
               <span aria-hidden="true">/</span>
-              <span className="font-mono text-slate-700" aria-current="page">
+              <span className="font-mono text-foreground" aria-current="page">
                 Session {session.id}
               </span>
             </nav>
 
             {/* Top Header Card */}
-            <Card className="shadow-sm border-slate-200">
+            <Card className="shadow-sm border-border bg-card">
               <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 pb-4">
                 <div className="space-y-1">
                   <div className="flex items-center space-x-3">
-                    <h1 className="text-2xl font-bold text-slate-900">
+                    <h1 className="text-2xl font-bold text-foreground">
                       {locale === 'es'
                         ? t('kinesiology.workspaceTitle', 'Espacio de sesión de tratamiento')
                         : 'Treatment Session Detail'}
                     </h1>
                     <SessionStatusBadge status={session.status} />
                   </div>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-xs text-muted-foreground">
                     {locale === 'es' ? 'ID de sesión:' : 'Session ID:'}{' '}
                     <span className="font-mono">{session.id}</span> •{' '}
                     {locale === 'es' ? 'Versión:' : 'Version:'} {session.version}
@@ -257,37 +257,39 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
                 </div>
               </CardHeader>
 
-              <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 border-t border-slate-100 pt-4 text-sm">
+              <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4 border-t border-border pt-4 text-sm">
                 <div>
-                  <span className="text-slate-500 text-xs uppercase tracking-wider font-medium">
+                  <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
                     Client Reference
                   </span>
                   <p className="mt-0.5">
                     <Link
                       to={`/clients/${session.clientId}`}
-                      className="font-mono text-indigo-600 hover:underline text-xs"
+                      className="font-mono text-primary hover:underline text-xs"
                     >
                       {session.clientId}
                     </Link>
                   </p>
                 </div>
                 <div>
-                  <span className="text-slate-500 text-xs uppercase tracking-wider font-medium">
+                  <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
                     Assigned Therapist
                   </span>
-                  <p className="font-mono text-slate-800 text-xs mt-0.5">{session.therapistId}</p>
+                  <p className="font-mono text-foreground text-xs mt-0.5">{session.therapistId}</p>
                 </div>
                 <div>
-                  <span className="text-slate-500 text-xs uppercase tracking-wider font-medium">
+                  <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
                     Linked Appointment
                   </span>
-                  <p className="font-mono text-slate-800 text-xs mt-0.5">{session.appointmentId}</p>
+                  <p className="font-mono text-foreground text-xs mt-0.5">
+                    {session.appointmentId}
+                  </p>
                 </div>
                 <div>
-                  <span className="text-slate-500 text-xs uppercase tracking-wider font-medium">
+                  <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
                     Session Recorded At
                   </span>
-                  <p className="text-slate-800 text-xs mt-0.5">
+                  <p className="text-foreground text-xs mt-0.5">
                     {new Date(session.createdAt).toLocaleDateString(undefined, {
                       year: 'numeric',
                       month: 'short',
@@ -298,10 +300,10 @@ export const TreatmentSessionWorkspacePage: React.FC = () => {
                   </p>
                 </div>
                 <div>
-                  <span className="text-slate-500 text-xs uppercase tracking-wider font-medium">
+                  <span className="text-muted-foreground text-xs uppercase tracking-wider font-medium">
                     Clinical Charting
                   </span>
-                  <p className="text-slate-800 text-xs mt-0.5 font-medium">
+                  <p className="text-foreground text-xs mt-0.5 font-medium">
                     {session.status === 'COMPLETED'
                       ? 'Finalized (Signed & Sealed)'
                       : session.notes?.subjective ||

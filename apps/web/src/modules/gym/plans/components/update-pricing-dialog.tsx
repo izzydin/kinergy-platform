@@ -119,7 +119,7 @@ export const UpdatePricingDialog: React.FC<UpdatePricingDialogProps> = ({
           </div>
         )}
 
-        <Alert className="bg-blue-50/70 border-blue-200 text-blue-800 dark:bg-blue-950/20 dark:border-blue-800 dark:text-blue-300">
+        <Alert variant="info">
           <Info className="h-4 w-4" />
           <AlertTitle>Historical Decoupling</AlertTitle>
           <AlertDescription className="text-xs">

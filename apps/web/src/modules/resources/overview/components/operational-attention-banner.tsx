@@ -159,14 +159,14 @@ export const OperationalAttentionBanner: React.FC<OperationalAttentionBannerProp
           {/* Item 3: Assets Under Maintenance */}
           {maintenanceCount > 0 && (
             <div
-              className="flex items-center justify-between rounded-md border border-blue-500/20 bg-background/80 p-3"
+              className="flex items-center justify-between rounded-md border border-border bg-background/80 p-3"
               data-testid="attention-item-maintenance"
             >
               <div className="space-y-0.5">
                 <div className="flex items-center gap-1.5">
                   <Badge
                     variant="outline"
-                    className="border-blue-500/40 text-blue-600 dark:text-blue-400 h-5 px-1.5 text-[10px]"
+                    className="border-primary/40 text-primary h-5 px-1.5 text-[10px]"
                   >
                     <Wrench className="mr-1 h-2.5 w-2.5" />
                     {maintenanceCount} Servicing

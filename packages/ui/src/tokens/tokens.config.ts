@@ -144,32 +144,34 @@ export const LIGHT_SEMANTIC_COLORS: SemanticColors = {
 
 /**
  * =============================================================================
- * Dark Theme HSL Semantic Design Tokens (Architecture Prepared for Future)
+ * Dark Theme HSL Semantic Design Tokens (KIN-BRAND-UI-001 Brand Aligned)
  * =============================================================================
- * Prepared clean architecture without unapproved auto-inversion.
+ * Grounded in official Kinergy Charcoal (#202522 / 144 7.2% 13.5%) container
+ * surfaces and Kinergy Green (#68CE39 / 101.1 60.3% 51.6%) primary action.
+ * Eliminates all legacy dark-blue / slate starter hues (224 / 215).
  */
 export const DARK_SEMANTIC_COLORS: SemanticColors = {
-  background: '224 71% 4%',
-  foreground: '213 31% 91%',
-  card: '224 71% 7%',
-  cardForeground: '213 31% 91%',
-  popover: '224 71% 7%',
-  popoverForeground: '213 31% 91%',
-  primary: '101.1 60.3% 51.6%', // Kinergy Green
-  primaryForeground: '144 7.2% 13.5%', // Charcoal foreground
-  secondary: '215 27.9% 16.9%',
-  secondaryForeground: '210 20% 98%',
-  muted: '215 27.9% 16.9%',
-  mutedForeground: '217.9 10.6% 64.9%',
-  accent: '215 27.9% 16.9%',
-  accentForeground: '210 20% 98%',
-  destructive: '0 62.8% 30.6%',
-  destructiveForeground: '210 20% 98%',
-  border: '215 27.9% 16.9%',
-  input: '215 27.9% 16.9%',
-  ring: '101.1 60.3% 51.6%',
-  brand: '101.1 60.3% 51.6%',
-  brandForeground: '144 7.2% 13.5%',
+  background: '144 15% 6%', // #0d120f - deep organic charcoal canvas
+  foreground: '140 10% 96%', // #f2f6f3 - crisp off-white typography (14.27:1 on card)
+  card: '144 7.2% 13.5%', // #202522 - official Kinergy Charcoal container surface
+  cardForeground: '140 10% 96%', // #f2f6f3
+  popover: '144 7.2% 13.5%', // #202522 - elevated popover / dialog surface
+  popoverForeground: '140 10% 96%', // #f2f6f3
+  primary: '101.1 60.3% 51.6%', // #68CE39 - official Kinergy Green
+  primaryForeground: '144 7.2% 13.5%', // #202522 - Charcoal foreground (7.77:1 AAA contrast)
+  secondary: '144 6% 18%', // #2b332e - elevated secondary surface
+  secondaryForeground: '140 10% 96%', // #f2f6f3
+  muted: '144 6% 18%', // #2b332e - muted surface
+  mutedForeground: '140 5% 65%', // #9ea7a1 - secondary text (6.30:1 AA contrast on card)
+  accent: '144 6% 18%', // #2b332e - hover / active row accent
+  accentForeground: '140 10% 96%', // #f2f6f3
+  destructive: '0 62.8% 45%', // #ba2c2c - accessible dark mode destructive
+  destructiveForeground: '0 0% 100%', // #ffffff
+  border: '144 6% 22%', // #353e38 - neutral boundary divider
+  input: '144 6% 24%', // #3a453e - form control boundary
+  ring: '101.1 60.3% 51.6%', // #68CE39 - Kinergy Green focus ring (7.77:1 AAA)
+  brand: '101.1 60.3% 51.6%', // #68CE39 - official Kinergy Green
+  brandForeground: '144 7.2% 13.5%', // #202522 - Charcoal foreground
 };
 
 /**
