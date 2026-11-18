@@ -310,7 +310,9 @@ export interface AssetMaintenanceRecordVM {
   assetId: string;
   serviceDate: string;
   description: string;
-  cost: {
+  costAmount?: number;
+  costCurrency?: string;
+  cost?: {
     amount: number;
     currency: string;
   };

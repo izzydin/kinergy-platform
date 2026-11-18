@@ -73,11 +73,20 @@ export const AssetMaintenancePreview: React.FC<AssetMaintenancePreviewProps> = (
     <div className="space-y-3" data-testid="asset-maintenance-preview">
       <div className="grid grid-cols-1 gap-3">
         {records.map((rec) => {
-          const formattedDate = new Date(rec.serviceDate).toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-          });
+          let formattedDate = 'N/A';
+          if (rec.serviceDate) {
+            const d = new Date(rec.serviceDate);
+            if (!isNaN(d.getTime())) {
+              formattedDate = d.toLocaleDateString(undefined, {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+              });
+            }
+          }
+
+          const costAmount =
+            typeof rec.costAmount === 'number' ? rec.costAmount : (rec.cost?.amount ?? 0);
 
           return (
             <div
@@ -113,7 +122,7 @@ export const AssetMaintenancePreview: React.FC<AssetMaintenancePreviewProps> = (
                   <DollarSign className="h-3.5 w-3.5 text-emerald-600" />
                   <span>
                     $
-                    {rec.cost.amount.toLocaleString('en-US', {
+                    {costAmount.toLocaleString('en-US', {
                       minimumFractionDigits: 2,
                       maximumFractionDigits: 2,
                     })}

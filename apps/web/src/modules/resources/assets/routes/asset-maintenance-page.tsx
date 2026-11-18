@@ -171,8 +171,8 @@ export const AssetMaintenancePage: React.FC = () => {
                 Operational Placement
               </p>
               <p className="font-mono font-medium text-sm text-foreground mt-2">
-                {asset.location.facilityId}
-                {asset.location.roomId && ` • ${asset.location.roomId}`}
+                {asset.location?.facilityId ?? 'Unassigned'}
+                {asset.location?.roomId && ` • ${asset.location.roomId}`}
               </p>
             </Card>
           </div>
@@ -285,14 +285,21 @@ export const AssetMaintenancePage: React.FC = () => {
                   data-testid="maintenance-records-list"
                 >
                   {records.map((rec) => {
-                    const serviceDateFormatted = new Date(rec.serviceDate).toLocaleDateString(
-                      'en-US',
-                      {
-                        year: 'numeric',
-                        month: 'short',
-                        day: 'numeric',
-                      },
-                    );
+                    let serviceDateFormatted = 'N/A';
+                    if (rec.serviceDate) {
+                      const d = new Date(rec.serviceDate);
+                      if (!isNaN(d.getTime())) {
+                        serviceDateFormatted = d.toLocaleDateString('en-US', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric',
+                        });
+                      }
+                    }
+
+                    const costAmount =
+                      typeof rec.costAmount === 'number' ? rec.costAmount : (rec.cost?.amount ?? 0);
+                    const costCurrency = rec.costCurrency ?? rec.cost?.currency ?? 'USD';
 
                     return (
                       <div
@@ -330,8 +337,8 @@ export const AssetMaintenancePage: React.FC = () => {
                               <div className="flex items-center gap-1 font-mono font-semibold text-foreground text-sm">
                                 <DollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                                 <span>
-                                  $
-                                  {rec.cost.amount.toLocaleString('en-US', {
+                                  {costCurrency !== 'USD' && `${costCurrency} `}$
+                                  {costAmount.toLocaleString('en-US', {
                                     minimumFractionDigits: 2,
                                     maximumFractionDigits: 2,
                                   })}

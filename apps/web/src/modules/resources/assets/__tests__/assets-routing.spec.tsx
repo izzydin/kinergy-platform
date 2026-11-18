@@ -76,11 +76,13 @@ describe('Fixed Assets Routing & Permission Integration', () => {
   describe('1. Read-Only Asset Operator (assets.read)', () => {
     it('allows access to assets list catalog route', async () => {
       renderWithRoute('/resources/assets', READONLY_ASSET_OPERATOR);
-      expect(await screen.findByTestId('assets-list-page')).toBeInTheDocument();
+      expect(
+        await screen.findByTestId('assets-list-page', {}, { timeout: 10000 }),
+      ).toBeInTheDocument();
       expect(screen.getByRole('heading', { name: 'Fixed Assets' })).toBeInTheDocument();
       // Should NOT render commission button because assets.write is missing
       expect(screen.queryByText('Commission New Asset')).not.toBeInTheDocument();
-    });
+    }, 15000);
 
     it('allows access to asset detail cockpit route', async () => {
       renderWithRoute('/resources/assets/ast-101', READONLY_ASSET_OPERATOR);

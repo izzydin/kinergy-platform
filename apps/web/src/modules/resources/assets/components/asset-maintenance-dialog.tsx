@@ -194,8 +194,10 @@ export const RecordAssetMaintenanceDialog: React.FC<RecordAssetMaintenanceDialog
             </div>
             <p className="text-foreground">
               Current Placement:{' '}
-              <span className="font-medium font-mono">{asset.location.facilityId}</span>
-              {asset.location.roomId && ` • ${asset.location.roomId}`}
+              <span className="font-medium font-mono">
+                {asset.location?.facilityId ?? 'Unassigned'}
+              </span>
+              {asset.location?.roomId && ` • ${asset.location.roomId}`}
             </p>
           </div>
 

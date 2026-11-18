@@ -209,7 +209,7 @@ describe('Milestone 7.2 Resources API Integration & Architectural Foundation Mat
         performedBy: 'Certified Biodex Tech',
       });
       expect(rec.id).toBe('maint-rec-1');
-      expect(rec.cost.amount).toBe(350.0);
+      expect(rec.cost?.amount).toBe(350.0);
     });
   });
 

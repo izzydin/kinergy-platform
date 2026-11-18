@@ -66,6 +66,10 @@ export class FixedAssetDtoMapper {
       description: record.description,
       costAmount: record.cost.amount,
       costCurrency: record.cost.currency,
+      cost: {
+        amount: record.cost.amount,
+        currency: record.cost.currency,
+      },
       performedBy: record.performedBy,
       notes: record.notes,
       recordedByUserId: record.recordedByUserId,

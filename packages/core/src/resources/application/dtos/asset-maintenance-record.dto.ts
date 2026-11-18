@@ -5,6 +5,10 @@ export interface AssetMaintenanceRecordDTO {
   description: string;
   costAmount: number;
   costCurrency: string;
+  cost?: {
+    amount: number;
+    currency: string;
+  };
   performedBy: string;
   notes?: string;
   recordedByUserId: string;

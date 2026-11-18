@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { RecordAssetMaintenanceDialog } from '../components/asset-maintenance-dialog';
+import { AssetMaintenancePreview } from '../components/asset-maintenance-preview';
 import { AssetMaintenancePage } from '../routes/asset-maintenance-page';
 import { assetsApi } from '../api/assets-api';
 import { NotificationProvider } from '../../../../app/providers/notification-provider';
@@ -337,6 +338,171 @@ describe('Asset Maintenance Workflows (Recording & Authoritative Ledger)', () =>
 
       expect(await screen.findByTestId('ledger-empty')).toBeInTheDocument();
       expect(screen.getByText(/No servicing work orders logged/i)).toBeInTheDocument();
+    });
+
+    it('4. renders maintenance records returned with flat costAmount and costCurrency (API response shape)', async () => {
+      (assetsApi.getAsset as jest.Mock).mockResolvedValue(mockActiveAsset);
+      (assetsApi.getMaintenanceHistory as jest.Mock).mockResolvedValue({
+        items: [
+          {
+            id: 'maint-flat-1',
+            assetId: 'ast-maint-1',
+            serviceDate: '2026-11-17T00:00:00.000Z',
+            description: 'Routine hydraulic fluid check and calibration',
+            costAmount: 125.5,
+            costCurrency: 'USD',
+            performedBy: 'Lead Field Tech',
+            recordedByUserId: 'usr-1',
+            createdAt: '2026-11-17T12:00:00.000Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      });
+
+      render(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <NotificationProvider>
+            <AuthProvider initialSessionOverride={authorizedManagerSession}>
+              <MemoryRouter initialEntries={['/resources/assets/ast-maint-1/maintenance']}>
+                <Routes>
+                  <Route
+                    path="/resources/assets/:id/maintenance"
+                    element={<AssetMaintenancePage />}
+                  />
+                </Routes>
+              </MemoryRouter>
+            </AuthProvider>
+          </NotificationProvider>
+        </QueryClientProvider>,
+      );
+
+      expect(
+        await screen.findByText('Routine hydraulic fluid check and calibration'),
+      ).toBeInTheDocument();
+      expect(screen.getByText('Lead Field Tech')).toBeInTheDocument();
+      expect(screen.getByText('$125.50')).toBeInTheDocument();
+    });
+
+    it('5. gracefully handles missing/undefined cost and location properties without crashing', async () => {
+      const assetWithoutLocation: FixedAssetVM = {
+        ...mockActiveAsset,
+        location: undefined as unknown as FixedAssetVM['location'],
+      };
+
+      (assetsApi.getAsset as jest.Mock).mockResolvedValue(assetWithoutLocation);
+      (assetsApi.getMaintenanceHistory as jest.Mock).mockResolvedValue({
+        items: [
+          {
+            id: 'maint-no-cost',
+            assetId: 'ast-maint-1',
+            serviceDate: '2026-11-17T00:00:00.000Z',
+            description: 'Complimentary safety inspection',
+            performedBy: 'In-House Tech',
+            recordedByUserId: 'usr-1',
+            createdAt: '2026-11-17T12:00:00.000Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 10,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      });
+
+      render(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <NotificationProvider>
+            <AuthProvider initialSessionOverride={authorizedManagerSession}>
+              <MemoryRouter initialEntries={['/resources/assets/ast-maint-1/maintenance']}>
+                <Routes>
+                  <Route
+                    path="/resources/assets/:id/maintenance"
+                    element={<AssetMaintenancePage />}
+                  />
+                </Routes>
+              </MemoryRouter>
+            </AuthProvider>
+          </NotificationProvider>
+        </QueryClientProvider>,
+      );
+
+      expect(await screen.findByText('Complimentary safety inspection')).toBeInTheDocument();
+      expect(screen.getByText('Unassigned')).toBeInTheDocument();
+      expect(screen.getByText('$0.00')).toBeInTheDocument();
+    });
+
+    it('6. displays ledger error alert and retry button when maintenance query fails', async () => {
+      (assetsApi.getAsset as jest.Mock).mockResolvedValue(mockActiveAsset);
+      (assetsApi.getMaintenanceHistory as jest.Mock).mockRejectedValue(
+        new Error('Network connectivity issue'),
+      );
+
+      render(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <NotificationProvider>
+            <AuthProvider initialSessionOverride={authorizedManagerSession}>
+              <MemoryRouter initialEntries={['/resources/assets/ast-maint-1/maintenance']}>
+                <Routes>
+                  <Route
+                    path="/resources/assets/:id/maintenance"
+                    element={<AssetMaintenancePage />}
+                  />
+                </Routes>
+              </MemoryRouter>
+            </AuthProvider>
+          </NotificationProvider>
+        </QueryClientProvider>,
+      );
+
+      expect(await screen.findByTestId('ledger-error')).toBeInTheDocument();
+      expect(screen.getByText('Failed to load servicing ledger')).toBeInTheDocument();
+      expect(screen.getByText('Network connectivity issue')).toBeInTheDocument();
+      expect(screen.getByText('Retry Query')).toBeInTheDocument();
+    });
+  });
+
+  describe('AssetMaintenancePreview', () => {
+    it('renders preview with flat costAmount format and links to full maintenance ledger', async () => {
+      (assetsApi.getMaintenanceHistory as jest.Mock).mockResolvedValue({
+        items: [
+          {
+            id: 'maint-prev-1',
+            assetId: 'ast-maint-1',
+            serviceDate: '2026-11-17T00:00:00.000Z',
+            description: 'Preventative sensor lubrication',
+            costAmount: 49.99,
+            costCurrency: 'USD',
+            performedBy: 'Service Pro',
+            recordedByUserId: 'usr-1',
+            createdAt: '2026-11-17T12:00:00.000Z',
+          },
+        ],
+        total: 1,
+        page: 1,
+        limit: 5,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPreviousPage: false,
+      });
+
+      render(
+        <QueryClientProvider client={createTestQueryClient()}>
+          <MemoryRouter>
+            <AssetMaintenancePreview assetId="ast-maint-1" />
+          </MemoryRouter>
+        </QueryClientProvider>,
+      );
+
+      expect(await screen.findByText('Preventative sensor lubrication')).toBeInTheDocument();
+      expect(screen.getByText('Service Pro')).toBeInTheDocument();
+      expect(screen.getByText('$49.99')).toBeInTheDocument();
+      expect(screen.getByText(/View Full Maintenance Ledger/i)).toBeInTheDocument();
     });
   });
 });
