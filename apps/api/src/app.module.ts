@@ -9,6 +9,7 @@ import { GymModule } from './gym';
 import { KinesiologyModule } from './kinesiology';
 import { ResourcesModule } from './resources';
 import { SalesModule } from './sales';
+import { AiModule } from './ai';
 import { GlobalSanitizationValidationPipe } from './common/pipes';
 
 @Module({
@@ -24,6 +25,7 @@ import { GlobalSanitizationValidationPipe } from './common/pipes';
     GymModule,
     ResourcesModule,
     SalesModule,
+    AiModule.forRoot(),
   ],
   controllers: [AppController],
   providers: [

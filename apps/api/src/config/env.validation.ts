@@ -98,6 +98,38 @@ export const envSchema = z
       .number()
       .positive()
       .default(5 * 1024 * 1024 * 1024),
+    // Artificial Intelligence & Local Inference Settings (AI-02)
+    AI_ENABLED: z
+      .union([z.boolean(), z.string()])
+      .transform((val) => (typeof val === 'boolean' ? val : val === 'true' || val === '1'))
+      .default(false),
+    AI_LLM_PROVIDER: z.enum(['mock', 'ollama']).default('mock'),
+    AI_EMBEDDING_PROVIDER: z.enum(['mock', 'ollama']).default('mock'),
+    AI_OLLAMA_BASE_URL: z.string().default('http://127.0.0.1:11434'),
+    AI_OLLAMA_REQUEST_TIMEOUT_MS: z.coerce.number().positive().default(30000),
+    AI_OLLAMA_HEALTH_TIMEOUT_MS: z.coerce.number().positive().default(3000),
+    AI_CHAT_MODEL: z.string().default('qwen3:4b'),
+    AI_CHAT_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.2),
+    AI_CHAT_MAX_OUTPUT_TOKENS: z.coerce.number().positive().max(32768).default(512),
+    AI_CHAT_CONTEXT_WINDOW: z.coerce.number().positive().max(262144).default(4096),
+    AI_CHAT_MAX_CONCURRENT_REQUESTS: z.coerce.number().positive().max(16).default(1),
+    AI_EMBEDDING_MODEL: z.string().default('bge-m3:latest'),
+    AI_EMBEDDING_DIMENSIONS: z.coerce.number().positive().default(1024),
+    AI_EMBEDDING_BATCH_SIZE: z.coerce.number().positive().max(128).default(16),
+    AI_EMBEDDING_MAX_CONCURRENT_REQUESTS: z.coerce.number().positive().max(16).default(2),
+    AI_HEALTH_CHECK_ENABLED: z
+      .union([z.boolean(), z.string()])
+      .transform((val) => (typeof val === 'boolean' ? val : val === 'true' || val === '1'))
+      .default(true),
+    AI_PROVIDER_STARTUP_CHECK: z
+      .union([z.boolean(), z.string()])
+      .transform((val) => (typeof val === 'boolean' ? val : val === 'true' || val === '1'))
+      .default(false),
+    AI_PROVIDER_FAILURE_THRESHOLD: z.coerce.number().positive().default(3),
+    // Aliases for backwards compatibility
+    AI_LLM_MODEL: z.string().optional(),
+    AI_TIMEOUT_MS: z.coerce.number().positive().optional(),
+    AI_MAX_PARALLEL_GENERATION: z.coerce.number().positive().optional(),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
@@ -154,6 +186,28 @@ export const envSchema = z
           code: z.ZodIssueCode.custom,
           message: 'Wildcard CORS_ORIGINS ("*") is strictly prohibited in production environment.',
           path: ['CORS_ORIGINS'],
+        });
+      }
+    }
+
+    if (data.AI_ENABLED) {
+      if (
+        !data.AI_OLLAMA_BASE_URL ||
+        (!data.AI_OLLAMA_BASE_URL.startsWith('http://') &&
+          !data.AI_OLLAMA_BASE_URL.startsWith('https://'))
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'AI_OLLAMA_BASE_URL must be a valid HTTP or HTTPS URL when AI_ENABLED is true.',
+          path: ['AI_OLLAMA_BASE_URL'],
+        });
+      }
+      if (data.AI_EMBEDDING_DIMENSIONS !== 1024) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'AI_EMBEDDING_DIMENSIONS must be strictly 1024 when BGE-M3 is configured (AI-01 requirement).',
+          path: ['AI_EMBEDDING_DIMENSIONS'],
         });
       }
     }

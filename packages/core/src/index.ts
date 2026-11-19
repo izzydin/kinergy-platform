@@ -3,5 +3,6 @@ export * from './kinesiology';
 export * from './gym';
 export * from './resources';
 export * from './sales';
+export * from './ai';
 export { Money, MoneyProps, InvalidMoneyException } from './sales';
 export type { PaginatedResultDTO } from './sales';
