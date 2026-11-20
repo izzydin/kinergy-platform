@@ -46,6 +46,10 @@ export class ChunkId {
     return new ChunkId(`chk_${time}_${rand}`);
   }
 
+  public static fromString(id: string): ChunkId {
+    return ChunkId.create(id);
+  }
+
   /**
    * Generates a deterministic, repeatable Chunk ID derived from source document lineage,
    * sequence, versioned chunking configuration, and chunk text payload.

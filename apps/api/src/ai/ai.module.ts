@@ -24,8 +24,23 @@ import {
   DOCUMENT_CHUNKER_TOKEN,
   KNOWLEDGE_CHUNK_REPOSITORY,
   DOCUMENT_PROCESSING_PIPELINE_SERVICE,
+  EMBEDDING_GENERATION_PIPELINE_SERVICE,
+  INDEX_GENERATION_REPOSITORY,
+  VECTOR_STORE_REPOSITORY,
+  VECTOR_INDEXING_JOB_REPOSITORY,
+  VECTOR_INDEXING_ORCHESTRATOR_SERVICE,
+  INDEX_GENERATION_COMPLETENESS_VALIDATOR,
+  VECTOR_INDEXING_RECOVERY_WORKER,
+  MODEL_CHANGE_DETECTOR_SERVICE,
+  VECTOR_CLEANUP_SERVICE,
+  INDEX_REINDEXING_SERVICE,
 } from './ai.tokens';
-import { DOCUMENT_INDEXING_PORT } from '@kinergy-platform/core';
+import {
+  DOCUMENT_INDEXING_PORT,
+  INDEX_GENERATION_REPOSITORY_PORT,
+  VECTOR_STORE_PORT,
+  VECTOR_INDEXING_JOB_REPOSITORY_PORT,
+} from '@kinergy-platform/core';
 import {
   PdfParserAdapter,
   DocxParserAdapter,
@@ -40,6 +55,13 @@ import {
 import { DeterministicBpeTokenizerAdapter } from './adapters/tokenizers/deterministic-bpe-tokenizer.adapter';
 import { StructureAwareChunkerService } from './services/chunking/structure-aware-chunker.service';
 import { DocumentProcessingPipelineService } from './services/document-processing-pipeline.service';
+import { EmbeddingGenerationPipelineService } from './services/embedding-generation-pipeline.service';
+import { IndexGenerationCompletenessValidatorService } from './services/indexing/index-generation-completeness-validator.service';
+import { VectorIndexingOrchestratorService } from './services/indexing/vector-indexing-orchestrator.service';
+import { VectorIndexingRecoveryWorker } from './services/indexing/vector-indexing-recovery.worker';
+import { ModelChangeDetectorService } from './services/indexing/model-change-detector.service';
+import { VectorCleanupService } from './services/indexing/vector-cleanup.service';
+import { IndexReindexingService } from './services/indexing/index-reindexing.service';
 import { PendingDocumentIndexingAdapter } from './adapters/indexing/pending-document-indexing.adapter';
 import { IngestionOrchestratorService } from './services/ingestion-orchestrator.service';
 import { IngestionRecoveryWorker } from './services/ingestion-recovery.worker';
@@ -61,6 +83,9 @@ import {
   PrismaKnowledgeDocumentRepository,
   PrismaIngestionJobRepository,
   PrismaKnowledgeChunkRepository,
+  PrismaVectorStoreRepository,
+  PrismaIndexGenerationRepository,
+  PrismaVectorIndexingJobRepository,
 } from '@kinergy-platform/core/server';
 
 export interface AiModuleOptions {
@@ -272,7 +297,70 @@ export class AiModule implements OnApplicationBootstrap {
 
     const indexingPortProvider = {
       provide: DOCUMENT_INDEXING_PORT,
-      useClass: PendingDocumentIndexingAdapter,
+      useClass: VectorIndexingOrchestratorService,
+    };
+
+    const indexGenRepoProvider = {
+      provide: INDEX_GENERATION_REPOSITORY_PORT,
+      useFactory: (prisma: PrismaService) => new PrismaIndexGenerationRepository(prisma),
+      inject: [PrismaService],
+    };
+
+    const indexGenRepoAlias = {
+      provide: INDEX_GENERATION_REPOSITORY,
+      useExisting: INDEX_GENERATION_REPOSITORY_PORT,
+    };
+
+    const vectorStoreRepoProvider = {
+      provide: VECTOR_STORE_PORT,
+      useFactory: (prisma: PrismaService) => new PrismaVectorStoreRepository(prisma),
+      inject: [PrismaService],
+    };
+
+    const vectorStoreRepoAlias = {
+      provide: VECTOR_STORE_REPOSITORY,
+      useExisting: VECTOR_STORE_PORT,
+    };
+
+    const vectorJobRepoProvider = {
+      provide: VECTOR_INDEXING_JOB_REPOSITORY_PORT,
+      useFactory: (prisma: PrismaService) => new PrismaVectorIndexingJobRepository(prisma),
+      inject: [PrismaService],
+    };
+
+    const vectorJobRepoAlias = {
+      provide: VECTOR_INDEXING_JOB_REPOSITORY,
+      useExisting: VECTOR_INDEXING_JOB_REPOSITORY_PORT,
+    };
+
+    const vectorOrchestratorProvider = {
+      provide: VECTOR_INDEXING_ORCHESTRATOR_SERVICE,
+      useClass: VectorIndexingOrchestratorService,
+    };
+
+    const completenessValidatorProvider = {
+      provide: INDEX_GENERATION_COMPLETENESS_VALIDATOR,
+      useClass: IndexGenerationCompletenessValidatorService,
+    };
+
+    const vectorRecoveryWorkerProvider = {
+      provide: VECTOR_INDEXING_RECOVERY_WORKER,
+      useClass: VectorIndexingRecoveryWorker,
+    };
+
+    const modelChangeDetectorProvider = {
+      provide: MODEL_CHANGE_DETECTOR_SERVICE,
+      useClass: ModelChangeDetectorService,
+    };
+
+    const vectorCleanupProvider = {
+      provide: VECTOR_CLEANUP_SERVICE,
+      useClass: VectorCleanupService,
+    };
+
+    const indexReindexingProvider = {
+      provide: INDEX_REINDEXING_SERVICE,
+      useClass: IndexReindexingService,
     };
 
     const orchestratorProvider = {
@@ -321,6 +409,11 @@ export class AiModule implements OnApplicationBootstrap {
       useClass: DocumentProcessingPipelineService,
     };
 
+    const embeddingPipelineProvider = {
+      provide: EMBEDDING_GENERATION_PIPELINE_SERVICE,
+      useClass: EmbeddingGenerationPipelineService,
+    };
+
     return {
       module: AiModule,
       imports: [PrismaModule, StorageModule.register(), IdentityModule],
@@ -359,6 +452,26 @@ export class AiModule implements OnApplicationBootstrap {
         knowledgeChunkRepoProvider,
         processingPipelineProvider,
         DocumentProcessingPipelineService,
+        embeddingPipelineProvider,
+        EmbeddingGenerationPipelineService,
+        indexGenRepoProvider,
+        indexGenRepoAlias,
+        vectorStoreRepoProvider,
+        vectorStoreRepoAlias,
+        vectorJobRepoProvider,
+        vectorJobRepoAlias,
+        vectorOrchestratorProvider,
+        VectorIndexingOrchestratorService,
+        completenessValidatorProvider,
+        IndexGenerationCompletenessValidatorService,
+        vectorRecoveryWorkerProvider,
+        VectorIndexingRecoveryWorker,
+        modelChangeDetectorProvider,
+        ModelChangeDetectorService,
+        vectorCleanupProvider,
+        VectorCleanupService,
+        indexReindexingProvider,
+        IndexReindexingService,
       ],
       exports: [
         AI_CONFIG_TOKEN,
@@ -390,6 +503,26 @@ export class AiModule implements OnApplicationBootstrap {
         KNOWLEDGE_CHUNK_REPOSITORY,
         DOCUMENT_PROCESSING_PIPELINE_SERVICE,
         DocumentProcessingPipelineService,
+        EMBEDDING_GENERATION_PIPELINE_SERVICE,
+        EmbeddingGenerationPipelineService,
+        INDEX_GENERATION_REPOSITORY_PORT,
+        INDEX_GENERATION_REPOSITORY,
+        VECTOR_STORE_PORT,
+        VECTOR_STORE_REPOSITORY,
+        VECTOR_INDEXING_JOB_REPOSITORY_PORT,
+        VECTOR_INDEXING_JOB_REPOSITORY,
+        VECTOR_INDEXING_ORCHESTRATOR_SERVICE,
+        VectorIndexingOrchestratorService,
+        INDEX_GENERATION_COMPLETENESS_VALIDATOR,
+        IndexGenerationCompletenessValidatorService,
+        VECTOR_INDEXING_RECOVERY_WORKER,
+        VectorIndexingRecoveryWorker,
+        MODEL_CHANGE_DETECTOR_SERVICE,
+        ModelChangeDetectorService,
+        VECTOR_CLEANUP_SERVICE,
+        VectorCleanupService,
+        INDEX_REINDEXING_SERVICE,
+        IndexReindexingService,
       ],
     };
   }

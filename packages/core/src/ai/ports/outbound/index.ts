@@ -9,3 +9,6 @@ export * from './tokenizer.port';
 export * from './language-detector.port';
 export * from './document-normalizer.port';
 export * from './document-chunker.port';
+export * from './vector-store.port';
+export * from './index-generation-repository.port';
+export * from './vector-indexing-job-repository.port';

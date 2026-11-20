@@ -113,7 +113,32 @@ describe('Ollama Live Hardware & Provider Integration Suite (Task 3 Compliance)'
       expect(embedHealth.model).toBe('bge-m3:latest');
     }, 10000);
 
-    it('should generate real 1024-dimensional embedding for Spanish text', async () => {
+    it('should resolve live model digest and metadata', async () => {
+      if (!isOllamaRunning) return;
+
+      const digest = await embeddingAdapter.getModelDigest();
+      expect(digest).toBeDefined();
+      expect(digest.length).toBeGreaterThan(16);
+
+      const metadata = await embeddingAdapter.getModelMetadata();
+      expect(metadata.provider).toBe('ollama');
+      expect(metadata.modelName).toBe('bge-m3');
+      expect(metadata.dimensions).toBe(1024);
+      expect(metadata.modelDigest).toBe(digest);
+    }, 10000);
+
+    it('should resolve an immutable EmbeddingProfile from the live runtime', async () => {
+      if (!isOllamaRunning) return;
+
+      const profile = await embeddingAdapter.resolveProfile();
+      expect(profile).toBeDefined();
+      expect(profile.provider).toBe('ollama');
+      expect(profile.modelName).toBe('bge-m3');
+      expect(profile.dimensions).toBe(1024);
+      expect(profile.profileId).toContain('prof_bge-m3_1024_');
+    }, 10000);
+
+    it('should generate real 1024-dimensional unit-normalized embedding for Spanish text', async () => {
       if (!isOllamaRunning) return;
 
       const vector = await embeddingAdapter.generateEmbedding(
@@ -124,9 +149,13 @@ describe('Ollama Live Hardware & Provider Integration Suite (Task 3 Compliance)'
       expect(vector).toHaveLength(1024);
       expect(typeof vector[0]).toBe('number');
       expect(Number.isFinite(vector[0])).toBe(true);
+
+      // Verify unit-normalization from /api/embed
+      const norm = Math.sqrt(vector.reduce((s, x) => s + x * x, 0));
+      expect(norm).toBeCloseTo(1.0, 3);
     }, 30000);
 
-    it('should generate real 1024-dimensional embedding for English text', async () => {
+    it('should generate real 1024-dimensional unit-normalized embedding for English text', async () => {
       if (!isOllamaRunning) return;
 
       const vector = await embeddingAdapter.generateEmbedding(
@@ -136,9 +165,26 @@ describe('Ollama Live Hardware & Provider Integration Suite (Task 3 Compliance)'
       expect(vector).toBeDefined();
       expect(vector).toHaveLength(1024);
       expect(Number.isFinite(vector[0])).toBe(true);
+
+      const norm = Math.sqrt(vector.reduce((s, x) => s + x * x, 0));
+      expect(norm).toBeCloseTo(1.0, 3);
     }, 30000);
 
-    it('should generate batch embeddings for multiple text chunks concurrently', async () => {
+    it('should produce bitwise deterministic vectors for identical repeated inputs', async () => {
+      if (!isOllamaRunning) return;
+
+      const input = 'Tratamiento kinésico post-quirúrgico de manguito rotador.';
+      const v1 = await embeddingAdapter.generateEmbedding(input);
+      const v2 = await embeddingAdapter.generateEmbedding(input);
+
+      expect(v1.length).toBe(1024);
+      expect(v2.length).toBe(1024);
+      for (let i = 0; i < 1024; i++) {
+        expect(v1[i]).toBe(v2[i]);
+      }
+    }, 30000);
+
+    it('should generate batch embeddings for multiple text chunks via native batching', async () => {
       if (!isOllamaRunning) return;
 
       const batch = [
@@ -150,6 +196,12 @@ describe('Ollama Live Hardware & Provider Integration Suite (Task 3 Compliance)'
       expect(vectors).toHaveLength(2);
       expect(vectors[0]).toHaveLength(1024);
       expect(vectors[1]).toHaveLength(1024);
+
+      // Verify each is unit normalized
+      const norm0 = Math.sqrt(vectors[0]!.reduce((s, x) => s + x * x, 0));
+      const norm1 = Math.sqrt(vectors[1]!.reduce((s, x) => s + x * x, 0));
+      expect(norm0).toBeCloseTo(1.0, 3);
+      expect(norm1).toBeCloseTo(1.0, 3);
     }, 30000);
 
     it('should reject empty or whitespace-only inputs without making network calls', async () => {

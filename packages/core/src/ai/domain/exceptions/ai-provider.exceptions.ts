@@ -59,3 +59,21 @@ export class AiConfigurationInvalidException extends AiDomainException {
     super(message, 'CONFIGURATION_INVALID');
   }
 }
+
+export class InputTooLargeException extends AiDomainException {
+  constructor(message = 'Input payload exceeds maximum model context limit.') {
+    super(message, 'INPUT_TOO_LARGE');
+  }
+}
+
+export class ResourceExhaustedException extends AiDomainException {
+  constructor(message = 'AI inference runtime resources exhausted.') {
+    super(message, 'RESOURCE_EXHAUSTED');
+  }
+}
+
+export class InvalidEmbeddingRequestException extends AiDomainException {
+  constructor(message = 'Invalid embedding request payload.') {
+    super(message, 'INVALID_REQUEST');
+  }
+}

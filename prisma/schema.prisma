@@ -871,9 +871,10 @@ model KnowledgeDocument {
   updatedAt        DateTime        @updatedAt @map("updated_at")
   deletedAt        DateTime?       @map("deleted_at")
 
-  versions      DocumentVersion[] @relation("DocumentToVersions")
-  ingestionJobs IngestionJob[]    @relation("DocumentToIngestionJobs")
-  chunks        KnowledgeChunk[]  @relation("DocumentToChunks")
+  versions      DocumentVersion[]   @relation("DocumentToVersions")
+  ingestionJobs IngestionJob[]      @relation("DocumentToIngestionJobs")
+  chunks        KnowledgeChunk[]    @relation("DocumentToChunks")
+  embeddings    DocumentEmbedding[] @relation("DocumentToEmbeddings")
 
   @@index([tenantId])
   @@index([tenantId, visibilityScope])
@@ -895,9 +896,10 @@ model DocumentVersion {
   uploadedBy       String   @map("uploaded_by")
   createdAt        DateTime @default(now()) @map("created_at")
 
-  document      KnowledgeDocument @relation("DocumentToVersions", fields: [documentId], references: [id], onDelete: Cascade)
-  ingestionJobs IngestionJob[]    @relation("VersionToIngestionJobs")
-  chunks        KnowledgeChunk[]  @relation("VersionToChunks")
+  document      KnowledgeDocument   @relation("DocumentToVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  ingestionJobs IngestionJob[]      @relation("VersionToIngestionJobs")
+  chunks        KnowledgeChunk[]    @relation("VersionToChunks")
+  embeddings    DocumentEmbedding[] @relation("VersionToEmbeddings")
 
   @@unique([documentId, versionNumber], name: "unique_document_version_number")
   @@unique([documentId, checksum], name: "unique_document_checksum")
@@ -952,8 +954,9 @@ model KnowledgeChunk {
   checksum          String   @map("checksum") @db.VarChar(64)
   createdAt         DateTime @default(now()) @map("created_at")
 
-  document KnowledgeDocument @relation("DocumentToChunks", fields: [documentId], references: [id], onDelete: Cascade)
-  version  DocumentVersion   @relation("VersionToChunks", fields: [documentVersionId], references: [id], onDelete: Cascade)
+  document   KnowledgeDocument   @relation("DocumentToChunks", fields: [documentId], references: [id], onDelete: Cascade)
+  version    DocumentVersion     @relation("VersionToChunks", fields: [documentVersionId], references: [id], onDelete: Cascade)
+  embeddings DocumentEmbedding[] @relation("ChunkToEmbeddings")
 
   @@unique([documentVersionId, sequence], name: "unique_version_chunk_sequence")
   @@index([tenantId])
@@ -961,4 +964,165 @@ model KnowledgeChunk {
   @@index([documentVersionId])
   @@index([createdAt])
   @@map("knowledge_chunks")
+}
+
+// ==========================================
+// AI-05: VECTOR EMBEDDING & INDEXING ENUMS
+// ==========================================
+
+enum EmbeddingType {
+  DENSE
+  SPARSE
+  HYBRID
+}
+
+enum NormalizationPolicy {
+  UNIT_L2
+  NONE
+}
+
+enum PoolingStrategy {
+  CLS
+  MEAN
+  LAST_TOKEN
+}
+
+enum IndexGenerationStatus {
+  DRAFT
+  BUILDING
+  VALIDATING
+  ACTIVE
+  RETIRED
+  FAILED
+  CANCELLED
+}
+
+enum VectorIndexingScope {
+  DOCUMENT
+  DOCUMENT_VERSION
+  INDEX_GENERATION
+  REINDEX_ALL
+}
+
+enum VectorIndexingJobStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// ==========================================
+// AI-05: VECTOR EMBEDDING & INDEXING MODELS
+// ==========================================
+
+model EmbeddingProfile {
+  id                  String              @id @default(uuid())
+  profileId           String              @unique @map("profile_id") @db.VarChar(128)
+  provider            String              @map("provider") @db.VarChar(64)
+  modelName           String              @map("model_name") @db.VarChar(128)
+  modelVersion        String              @map("model_version") @db.VarChar(64)
+  modelDigest         String              @map("model_digest") @db.VarChar(128)
+  dimensions          Int                 @map("dimensions")
+  tokenizerIdentity   String              @map("tokenizer_identity") @db.VarChar(128)
+  normalizationPolicy NormalizationPolicy @default(UNIT_L2) @map("normalization_policy")
+  poolingStrategy     PoolingStrategy     @default(CLS) @map("pooling_strategy")
+  embeddingType       EmbeddingType       @default(DENSE) @map("embedding_type")
+  createdAt           DateTime            @default(now()) @map("created_at")
+
+  indexGenerations IndexGeneration[]   @relation("ProfileToGenerations")
+  embeddings       DocumentEmbedding[] @relation("ProfileToEmbeddings")
+
+  @@index([provider, modelName])
+  @@index([modelDigest])
+  @@map("embedding_profiles")
+}
+
+model IndexGeneration {
+  id                 String                @id @default(uuid())
+  tenantId           String                @map("tenant_id")
+  generationNumber   Int                   @map("generation_number")
+  profileId          String                @map("profile_id") @db.VarChar(128)
+  status             IndexGenerationStatus @default(DRAFT) @map("status")
+  targetChunkCount   Int                   @default(0) @map("target_chunk_count")
+  indexedChunkCount  Int                   @default(0) @map("indexed_chunk_count")
+  failedChunkCount   Int                   @default(0) @map("failed_chunk_count")
+  version            Int                   @default(1) @map("version")
+  createdAt          DateTime              @default(now()) @map("created_at")
+  startedAt          DateTime?             @map("started_at")
+  validatedAt        DateTime?             @map("validated_at")
+  activatedAt        DateTime?             @map("activated_at")
+  retiredAt          DateTime?             @map("retired_at")
+  failedAt           DateTime?             @map("failed_at")
+  cancelledAt        DateTime?             @map("cancelled_at")
+  errorCode          String?               @map("error_code") @db.VarChar(100)
+  failureReason      String?               @map("failure_reason") @db.Text
+  cancellationReason String?               @map("cancellation_reason") @db.Text
+
+  profile    EmbeddingProfile    @relation("ProfileToGenerations", fields: [profileId], references: [profileId], onDelete: Restrict)
+  embeddings DocumentEmbedding[] @relation("GenerationToEmbeddings")
+  jobs       VectorIndexingJob[] @relation("GenerationToIndexingJobs")
+
+  @@unique([tenantId, generationNumber], name: "unique_tenant_generation_number")
+  @@index([tenantId])
+  @@index([status])
+  @@index([tenantId, status])
+  @@map("index_generations")
+}
+
+model DocumentEmbedding {
+  id                 String   @id @default(uuid())
+  chunkId            String   @map("chunk_id")
+  documentId         String   @map("document_id")
+  documentVersionId  String   @map("document_version_id")
+  indexGenerationId  String   @map("index_generation_id")
+  profileId          String   @map("profile_id") @db.VarChar(128)
+  dimensions         Int      @map("dimensions")
+  embedding          Unsupported("vector(1024)")
+  contentFingerprint String   @map("content_fingerprint") @db.VarChar(64)
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  chunk      KnowledgeChunk    @relation("ChunkToEmbeddings", fields: [chunkId], references: [id], onDelete: Cascade)
+  document   KnowledgeDocument @relation("DocumentToEmbeddings", fields: [documentId], references: [id], onDelete: Cascade)
+  version    DocumentVersion   @relation("VersionToEmbeddings", fields: [documentVersionId], references: [id], onDelete: Cascade)
+  generation IndexGeneration   @relation("GenerationToEmbeddings", fields: [indexGenerationId], references: [id], onDelete: Cascade)
+  profile    EmbeddingProfile  @relation("ProfileToEmbeddings", fields: [profileId], references: [profileId], onDelete: Restrict)
+
+  @@unique([chunkId, indexGenerationId], name: "unique_chunk_generation_embedding")
+  @@index([documentId])
+  @@index([documentVersionId])
+  @@index([indexGenerationId])
+  @@index([profileId])
+  @@map("document_embeddings")
+}
+
+model VectorIndexingJob {
+  id                 String                  @id @default(uuid())
+  tenantId           String                  @map("tenant_id")
+  scope              VectorIndexingScope     @map("scope")
+  scopeId            String                  @map("scope_id")
+  generationId       String                  @map("generation_id")
+  profileId          String                  @map("profile_id") @db.VarChar(128)
+  status             VectorIndexingJobStatus @default(PENDING) @map("status")
+  batchSize          Int                     @default(16) @map("batch_size")
+  totalChunks        Int                     @default(0) @map("total_chunks")
+  processedChunks    Int                     @default(0) @map("processed_chunks")
+  failedChunks       Int                     @default(0) @map("failed_chunks")
+  currentBatchNumber Int                     @default(0) @map("current_batch_number")
+  attemptCount       Int                     @default(0) @map("attempt_count")
+  maxAttempts        Int                     @default(3) @map("max_attempts")
+  lastErrorCode      String?                 @map("last_error_code") @db.VarChar(100)
+  lastErrorMessage   String?                 @map("last_error_message") @db.Text
+  createdAt          DateTime                @default(now()) @map("created_at")
+  startedAt          DateTime?               @map("started_at")
+  completedAt        DateTime?               @map("completed_at")
+  failedAt           DateTime?               @map("failed_at")
+  cancelledAt        DateTime?               @map("cancelled_at")
+
+  generation IndexGeneration @relation("GenerationToIndexingJobs", fields: [generationId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([status])
+  @@index([generationId])
+  @@map("vector_indexing_jobs")
 }

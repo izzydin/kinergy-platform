@@ -6,3 +6,7 @@ export * from './chunk-provenance.vo';
 export * from './detected-language.vo';
 export * from './normalization-config.vo';
 export * from './chunking-config.vo';
+export * from './embedding-id.vo';
+export * from './index-generation-id.vo';
+export * from './vector-values.vo';
+export * from './embedding-profile.vo';

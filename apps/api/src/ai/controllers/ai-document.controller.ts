@@ -62,7 +62,9 @@ import {
   KNOWLEDGE_DOCUMENT_REPOSITORY,
   INGESTION_JOB_REPOSITORY,
   SECURE_DOCUMENT_UPLOAD_SERVICE,
+  VECTOR_CLEANUP_SERVICE,
 } from '../ai.tokens';
+import { VectorCleanupService } from '../services/indexing/vector-cleanup.service';
 import { SecureDocumentUploadService } from '../services/secure-document-upload.service';
 import {
   UploadDocumentRequestDto,
@@ -101,6 +103,9 @@ export class AiDocumentController {
     private readonly storagePort: ObjectStoragePort,
     @Optional()
     private readonly orchestrator?: IngestionOrchestratorService,
+    @Optional()
+    @Inject(VECTOR_CLEANUP_SERVICE)
+    private readonly cleanupService?: VectorCleanupService,
   ) {}
 
   /**
@@ -308,6 +313,11 @@ export class AiDocumentController {
     try {
       doc.softDelete(userId);
       await this.documentRepo.save(doc);
+
+      // AI-05.6: Purge vectors and cancel active indexing jobs for deleted document
+      if (this.cleanupService) {
+        await this.cleanupService.cleanupDocumentVectors(tenantId, documentId);
+      }
     } catch (err: unknown) {
       this.translateDomainException(err);
     }

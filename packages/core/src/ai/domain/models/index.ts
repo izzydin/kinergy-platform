@@ -6,3 +6,6 @@ export * from './extracted-document.model';
 export * from './document-chunk.entity';
 export * from './normalized-block.model';
 export * from './normalized-document.model';
+export * from './document-embedding.entity';
+export * from './index-generation.aggregate';
+export * from './vector-indexing-job.model';

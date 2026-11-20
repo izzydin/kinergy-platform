@@ -3,3 +3,8 @@ export * from './visibility-scope.enum';
 export * from './document-format.enum';
 export * from './extracted-block-type.enum';
 export * from './extraction-error-code.enum';
+export * from './index-generation-status.enum';
+export * from './embedding-type.enum';
+export * from './normalization-policy.enum';
+export * from './pooling-strategy.enum';
+export * from './vector-indexing-error-code.enum';

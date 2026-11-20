@@ -52,8 +52,8 @@ describe('Milestone 10.6 — Staging PostgreSQL Provisioning and Validation Spec
 
       const composeContent = fs.readFileSync(stagingComposePath, 'utf8');
 
-      // Verify pinned PostgreSQL version
-      expect(composeContent).toContain('image: postgres:16-alpine');
+      // Verify pinned PostgreSQL version (supports standard or pgvector 16)
+      expect(composeContent).toMatch(/image:\s*(postgres:16-alpine|pgvector\/pgvector:pg16)/);
 
       // Verify isolated staging network and volume
       expect(composeContent).toContain('kinergy_staging_network');

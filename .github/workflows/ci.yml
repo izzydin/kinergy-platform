@@ -19,7 +19,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: kinergy_user
           POSTGRES_PASSWORD: kinergy_secure_pass
@@ -33,7 +33,7 @@ jobs:
           --health-retries 5
 
       staging-postgres:
-        image: postgres:16-alpine
+        image: pgvector/pgvector:pg16
         env:
           POSTGRES_USER: kinergy_staging_admin
           POSTGRES_PASSWORD: kinergy_staging_admin_password
