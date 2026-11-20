@@ -837,3 +837,128 @@ model Receipt {
   @@index([issuedAt(sort: Desc)])
   @@map("receipts")
 }
+
+// ==========================================
+// KYNERGY INTELLIGENCE (AI-03 KNOWLEDGE MANAGEMENT)
+// ==========================================
+
+enum VisibilityScope {
+  ALL_STAFF
+  CLINICAL_STAFF
+  MANAGEMENT
+}
+
+enum IngestionStatus {
+  UPLOADED
+  VALIDATING
+  PROCESSING
+  INDEXING
+  READY
+  FAILED
+  CANCELLED
+}
+
+model KnowledgeDocument {
+  id               String          @id @default(uuid())
+  tenantId         String          @map("tenant_id")
+  title            String          @map("title") @db.VarChar(255)
+  description      String?         @map("description") @db.Text
+  uploadedBy       String          @map("uploaded_by")
+  visibilityScope  VisibilityScope @default(ALL_STAFF) @map("visibility_scope")
+  currentVersionId String?         @map("current_version_id")
+  version          Int             @default(1) @map("version")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  deletedAt        DateTime?       @map("deleted_at")
+
+  versions      DocumentVersion[] @relation("DocumentToVersions")
+  ingestionJobs IngestionJob[]    @relation("DocumentToIngestionJobs")
+  chunks        KnowledgeChunk[]  @relation("DocumentToChunks")
+
+  @@index([tenantId])
+  @@index([tenantId, visibilityScope])
+  @@index([tenantId, deletedAt])
+  @@index([createdAt])
+  @@map("knowledge_documents")
+}
+
+model DocumentVersion {
+  id               String   @id @default(uuid())
+  documentId       String   @map("document_id")
+  versionNumber    Int      @map("version_number")
+  originalFileName String   @map("original_file_name") @db.VarChar(255)
+  mimeType         String   @map("mime_type") @db.VarChar(100)
+  fileSize         Int      @map("file_size")
+  checksum         String   @map("checksum") @db.VarChar(64)
+  storageKey       String   @map("storage_key") @db.VarChar(512)
+  language         String   @default("es") @map("language") @db.VarChar(10)
+  uploadedBy       String   @map("uploaded_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  document      KnowledgeDocument @relation("DocumentToVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  ingestionJobs IngestionJob[]    @relation("VersionToIngestionJobs")
+  chunks        KnowledgeChunk[]  @relation("VersionToChunks")
+
+  @@unique([documentId, versionNumber], name: "unique_document_version_number")
+  @@unique([documentId, checksum], name: "unique_document_checksum")
+  @@index([documentId])
+  @@index([checksum])
+  @@index([createdAt])
+  @@map("document_versions")
+}
+
+model IngestionJob {
+  id                 String          @id @default(uuid())
+  tenantId           String          @map("tenant_id")
+  documentId         String          @map("document_id")
+  documentVersionId  String          @map("document_version_id")
+  status             IngestionStatus @default(UPLOADED) @map("status")
+  attemptCount       Int             @default(1) @map("attempt_count")
+  maxAttempts        Int             @default(3) @map("max_attempts")
+  lastErrorCode      String?         @map("last_error_code") @db.VarChar(100)
+  lastErrorMessage   String?         @map("last_error_message") @db.Text
+  version            Int             @default(1) @map("version")
+  createdAt          DateTime        @default(now()) @map("created_at")
+  startedAt          DateTime?       @map("started_at")
+  completedAt        DateTime?       @map("completed_at")
+  nextRetryAt        DateTime?       @map("next_retry_at")
+  cancelledAt        DateTime?       @map("cancelled_at")
+  cancellationReason String?         @map("cancellation_reason") @db.Text
+
+  document   KnowledgeDocument @relation("DocumentToIngestionJobs", fields: [documentId], references: [id], onDelete: Cascade)
+  versionRef DocumentVersion   @relation("VersionToIngestionJobs", fields: [documentVersionId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([documentId])
+  @@index([documentVersionId])
+  @@index([status])
+  @@index([tenantId, status])
+  @@index([nextRetryAt])
+  @@index([createdAt])
+  @@map("ingestion_jobs")
+}
+
+model KnowledgeChunk {
+  id                String   @id @default(uuid())
+  tenantId          String   @map("tenant_id")
+  documentId        String   @map("document_id")
+  documentVersionId String   @map("document_version_id")
+  sequence          Int      @map("sequence")
+  content           String   @map("content") @db.Text
+  tokenCount        Int      @map("token_count")
+  language          String   @default("es") @map("language") @db.VarChar(10)
+  provenance        Json     @map("provenance")
+  metadata          Json?    @map("metadata")
+  checksum          String   @map("checksum") @db.VarChar(64)
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  document KnowledgeDocument @relation("DocumentToChunks", fields: [documentId], references: [id], onDelete: Cascade)
+  version  DocumentVersion   @relation("VersionToChunks", fields: [documentVersionId], references: [id], onDelete: Cascade)
+
+  @@unique([documentVersionId, sequence], name: "unique_version_chunk_sequence")
+  @@index([tenantId])
+  @@index([documentId])
+  @@index([documentVersionId])
+  @@index([createdAt])
+  @@map("knowledge_chunks")
+}

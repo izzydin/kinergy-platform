@@ -7,7 +7,42 @@ import {
   Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AI_LLM_PROVIDER_TOKEN, AI_EMBEDDING_PROVIDER_TOKEN, AI_CONFIG_TOKEN } from './ai.tokens';
+import {
+  AI_LLM_PROVIDER_TOKEN,
+  AI_EMBEDDING_PROVIDER_TOKEN,
+  AI_CONFIG_TOKEN,
+  KNOWLEDGE_DOCUMENT_REPOSITORY,
+  INGESTION_JOB_REPOSITORY,
+  DOCUMENT_CONTENT_VALIDATOR,
+  SECURE_DOCUMENT_UPLOAD_SERVICE,
+  INGESTION_ORCHESTRATOR_SERVICE,
+  INGESTION_RECOVERY_WORKER,
+  DOCUMENT_PARSER_TOKEN,
+  LANGUAGE_DETECTOR_TOKEN,
+  DOCUMENT_NORMALIZER_TOKEN,
+  TOKENIZER_TOKEN,
+  DOCUMENT_CHUNKER_TOKEN,
+  KNOWLEDGE_CHUNK_REPOSITORY,
+  DOCUMENT_PROCESSING_PIPELINE_SERVICE,
+} from './ai.tokens';
+import { DOCUMENT_INDEXING_PORT } from '@kinergy-platform/core';
+import {
+  PdfParserAdapter,
+  DocxParserAdapter,
+  MarkdownParserAdapter,
+  PlainTextParserAdapter,
+  CompositeDocumentParserAdapter,
+} from './adapters/parsers';
+import {
+  DeterministicLanguageDetectorService,
+  DeterministicDocumentNormalizerService,
+} from './services/normalization';
+import { DeterministicBpeTokenizerAdapter } from './adapters/tokenizers/deterministic-bpe-tokenizer.adapter';
+import { StructureAwareChunkerService } from './services/chunking/structure-aware-chunker.service';
+import { DocumentProcessingPipelineService } from './services/document-processing-pipeline.service';
+import { PendingDocumentIndexingAdapter } from './adapters/indexing/pending-document-indexing.adapter';
+import { IngestionOrchestratorService } from './services/ingestion-orchestrator.service';
+import { IngestionRecoveryWorker } from './services/ingestion-recovery.worker';
 import { AiConfiguration, DEFAULT_AI_CONFIG } from './config/ai.config';
 import { OllamaLLMAdapter } from './adapters/llm/ollama-llm.adapter';
 import { OllamaEmbeddingAdapter } from './adapters/embedding/ollama-embedding.adapter';
@@ -15,6 +50,18 @@ import { MockLLMAdapter } from './adapters/mocks/mock-llm.adapter';
 import { MockEmbeddingAdapter } from './adapters/mocks/mock-embedding.adapter';
 import { AiHealthService } from './services/ai-health.service';
 import { AiHealthController } from './controllers/ai-health.controller';
+import { DocumentContentValidatorService } from './services/document-content-validator.service';
+import { SecureDocumentUploadService } from './services/secure-document-upload.service';
+import { AiDocumentController } from './controllers/ai-document.controller';
+import { PrismaModule } from '../platform/persistence/prisma/prisma.module';
+import { PrismaService } from '../platform/persistence/prisma/prisma.service';
+import { StorageModule } from '../platform/storage/storage.module';
+import { IdentityModule } from '../platform/identity/identity.module';
+import {
+  PrismaKnowledgeDocumentRepository,
+  PrismaIngestionJobRepository,
+  PrismaKnowledgeChunkRepository,
+} from '@kinergy-platform/core/server';
 
 export interface AiModuleOptions {
   useMocks?: boolean;
@@ -139,6 +186,37 @@ export class AiModule implements OnApplicationBootstrap {
             'AI_PROVIDER_FAILURE_THRESHOLD',
             DEFAULT_AI_CONFIG.failureThreshold,
           ),
+          maxDocumentSizeBytes: Number(
+            configService.get<number>(
+              'AI_MAX_DOCUMENT_SIZE_BYTES',
+              DEFAULT_AI_CONFIG.maxDocumentSizeBytes,
+            ),
+          ),
+          allowedDocumentMimeTypes: DEFAULT_AI_CONFIG.allowedDocumentMimeTypes,
+          targetChunkTokens: Number(
+            configService.get<number>(
+              'AI_TARGET_CHUNK_TOKENS',
+              DEFAULT_AI_CONFIG.targetChunkTokens,
+            ),
+          ),
+          minimumChunkTokens: Number(
+            configService.get<number>(
+              'AI_MINIMUM_CHUNK_TOKENS',
+              DEFAULT_AI_CONFIG.minimumChunkTokens,
+            ),
+          ),
+          maximumChunkTokens: Number(
+            configService.get<number>(
+              'AI_MAXIMUM_CHUNK_TOKENS',
+              DEFAULT_AI_CONFIG.maximumChunkTokens,
+            ),
+          ),
+          overlapTokens: Number(
+            configService.get<number>('AI_OVERLAP_TOKENS', DEFAULT_AI_CONFIG.overlapTokens),
+          ),
+          chunkingStrategy:
+            configService.get<string>('AI_CHUNKING_STRATEGY', DEFAULT_AI_CONFIG.chunkingStrategy) ??
+            DEFAULT_AI_CONFIG.chunkingStrategy,
           // Aliases
           llmModel,
           timeoutMs: requestTimeoutMs,
@@ -170,15 +248,148 @@ export class AiModule implements OnApplicationBootstrap {
       inject: [AI_CONFIG_TOKEN],
     };
 
+    const knowledgeDocRepoProvider = {
+      provide: KNOWLEDGE_DOCUMENT_REPOSITORY,
+      useFactory: (prisma: PrismaService) => new PrismaKnowledgeDocumentRepository(prisma),
+      inject: [PrismaService],
+    };
+
+    const ingestionJobRepoProvider = {
+      provide: INGESTION_JOB_REPOSITORY,
+      useFactory: (prisma: PrismaService) => new PrismaIngestionJobRepository(prisma),
+      inject: [PrismaService],
+    };
+
+    const contentValidatorProvider = {
+      provide: DOCUMENT_CONTENT_VALIDATOR,
+      useClass: DocumentContentValidatorService,
+    };
+
+    const uploadServiceProvider = {
+      provide: SECURE_DOCUMENT_UPLOAD_SERVICE,
+      useClass: SecureDocumentUploadService,
+    };
+
+    const indexingPortProvider = {
+      provide: DOCUMENT_INDEXING_PORT,
+      useClass: PendingDocumentIndexingAdapter,
+    };
+
+    const orchestratorProvider = {
+      provide: INGESTION_ORCHESTRATOR_SERVICE,
+      useClass: IngestionOrchestratorService,
+    };
+
+    const recoveryWorkerProvider = {
+      provide: INGESTION_RECOVERY_WORKER,
+      useClass: IngestionRecoveryWorker,
+    };
+
+    const documentParserProvider = {
+      provide: DOCUMENT_PARSER_TOKEN,
+      useClass: CompositeDocumentParserAdapter,
+    };
+
+    const languageDetectorProvider = {
+      provide: LANGUAGE_DETECTOR_TOKEN,
+      useClass: DeterministicLanguageDetectorService,
+    };
+
+    const documentNormalizerProvider = {
+      provide: DOCUMENT_NORMALIZER_TOKEN,
+      useClass: DeterministicDocumentNormalizerService,
+    };
+
+    const tokenizerProvider = {
+      provide: TOKENIZER_TOKEN,
+      useClass: DeterministicBpeTokenizerAdapter,
+    };
+
+    const documentChunkerProvider = {
+      provide: DOCUMENT_CHUNKER_TOKEN,
+      useClass: StructureAwareChunkerService,
+    };
+
+    const knowledgeChunkRepoProvider = {
+      provide: KNOWLEDGE_CHUNK_REPOSITORY,
+      useFactory: (prisma: PrismaService) => new PrismaKnowledgeChunkRepository(prisma),
+      inject: [PrismaService],
+    };
+
+    const processingPipelineProvider = {
+      provide: DOCUMENT_PROCESSING_PIPELINE_SERVICE,
+      useClass: DocumentProcessingPipelineService,
+    };
+
     return {
       module: AiModule,
-      controllers: [AiHealthController],
-      providers: [configProvider, llmProvider, embeddingProvider, AiHealthService],
+      imports: [PrismaModule, StorageModule.register(), IdentityModule],
+      controllers: [AiHealthController, AiDocumentController],
+      providers: [
+        configProvider,
+        llmProvider,
+        embeddingProvider,
+        AiHealthService,
+        knowledgeDocRepoProvider,
+        ingestionJobRepoProvider,
+        contentValidatorProvider,
+        DocumentContentValidatorService,
+        uploadServiceProvider,
+        SecureDocumentUploadService,
+        indexingPortProvider,
+        PendingDocumentIndexingAdapter,
+        orchestratorProvider,
+        IngestionOrchestratorService,
+        recoveryWorkerProvider,
+        IngestionRecoveryWorker,
+        PdfParserAdapter,
+        DocxParserAdapter,
+        MarkdownParserAdapter,
+        PlainTextParserAdapter,
+        CompositeDocumentParserAdapter,
+        documentParserProvider,
+        DeterministicLanguageDetectorService,
+        languageDetectorProvider,
+        DeterministicDocumentNormalizerService,
+        documentNormalizerProvider,
+        DeterministicBpeTokenizerAdapter,
+        tokenizerProvider,
+        StructureAwareChunkerService,
+        documentChunkerProvider,
+        knowledgeChunkRepoProvider,
+        processingPipelineProvider,
+        DocumentProcessingPipelineService,
+      ],
       exports: [
         AI_CONFIG_TOKEN,
         AI_LLM_PROVIDER_TOKEN,
         AI_EMBEDDING_PROVIDER_TOKEN,
         AiHealthService,
+        KNOWLEDGE_DOCUMENT_REPOSITORY,
+        INGESTION_JOB_REPOSITORY,
+        DOCUMENT_CONTENT_VALIDATOR,
+        SECURE_DOCUMENT_UPLOAD_SERVICE,
+        SecureDocumentUploadService,
+        DocumentContentValidatorService,
+        DOCUMENT_INDEXING_PORT,
+        PendingDocumentIndexingAdapter,
+        INGESTION_ORCHESTRATOR_SERVICE,
+        IngestionOrchestratorService,
+        INGESTION_RECOVERY_WORKER,
+        IngestionRecoveryWorker,
+        DOCUMENT_PARSER_TOKEN,
+        CompositeDocumentParserAdapter,
+        LANGUAGE_DETECTOR_TOKEN,
+        DeterministicLanguageDetectorService,
+        DOCUMENT_NORMALIZER_TOKEN,
+        DeterministicDocumentNormalizerService,
+        TOKENIZER_TOKEN,
+        DeterministicBpeTokenizerAdapter,
+        DOCUMENT_CHUNKER_TOKEN,
+        StructureAwareChunkerService,
+        KNOWLEDGE_CHUNK_REPOSITORY,
+        DOCUMENT_PROCESSING_PIPELINE_SERVICE,
+        DocumentProcessingPipelineService,
       ],
     };
   }

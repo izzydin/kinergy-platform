@@ -1,3 +1,5 @@
+process.env.NODE_OPTIONS = `${process.env.NODE_OPTIONS || ''} --experimental-vm-modules`.trim();
+
 module.exports = {
   displayName: 'api',
   preset: '../../jest.preset.js',

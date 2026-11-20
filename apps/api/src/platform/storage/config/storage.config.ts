@@ -20,6 +20,10 @@ export const DEFAULT_ALLOWED_MIME_TYPES = [
   'image/jpeg',
   'image/png',
   'image/webp',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/markdown',
+  'text/x-markdown',
+  'text/plain',
 ];
 
 export const DEFAULT_STORAGE_CONFIG: StorageConfiguration = {

@@ -17,6 +17,14 @@ export interface AiConfiguration {
   healthCheckEnabled: boolean;
   startupCheckEnabled: boolean;
   failureThreshold: number;
+  maxDocumentSizeBytes: number;
+  allowedDocumentMimeTypes: string[];
+  // Chunking Configuration
+  targetChunkTokens: number;
+  minimumChunkTokens: number;
+  maximumChunkTokens: number;
+  overlapTokens: number;
+  chunkingStrategy: string;
   // Aliases for backwards compatibility
   llmModel: string;
   timeoutMs: number;
@@ -42,6 +50,20 @@ export const DEFAULT_AI_CONFIG: AiConfiguration = {
   healthCheckEnabled: true,
   startupCheckEnabled: false,
   failureThreshold: 3,
+  maxDocumentSizeBytes: 10 * 1024 * 1024, // 10 MB
+  allowedDocumentMimeTypes: [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/markdown',
+    'text/x-markdown',
+    'text/plain',
+  ],
+  // Chunking Defaults
+  targetChunkTokens: 450,
+  minimumChunkTokens: 400,
+  maximumChunkTokens: 500,
+  overlapTokens: 60,
+  chunkingStrategy: 'structure-aware',
   // Aliases
   llmModel: 'qwen3:4b',
   timeoutMs: 30000,

@@ -5,7 +5,8 @@
 
 export type StorageProviderType = 'local' | 's3';
 
-export type StorageDomainFolder = 'clinical' | 'clients' | 'receipts' | 'backups';
+export type StorageDomainFolder =
+  'clinical' | 'clients' | 'receipts' | 'backups' | 'knowledge_base';
 
 export interface StorageFileDescriptor {
   tenantId: string;

@@ -21,3 +21,6 @@ export * from './resources/infrastructure/index';
 
 // Sales Persistence & Infrastructure
 export * from './sales/infrastructure/index';
+
+// AI & Knowledge Management Persistence & Infrastructure
+export * from './ai/infrastructure/index';
