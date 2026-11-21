@@ -952,6 +952,7 @@ model KnowledgeChunk {
   provenance        Json     @map("provenance")
   metadata          Json?    @map("metadata")
   checksum          String   @map("checksum") @db.VarChar(64)
+  tsv               Unsupported("tsvector")? @map("tsv")
   createdAt         DateTime @default(now()) @map("created_at")
 
   document   KnowledgeDocument   @relation("DocumentToChunks", fields: [documentId], references: [id], onDelete: Cascade)

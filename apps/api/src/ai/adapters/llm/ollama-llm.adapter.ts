@@ -50,12 +50,14 @@ export class OllamaLLMAdapter implements ILLMProviderPort {
     failures: 0,
     lastFailureTime: 0,
   };
-  private readonly failureThreshold = 3;
-  private readonly cooldownPeriodMs = 15000; // 15s cooldown after circuit opens
+  private readonly failureThreshold: number;
+  private readonly cooldownPeriodMs: number;
   private activeGenerations = 0;
 
   constructor(config?: Partial<AiConfiguration>) {
     this.config = { ...DEFAULT_AI_CONFIG, ...config };
+    this.failureThreshold = this.config.failureThreshold ?? 3;
+    this.cooldownPeriodMs = this.config.retrievalRerankerRecoveryIntervalMs ?? 15000;
     this.validateConfiguration();
   }
 
@@ -139,6 +141,7 @@ export class OllamaLLMAdapter implements ILLMProviderPort {
           temperature: options?.temperature ?? 0.2,
           num_predict: options?.maxTokens ?? 512,
           stop: options?.stopSequences,
+          num_ctx: this.config.chatContextWindow ?? 4096,
         },
       };
 
@@ -235,6 +238,7 @@ export class OllamaLLMAdapter implements ILLMProviderPort {
             temperature: options?.temperature ?? 0.2,
             num_predict: options?.maxTokens ?? 512,
             stop: options?.stopSequences,
+            num_ctx: this.config.chatContextWindow ?? 4096,
           },
         }),
         signal: controller.signal,
@@ -321,6 +325,37 @@ export class OllamaLLMAdapter implements ILLMProviderPort {
         `Circuit breaker tripped open after ${this.circuitBreaker.failures} consecutive failures. Cooldown: ${this.cooldownPeriodMs}ms`,
       );
     }
+  }
+
+  public getCircuitBreakerStatus(): {
+    state: 'CLOSED' | 'OPEN' | 'HALF_OPEN';
+    failures: number;
+    lastFailureTime: number;
+    isOpen: boolean;
+  } {
+    if (!this.circuitBreaker.isOpen) {
+      return {
+        state: 'CLOSED',
+        failures: this.circuitBreaker.failures,
+        lastFailureTime: this.circuitBreaker.lastFailureTime,
+        isOpen: false,
+      };
+    }
+    const timeSinceFailure = Date.now() - this.circuitBreaker.lastFailureTime;
+    if (timeSinceFailure > this.cooldownPeriodMs) {
+      return {
+        state: 'HALF_OPEN',
+        failures: this.circuitBreaker.failures,
+        lastFailureTime: this.circuitBreaker.lastFailureTime,
+        isOpen: false,
+      };
+    }
+    return {
+      state: 'OPEN',
+      failures: this.circuitBreaker.failures,
+      lastFailureTime: this.circuitBreaker.lastFailureTime,
+      isOpen: true,
+    };
   }
 
   private recordSuccess(): void {

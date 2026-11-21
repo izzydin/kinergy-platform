@@ -25,6 +25,37 @@ export interface AiConfiguration {
   maximumChunkTokens: number;
   overlapTokens: number;
   chunkingStrategy: string;
+  // Retrieval & Scoring Configuration
+  retrievalDefaultTopK: number;
+  retrievalMaxTopK: number;
+  retrievalSimilarityThreshold: number;
+  retrievalEvaluationProfile: string;
+  // Hybrid Search & Fusion Configuration
+  retrievalSearchMode: 'SEMANTIC' | 'KEYWORD' | 'HYBRID';
+  retrievalSemanticCandidateLimit: number;
+  retrievalKeywordCandidateLimit: number;
+  retrievalRrfConstant: number;
+  // Cross-Encoder Reranking Configuration
+  retrievalRerankerEnabled: boolean;
+  retrievalRerankerModel: string;
+  retrievalRerankerProvider: 'mock' | 'tei' | 'http';
+  retrievalRerankerEndpoint: string;
+  retrievalRerankerMaxCandidates: number;
+  retrievalRerankerTimeoutMs: number;
+  retrievalRerankerMaxConcurrent: number;
+  retrievalRerankerFailureThreshold: number;
+  retrievalRerankerRecoveryIntervalMs: number;
+  // Conversation History Defaults
+  chatMaxHistoryTurns: number;
+  chatMaxHistoryTokens: number;
+  conversationTtlHours: number;
+  // Resilient Generation & Pipeline Timeouts
+  retrievalTimeoutMs: number;
+  contextBuilderTimeoutMs: number;
+  generationTimeoutMs: number;
+  generationMaxRetries: number;
+  generationRetryBaseDelayMs: number;
+  generationRetryMaxDelayMs: number;
   // Aliases for backwards compatibility
   llmModel: string;
   timeoutMs: number;
@@ -64,6 +95,37 @@ export const DEFAULT_AI_CONFIG: AiConfiguration = {
   maximumChunkTokens: 500,
   overlapTokens: 60,
   chunkingStrategy: 'structure-aware',
+  // Retrieval & Scoring Defaults
+  retrievalDefaultTopK: 5,
+  retrievalMaxTopK: 50,
+  retrievalSimilarityThreshold: 0.6,
+  retrievalEvaluationProfile: 'bge-m3-dense-v1',
+  // Hybrid Search & Fusion Defaults
+  retrievalSearchMode: 'SEMANTIC',
+  retrievalSemanticCandidateLimit: 20,
+  retrievalKeywordCandidateLimit: 20,
+  retrievalRrfConstant: 60,
+  // Cross-Encoder Reranking Defaults (Disabled by default)
+  retrievalRerankerEnabled: false,
+  retrievalRerankerModel: 'bge-reranker-m3',
+  retrievalRerankerProvider: 'mock',
+  retrievalRerankerEndpoint: 'http://127.0.0.1:8080',
+  retrievalRerankerMaxCandidates: 20,
+  retrievalRerankerTimeoutMs: 80,
+  retrievalRerankerMaxConcurrent: 2,
+  retrievalRerankerFailureThreshold: 3,
+  retrievalRerankerRecoveryIntervalMs: 10000,
+  // Conversation History Defaults
+  chatMaxHistoryTurns: 10,
+  chatMaxHistoryTokens: 500,
+  conversationTtlHours: 24,
+  // Resilient Generation & Pipeline Timeouts
+  retrievalTimeoutMs: 5000,
+  contextBuilderTimeoutMs: 1000,
+  generationTimeoutMs: 20000,
+  generationMaxRetries: 1,
+  generationRetryBaseDelayMs: 200,
+  generationRetryMaxDelayMs: 1000,
   // Aliases
   llmModel: 'qwen3:4b',
   timeoutMs: 30000,

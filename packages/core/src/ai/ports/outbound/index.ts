@@ -12,3 +12,7 @@ export * from './document-chunker.port';
 export * from './vector-store.port';
 export * from './index-generation-repository.port';
 export * from './vector-indexing-job-repository.port';
+export * from './semantic-retrieval.port';
+export * from './lexical-retrieval.port';
+export * from './cross-encoder-reranking.port';
+export * from './conversation-repository.port';
