@@ -22,6 +22,8 @@ export interface NavigationItem {
   readonly section?: string;
   /** Required user permissions for viewing this entry */
   readonly requiredPermissions?: string[];
+  /** Required user roles for viewing this entry (any matching role grants access) */
+  readonly requiredRoles?: string[];
   /** Required multi-tenant feature flags for evaluating item visibility */
   readonly requiredTenantFeatures?: string[];
   /** Optional nested sub-navigation items */

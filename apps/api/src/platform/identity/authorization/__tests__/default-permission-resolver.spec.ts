@@ -36,11 +36,14 @@ describe('DefaultPermissionResolver', () => {
   });
 
   describe('Approved Role-to-Permission Mappings (Milestone 7.13 / ADR-0135)', () => {
-    it('should grant Owner full platform capabilities across all 34 permissions', async () => {
+    it('should grant Owner full platform capabilities across all 35 permissions', async () => {
       const resolved = await resolver.resolvePermissions('usr_owner', ['Owner'], []);
 
-      expect(resolved.length).toBe(34);
+      expect(resolved.length).toBe(35);
       expect(resolved).toEqual(expect.arrayContaining([...ALL_PERMISSION_CODES]));
+
+      // AI Conversation Audit permission verified
+      expect(resolved).toContain(PERMISSIONS.AI.CONVERSATIONS_AUDIT);
 
       // Sales, Payments, Receipts verified
       expect(resolved).toContain(PERMISSIONS.SALES.READ);
@@ -210,6 +213,37 @@ describe('DefaultPermissionResolver', () => {
       expect(resolved).not.toContain('sales.manage');
       expect(resolved).not.toContain('users.write');
       expect(new Set(resolved).size).toBe(resolved.length);
+    });
+  });
+
+  describe('AI Conversation Audit RBAC Isolation (AI-09.3-BE.02.01)', () => {
+    it('should grant ai.conversations.audit exclusively to Owner', async () => {
+      const ownerPerms = await resolver.resolvePermissions('u_owner', ['Owner'], []);
+      expect(ownerPerms).toContain(PERMISSIONS.AI.CONVERSATIONS_AUDIT);
+      expect(ownerPerms).toContain('ai.conversations.audit');
+    });
+
+    it('should NOT grant ai.conversations.audit to any standard operational roles', async () => {
+      const rolesToTest = ['Receptionist', 'Kitchen Staff', 'Trainer', 'Therapist'];
+      for (const role of rolesToTest) {
+        const perms = await resolver.resolvePermissions(`u_${role}`, [role], []);
+        expect(perms).not.toContain(PERMISSIONS.AI.CONVERSATIONS_AUDIT);
+        expect(perms).not.toContain('ai.conversations.audit');
+      }
+    });
+
+    it('should preserve standard role permission counts without regression', async () => {
+      const recep = await resolver.resolvePermissions('u_r', ['Receptionist'], []);
+      expect(recep.length).toBe(17);
+
+      const kitchen = await resolver.resolvePermissions('u_k', ['Kitchen Staff'], []);
+      expect(kitchen.length).toBe(8);
+
+      const trainer = await resolver.resolvePermissions('u_t', ['Trainer'], []);
+      expect(trainer.length).toBe(18);
+
+      const therapist = await resolver.resolvePermissions('u_th', ['Therapist'], []);
+      expect(therapist.length).toBe(8);
     });
   });
 });

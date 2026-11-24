@@ -1127,3 +1127,135 @@ model VectorIndexingJob {
   @@index([generationId])
   @@map("vector_indexing_jobs")
 }
+
+// ============================================================================
+// KYNERGY INTELLIGENCE CONVERSATION PERSISTENCE (AI-09.3)
+// ============================================================================
+
+enum ConversationRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum GenerationStatus {
+  PENDING
+  STREAMING
+  SUCCESS
+  FAILED
+  CANCELLED
+  INTERRUPTED
+}
+
+enum TurnStatus {
+  PENDING
+  STREAMING
+  COMPLETED
+  FAILED
+  CANCELLED
+  INTERRUPTED
+}
+
+model AiConversation {
+  id             String    @id @default(uuid()) @map("id")
+  tenantId       String    @map("tenant_id")
+  userId         String    @map("user_id")
+  title          String    @default("New Conversation") @map("title") @db.VarChar(255)
+  idempotencyKey String?   @map("idempotency_key") @db.VarChar(64)
+  turnCounter    Int       @default(0) @map("turn_counter")
+  messageCounter Int       @default(0) @map("message_counter")
+  lastActivityAt DateTime  @default(now()) @map("last_activity_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
+
+  turns    AiConversationTurn[]
+  messages AiConversationMessage[]
+
+  @@unique([id, tenantId], name: "uq_conversation_id_tenant")
+  @@unique([tenantId, userId, idempotencyKey], name: "uq_conversation_user_idempotency")
+  @@index([tenantId, userId, deletedAt, lastActivityAt(sort: Desc)], name: "idx_conversation_user_active_list")
+  @@index([tenantId, deletedAt, lastActivityAt(sort: Desc)], name: "idx_conversation_tenant_audit_list")
+  @@map("ai_conversations")
+}
+
+model AiConversationTurn {
+  id                     String     @id @default(uuid()) @map("id")
+  conversationId         String     @map("conversation_id")
+  tenantId               String     @map("tenant_id")
+  turnIndex              Int        @map("turn_index")
+  status                 TurnStatus @default(PENDING) @map("status")
+  clientTurnId           String     @map("client_turn_id") @db.VarChar(64)
+  idempotencyKey         String     @map("idempotency_key") @db.VarChar(64)
+  idempotencyPayloadHash String     @map("idempotency_payload_hash") @db.VarChar(64)
+  activeAttemptId        String?    @map("active_attempt_id")
+  activeAttemptNumber    Int        @default(1) @map("active_attempt_number")
+  createdAt              DateTime   @default(now()) @map("created_at")
+  completedAt            DateTime?  @map("completed_at")
+  updatedAt              DateTime   @updatedAt @map("updated_at")
+
+  conversation  AiConversation          @relation(fields: [conversationId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  messages      AiConversationMessage[] @relation("TurnAllMessages")
+  activeAttempt AiConversationMessage?  @relation("TurnActiveAttempt", fields: [activeAttemptId], references: [id], onDelete: SetNull)
+
+  @@unique([id, conversationId, tenantId], name: "uq_turn_id_conv_tenant")
+  @@unique([conversationId, turnIndex], name: "uq_conversation_turn_index")
+  @@unique([conversationId, idempotencyKey], name: "uq_turn_conv_idempotency")
+  @@unique([tenantId, clientTurnId], name: "uq_turn_tenant_client_turn_id")
+  @@index([conversationId, status], name: "idx_turn_conversation_status")
+  @@map("ai_conversation_turns")
+}
+
+model AiConversationMessage {
+  id                   String           @id @default(uuid()) @map("id")
+  turnId               String           @map("turn_id")
+  conversationId       String           @map("conversation_id")
+  tenantId             String           @map("tenant_id")
+  role                 ConversationRole @map("role")
+  sequenceNumber       Int              @map("sequence_number")
+  attemptNumber        Int              @default(1) @map("attempt_number")
+  isCanonical          Boolean          @default(false) @map("is_canonical")
+  status               GenerationStatus @default(PENDING) @map("status")
+  content              String           @default("") @map("content") @db.Text
+  sources              Json?            @map("sources")
+  metadata             Json?            @map("metadata")
+  errorCode            String?          @map("error_code") @db.VarChar(64)
+  errorMessage         String?          @map("error_message") @db.Text
+  clientMessageId      String?          @map("client_message_id") @db.VarChar(64)
+  leaseToken           String?          @map("lease_token") @db.VarChar(64)
+  leaseOwnerInstanceId String?          @map("lease_owner_instance_id") @db.VarChar(128)
+  leaseExpiresAt       DateTime?        @map("lease_expires_at")
+  createdAt            DateTime         @default(now()) @map("created_at")
+  completedAt          DateTime?        @map("completed_at")
+  updatedAt            DateTime         @updatedAt @map("updated_at")
+
+  conversation   AiConversation     @relation(fields: [conversationId, tenantId], references: [id, tenantId], onDelete: Cascade)
+  turn           AiConversationTurn @relation("TurnAllMessages", fields: [turnId, conversationId, tenantId], references: [id, conversationId, tenantId], onDelete: Cascade)
+  activeForTurns AiConversationTurn[] @relation("TurnActiveAttempt")
+
+  @@unique([id, turnId, conversationId, tenantId], name: "uq_msg_id_turn_conv_tenant")
+  @@unique([conversationId, sequenceNumber], name: "uq_conversation_sequence_number")
+  @@index([turnId, role], name: "idx_message_turn_role")
+  @@index([conversationId, createdAt(sort: Asc)], name: "idx_message_history_cursor")
+  @@map("ai_conversation_messages")
+}
+
+model AiConversationAuditLog {
+  id                        String   @id @default(uuid()) @map("id")
+  tenantId                  String   @map("tenant_id")
+  conversationId            String   @map("conversation_id")
+  conversationTitleSnapshot String   @map("conversation_title_snapshot") @db.VarChar(255)
+  conversationOwnerUserId   String   @map("conversation_owner_user_id")
+  inspectorUserId           String   @map("inspector_user_id")
+  inspectorRole             String   @map("inspector_role") @db.VarChar(64)
+  action                    String   @default("CLINICAL_CONVERSATION_INSPECTED") @map("action") @db.VarChar(64)
+  reason                    String   @map("reason") @db.Text
+  ipAddress                 String?  @map("ip_address") @db.VarChar(45)
+  userAgent                 String?  @map("user_agent") @db.Text
+  createdAt                 DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, conversationId, createdAt(sort: Desc)], name: "idx_audit_conversation")
+  @@index([inspectorUserId, createdAt(sort: Desc)], name: "idx_audit_inspector")
+  @@map("ai_conversation_audit_logs")
+}
+

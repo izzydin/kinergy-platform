@@ -6,3 +6,7 @@ export * from './prisma-index-generation.repository';
 export * from './prisma-vector-indexing-job.repository';
 export * from './prisma-semantic-retrieval.repository';
 export * from './prisma-lexical-retrieval.repository';
+export * from './prisma-ai-conversation.repository';
+export * from './prisma-ai-conversation-turn.repository';
+export * from './prisma-ai-conversation-message.repository';
+export * from './prisma-ai-conversation-audit.repository';

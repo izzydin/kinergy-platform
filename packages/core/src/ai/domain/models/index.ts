@@ -20,3 +20,7 @@ export * from './structured-generation-result.model';
 export * from './claim-attribution.model';
 export * from './citation-validation-result.model';
 export * from './conversation-session.model';
+export * from './ai-conversation.entity';
+export * from './ai-conversation-turn.entity';
+export * from './ai-conversation-message.entity';
+export * from './ai-conversation-audit-log.entity';

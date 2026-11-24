@@ -5,3 +5,6 @@ export * from './generate-grounded-answer.use-case';
 export * from './grounded-generation.port';
 export * from './citation-validator.port';
 export * from './conversation-history-manager.port';
+export * from './rag-turn-pipeline.port';
+export * from './ai-turn-dispatcher.port';
+export * from './ai-turn-error-classifier';

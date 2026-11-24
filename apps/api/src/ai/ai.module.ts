@@ -47,6 +47,9 @@ import {
   CONVERSATION_REPOSITORY,
   CONVERSATION_HISTORY_MANAGER_SERVICE,
   GENERATION_OBSERVABILITY_SERVICE,
+  RAG_TURN_PIPELINE_SERVICE,
+  AI_TURN_DISPATCHER_SERVICE,
+  AI_TURN_GENERATION_WORKER,
 } from './ai.tokens';
 import {
   DOCUMENT_INDEXING_PORT,
@@ -65,6 +68,20 @@ import {
   CITATION_VALIDATOR_PORT,
   CONVERSATION_REPOSITORY_PORT,
   CONVERSATION_HISTORY_MANAGER_PORT,
+  RAG_TURN_PIPELINE_PORT,
+  IRAGTurnPipelinePort,
+  AI_CONVERSATION_REPOSITORY_PORT,
+  IAiConversationRepositoryPort,
+  AI_CONVERSATION_TURN_REPOSITORY_PORT,
+  IAiConversationTurnRepositoryPort,
+  AI_CONVERSATION_MESSAGE_REPOSITORY_PORT,
+  IAiConversationMessageRepositoryPort,
+  AI_CONVERSATION_TRANSACTION_RUNNER,
+  IAiConversationTransactionRunner,
+  PersistMessageStateUseCase,
+  ExecuteConversationTurnUseCase,
+  LoadCanonicalConversationHistoryUseCase,
+  AI_TURN_DISPATCHER_PORT,
 } from '@kinergy-platform/core';
 import {
   PdfParserAdapter,
@@ -99,9 +116,11 @@ import { ConversationHistoryManagerService } from './services/rag/conversation-h
 import { GenerationObservabilityService } from './services/rag/generation-observability.service';
 import { InMemoryConversationRepositoryAdapter } from './adapters/conversation/in-memory-conversation-repository.adapter';
 import { RAGOrchestratorService } from './services/rag/rag-orchestrator.service';
+import { RAGTurnPipelineAdapter } from './adapters/rag/rag-turn-pipeline.adapter';
 import { PendingDocumentIndexingAdapter } from './adapters/indexing/pending-document-indexing.adapter';
 import { IngestionOrchestratorService } from './services/ingestion-orchestrator.service';
 import { IngestionRecoveryWorker } from './services/ingestion-recovery.worker';
+import { AiTurnDispatcherService, AiTurnGenerationWorker } from './services/generation';
 import { AiConfiguration, DEFAULT_AI_CONFIG } from './config/ai.config';
 import { OllamaLLMAdapter } from './adapters/llm/ollama-llm.adapter';
 import { OllamaEmbeddingAdapter } from './adapters/embedding/ollama-embedding.adapter';
@@ -117,6 +136,7 @@ import { PrismaModule } from '../platform/persistence/prisma/prisma.module';
 import { PrismaService } from '../platform/persistence/prisma/prisma.service';
 import { StorageModule } from '../platform/storage/storage.module';
 import { IdentityModule } from '../platform/identity/identity.module';
+import { AiConversationModule } from './conversation/ai-conversation.module';
 import {
   PrismaKnowledgeDocumentRepository,
   PrismaIngestionJobRepository,
@@ -690,6 +710,72 @@ export class AiModule implements OnApplicationBootstrap {
       useExisting: GENERATE_GROUNDED_ANSWER_USE_CASE_PORT,
     };
 
+    const ragTurnPipelineProvider = {
+      provide: RAG_TURN_PIPELINE_PORT,
+      useClass: RAGTurnPipelineAdapter,
+    };
+
+    const ragTurnPipelineAlias = {
+      provide: RAG_TURN_PIPELINE_SERVICE,
+      useExisting: RAG_TURN_PIPELINE_PORT,
+    };
+
+    const executeConversationTurnProvider = {
+      provide: ExecuteConversationTurnUseCase,
+      useFactory: (
+        convRepo: IAiConversationRepositoryPort,
+        turnRepo: IAiConversationTurnRepositoryPort,
+        msgRepo: IAiConversationMessageRepositoryPort,
+        persistMessageStateUseCase: PersistMessageStateUseCase,
+        ragPipeline: IRAGTurnPipelinePort,
+        historyLoader: LoadCanonicalConversationHistoryUseCase,
+        txRunner: IAiConversationTransactionRunner,
+      ) =>
+        new ExecuteConversationTurnUseCase(
+          convRepo,
+          turnRepo,
+          msgRepo,
+          persistMessageStateUseCase,
+          ragPipeline,
+          historyLoader,
+          txRunner,
+        ),
+      inject: [
+        AI_CONVERSATION_REPOSITORY_PORT,
+        AI_CONVERSATION_TURN_REPOSITORY_PORT,
+        AI_CONVERSATION_MESSAGE_REPOSITORY_PORT,
+        PersistMessageStateUseCase,
+        RAG_TURN_PIPELINE_PORT,
+        LoadCanonicalConversationHistoryUseCase,
+        AI_CONVERSATION_TRANSACTION_RUNNER,
+      ],
+    };
+
+    const turnDispatcherProvider = {
+      provide: AiTurnDispatcherService,
+      useClass: AiTurnDispatcherService,
+    };
+
+    const turnDispatcherAlias = {
+      provide: AI_TURN_DISPATCHER_PORT,
+      useExisting: AiTurnDispatcherService,
+    };
+
+    const turnDispatcherServiceAlias = {
+      provide: AI_TURN_DISPATCHER_SERVICE,
+      useExisting: AiTurnDispatcherService,
+    };
+
+    const turnGenerationWorkerProvider = {
+      provide: AiTurnGenerationWorker,
+      useClass: AiTurnGenerationWorker,
+    };
+
+    const turnGenerationWorkerAlias = {
+      provide: AI_TURN_GENERATION_WORKER,
+      useExisting: AiTurnGenerationWorker,
+    };
+
     const orchestratorProvider = {
       provide: INGESTION_ORCHESTRATOR_SERVICE,
       useClass: IngestionOrchestratorService,
@@ -743,7 +829,7 @@ export class AiModule implements OnApplicationBootstrap {
 
     return {
       module: AiModule,
-      imports: [PrismaModule, StorageModule.register(), IdentityModule],
+      imports: [PrismaModule, StorageModule.register(), IdentityModule, AiConversationModule],
       controllers: [AiHealthController, AiDocumentController, AiRAGController],
       providers: [
         configProvider,
@@ -835,6 +921,17 @@ export class AiModule implements OnApplicationBootstrap {
         ragOrchestratorProvider,
         ragOrchestratorAlias,
         RAGOrchestratorService,
+        ragTurnPipelineProvider,
+        ragTurnPipelineAlias,
+        RAGTurnPipelineAdapter,
+        executeConversationTurnProvider,
+        turnDispatcherProvider,
+        turnDispatcherAlias,
+        turnDispatcherServiceAlias,
+        AiTurnDispatcherService,
+        turnGenerationWorkerProvider,
+        turnGenerationWorkerAlias,
+        AiTurnGenerationWorker,
         RetrievalObservabilityService,
       ],
       exports: [
@@ -923,7 +1020,17 @@ export class AiModule implements OnApplicationBootstrap {
         GENERATE_GROUNDED_ANSWER_USE_CASE_PORT,
         GENERATE_GROUNDED_ANSWER_USE_CASE,
         RAGOrchestratorService,
+        RAG_TURN_PIPELINE_PORT,
+        RAG_TURN_PIPELINE_SERVICE,
+        RAGTurnPipelineAdapter,
+        ExecuteConversationTurnUseCase,
+        AI_TURN_DISPATCHER_PORT,
+        AI_TURN_DISPATCHER_SERVICE,
+        AiTurnDispatcherService,
+        AI_TURN_GENERATION_WORKER,
+        AiTurnGenerationWorker,
         RetrievalObservabilityService,
+        AiConversationModule,
       ],
     };
   }

@@ -65,6 +65,9 @@ export const PERMISSIONS = {
     ROLES_WRITE: 'identity.roles.write',
     PERMISSIONS_READ: 'identity.permissions.read',
   },
+  AI: {
+    CONVERSATIONS_AUDIT: 'ai.conversations.audit',
+  },
 } as const;
 
 export type UserPermissionCode = (typeof PERMISSIONS.USERS)[keyof typeof PERMISSIONS.USERS];
@@ -86,6 +89,7 @@ export type SettingPermissionCode =
   (typeof PERMISSIONS.SETTINGS)[keyof typeof PERMISSIONS.SETTINGS];
 export type IdentityPermissionCode =
   (typeof PERMISSIONS.IDENTITY)[keyof typeof PERMISSIONS.IDENTITY];
+export type AIPermissionCode = (typeof PERMISSIONS.AI)[keyof typeof PERMISSIONS.AI];
 
 export type PermissionCode =
   | UserPermissionCode
@@ -100,7 +104,8 @@ export type PermissionCode =
   | ReceiptPermissionCode
   | ReportPermissionCode
   | SettingPermissionCode
-  | IdentityPermissionCode;
+  | IdentityPermissionCode
+  | AIPermissionCode;
 
 /**
  * Array of all authoritative permission codes in the system.

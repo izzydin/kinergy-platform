@@ -3,6 +3,7 @@ import type { NavigationItem, NavigationSection } from './navigation.types';
 export interface NavigationBuilderOptions {
   items: NavigationItem[];
   hasPermission?: (permission: string) => boolean;
+  hasRole?: (role: string) => boolean;
   hasTenantFeature?: (featureFlag: string) => boolean;
   sectionTitles?: Record<string, string>;
 }
@@ -10,8 +11,8 @@ export interface NavigationBuilderOptions {
 /**
  * Navigation Tree Builder Engine
  *
- * Evaluates permission boundaries, multi-tenant feature flags, sorts items by weight,
- * and groups authorized navigation items into rendering-ready NavigationSections.
+ * Evaluates permission boundaries, user role assignments, multi-tenant feature flags,
+ * sorts items by weight, and groups authorized navigation items into rendering-ready NavigationSections.
  */
 export class NavigationBuilder {
   /**
@@ -21,21 +22,29 @@ export class NavigationBuilder {
     const {
       items,
       hasPermission = () => true,
+      hasRole = () => true,
       hasTenantFeature = () => true,
       sectionTitles = {
         overview: 'Overview',
         core: 'Core Operations',
+        intelligence: 'Intelligence',
         admin: 'Administration',
         system: 'System Settings',
       },
     } = options;
 
-    // 1. Filter items by permissions & tenant feature flags
+    // 1. Filter items by permissions, roles & tenant feature flags
     const authorizedItems = items.filter((item) => {
-      // Permission check
+      // Permission check (requires all listed permissions)
       if (item.requiredPermissions && item.requiredPermissions.length > 0) {
         const hasAllPermissions = item.requiredPermissions.every((perm) => hasPermission(perm));
         if (!hasAllPermissions) return false;
+      }
+
+      // Role check (any matching role grants access)
+      if (item.requiredRoles && item.requiredRoles.length > 0) {
+        const hasAnyRole = item.requiredRoles.some((role) => hasRole(role));
+        if (!hasAnyRole) return false;
       }
 
       // Multi-tenant feature flag check
@@ -66,6 +75,7 @@ export class NavigationBuilder {
     const sectionOrderMap: Record<string, number> = {
       overview: 10,
       core: 20,
+      intelligence: 30,
       admin: 80,
       system: 90,
     };

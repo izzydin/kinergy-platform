@@ -16,3 +16,7 @@ export * from './semantic-retrieval.port';
 export * from './lexical-retrieval.port';
 export * from './cross-encoder-reranking.port';
 export * from './conversation-repository.port';
+export * from './ai-conversation-repository.port';
+export * from './ai-conversation-turn-repository.port';
+export * from './ai-conversation-message-repository.port';
+export * from './ai-conversation-audit-repository.port';

@@ -106,6 +106,13 @@ export const PERMISSION_CATALOG: Record<string, PermissionDefinition[]> = {
     { code: 'identity.roles.write', description: 'Manage system roles and permissions' },
     { code: 'identity.permissions.read', description: 'View permission catalog' },
   ],
+  AI: [
+    {
+      code: 'ai.conversations.audit',
+      description:
+        'Audit and inspect persistent AI conversation histories and clinical interactions',
+    },
+  ],
 };
 
 /**

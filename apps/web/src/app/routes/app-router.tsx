@@ -10,6 +10,7 @@ import '../../modules/gym/routes/gym.router';
 import '../../modules/sales/routes/sales.router';
 import '../../modules/scheduling/routes/scheduling.router';
 import '../../modules/scheduling/routes/rooms.router';
+import '../../modules/intelligence/routes/intelligence.router';
 
 import { AuthLayout, DashboardLayout } from '../layouts';
 import { useAuth } from '../providers/auth-provider';

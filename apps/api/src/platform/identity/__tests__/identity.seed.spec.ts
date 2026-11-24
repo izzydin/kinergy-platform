@@ -40,7 +40,8 @@ describe('Identity Database Seed Specification', () => {
       expect(groups).toContain('Reports');
       expect(groups).toContain('Settings');
       expect(groups).toContain('Identity');
-      expect(groups.length).toBe(13);
+      expect(groups).toContain('AI');
+      expect(groups.length).toBe(14);
     });
 
     it('should have unique permission codes across all modules (registered exactly once)', () => {
@@ -51,7 +52,7 @@ describe('Identity Database Seed Specification', () => {
         expect(codes.has(perm.code)).toBe(false);
         codes.add(perm.code);
       }
-      expect(allPermissions.length).toBe(34);
+      expect(allPermissions.length).toBe(35);
     });
 
     it('should register approved Sales permissions conforming to hierarchical dot-notation', () => {

@@ -23,15 +23,15 @@ export interface NavigationProviderProps {
 /**
  * Navigation Provider Component
  *
- * Configuration-driven React Context provider that consumes active user permissions
- * and tenant feature flags to compute authorized NavigationSections dynamically.
+ * Configuration-driven React Context provider that consumes active user permissions,
+ * role assignments, and tenant feature flags to compute authorized NavigationSections dynamically.
  */
 export const NavigationProvider: React.FC<NavigationProviderProps> = ({
   children,
   initialItems,
 }) => {
   const location = useLocation();
-  const { hasPermission } = useAuth();
+  const { hasPermission, hasRole } = useAuth();
   const { isEnabled } = useFeatureFlags();
 
   // Track dynamic registrations state version
@@ -56,25 +56,28 @@ export const NavigationProvider: React.FC<NavigationProviderProps> = ({
     navigationRegistry.register(item);
   };
 
-  // Re-build navigation tree whenever auth, feature flags, or registry version updates
+  // Re-build navigation tree whenever auth, roles, feature flags, or registry version updates
   const sections = useMemo(() => {
     const rawItems = navigationRegistry.getItems();
     return NavigationBuilder.build({
       items: rawItems,
       hasPermission,
+      hasRole,
       hasTenantFeature: isEnabled,
     });
-  }, [hasPermission, isEnabled, registryVersion]);
+  }, [hasPermission, hasRole, isEnabled, registryVersion]);
 
   // Flatten all authorized items across sections
   const items = useMemo(() => {
     return sections.flatMap((section) => section.items);
   }, [sections]);
 
-  // Determine active item based on current URL path matching
+  // Determine active item based on current URL path matching (exact match or path prefix)
   const activeItem = useMemo(() => {
     return items.find((item) =>
-      item.path === '/' ? location.pathname === '/' : location.pathname.startsWith(item.path),
+      item.path === '/'
+        ? location.pathname === '/'
+        : location.pathname === item.path || location.pathname.startsWith(`${item.path}/`),
     );
   }, [items, location.pathname]);
 

@@ -10,3 +10,6 @@ export * from './pooling-strategy.enum';
 export * from './vector-indexing-error-code.enum';
 export * from './retrieval-search-mode.enum';
 export * from './retrieval-error-code.enum';
+export * from './conversation-role.enum';
+export * from './generation-status.enum';
+export * from './turn-status.enum';
