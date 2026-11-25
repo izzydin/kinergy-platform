@@ -307,3 +307,51 @@ export class CancelIngestionJobRequestDto {
   @MaxLength(500)
   reason?: string;
 }
+
+export class DocumentPreviewMetadataResponseDto {
+  @ApiProperty({ description: 'Logical document ID', example: 'doc_123' })
+  documentId!: string;
+
+  @ApiProperty({ description: 'Document version ID', example: 'dver_456' })
+  versionId!: string;
+
+  @ApiProperty({ description: 'Version number', example: 1 })
+  versionNumber!: number;
+
+  @ApiProperty({ description: 'Document title', example: 'Manual de Kinesiología' })
+  title!: string;
+
+  @ApiProperty({ description: 'MIME type of document content', example: 'application/pdf' })
+  mimeType!: string;
+
+  @ApiProperty({ description: 'File size in bytes', example: 1048576 })
+  fileSize!: number;
+
+  @ApiProperty({ description: 'Original file name', example: 'manual.pdf' })
+  originalFileName!: string;
+
+  @ApiProperty({
+    description: 'SHA-256 checksum of payload',
+    example: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+  })
+  checksum!: string;
+
+  @ApiProperty({
+    description: 'Whether the file format can be natively rendered in document preview',
+    example: true,
+  })
+  canPreview!: boolean;
+
+  @ApiProperty({
+    description: 'Visibility classification of the document',
+    enum: VisibilityScope,
+    example: VisibilityScope.ALL_STAFF,
+  })
+  visibilityScope!: VisibilityScope;
+
+  @ApiProperty({ description: 'Whether caller has access clearance', example: true })
+  isAuthorized!: boolean;
+
+  @ApiProperty({ description: 'Whether document has been soft deleted', example: false })
+  isDeleted!: boolean;
+}

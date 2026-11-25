@@ -1,57 +1,119 @@
-import React from 'react';
-import { ExternalLink, FileText } from 'lucide-react';
+import React, { useState, useCallback } from 'react';
+import { BookOpen } from 'lucide-react';
 import type { RAGSourceCitationDto } from '../types/assistant.types';
+import { CitationBadge } from './citation-badge';
+import { CitationDetailDialog } from './citation-detail-dialog';
+import { SourceDetailsDrawer } from './source-details-drawer';
 
 export interface MessageCitationsProps {
-  sources: readonly RAGSourceCitationDto[];
+  readonly sources: readonly RAGSourceCitationDto[];
+  readonly conversationId?: string;
+  readonly messageId?: string;
+  readonly displayMode?: 'drawer' | 'dialog';
+  readonly onPreviewDocument?: (documentId: string, pageNumber?: number | null) => void;
+  readonly className?: string;
 }
 
 /**
  * Message Citations Tray Component.
  *
- * Displays verified source citations:
- * - Document title and chunk index
- * - Optional page number
- * - Direct secure reference link
+ * Renders verified source citations associated with an assistant message:
+ * - Deterministic numbering [1], [2] matching backend retrieval rank
+ * - Truncated document title pills with page numbers
+ * - Clickable interaction opening comprehensive SourceDetailsDrawer or CitationDetailDialog
+ * - Graceful handling of missing metadata and unavailable documents
+ * - Renders nothing if no sources exist
  */
-export const MessageCitations: React.FC<MessageCitationsProps> = React.memo(({ sources }) => {
-  if (!sources || sources.length === 0) return null;
+export const MessageCitations: React.FC<MessageCitationsProps> = React.memo(
+  ({
+    sources,
+    conversationId,
+    messageId,
+    displayMode = 'dialog',
+    onPreviewDocument,
+    className = '',
+  }) => {
+    const [selectedCitation, setSelectedCitation] = useState<{
+      source: RAGSourceCitationDto;
+      index: number;
+    } | null>(null);
+    const [isOpen, setIsOpen] = useState(false);
 
-  return (
-    <aside
-      data-testid="message-citations"
-      aria-label={`Fuentes verificadas (${sources.length})`}
-      className="mt-3 border-t border-border/40 pt-2 flex flex-col gap-1.5"
-    >
-      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground">
-        <FileText className="h-3.5 w-3.5 text-primary" />
-        <span>Fuentes verificadas ({sources.length}):</span>
-      </div>
+    const handleCitationClick = useCallback((source: RAGSourceCitationDto, index: number) => {
+      setSelectedCitation({ source, index });
+      setIsOpen(true);
+    }, []);
 
-      <div className="flex flex-wrap gap-1.5">
-        {sources.map((source, idx) => (
-          <span
-            key={`${source.documentId}-${source.chunkId}-${idx}`}
-            className="inline-flex items-center gap-1 rounded-md border border-border/70 bg-muted/50 px-2 py-0.5 text-[11px] text-muted-foreground"
-          >
-            <span className="font-semibold text-primary">[{idx + 1}]</span>
-            <span className="truncate max-w-[160px]">{source.documentTitle}</span>
-            {source.pageNumber !== undefined && (
-              <span className="text-muted-foreground/70">p.{source.pageNumber}</span>
-            )}
-            <a
-              href={`/api/v1/ai/knowledge/documents/${source.documentId}/content`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-0.5 hover:text-foreground inline-flex items-center rounded-xs focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-primary"
-              title={`Ver documento original: ${source.documentTitle}`}
-              aria-label={`Ver documento original: ${source.documentTitle}`}
-            >
-              <ExternalLink className="h-2.5 w-2.5" />
-            </a>
-          </span>
-        ))}
-      </div>
-    </aside>
-  );
-});
+    const handleClose = useCallback(() => {
+      setIsOpen(false);
+      setSelectedCitation(null);
+    }, []);
+
+    const handleSelectCitation = useCallback((source: RAGSourceCitationDto, index: number) => {
+      setSelectedCitation({ source, index });
+    }, []);
+
+    if (!sources || sources.length === 0) {
+      return null;
+    }
+
+    return (
+      <>
+        <aside
+          data-testid="message-citations"
+          aria-label={`Fuentes verificadas (${sources.length})`}
+          className={`mt-3 border-t border-border/40 pt-2 flex flex-col gap-1.5 ${className}`}
+        >
+          {/* Citation Tray Header */}
+          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground select-none">
+            <BookOpen className="h-3.5 w-3.5 text-primary" aria-hidden="true" />
+            <span>Fuentes verificadas ({sources.length}):</span>
+          </div>
+
+          {/* Citation Badges Container */}
+          <div className="flex flex-wrap gap-1.5" data-testid="citations-badge-list">
+            {sources.map((source, idx) => (
+              <CitationBadge
+                key={`${source.documentId}-${source.chunkId ?? idx}-${idx}`}
+                source={source}
+                index={idx}
+                onClick={handleCitationClick}
+              />
+            ))}
+          </div>
+        </aside>
+
+        {/* Detailed Modal Dialog or Slide-Over Drawer */}
+        {isOpen &&
+          selectedCitation &&
+          (displayMode === 'drawer' ? (
+            <SourceDetailsDrawer
+              isOpen={isOpen}
+              onClose={handleClose}
+              citation={selectedCitation.source}
+              citationIndex={selectedCitation.index}
+              allCitations={sources}
+              onSelectCitation={handleSelectCitation}
+              conversationId={conversationId}
+              messageId={messageId}
+              onPreviewDocument={onPreviewDocument}
+            />
+          ) : (
+            <CitationDetailDialog
+              open={isOpen}
+              onOpenChange={(open) => {
+                if (!open) handleClose();
+                else setIsOpen(true);
+              }}
+              citation={selectedCitation.source}
+              citationIndex={selectedCitation.index}
+              conversationId={conversationId}
+              messageId={messageId}
+            />
+          ))}
+      </>
+    );
+  },
+);
+
+MessageCitations.displayName = 'MessageCitations';

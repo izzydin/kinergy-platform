@@ -516,6 +516,68 @@ describe('AiDocumentController (Unit & REST Contract)', () => {
       expect(mockRes.setHeader).toHaveBeenCalledWith('ETag', `"${'e'.repeat(64)}"`);
       expect(mockRes.send).toHaveBeenCalledWith(Buffer.from('%PDF-1.4 file payload'));
     });
+
+    it('GET /:id/preview-metadata returns document preview metadata and permissions', async () => {
+      const doc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Previewable Protocol',
+        uploadedBy: therapistUser,
+        initialVersion: {
+          originalFileName: 'preview.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 2048,
+          checksum: 'd'.repeat(64),
+          storageKey: 'key_preview',
+          uploadedBy: therapistUser,
+        },
+      });
+
+      mockDocRepo.findById.mockResolvedValueOnce(doc);
+
+      const previewMeta = await controller.getPreviewMetadata(
+        doc.id.toString(),
+        undefined,
+        undefined,
+        validUser,
+      );
+
+      expect(previewMeta.documentId).toBe(doc.id.toString());
+      expect(previewMeta.title).toBe('Previewable Protocol');
+      expect(previewMeta.mimeType).toBe('application/pdf');
+      expect(previewMeta.fileSize).toBe(2048);
+      expect(previewMeta.canPreview).toBe(true);
+      expect(previewMeta.isDeleted).toBe(false);
+      expect(previewMeta.isAuthorized).toBe(true);
+    });
+
+    it('GET /:id/preview-metadata returns canPreview: false when document is soft deleted', async () => {
+      const doc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Archived Protocol',
+        uploadedBy: therapistUser,
+        initialVersion: {
+          originalFileName: 'archived.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 2048,
+          checksum: 'c'.repeat(64),
+          storageKey: 'key_archived',
+          uploadedBy: therapistUser,
+        },
+      });
+      doc.softDelete(therapistUser);
+
+      mockDocRepo.findById.mockResolvedValueOnce(doc);
+
+      const previewMeta = await controller.getPreviewMetadata(
+        doc.id.toString(),
+        undefined,
+        undefined,
+        validUser,
+      );
+
+      expect(previewMeta.canPreview).toBe(false);
+      expect(previewMeta.isDeleted).toBe(true);
+    });
   });
 
   describe('11, 12, 13. Ingestion Job Lifecycle Endpoints', () => {

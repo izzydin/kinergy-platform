@@ -12,6 +12,7 @@ import {
   IAiConversationTurnRepositoryPort,
   IAiConversationRepositoryPort,
   TurnStatus,
+  AiTurnErrorClassifier,
 } from '@kinergy-platform/core';
 import { AiTurnDispatcherService } from './ai-turn-dispatcher.service';
 
@@ -74,7 +75,10 @@ export class AiTurnGenerationWorker implements OnModuleInit, OnApplicationShutdo
 
     this.timer = setInterval(() => {
       this.poll().catch((err: unknown) => {
-        this.logger.error(`Unhandled error during AI turn generation recovery cycle: ${err}`);
+        const classified = AiTurnErrorClassifier.classify(err);
+        this.logger.error(
+          `Unhandled error during AI turn generation recovery cycle [${classified.category}/${classified.errorCode}]: ${classified.sanitizedErrorMessage}`,
+        );
       });
     }, this.options.pollIntervalMs);
 

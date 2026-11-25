@@ -9,6 +9,7 @@ import type { ChatMessage } from '../types/assistant.types';
 
 export interface AssistantMessageProps {
   message: ChatMessage;
+  conversationId?: string;
   onRetry?: () => void;
 }
 
@@ -23,7 +24,7 @@ export interface AssistantMessageProps {
  * - Telemetry & copy action footer
  */
 export const AssistantMessage: React.FC<AssistantMessageProps> = React.memo(
-  ({ message, onRetry }) => {
+  ({ message, conversationId, onRetry }) => {
     const isPending = message.status === 'pending';
     const hasText = Boolean(message.content && message.content.trim().length > 0);
     const isTerminalSuccess = message.status === 'success';
@@ -67,7 +68,11 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = React.memo(
 
             {/* Verified Source Citations */}
             {isTerminalSuccess && message.sources && message.sources.length > 0 && (
-              <MessageCitations sources={message.sources} />
+              <MessageCitations
+                sources={message.sources}
+                conversationId={conversationId}
+                messageId={message.id}
+              />
             )}
           </div>
 

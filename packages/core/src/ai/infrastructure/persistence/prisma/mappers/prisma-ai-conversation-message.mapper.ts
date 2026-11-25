@@ -120,6 +120,17 @@ export class PrismaAiConversationMessageMapper {
       data.metadata = PrismaAiConversationMessageMapper.toPrismaJson(update.metadata);
     }
 
+    if (
+      update.status === GenerationStatus.SUCCESS ||
+      update.status === GenerationStatus.FAILED ||
+      update.status === GenerationStatus.CANCELLED ||
+      update.status === GenerationStatus.INTERRUPTED
+    ) {
+      data.leaseToken = null;
+      data.leaseOwnerInstanceId = null;
+      data.leaseExpiresAt = null;
+    }
+
     return data;
   }
 

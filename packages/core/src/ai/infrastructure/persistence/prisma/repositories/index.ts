@@ -10,3 +10,4 @@ export * from './prisma-ai-conversation.repository';
 export * from './prisma-ai-conversation-turn.repository';
 export * from './prisma-ai-conversation-message.repository';
 export * from './prisma-ai-conversation-audit.repository';
+export * from './prisma-ai-conversation-citation.repository';

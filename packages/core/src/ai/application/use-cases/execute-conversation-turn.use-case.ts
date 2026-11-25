@@ -1,6 +1,8 @@
 import { IAiConversationRepositoryPort } from '../../ports/outbound/ai-conversation-repository.port';
 import { IAiConversationTurnRepositoryPort } from '../../ports/outbound/ai-conversation-turn-repository.port';
 import { IAiConversationMessageRepositoryPort } from '../../ports/outbound/ai-conversation-message-repository.port';
+import { IAiConversationCitationRepositoryPort } from '../../ports/outbound/ai-conversation-citation-repository.port';
+import { AiConversationCitation } from '../../domain/models/ai-conversation-citation.entity';
 import {
   IRAGTurnPipelinePort,
   RAGTurnExecutionConfig,
@@ -15,6 +17,7 @@ import { LoadCanonicalConversationHistoryUseCase } from './load-canonical-conver
 import { TurnStatus } from '../../domain/enums/turn-status.enum';
 import { GenerationStatus } from '../../domain/enums/generation-status.enum';
 import { RAGSourceCitation } from '../../domain/value-objects/rag-source-citation.vo';
+import { AiSourceAttributionService } from '../services/ai-source-attribution.service';
 import {
   InvalidTurnInputError,
   ConversationNotFoundError,
@@ -80,6 +83,7 @@ export class ExecuteConversationTurnUseCase {
     private readonly ragPipeline: IRAGTurnPipelinePort,
     historyLoader?: LoadCanonicalConversationHistoryUseCase,
     private readonly txRunner?: IAiConversationTransactionRunner,
+    private readonly citationRepo?: IAiConversationCitationRepositoryPort,
   ) {
     this.historyLoader =
       historyLoader ?? new LoadCanonicalConversationHistoryUseCase(convRepo, turnRepo, messageRepo);
@@ -145,9 +149,9 @@ export class ExecuteConversationTurnUseCase {
       }
 
       if (canonicalMsg) {
-        const sources: readonly RAGSourceCitation[] = Array.isArray(canonicalMsg.sources)
-          ? (canonicalMsg.sources as unknown as readonly RAGSourceCitation[])
-          : [];
+        const sources = AiSourceAttributionService.deserializeFromPersistence(
+          canonicalMsg.sources,
+        ) as unknown as readonly RAGSourceCitation[];
         const isGrounded = (canonicalMsg.metadata?.['isGrounded'] as boolean) ?? false;
         const completedTurnsCount =
           (canonicalMsg.metadata?.['historyTurnCount'] as number) ?? undefined;
@@ -241,11 +245,7 @@ export class ExecuteConversationTurnUseCase {
     });
 
     // 7. Atomic Turn & Message Finalization with Fencing
-    const finalizeWork = async (repos: {
-      conversationRepo: IAiConversationRepositoryPort;
-      turnRepo: IAiConversationTurnRepositoryPort;
-      messageRepo: IAiConversationMessageRepositoryPort;
-    }) => {
+    const finalizeWork = async (repos: ConversationTransactionalRepositories) => {
       // 7a. Re-read turn inside transaction to enforce transactional fencing
       const inTxTurn = await repos.turnRepo.findById(tenantId, conversationId, turnId);
       if (!inTxTurn) {
@@ -255,12 +255,18 @@ export class ExecuteConversationTurnUseCase {
       // 7b. Fencing Guard: If turn already reached terminal state concurrently
       if (inTxTurn.isTerminal()) {
         if (inTxTurn.status === TurnStatus.COMPLETED) {
+          const validatedSources = AiSourceAttributionService.validateAndSanitize(
+            ragResult.sources,
+            {
+              allowedDocumentIds: input.executionConfig?.documentIds,
+            },
+          ) as unknown as readonly RAGSourceCitation[];
           return {
             aborted: false,
             turnStatus: TurnStatus.COMPLETED,
             isCanonical: true,
             outcome: 'SUCCESS' as const,
-            sources: ragResult.sources,
+            sources: validatedSources,
             errorCode: null,
             errorMessage: null,
           };
@@ -302,7 +308,7 @@ export class ExecuteConversationTurnUseCase {
       let finalTurnStatus: TurnStatus;
       let isCanonical: boolean;
       let messageStatus: GenerationStatus;
-      let finalSources: readonly RAGSourceCitation[] = ragResult.sources;
+      let finalSources: readonly RAGSourceCitation[];
       let finalErrorCode: string | null = null;
       let finalErrorMessage: string | null = null;
 
@@ -316,15 +322,12 @@ export class ExecuteConversationTurnUseCase {
         finalTurnStatus = TurnStatus.COMPLETED;
         messageStatus = GenerationStatus.SUCCESS;
 
-        const serializedSources: Record<string, unknown>[] = ragResult.sources.map((s) => ({
-          documentId: s.documentId,
-          documentTitle: s.documentTitle,
-          chunkId: s.chunkId,
-          pageNumber: s.pageNumber ?? null,
-          headingPath: s.headingPath ? [...s.headingPath] : null,
-          relevanceScore: s.relevanceScore,
-          sourceStrategy: s.sourceStrategy ?? null,
-        }));
+        const validatedSources = AiSourceAttributionService.validateAndSanitize(ragResult.sources, {
+          allowedDocumentIds: input.executionConfig?.documentIds,
+        });
+        finalSources = validatedSources as unknown as readonly RAGSourceCitation[];
+        const serializedSources =
+          AiSourceAttributionService.serializeForPersistence(validatedSources);
 
         await targetPersistUseCase.execute({
           tenantId,
@@ -343,6 +346,32 @@ export class ExecuteConversationTurnUseCase {
             historyTurnCount: canonicalContext.completedTurnsCount,
           },
         });
+
+        // CIT.02: Persist dedicated citation records for first-class relational provenance
+        const effectiveCitationRepo = repos.citationRepo ?? this.citationRepo;
+        if (effectiveCitationRepo && validatedSources.length > 0) {
+          const citationsToPersist = validatedSources.map((source, idx) =>
+            AiConversationCitation.create({
+              id: source.citationId ?? undefined,
+              tenantId,
+              conversationId,
+              turnId,
+              messageId: assistantAttempt.id.value,
+              documentId: source.documentId,
+              documentVersionId: source.documentVersionId ?? null,
+              chunkId: source.chunkId ?? null,
+              citationPosition: idx + 1,
+              documentTitleSnapshot: source.documentTitle,
+              excerpt: source.excerpt || source.documentTitle || 'Evidence excerpt unavailable',
+              pageNumber: source.pageNumber ?? null,
+              headingPath: source.headingPath ?? [],
+              relevanceScore: source.relevanceScore,
+              retrievalRank: source.retrievalRank ?? idx + 1,
+              sourceStrategy: source.sourceStrategy ?? null,
+            }),
+          );
+          await effectiveCitationRepo.saveMany(citationsToPersist);
+        }
       } else if (ragResult.outcome === 'CANCELLED') {
         isCanonical = false;
         finalTurnStatus = TurnStatus.CANCELLED;
@@ -416,6 +445,7 @@ export class ExecuteConversationTurnUseCase {
           conversationRepo: this.convRepo,
           turnRepo: this.turnRepo,
           messageRepo: this.messageRepo,
+          citationRepo: this.citationRepo,
         });
 
     if (finalizationResult.aborted) {

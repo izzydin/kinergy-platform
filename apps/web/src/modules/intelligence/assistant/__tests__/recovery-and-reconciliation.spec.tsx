@@ -10,6 +10,46 @@ import { aiAssistantKeys } from '../api/assistant-query-keys';
 import { ChatWorkspace } from '../components/chat-workspace';
 import type { RAGAnswerResponseDto, QueryKnowledgeRequestDto } from '../types/assistant.types';
 
+jest.mock('../api/conversation.api', () => ({
+  conversationApi: {
+    createConversation: jest
+      .fn()
+      .mockImplementation(async ({ clientTurnId, userPrompt, title }) => ({
+        conversationId: `conv_${Date.now()}`,
+        turnId: `turn_${Date.now()}`,
+        clientTurnId,
+        turnIndex: 1,
+        userMessageId: `msg_u_${Date.now()}`,
+        assistantAttemptId: `msg_a_${Date.now()}`,
+        title: title || userPrompt.slice(0, 45),
+        turnStatus: 'PENDING',
+        isIdempotentReplay: false,
+        idempotencyOutcome: 'CREATED',
+        createdAt: new Date().toISOString(),
+      })),
+    reserveTurn: jest.fn().mockImplementation(async (conversationId, { clientTurnId }) => ({
+      conversationId,
+      turnId: `turn_${Date.now()}`,
+      clientTurnId,
+      turnIndex: 2,
+      userMessageId: `msg_u_${Date.now()}`,
+      assistantAttemptId: `msg_a_${Date.now()}`,
+      turnStatus: 'PENDING',
+      isIdempotentReplay: false,
+      idempotencyOutcome: 'CREATED',
+      createdAt: new Date().toISOString(),
+    })),
+    cancelTurn: jest.fn().mockResolvedValue({}),
+    listConversations: jest.fn().mockResolvedValue({ items: [], nextCursor: null, hasMore: false }),
+    getConversation: jest.fn(),
+    getMessageHistory: jest
+      .fn()
+      .mockResolvedValue({ messages: [], nextCursor: null, hasMore: false }),
+    updateTitle: jest.fn(),
+    archiveConversation: jest.fn(),
+  },
+}));
+
 function createTestWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -76,7 +116,9 @@ describe('Generation Cancellation, Recovery & Canonical Reconciliation (AI-09.2.
 
       expect(result.current.isGenerating).toBe(true);
       expect(result.current.state.status).toBe('PENDING');
-      expect(capturedSignal?.aborted).toBe(false);
+      await waitFor(() => {
+        expect(capturedSignal?.aborted).toBe(false);
+      });
 
       // Trigger explicit cancellation
       act(() => {
@@ -122,7 +164,15 @@ describe('Generation Cancellation, Recovery & Canonical Reconciliation (AI-09.2.
         .spyOn(assistantApi, 'queryKnowledge')
         .mockImplementation((_req: QueryKnowledgeRequestDto, signal?: AbortSignal) => {
           capturedSignal = signal;
-          return new Promise<RAGAnswerResponseDto>(() => {});
+          return new Promise<RAGAnswerResponseDto>((_resolve, reject) => {
+            if (signal) {
+              signal.addEventListener('abort', () => {
+                const err = new Error('The operation was aborted');
+                err.name = 'AbortError';
+                reject(err);
+              });
+            }
+          });
         });
 
       const { result } = renderHook(
@@ -136,9 +186,11 @@ describe('Generation Cancellation, Recovery & Canonical Reconciliation (AI-09.2.
       );
 
       act(() => {
-        void result.current.submitMessage({
-          prompt: 'Protección cross-conversation',
-        });
+        void result.current
+          .submitMessage({
+            prompt: 'Protección cross-conversation',
+          })
+          .catch(() => {});
       });
 
       expect(result.current.isGenerating).toBe(true);
@@ -149,8 +201,15 @@ describe('Generation Cancellation, Recovery & Canonical Reconciliation (AI-09.2.
       });
 
       // Signal must NOT be aborted because IDs don't match
-      expect(capturedSignal?.aborted).toBe(false);
+      await waitFor(() => {
+        expect(capturedSignal?.aborted).toBe(false);
+      });
       expect(result.current.isGenerating).toBe(true);
+
+      // Clean up in-flight generation
+      act(() => {
+        result.current.cancelGeneration(conv.id);
+      });
     });
   });
 
@@ -322,7 +381,7 @@ describe('Generation Cancellation, Recovery & Canonical Reconciliation (AI-09.2.
   });
 
   describe('4. Stale Response Protection & Unmount Cleanup', () => {
-    it('aborts active request on component unmount and marks turn interrupted', () => {
+    it('aborts active request on component unmount and marks turn interrupted', async () => {
       const conv = assistantStorageService.createConversation(tenantId, userId, 'Unmount Test');
       const { Wrapper } = createTestWrapper();
 
@@ -331,7 +390,15 @@ describe('Generation Cancellation, Recovery & Canonical Reconciliation (AI-09.2.
         .spyOn(assistantApi, 'queryKnowledge')
         .mockImplementation((_req: QueryKnowledgeRequestDto, signal?: AbortSignal) => {
           capturedSignal = signal;
-          return new Promise<RAGAnswerResponseDto>(() => {});
+          return new Promise<RAGAnswerResponseDto>((_resolve, reject) => {
+            if (signal) {
+              signal.addEventListener('abort', () => {
+                const err = new Error('The operation was aborted');
+                err.name = 'AbortError';
+                reject(err);
+              });
+            }
+          });
         });
 
       const { result, unmount } = renderHook(
@@ -345,13 +412,17 @@ describe('Generation Cancellation, Recovery & Canonical Reconciliation (AI-09.2.
       );
 
       act(() => {
-        void result.current.submitMessage({
-          prompt: 'Prueba de unmount',
-        });
+        void result.current
+          .submitMessage({
+            prompt: 'Prueba de unmount',
+          })
+          .catch(() => {});
       });
 
       expect(result.current.isGenerating).toBe(true);
-      expect(capturedSignal?.aborted).toBe(false);
+      await waitFor(() => {
+        expect(capturedSignal?.aborted).toBe(false);
+      });
 
       // Unmount while generating
       unmount();

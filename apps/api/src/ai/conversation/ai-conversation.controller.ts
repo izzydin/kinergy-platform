@@ -11,6 +11,8 @@ import {
   UseFilters,
   HttpCode,
   HttpStatus,
+  Optional,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import {
@@ -23,6 +25,8 @@ import {
   ArchiveConversationUseCase,
   PrivilegedInspectConversationUseCase,
   CancelConversationTurnUseCase,
+  GetMessageCitationsUseCase,
+  GetCitationDetailUseCase,
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
@@ -48,6 +52,8 @@ import {
   AuditInspectResponseDto,
   CancelTurnRequestDto,
   CancelTurnResponseDto,
+  CitationDetailResponseDto,
+  MessageCitationsResponseDto,
   AiConversationErrorResponseDto,
 } from './dtos/ai-conversation.dtos';
 import { AiConversationResponseMapper } from './mappers/ai-conversation-response.mapper';
@@ -77,6 +83,8 @@ export class AiConversationController {
     private readonly archiveConvUseCase: ArchiveConversationUseCase,
     private readonly inspectUseCase: PrivilegedInspectConversationUseCase,
     private readonly cancelTurnUseCase: CancelConversationTurnUseCase,
+    @Optional() private readonly getCitationsUseCase?: GetMessageCitationsUseCase,
+    @Optional() private readonly getCitationDetailUseCase?: GetCitationDetailUseCase,
   ) {}
 
   /**
@@ -451,5 +459,148 @@ export class AiConversationController {
     });
 
     return AiConversationResponseMapper.toAuditInspectResponse(result);
+  }
+
+  /**
+   * Retrieves all citations associated with a specific assistant message.
+   * Ordered deterministically by citationPosition ASC.
+   */
+  @Get(':conversationId/messages/:messageId/citations')
+  @ApiOperation({
+    summary: 'Get citations for an assistant message',
+    description:
+      'Returns the list of persistent source citations for an assistant message with dynamic preview availability status.',
+  })
+  @ApiParam({ name: 'conversationId', description: 'Target conversation identifier' })
+  @ApiParam({ name: 'messageId', description: 'Target assistant message identifier' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Citations retrieved successfully',
+    type: MessageCitationsResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Conversation or message not found',
+    type: AiConversationErrorResponseDto,
+  })
+  public async getMessageCitations(
+    @TrustedAi() auth: TrustedAiContext,
+    @Param('conversationId') conversationId: string,
+    @Param('messageId') messageId: string,
+  ): Promise<MessageCitationsResponseDto> {
+    if (!this.getCitationsUseCase) {
+      throw new BadRequestException('Citation service is not configured');
+    }
+
+    const result = await this.getCitationsUseCase.execute({
+      tenantId: auth.tenantId,
+      userId: auth.actorId,
+      conversationId,
+      messageId,
+      userRoles: auth.roles,
+    });
+
+    return {
+      messageId: result.messageId,
+      conversationId: result.conversationId,
+      citations: result.citations.map((c) => ({
+        id: c.id,
+        messageId: c.messageId,
+        turnId: c.turnId,
+        conversationId: c.conversationId,
+        citationPosition: c.citationPosition,
+        documentId: c.documentId,
+        documentTitleSnapshot: c.documentTitleSnapshot,
+        documentTitle: c.documentTitle,
+        originalFileName: c.originalFileName ?? null,
+        documentStatus: c.documentStatus ?? null,
+        documentVersionId: c.documentVersionId,
+        documentVersionNumber: c.documentVersionNumber,
+        chunkId: c.chunkId,
+        excerpt: c.excerpt,
+        pageNumber: c.pageNumber,
+        headingPath: c.headingPath,
+        retrievalRank: c.retrievalRank,
+        relevanceScore: c.relevanceScore,
+        sourceStrategy: c.sourceStrategy,
+        previewStatus: c.previewStatus,
+        canPreview: c.canPreview,
+        previewUnavailableReason: c.previewUnavailableReason,
+        mimeType: c.mimeType,
+        fileSizeBytes: c.fileSizeBytes,
+        createdAt: c.createdAt,
+      })),
+    };
+  }
+
+  /**
+   * Retrieves details for a specific citation within an assistant message.
+   */
+  @Get(':conversationId/messages/:messageId/citations/:citationId')
+  @ApiOperation({
+    summary: 'Get single citation detail',
+    description:
+      'Returns complete detail and dynamic preview metadata for a single persistent source citation.',
+  })
+  @ApiParam({ name: 'conversationId', description: 'Target conversation identifier' })
+  @ApiParam({ name: 'messageId', description: 'Target assistant message identifier' })
+  @ApiParam({ name: 'citationId', description: 'Target citation identifier' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Citation details retrieved successfully',
+    type: CitationDetailResponseDto,
+  })
+  @ApiResponse({
+    status: HttpStatus.NOT_FOUND,
+    description: 'Citation, message, or conversation not found',
+    type: AiConversationErrorResponseDto,
+  })
+  public async getCitationDetail(
+    @TrustedAi() auth: TrustedAiContext,
+    @Param('conversationId') conversationId: string,
+    @Param('messageId') messageId: string,
+    @Param('citationId') citationId: string,
+  ): Promise<CitationDetailResponseDto> {
+    if (!this.getCitationDetailUseCase) {
+      throw new BadRequestException('Citation service is not configured');
+    }
+
+    const result = await this.getCitationDetailUseCase.execute({
+      tenantId: auth.tenantId,
+      userId: auth.actorId,
+      conversationId,
+      messageId,
+      citationId,
+      userRoles: auth.roles,
+    });
+
+    const c = result.citation;
+    return {
+      id: c.id,
+      messageId: c.messageId,
+      turnId: c.turnId,
+      conversationId: c.conversationId,
+      citationPosition: c.citationPosition,
+      documentId: c.documentId,
+      documentTitleSnapshot: c.documentTitleSnapshot,
+      documentTitle: c.documentTitle,
+      originalFileName: c.originalFileName ?? null,
+      documentStatus: c.documentStatus ?? null,
+      documentVersionId: c.documentVersionId,
+      documentVersionNumber: c.documentVersionNumber,
+      chunkId: c.chunkId,
+      excerpt: c.excerpt,
+      pageNumber: c.pageNumber,
+      headingPath: c.headingPath,
+      retrievalRank: c.retrievalRank,
+      relevanceScore: c.relevanceScore,
+      sourceStrategy: c.sourceStrategy,
+      previewStatus: c.previewStatus,
+      canPreview: c.canPreview,
+      previewUnavailableReason: c.previewUnavailableReason,
+      mimeType: c.mimeType,
+      fileSizeBytes: c.fileSizeBytes,
+      createdAt: c.createdAt,
+    };
   }
 }

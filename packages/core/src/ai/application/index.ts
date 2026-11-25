@@ -1,6 +1,7 @@
 export * from './ports/ai-conversation-transaction-runner.port';
 export * from './ports/ai-conversation-logger.port';
 export * from './services/ai-conversation-redaction.service';
+export * from './services/ai-source-attribution.service';
 export * from './errors/ai-conversation-application.error';
 export * from './dtos/ai-conversation.dtos';
 export { AiApplicationResult } from './common/application-result';
@@ -17,4 +18,6 @@ export * from './use-cases/privileged-inspect-conversation.use-case';
 export * from './use-cases/execute-conversation-turn.use-case';
 export * from './use-cases/load-canonical-conversation-history.use-case';
 export * from './use-cases/cancel-conversation-turn.use-case';
+export * from './use-cases/get-message-citations.use-case';
+export * from './use-cases/get-citation-detail.use-case';
 export * from './mappers/canonical-chat-message.mapper';

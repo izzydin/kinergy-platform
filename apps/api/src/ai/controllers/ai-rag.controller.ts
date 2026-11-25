@@ -133,6 +133,10 @@ export class AiRAGController {
           headingPath: src.headingPath ? [...src.headingPath] : undefined,
           relevanceScore: src.relevanceScore,
           sourceStrategy: src.sourceStrategy,
+          excerpt: src.excerpt,
+          documentVersionId: src.documentVersionId,
+          documentVersionNumber: src.documentVersionNumber,
+          retrievalRank: src.retrievalRank,
         })),
         metadata: {
           model: ragAnswer.metadata.model,

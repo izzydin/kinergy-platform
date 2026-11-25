@@ -1,14 +1,18 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
-import { ArrowDown, Bot, Sparkles } from 'lucide-react';
+import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
+import { ArrowDown, Bot, Loader2, Sparkles } from 'lucide-react';
 import { Button } from '@kinergy-platform/ui';
 import type { ChatMessage } from '../types/assistant.types';
 import { ChatMessageItem } from './chat-message-item';
 
 export interface ChatMessageFeedProps {
   messages: readonly ChatMessage[];
+  conversationId?: string;
   isLoading?: boolean;
   onPromptSuggestionClick?: (prompt: string) => void;
   onRetryMessage?: (messageId: string) => void;
+  hasMoreMessages?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMoreMessages?: () => void;
 }
 
 const CLINICAL_SUGGESTIONS = [
@@ -22,18 +26,30 @@ const CLINICAL_SUGGESTIONS = [
  * Chat Message Feed Component.
  *
  * Implements:
- * - Canonical message ordering: deduplicated by message.id and sorted by createdAt ascending
+ * - Canonical message ordering: deduplicated by message.id and sorted by sequenceNumber / createdAt
  * - Predictable scroll management: auto-scroll to bottom only when user is near bottom
- * - Preservation of scroll position when user browses historical content
+ * - Preservation of scroll position when user browses historical content or loads older messages
  * - Floating "Scroll to bottom" button when user scrolls up
+ * - Incremental history pagination with "Cargar mensajes anteriores" action
  * - Welcoming empty state with clinical suggestions
  */
 export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
-  ({ messages, isLoading = false, onPromptSuggestionClick, onRetryMessage }) => {
+  ({
+    messages,
+    conversationId,
+    isLoading = false,
+    onPromptSuggestionClick,
+    onRetryMessage,
+    hasMoreMessages = false,
+    isLoadingMore = false,
+    onLoadMoreMessages,
+  }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [showScrollBottom, setShowScrollBottom] = useState(false);
+    const prevScrollHeightRef = useRef<number | null>(null);
+    const prevScrollTopRef = useRef<number | null>(null);
 
-    // 1. Canonical Ordering: deduplicate by ID and sort ascending by createdAt
+    // 1. Canonical Ordering: deduplicate by ID and sort ascending by sequenceNumber (if available) or createdAt
     const orderedMessages = useMemo(() => {
       const seen = new Set<string>();
       const unique: ChatMessage[] = [];
@@ -45,9 +61,12 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
         }
       }
 
-      return unique.sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      );
+      return unique.sort((a, b) => {
+        if (typeof a.sequenceNumber === 'number' && typeof b.sequenceNumber === 'number') {
+          return a.sequenceNumber - b.sequenceNumber;
+        }
+        return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      });
     }, [messages]);
 
     // Stable retry handler passed to memoized children
@@ -90,6 +109,31 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
       }
     };
 
+    // Incremental load trigger with scroll measurement
+    const handleLoadMore = () => {
+      if (containerRef.current) {
+        prevScrollHeightRef.current = containerRef.current.scrollHeight;
+        prevScrollTopRef.current = containerRef.current.scrollTop;
+      }
+      onLoadMoreMessages?.();
+    };
+
+    // Viewport scroll preservation when older messages are loaded into the feed
+    useLayoutEffect(() => {
+      if (
+        containerRef.current &&
+        prevScrollHeightRef.current !== null &&
+        prevScrollTopRef.current !== null
+      ) {
+        const heightDifference = containerRef.current.scrollHeight - prevScrollHeightRef.current;
+        if (heightDifference > 0) {
+          containerRef.current.scrollTop = prevScrollTopRef.current + heightDifference;
+        }
+        prevScrollHeightRef.current = null;
+        prevScrollTopRef.current = null;
+      }
+    }, [orderedMessages.length]);
+
     // Latest message content and status tracking for responsive auto-scrolling
     const latestMessage = orderedMessages[orderedMessages.length - 1];
     const latestMessageContentLength = latestMessage?.content?.length ?? 0;
@@ -97,7 +141,7 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
 
     // Auto-scroll to bottom when new messages arrive or when active message expands, if user is already near bottom
     useEffect(() => {
-      if (!showScrollBottom) {
+      if (!showScrollBottom && prevScrollHeightRef.current === null) {
         scrollToBottom();
       }
     }, [orderedMessages.length, latestMessageContentLength, latestMessageStatus]);
@@ -114,6 +158,32 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
           aria-label="Feed de mensajes"
           className="h-full overflow-y-auto px-4 py-4 md:px-6 md:py-6 space-y-3 focus-visible:outline-hidden"
         >
+          {/* Incremental History Loading: Load Older Messages */}
+          {hasMoreMessages && (
+            <div
+              className="flex justify-center pb-2 pt-1"
+              data-testid="load-more-messages-container"
+            >
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleLoadMore}
+                disabled={isLoadingMore}
+                className="text-xs gap-1.5 h-7 px-3 cursor-pointer shadow-2xs"
+                data-testid="load-more-messages-button"
+              >
+                {isLoadingMore ? (
+                  <>
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                    <span>Cargando mensajes anteriores...</span>
+                  </>
+                ) : (
+                  <span>Cargar mensajes anteriores</span>
+                )}
+              </Button>
+            </div>
+          )}
+
           {/* Empty Conversation Welcome State */}
           {orderedMessages.length === 0 && !isLoading && (
             <div
@@ -160,6 +230,7 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
             <ChatMessageItem
               key={msg.id}
               message={msg}
+              conversationId={conversationId}
               onRetry={onRetryMessage ? handleItemRetry : undefined}
             />
           ))}

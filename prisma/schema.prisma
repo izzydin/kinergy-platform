@@ -875,6 +875,7 @@ model KnowledgeDocument {
   ingestionJobs IngestionJob[]      @relation("DocumentToIngestionJobs")
   chunks        KnowledgeChunk[]    @relation("DocumentToChunks")
   embeddings    DocumentEmbedding[] @relation("DocumentToEmbeddings")
+  citations     AiConversationCitation[] @relation("DocumentToCitations")
 
   @@index([tenantId])
   @@index([tenantId, visibilityScope])
@@ -900,6 +901,7 @@ model DocumentVersion {
   ingestionJobs IngestionJob[]      @relation("VersionToIngestionJobs")
   chunks        KnowledgeChunk[]    @relation("VersionToChunks")
   embeddings    DocumentEmbedding[] @relation("VersionToEmbeddings")
+  citations     AiConversationCitation[] @relation("VersionToCitations")
 
   @@unique([documentId, versionNumber], name: "unique_document_version_number")
   @@unique([documentId, checksum], name: "unique_document_checksum")
@@ -958,6 +960,7 @@ model KnowledgeChunk {
   document   KnowledgeDocument   @relation("DocumentToChunks", fields: [documentId], references: [id], onDelete: Cascade)
   version    DocumentVersion     @relation("VersionToChunks", fields: [documentVersionId], references: [id], onDelete: Cascade)
   embeddings DocumentEmbedding[] @relation("ChunkToEmbeddings")
+  citations  AiConversationCitation[] @relation("ChunkToCitations")
 
   @@unique([documentVersionId, sequence], name: "unique_version_chunk_sequence")
   @@index([tenantId])
@@ -1232,12 +1235,47 @@ model AiConversationMessage {
   conversation   AiConversation     @relation(fields: [conversationId, tenantId], references: [id, tenantId], onDelete: Cascade)
   turn           AiConversationTurn @relation("TurnAllMessages", fields: [turnId, conversationId, tenantId], references: [id, conversationId, tenantId], onDelete: Cascade)
   activeForTurns AiConversationTurn[] @relation("TurnActiveAttempt")
+  citations      AiConversationCitation[] @relation("MessageToCitations")
 
   @@unique([id, turnId, conversationId, tenantId], name: "uq_msg_id_turn_conv_tenant")
   @@unique([conversationId, sequenceNumber], name: "uq_conversation_sequence_number")
   @@index([turnId, role], name: "idx_message_turn_role")
   @@index([conversationId, createdAt(sort: Asc)], name: "idx_message_history_cursor")
   @@map("ai_conversation_messages")
+}
+
+model AiConversationCitation {
+  id                    String   @id @default(uuid()) @map("id")
+  messageId             String   @map("message_id")
+  turnId                String   @map("turn_id")
+  conversationId        String   @map("conversation_id")
+  tenantId              String   @map("tenant_id")
+  documentId            String   @map("document_id")
+  documentVersionId     String?  @map("document_version_id")
+  chunkId               String?  @map("chunk_id")
+  citationPosition      Int      @map("citation_position")
+  documentTitleSnapshot String   @map("document_title_snapshot") @db.VarChar(255)
+  excerpt               String   @map("excerpt") @db.Text
+  pageNumber            Int?     @map("page_number")
+  headingPath           String[] @default([]) @map("heading_path")
+  retrievalRank         Int?     @map("retrieval_rank")
+  relevanceScore        Float?   @map("relevance_score")
+  sourceStrategy        String?  @map("source_strategy") @db.VarChar(64)
+  metadata              Json?    @map("metadata")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  message  AiConversationMessage @relation("MessageToCitations", fields: [messageId, turnId, conversationId, tenantId], references: [id, turnId, conversationId, tenantId], onDelete: Cascade)
+  document KnowledgeDocument     @relation("DocumentToCitations", fields: [documentId], references: [id], onDelete: Cascade)
+  version  DocumentVersion?      @relation("VersionToCitations", fields: [documentVersionId], references: [id], onDelete: SetNull)
+  chunk    KnowledgeChunk?       @relation("ChunkToCitations", fields: [chunkId], references: [id], onDelete: SetNull)
+
+  @@unique([messageId, citationPosition], name: "uq_message_citation_position")
+  @@unique([id, tenantId], name: "uq_citation_id_tenant")
+  @@index([messageId], name: "idx_citation_message")
+  @@index([conversationId], name: "idx_citation_conversation")
+  @@index([tenantId, documentId], name: "idx_citation_tenant_document")
+  @@index([chunkId], name: "idx_citation_chunk")
+  @@map("ai_conversation_citations")
 }
 
 model AiConversationAuditLog {

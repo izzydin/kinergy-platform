@@ -246,6 +246,33 @@ export class AssistantStorageService {
   }
 
   /**
+   * Updates the title of an existing conversation.
+   */
+  updateConversationTitle(
+    tenantId: string,
+    userId: string,
+    conversationId: string,
+    newTitle: string,
+  ): Conversation | null {
+    const conversations = this.getConversations(tenantId, userId);
+    const target = conversations.find((c) => c.id === conversationId);
+    if (!target) return null;
+
+    const updatedConversation: Conversation = {
+      ...target,
+      title: newTitle.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    const finalConversations = conversations.map((c) =>
+      c.id === conversationId ? updatedConversation : c,
+    );
+    this.saveConversations(tenantId, userId, finalConversations);
+
+    return updatedConversation;
+  }
+
+  /**
    * Deletes a conversation by ID.
    */
   deleteConversation(tenantId: string, userId: string, conversationId: string): boolean {

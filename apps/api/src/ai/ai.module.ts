@@ -76,6 +76,8 @@ import {
   IAiConversationTurnRepositoryPort,
   AI_CONVERSATION_MESSAGE_REPOSITORY_PORT,
   IAiConversationMessageRepositoryPort,
+  AI_CONVERSATION_CITATION_REPOSITORY_PORT,
+  IAiConversationCitationRepositoryPort,
   AI_CONVERSATION_TRANSACTION_RUNNER,
   IAiConversationTransactionRunner,
   PersistMessageStateUseCase,
@@ -730,6 +732,7 @@ export class AiModule implements OnApplicationBootstrap {
         ragPipeline: IRAGTurnPipelinePort,
         historyLoader: LoadCanonicalConversationHistoryUseCase,
         txRunner: IAiConversationTransactionRunner,
+        citationRepo?: IAiConversationCitationRepositoryPort,
       ) =>
         new ExecuteConversationTurnUseCase(
           convRepo,
@@ -739,6 +742,7 @@ export class AiModule implements OnApplicationBootstrap {
           ragPipeline,
           historyLoader,
           txRunner,
+          citationRepo,
         ),
       inject: [
         AI_CONVERSATION_REPOSITORY_PORT,
@@ -748,6 +752,7 @@ export class AiModule implements OnApplicationBootstrap {
         RAG_TURN_PIPELINE_PORT,
         LoadCanonicalConversationHistoryUseCase,
         AI_CONVERSATION_TRANSACTION_RUNNER,
+        { token: AI_CONVERSATION_CITATION_REPOSITORY_PORT, optional: true },
       ],
     };
 

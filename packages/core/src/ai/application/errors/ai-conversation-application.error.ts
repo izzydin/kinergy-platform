@@ -189,3 +189,19 @@ export class TransientTransactionFailureError extends TransactionFailureError {
     this.attempts = attempts;
   }
 }
+
+/**
+ * Thrown when a requested citation does not exist within the specified message, conversation, or tenant.
+ */
+export class CitationNotFoundError extends AiConversationApplicationError {
+  public override readonly code: string = 'AI_CITATION_NOT_FOUND';
+
+  constructor(citationId: string, messageId?: string, conversationId?: string) {
+    super(
+      messageId
+        ? `Citation '${citationId}' not found for message '${messageId}'.`
+        : `Citation '${citationId}' not found.`,
+      { citationId, messageId, conversationId },
+    );
+  }
+}

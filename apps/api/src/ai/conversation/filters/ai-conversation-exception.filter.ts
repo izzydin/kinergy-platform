@@ -12,6 +12,7 @@ import {
   ConversationNotFoundError,
   TurnNotFoundError,
   MessageNotFoundError,
+  CitationNotFoundError,
   TenantOwnershipViolationError,
   InvalidTurnInputError,
   DuplicateClientTurnPayloadMismatchError,
@@ -30,6 +31,7 @@ import {
   InvalidMessageInvariantException,
   InvalidCursorException,
   ConversationPersistenceException,
+  AiTurnErrorClassifier,
 } from '@kinergy-platform/core';
 
 /**
@@ -60,6 +62,7 @@ export class AiConversationExceptionFilter implements ExceptionFilter {
       exception instanceof ConversationNotFoundError ||
       exception instanceof TurnNotFoundError ||
       exception instanceof MessageNotFoundError ||
+      exception instanceof CitationNotFoundError ||
       exception instanceof ConversationNotFoundException ||
       exception instanceof TurnNotFoundException ||
       exception instanceof MessageNotFoundException
@@ -157,9 +160,9 @@ export class AiConversationExceptionFilter implements ExceptionFilter {
     }
     // 8. Other Uncaught Exceptions (500)
     else {
+      const classified = AiTurnErrorClassifier.classify(exception);
       this.logger.error(
-        `Uncaught error in AI conversation flow: ${exception instanceof Error ? exception.message : String(exception)}`,
-        exception instanceof Error ? exception.stack : undefined,
+        `Uncaught error in AI conversation flow [${classified.category}/${classified.errorCode}]: ${classified.sanitizedErrorMessage}`,
       );
     }
 

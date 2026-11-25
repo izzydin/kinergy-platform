@@ -37,10 +37,14 @@ export const ragSourceCitationSchema: z.ZodType<RAGSourceCitationDto> = z.object
   documentId: z.string().min(1, 'Document identifier is required.'),
   documentTitle: z.string().min(1, 'Document title is required.'),
   chunkId: z.string().min(1, 'Chunk identifier is required.'),
+  excerpt: z.string().optional(),
   pageNumber: z.number().int().positive().optional(),
   headingPath: z.array(z.string()).optional(),
   relevanceScore: z.number().min(0).max(1),
+  retrievalRank: z.number().int().nonnegative().optional(),
   sourceStrategy: z.string().optional(),
+  documentVersionId: z.string().optional(),
+  documentVersionNumber: z.number().int().positive().optional(),
 });
 
 /**

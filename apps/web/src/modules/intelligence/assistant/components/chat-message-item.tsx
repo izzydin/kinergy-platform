@@ -5,6 +5,7 @@ import type { ChatMessage } from '../types/assistant.types';
 
 export interface ChatMessageItemProps {
   message: ChatMessage;
+  conversationId?: string;
   onRetry?: (messageId: string) => void;
 }
 
@@ -15,7 +16,7 @@ export interface ChatMessageItemProps {
  * decoupling user input rendering from complex assistant markdown/telemetry logic.
  */
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = React.memo(
-  ({ message, onRetry }) => {
+  ({ message, conversationId, onRetry }) => {
     const handleRetry = React.useCallback(() => {
       onRetry?.(message.id);
     }, [onRetry, message.id]);
@@ -24,6 +25,12 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = React.memo(
       return <UserMessage message={message} />;
     }
 
-    return <AssistantMessage message={message} onRetry={onRetry ? handleRetry : undefined} />;
+    return (
+      <AssistantMessage
+        message={message}
+        conversationId={conversationId}
+        onRetry={onRetry ? handleRetry : undefined}
+      />
+    );
   },
 );

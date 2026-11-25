@@ -63,9 +63,11 @@ import {
   INGESTION_JOB_REPOSITORY,
   SECURE_DOCUMENT_UPLOAD_SERVICE,
   VECTOR_CLEANUP_SERVICE,
+  RETRIEVAL_SECURITY_POLICY_SERVICE,
 } from '../ai.tokens';
 import { VectorCleanupService } from '../services/indexing/vector-cleanup.service';
 import { SecureDocumentUploadService } from '../services/secure-document-upload.service';
+import { RetrievalSecurityPolicyService } from '../services/retrieval/retrieval-security-policy.service';
 import {
   UploadDocumentRequestDto,
   UploadDocumentResponseDto,
@@ -76,6 +78,7 @@ import {
   PaginatedDocumentsResponseDto,
   IngestionJobResponseDto,
   CancelIngestionJobRequestDto,
+  DocumentPreviewMetadataResponseDto,
 } from './dtos/ai-document.dto';
 
 interface MulterUploadedFile {
@@ -106,6 +109,9 @@ export class AiDocumentController {
     @Optional()
     @Inject(VECTOR_CLEANUP_SERVICE)
     private readonly cleanupService?: VectorCleanupService,
+    @Optional()
+    @Inject(RETRIEVAL_SECURITY_POLICY_SERVICE)
+    private readonly securityPolicy?: RetrievalSecurityPolicyService,
   ) {}
 
   /**
@@ -240,6 +246,15 @@ export class AiDocumentController {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
     }
 
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or download this document.',
+        );
+      }
+    }
+
     return this.toDocumentDetailDto(doc);
   }
 
@@ -267,6 +282,15 @@ export class AiDocumentController {
     const doc = await this.documentRepo.findById(tenantId, documentId);
     if (!doc || doc.isDeleted()) {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or download this document.',
+        );
+      }
     }
 
     try {
@@ -310,6 +334,15 @@ export class AiDocumentController {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
     }
 
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or download this document.',
+        );
+      }
+    }
+
     try {
       doc.softDelete(userId);
       await this.documentRepo.save(doc);
@@ -343,6 +376,15 @@ export class AiDocumentController {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
     }
 
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or download this document.',
+        );
+      }
+    }
+
     return doc.getAllVersions().map((v) => this.toVersionDto(v));
   }
 
@@ -366,6 +408,15 @@ export class AiDocumentController {
     const doc = await this.documentRepo.findById(tenantId, documentId);
     if (!doc || doc.isDeleted()) {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or download this document.',
+        );
+      }
     }
 
     const version = doc.getVersionById(versionId);
@@ -463,6 +514,15 @@ export class AiDocumentController {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
     }
 
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or download this document.',
+        );
+      }
+    }
+
     let targetVersion: DocumentVersion | undefined;
 
     if (versionId) {
@@ -511,6 +571,81 @@ export class AiDocumentController {
   }
 
   /**
+   * 10b. GET /api/v1/ai/knowledge/documents/:id/preview-metadata
+   * Preview metadata for document viewer and source citation resolution.
+   */
+  @Get(':id/preview-metadata')
+  @ApiOperation({ summary: 'Get document preview metadata and access state' })
+  @ApiParam({ name: 'id', description: 'Logical Knowledge Document ID' })
+  @ApiQuery({ name: 'versionId', required: false, description: 'Optional specific version ID' })
+  @ApiQuery({
+    name: 'versionNumber',
+    required: false,
+    description: 'Optional specific version number',
+  })
+  @ApiResponse({ status: 200, type: DocumentPreviewMetadataResponseDto })
+  @ApiResponse({ status: 404, description: 'Document not found' })
+  async getPreviewMetadata(
+    @Param('id') documentId: string,
+    @Query('versionId') versionId: string | undefined,
+    @Query('versionNumber') versionNumber: string | undefined,
+    @CurrentUser() user: AuthenticatedUserPayload | null,
+  ): Promise<DocumentPreviewMetadataResponseDto> {
+    const { tenantId } = this.extractAuthContext(user);
+
+    const doc = await this.documentRepo.findById(tenantId, documentId);
+    if (!doc) {
+      throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    let isAuthorized = true;
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      isAuthorized = allowedScopes.includes(doc.visibilityScope);
+    }
+
+    let targetVersion: DocumentVersion | undefined;
+    if (versionId) {
+      targetVersion = doc.getVersionById(versionId);
+    } else if (versionNumber) {
+      targetVersion = doc.getVersion(Number(versionNumber));
+    } else {
+      targetVersion = doc.getCurrentVersion();
+    }
+
+    if (!targetVersion) {
+      throw new NotFoundException(`Requested version was not found for document '${documentId}'.`);
+    }
+
+    const previewableMimes = new Set([
+      'application/pdf',
+      'text/plain',
+      'text/markdown',
+      'text/csv',
+      'application/json',
+    ]);
+    const canPreview =
+      isAuthorized &&
+      !doc.isDeleted() &&
+      previewableMimes.has(targetVersion.mimeType.toLowerCase());
+
+    return {
+      documentId: doc.id.value,
+      versionId: targetVersion.id,
+      versionNumber: targetVersion.versionNumber,
+      title: doc.title,
+      mimeType: targetVersion.mimeType,
+      fileSize: targetVersion.fileSize,
+      originalFileName: targetVersion.originalFileName,
+      checksum: targetVersion.checksum,
+      canPreview,
+      visibilityScope: doc.visibilityScope,
+      isAuthorized,
+      isDeleted: doc.isDeleted(),
+    };
+  }
+
+  /**
    * 11. GET /api/v1/ai/knowledge/documents/:id/ingestion
    * List ingestion jobs for all versions of a document.
    */
@@ -528,6 +663,15 @@ export class AiDocumentController {
     const doc = await this.documentRepo.findById(tenantId, documentId);
     if (!doc || doc.isDeleted()) {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or download this document.',
+        );
+      }
     }
 
     const versions = doc.getAllVersions();
@@ -561,6 +705,15 @@ export class AiDocumentController {
     const doc = await this.documentRepo.findById(tenantId, documentId);
     if (!doc || doc.isDeleted()) {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or download this document.',
+        );
+      }
     }
 
     const currentVersion = doc.getCurrentVersion();
@@ -612,6 +765,15 @@ export class AiDocumentController {
     const doc = await this.documentRepo.findById(tenantId, documentId);
     if (!doc || doc.isDeleted()) {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or download this document.',
+        );
+      }
     }
 
     const currentVersion = doc.getCurrentVersion();

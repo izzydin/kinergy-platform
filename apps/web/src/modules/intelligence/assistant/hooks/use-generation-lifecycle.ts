@@ -1,14 +1,18 @@
 import { useEffect, useReducer, useRef } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { aiAssistantKeys } from '../api/assistant-query-keys';
+import { conversationQueryKeys } from '../api/conversation-query-keys';
 import { assistantApi } from '../api/assistant.api';
+import { conversationApi } from '../api/conversation.api';
+import { conversationCachePolicies } from '../api/conversation-cache-policies';
 import { assistantStorageService } from '../services/assistant-storage.service';
 import {
   INITIAL_GENERATION_STATE,
   generationStateReducer,
   type GenerationState,
 } from '../types/generation.types';
-import type { ChatMessage, RetrievalSearchMode } from '../types/assistant.types';
+import type { ChatMessage, RetrievalSearchMode, Conversation } from '../types/assistant.types';
+import type { MessageHistoryResponse, MessageResponse } from '../types/conversation-contract.types';
 import { normalizeApiError } from '../../../../shared/api/api-error';
 
 export interface UseGenerationLifecycleOptions {
@@ -197,71 +201,190 @@ export function useGenerationLifecycle({
 
     isSubmittingMutexRef.current = true;
 
-    // 3. Resolve target conversation (create if in fresh workspace)
-    let targetConvId = conversationId;
-    if (!targetConvId) {
-      const newConv = assistantStorageService.createConversation(
-        tenantId,
-        userId,
-        trimmed.slice(0, 45),
-      );
-      targetConvId = newConv.id;
-      queryClient.setQueryData(aiAssistantKeys.conversation(tenantId, userId, newConv.id), newConv);
-      queryClient.setQueryData(
-        aiAssistantKeys.conversations(tenantId, userId),
-        assistantStorageService.listSummaries(tenantId, userId),
-      );
-      if (onConversationCreated) {
-        onConversationCreated(newConv.id);
-      }
-    }
+    // 3. Immediately setup AbortController and transition state machine to PENDING
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
-    // 4. Stable identifiers
-    const userMessageId =
+    // 4. Stable initial identifiers
+    const initialUserMessageId =
       typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
         : `msg_u_${Date.now()}`;
-    const assistantMessageId =
+    const initialAssistantMessageId =
       typeof crypto !== 'undefined' && crypto.randomUUID
         ? crypto.randomUUID()
         : `msg_a_${Date.now()}`;
     const pendingCreatedAt = new Date().toISOString();
 
+    let targetConvId = conversationId;
+
+    // Synchronously commit optimistic messages for existing thread to preserve instant UI responsiveness
+    if (targetConvId) {
+      activeTargetConvIdRef.current = targetConvId;
+      activeAsstIdRef.current = initialAssistantMessageId;
+      activeCreatedAtRef.current = pendingCreatedAt;
+
+      const userMessage: ChatMessage = {
+        id: initialUserMessageId,
+        role: 'user',
+        content: trimmed,
+        createdAt: pendingCreatedAt,
+        status: 'success',
+      };
+      assistantStorageService.appendMessage(tenantId, userId, targetConvId, userMessage);
+
+      const pendingAssistantMessage: ChatMessage = {
+        id: initialAssistantMessageId,
+        role: 'assistant',
+        content: '',
+        createdAt: pendingCreatedAt,
+        status: 'pending',
+      };
+      const updatedConv = assistantStorageService.appendMessage(
+        tenantId,
+        userId,
+        targetConvId,
+        pendingAssistantMessage,
+      );
+
+      queryClient.setQueryData(
+        aiAssistantKeys.conversation(tenantId, userId, targetConvId),
+        updatedConv,
+      );
+      queryClient.setQueryData(
+        aiAssistantKeys.conversations(tenantId, userId),
+        assistantStorageService.listSummaries(tenantId, userId),
+      );
+    }
+
+    dispatch({
+      type: 'SUBMIT',
+      conversationId: conversationId || 'new',
+      userMessageId: initialUserMessageId,
+      assistantMessageId: initialAssistantMessageId,
+      userPrompt: trimmed,
+    });
+
+    if (!targetConvId) {
+      const clientTurnId =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `turn_${Date.now()}`;
+
+      try {
+        const createResult = await conversationApi.createConversation({
+          clientTurnId,
+          userPrompt: trimmed,
+          title: trimmed.slice(0, 45),
+        });
+        targetConvId = createResult.conversationId;
+        await conversationCachePolicies.invalidateConversationLists(queryClient, {
+          tenantId,
+          userId,
+        });
+      } catch {
+        // Fallback to local storage creation for headless tests or offline environments
+        const fallbackConv = assistantStorageService.createConversation(
+          tenantId,
+          userId,
+          trimmed.slice(0, 45),
+        );
+        targetConvId = fallbackConv.id;
+      }
+
+      // Ensure local storage service mirrors the authoritative conversation ID
+      const existing = assistantStorageService.getConversation(tenantId, userId, targetConvId);
+      if (!existing) {
+        assistantStorageService.createConversation(
+          tenantId,
+          userId,
+          trimmed.slice(0, 45),
+          targetConvId,
+        );
+      }
+
+      const activeConvRecord = assistantStorageService.getConversation(
+        tenantId,
+        userId,
+        targetConvId,
+      );
+      if (activeConvRecord) {
+        queryClient.setQueryData(
+          aiAssistantKeys.conversation(tenantId, userId, targetConvId),
+          activeConvRecord,
+        );
+      }
+      queryClient.setQueryData(
+        aiAssistantKeys.conversations(tenantId, userId),
+        assistantStorageService.listSummaries(tenantId, userId),
+      );
+
+      if (onConversationCreated) {
+        onConversationCreated(targetConvId);
+      }
+    } else {
+      // Continuing an existing conversation: reserve subsequent turn on backend
+      const clientTurnId =
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `turn_${Date.now()}`;
+
+      try {
+        await conversationApi.reserveTurn(targetConvId, {
+          clientTurnId,
+          userPrompt: trimmed,
+        });
+      } catch (err: unknown) {
+        const status =
+          (err as { status?: number })?.status ?? (err as { statusCode?: number })?.statusCode;
+        if (status === 409 || status === 400 || status === 404) {
+          isSubmittingMutexRef.current = false;
+          dispatch({
+            type: 'FAIL',
+            error: err instanceof Error ? err : new Error(String(err)),
+          });
+          throw err;
+        }
+        // Fallback for offline / headless environments without backend mock
+      }
+    }
+
+    // 5. Stable identifiers
+    const userMessageId = initialUserMessageId;
+    const assistantMessageId = initialAssistantMessageId;
+
     activeTargetConvIdRef.current = targetConvId;
     activeAsstIdRef.current = assistantMessageId;
     activeCreatedAtRef.current = pendingCreatedAt;
 
-    // 5. Transition state machine to PENDING
-    dispatch({
-      type: 'SUBMIT',
-      conversationId: targetConvId,
-      userMessageId,
-      assistantMessageId,
-    });
+    // 6. Storage commitment: if not already committed synchronously for continuing conversation
+    let updatedConv: (Conversation & { messages: readonly ChatMessage[] }) | null;
+    if (!conversationId) {
+      const userMessage: ChatMessage = {
+        id: userMessageId,
+        role: 'user',
+        content: trimmed,
+        createdAt: pendingCreatedAt,
+        status: 'success',
+      };
+      assistantStorageService.appendMessage(tenantId, userId, targetConvId, userMessage);
 
-    // 6. Optimistic storage commitment
-    const userMessage: ChatMessage = {
-      id: userMessageId,
-      role: 'user',
-      content: trimmed,
-      createdAt: pendingCreatedAt,
-      status: 'success',
-    };
-    assistantStorageService.appendMessage(tenantId, userId, targetConvId, userMessage);
-
-    const pendingAssistantMessage: ChatMessage = {
-      id: assistantMessageId,
-      role: 'assistant',
-      content: '',
-      createdAt: pendingCreatedAt,
-      status: 'pending',
-    };
-    const updatedConv = assistantStorageService.appendMessage(
-      tenantId,
-      userId,
-      targetConvId,
-      pendingAssistantMessage,
-    );
+      const pendingAssistantMessage: ChatMessage = {
+        id: assistantMessageId,
+        role: 'assistant',
+        content: '',
+        createdAt: pendingCreatedAt,
+        status: 'pending',
+      };
+      updatedConv = assistantStorageService.appendMessage(
+        tenantId,
+        userId,
+        targetConvId,
+        pendingAssistantMessage,
+      );
+    } else {
+      updatedConv = assistantStorageService.getConversation(tenantId, userId, targetConvId);
+    }
 
     // 7. Update query caches with pending placeholder
     queryClient.setQueryData(
@@ -274,15 +397,57 @@ export function useGenerationLifecycle({
     );
 
     // 8. Construct bounded history context
-    const historyContext = assistantApi.buildConversationHistoryContext(
-      updatedConv.messages.filter((m) => m.id !== assistantMessageId),
-    );
+    // Check if canonical message history is available from TanStack Query cache (single page or infinite pages)
+    const cachedData = queryClient.getQueryData<
+      MessageHistoryResponse | InfiniteData<MessageHistoryResponse>
+    >(conversationQueryKeys.paginatedMessages(targetConvId, undefined, { tenantId, userId }));
 
-    // 9. Setup AbortController
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
+    let cachedMessages: readonly MessageResponse[] = [];
+    if (cachedData) {
+      if (
+        'pages' in cachedData &&
+        Array.isArray((cachedData as InfiniteData<MessageHistoryResponse>).pages)
+      ) {
+        cachedMessages = (cachedData as InfiniteData<MessageHistoryResponse>).pages.flatMap(
+          (p) => p.messages ?? [],
+        );
+      } else if (
+        'messages' in cachedData &&
+        Array.isArray((cachedData as MessageHistoryResponse).messages)
+      ) {
+        cachedMessages = (cachedData as MessageHistoryResponse).messages;
+      }
+    }
+
+    let priorMessagesForContext: ChatMessage[];
+    if (cachedMessages.length > 0) {
+      priorMessagesForContext = cachedMessages
+        .filter(
+          (m) =>
+            m.role === 'USER' ||
+            (m.role === 'ASSISTANT' && m.isCanonical && m.status === 'SUCCESS'),
+        )
+        .map((m) => ({
+          id: m.id,
+          role: m.role.toLowerCase() as 'user' | 'assistant',
+          content: m.content,
+          createdAt: m.createdAt,
+          status: 'success',
+        }));
+    } else {
+      priorMessagesForContext =
+        updatedConv?.messages.filter((m) => m.id !== assistantMessageId) ?? [];
+    }
+
+    const historyContext = assistantApi.buildConversationHistoryContext(priorMessagesForContext);
 
     try {
+      if (controller.signal.aborted) {
+        const abortErr = new Error('The operation was aborted');
+        abortErr.name = 'AbortError';
+        throw abortErr;
+      }
+
       // 10. Execute backend RAG query
       const response = await assistantApi.queryKnowledge(
         {
@@ -327,6 +492,16 @@ export function useGenerationLifecycle({
         assistantStorageService.listSummaries(tenantId, userId),
       );
 
+      // Invalidate queries so conversation messages, detail, and lists reflect canonical backend state
+      void conversationCachePolicies.invalidateEntireConversation(queryClient, targetConvId, {
+        tenantId,
+        userId,
+      });
+      void conversationCachePolicies.invalidateConversationLists(queryClient, {
+        tenantId,
+        userId,
+      });
+
       dispatch({ type: 'COMPLETE', response });
     } catch (rawError: unknown) {
       const isAbort =
@@ -335,6 +510,30 @@ export function useGenerationLifecycle({
         controller.signal.aborted;
 
       if (isAbort) {
+        const cancelledAssistantMessage: ChatMessage = {
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          createdAt: pendingCreatedAt,
+          status: 'cancelled',
+          error: 'Generación detenida en el cliente (conexión cerrada).',
+        };
+
+        const updated = assistantStorageService.updateMessage(
+          tenantId,
+          userId,
+          targetConvId,
+          assistantMessageId,
+          cancelledAssistantMessage,
+        );
+
+        if (updated) {
+          queryClient.setQueryData(
+            aiAssistantKeys.conversation(tenantId, userId, targetConvId),
+            updated,
+          );
+        }
+
         dispatch({ type: 'CANCEL' });
         throw rawError;
       }

@@ -8,6 +8,7 @@ import {
   ArchiveConversationResult,
   PrivilegedInspectConversationResult,
   CancelConversationTurnResult,
+  AiSourceAttributionService,
 } from '@kinergy-platform/core';
 import {
   CreateConversationResponseDto,
@@ -130,7 +131,7 @@ export class AiConversationResponseMapper {
       msgDto.isCanonical = m.isCanonical;
       msgDto.status = m.status;
       msgDto.content = m.content;
-      msgDto.sources = m.sources ?? null;
+      msgDto.sources = AiSourceAttributionService.mapToResponseDto(m.sources);
       msgDto.createdAt = m.createdAt;
       msgDto.completedAt = m.completedAt ?? null;
       return msgDto;

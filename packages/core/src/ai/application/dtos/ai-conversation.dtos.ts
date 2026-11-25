@@ -226,3 +226,68 @@ export interface PersistMessageStateResult {
   readonly completedAt: string | null;
   readonly updatedAt: string;
 }
+
+// ==========================================
+// 9. Citations & Source Document Inspection
+// ==========================================
+
+export type CitationPreviewStatus =
+  'DOCUMENT_AVAILABLE' | 'DOCUMENT_SOFT_DELETED' | 'DOCUMENT_RESTRICTED' | 'EXCERPT_ONLY';
+
+export interface CitationDetailDto {
+  readonly id: string;
+  readonly messageId: string;
+  readonly turnId: string;
+  readonly conversationId: string;
+  readonly documentId: string;
+  readonly documentVersionId: string | null;
+  readonly documentVersionNumber?: number | null;
+  readonly chunkId: string | null;
+  readonly citationPosition: number;
+  readonly documentTitleSnapshot: string;
+  readonly documentTitle: string;
+  readonly originalFileName?: string | null;
+  readonly documentStatus?: string | null;
+  readonly excerpt: string;
+  readonly pageNumber: number | null;
+  readonly headingPath: readonly string[];
+  readonly relevanceScore: number | null;
+  readonly retrievalRank: number | null;
+  readonly sourceStrategy: string | null;
+  readonly previewStatus: CitationPreviewStatus;
+  readonly canPreview: boolean;
+  readonly previewUnavailableReason: string | null;
+  readonly mimeType: string | null;
+  readonly fileSizeBytes: number | null;
+  readonly createdAt: string;
+}
+
+export interface GetMessageCitationsInput {
+  readonly tenantId: string;
+  readonly conversationId: string;
+  readonly messageId: string;
+  readonly userId?: string;
+  readonly userRoles?: readonly string[];
+  readonly actorRoles?: readonly string[];
+}
+
+export interface GetMessageCitationsResult {
+  readonly conversationId: string;
+  readonly messageId: string;
+  readonly citations: readonly CitationDetailDto[];
+  readonly totalCitations: number;
+}
+
+export interface GetCitationDetailInput {
+  readonly tenantId: string;
+  readonly conversationId: string;
+  readonly messageId: string;
+  readonly citationId: string;
+  readonly userId?: string;
+  readonly userRoles?: readonly string[];
+  readonly actorRoles?: readonly string[];
+}
+
+export interface GetCitationDetailResult {
+  readonly citation: CitationDetailDto;
+}

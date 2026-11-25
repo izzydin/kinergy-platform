@@ -48,6 +48,7 @@ export interface GenerationState {
   readonly conversationId: string | null;
   readonly userMessageId: string | null;
   readonly assistantMessageId: string | null;
+  readonly userPrompt?: string | null;
   readonly error: Error | null;
   readonly completedAt: string | null;
 }
@@ -60,6 +61,7 @@ export const INITIAL_GENERATION_STATE: GenerationState = {
   conversationId: null,
   userMessageId: null,
   assistantMessageId: null,
+  userPrompt: null,
   error: null,
   completedAt: null,
 };
@@ -73,6 +75,7 @@ export type GenerationEvent =
       readonly conversationId: string;
       readonly userMessageId: string;
       readonly assistantMessageId: string;
+      readonly userPrompt?: string;
     }
   | { readonly type: 'STREAM_START' }
   | { readonly type: 'COMPLETE'; readonly response?: RAGAnswerResponseDto }
@@ -99,6 +102,7 @@ export function generationStateReducer(
         conversationId: event.conversationId,
         userMessageId: event.userMessageId,
         assistantMessageId: event.assistantMessageId,
+        userPrompt: event.userPrompt ?? null,
         error: null,
         completedAt: null,
       };

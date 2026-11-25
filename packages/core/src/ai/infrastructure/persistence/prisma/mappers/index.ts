@@ -4,3 +4,4 @@ export * from './prisma-ai-conversation.mapper';
 export * from './prisma-ai-conversation-turn.mapper';
 export * from './prisma-ai-conversation-message.mapper';
 export * from './prisma-ai-conversation-audit.mapper';
+export * from './prisma-ai-conversation-citation.mapper';

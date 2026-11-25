@@ -7,6 +7,19 @@ import { ChatMessageFeed } from '../components/chat-message-feed';
 import { assistantStorageService } from '../services/assistant-storage.service';
 import type { ChatMessage } from '../types/assistant.types';
 
+jest.mock('../api/conversation.api', () => ({
+  conversationApi: {
+    listConversations: jest.fn().mockResolvedValue({ items: [], nextCursor: null, hasMore: false }),
+    getConversation: jest.fn().mockResolvedValue(null),
+    getMessageHistory: jest.fn().mockResolvedValue({ items: [], nextCursor: null, hasMore: false }),
+    createConversation: jest.fn(),
+    updateTitle: jest.fn(),
+    archiveConversation: jest.fn(),
+    reserveTurn: jest.fn(),
+    recordTurnResolution: jest.fn(),
+  },
+}));
+
 function renderWithProviders(initialEntry = '/intelligence/chat') {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -188,6 +201,9 @@ describe('AI Assistant Chat Workspace (AI-09.2.02)', () => {
 
       const deleteBtn = within(sidebar).getByLabelText('Eliminar conversación Thread to delete');
       fireEvent.click(deleteBtn);
+
+      const confirmBtn = await screen.findByTestId('confirm-delete-button');
+      fireEvent.click(confirmBtn);
 
       await waitFor(() => {
         expect(assistantStorageService.getConversations(tenantId, userId).length).toBe(0);

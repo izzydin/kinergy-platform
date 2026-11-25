@@ -124,6 +124,30 @@ export class RAGSourceCitationDto {
     example: 'HYBRID',
   })
   sourceStrategy?: string;
+
+  @ApiPropertyOptional({
+    description: 'Direct text excerpt from the retrieved knowledge chunk',
+    example: 'El vendaje neuromuscular está contraindicado en casos de trombosis...',
+  })
+  excerpt?: string;
+
+  @ApiPropertyOptional({
+    description: 'Document version identifier',
+    example: 'ver_018f3a5e-b5c6-7a1b-9f0e-1a2b3c4d5e6f',
+  })
+  documentVersionId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Document version sequence number',
+    example: 1,
+  })
+  documentVersionNumber?: number;
+
+  @ApiPropertyOptional({
+    description: 'Rank of the chunk within the retrieval stage',
+    example: 1,
+  })
+  retrievalRank?: number;
 }
 
 export class RAGMetadataDto {

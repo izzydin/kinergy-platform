@@ -8,6 +8,7 @@ import { PrismaAiConversationRepository } from './repositories/prisma-ai-convers
 import { PrismaAiConversationTurnRepository } from './repositories/prisma-ai-conversation-turn.repository';
 import { PrismaAiConversationMessageRepository } from './repositories/prisma-ai-conversation-message.repository';
 import { PrismaAiConversationAuditRepository } from './repositories/prisma-ai-conversation-audit.repository';
+import { PrismaAiConversationCitationRepository } from './repositories/prisma-ai-conversation-citation.repository';
 import {
   AiConversationApplicationError,
   TransactionFailureError,
@@ -59,6 +60,7 @@ export class PrismaAiConversationTransactionRunner implements IAiConversationTra
     private readonly turnRepo: PrismaAiConversationTurnRepository,
     private readonly messageRepo: PrismaAiConversationMessageRepository,
     private readonly auditRepo: PrismaAiConversationAuditRepository,
+    private readonly citationRepo?: PrismaAiConversationCitationRepository,
   ) {}
 
   public async runInTransaction<T>(
@@ -85,6 +87,7 @@ export class PrismaAiConversationTransactionRunner implements IAiConversationTra
             turnRepo: this.turnRepo,
             messageRepo: this.messageRepo,
             auditRepo: this.auditRepo,
+            citationRepo: this.citationRepo,
           };
           return await work(transactionalRepos);
         }
@@ -96,6 +99,7 @@ export class PrismaAiConversationTransactionRunner implements IAiConversationTra
               turnRepo: this.turnRepo.withTransaction(tx),
               messageRepo: this.messageRepo.withTransaction(tx),
               auditRepo: this.auditRepo.withTransaction(tx),
+              citationRepo: this.citationRepo?.withTransaction(tx),
             };
 
             return await work(transactionalRepos);

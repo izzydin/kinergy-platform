@@ -96,7 +96,9 @@ export class AiTurnErrorClassifier {
       errCode === 'RETRIEVAL_PERSISTENCE_ERROR' ||
       errCode === 'DATABASE_TRANSIENT_ERROR' ||
       rawMessage.toLowerCase().includes('vector store') ||
-      rawMessage.toLowerCase().includes('database')
+      rawMessage.toLowerCase().includes('database') ||
+      rawMessage.toLowerCase().includes('postgres') ||
+      rawMessage.toLowerCase().includes('prisma')
     ) {
       return {
         category: TurnFailureCategory.RETRIEVAL_FAILURE,

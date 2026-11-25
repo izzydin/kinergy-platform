@@ -320,6 +320,71 @@ describe('AI-09.3-BE.04.04 — Conversation & Message Workflows Unit Tests', () 
       expect(result.nextCursor).toBe(cursor.encode());
       expect(result.hasMore).toBe(false);
     });
+
+    it('preserves complete source citation provenance including excerpt, rank, and versioning on assistant messages', async () => {
+      (mockConvRepo.findById as jest.Mock).mockResolvedValue(createTestConversation());
+
+      const rawSources = [
+        {
+          citationId: 'cit_provenance_1',
+          documentId: 'doc_kinesio_1',
+          documentTitle: 'Protocolo de Vendaje Funcional',
+          chunkId: 'chunk_vf_01',
+          documentVersionId: 'dver_v1',
+          documentVersionNumber: 1,
+          excerpt: 'Las contraindicaciones absolutas incluyen trombosis venosa profunda.',
+          pageNumber: 14,
+          headingPath: ['Capítulo 2', 'Contraindicaciones'],
+          relevanceScore: 0.952,
+          retrievalRank: 1,
+          sourceStrategy: 'HYBRID',
+        },
+      ];
+
+      const assistantMsg = AiConversationMessage.create({
+        id: MessageId.create('msg_assistant_cited'),
+        turnId: TurnId.create(turnId),
+        conversationId: ConversationId.create(conversationId),
+        tenantId,
+        role: ConversationRole.ASSISTANT,
+        sequenceNumber: 2,
+        isCanonical: true,
+        status: GenerationStatus.SUCCESS,
+        content: 'El vendaje funcional presenta contraindicaciones específicas.',
+        sources: rawSources,
+      });
+
+      (mockMessageRepo.listCanonicalHistory as jest.Mock).mockResolvedValue({
+        messages: [assistantMsg],
+        nextCursor: null,
+        hasMore: false,
+      });
+
+      const result = await useCase.execute({
+        tenantId,
+        conversationId,
+        limit: 10,
+      });
+
+      expect(result.messages).toHaveLength(1);
+      const msg = result.messages[0];
+      expect(msg?.sources).toBeDefined();
+      expect(msg?.sources).toHaveLength(1);
+      expect(msg?.sources?.[0]).toEqual({
+        citationId: 'cit_provenance_1',
+        documentId: 'doc_kinesio_1',
+        documentTitle: 'Protocolo de Vendaje Funcional',
+        chunkId: 'chunk_vf_01',
+        documentVersionId: 'dver_v1',
+        documentVersionNumber: 1,
+        excerpt: 'Las contraindicaciones absolutas incluyen trombosis venosa profunda.',
+        pageNumber: 14,
+        headingPath: ['Capítulo 2', 'Contraindicaciones'],
+        relevanceScore: 0.952,
+        retrievalRank: 1,
+        sourceStrategy: 'HYBRID',
+      });
+    });
   });
 
   describe('4. UpdateConversationTitleUseCase', () => {

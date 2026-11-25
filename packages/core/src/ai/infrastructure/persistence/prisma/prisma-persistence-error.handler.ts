@@ -9,7 +9,11 @@ import {
 } from '../../../domain/exceptions/conversation.exceptions';
 
 export type EntityContext =
-  'AiConversation' | 'AiConversationTurn' | 'AiConversationMessage' | 'AiConversationAuditLog';
+  | 'AiConversation'
+  | 'AiConversationTurn'
+  | 'AiConversationMessage'
+  | 'AiConversationAuditLog'
+  | 'AiConversationCitation';
 
 /**
  * Translates Prisma and PostgreSQL database errors into strongly typed domain exceptions.
@@ -42,6 +46,10 @@ export class PrismaPersistenceErrorHandler {
             throw new MessageNotFoundException(identifier ?? 'unknown');
           case 'AiConversationAuditLog':
             throw new ConversationPersistenceException(`Audit record '${identifier}' not found.`);
+          case 'AiConversationCitation':
+            throw new ConversationPersistenceException(
+              `Citation record '${identifier}' not found.`,
+            );
         }
       }
 

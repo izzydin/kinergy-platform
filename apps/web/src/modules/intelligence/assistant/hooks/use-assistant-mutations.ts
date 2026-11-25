@@ -193,6 +193,36 @@ export function useCreateConversationMutation(tenantId: string, userId: string) 
 }
 
 /**
+ * Custom TanStack Query Hook: Updates a conversation title in local storage.
+ */
+export function useUpdateConversationTitleMutation(tenantId: string, userId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation<Conversation | null, Error, { conversationId: string; title: string }>({
+    mutationFn: async ({ conversationId, title }) => {
+      return assistantStorageService.updateConversationTitle(
+        tenantId,
+        userId,
+        conversationId,
+        title,
+      );
+    },
+    onSuccess: (updatedConv, { conversationId }) => {
+      if (updatedConv) {
+        queryClient.setQueryData(
+          aiAssistantKeys.conversation(tenantId, userId, conversationId),
+          updatedConv,
+        );
+      }
+      queryClient.setQueryData(
+        aiAssistantKeys.conversations(tenantId, userId),
+        assistantStorageService.listSummaries(tenantId, userId),
+      );
+    },
+  });
+}
+
+/**
  * Custom TanStack Query Hook: Deletes a conversation thread.
  */
 export function useDeleteConversationMutation(tenantId: string, userId: string) {

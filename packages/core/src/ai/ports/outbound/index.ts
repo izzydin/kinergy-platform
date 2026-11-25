@@ -20,3 +20,4 @@ export * from './ai-conversation-repository.port';
 export * from './ai-conversation-turn-repository.port';
 export * from './ai-conversation-message-repository.port';
 export * from './ai-conversation-audit-repository.port';
+export * from './ai-conversation-citation-repository.port';

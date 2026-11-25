@@ -15,12 +15,16 @@ import {
   PrivilegedInspectConversationUseCase,
   LoadCanonicalConversationHistoryUseCase,
   CancelConversationTurnUseCase,
+  GetMessageCitationsUseCase,
+  GetCitationDetailUseCase,
   AI_CONVERSATION_REPOSITORY_PORT,
   AI_CONVERSATION_TURN_REPOSITORY_PORT,
   AI_CONVERSATION_MESSAGE_REPOSITORY_PORT,
   AI_CONVERSATION_AUDIT_REPOSITORY_PORT,
+  AI_CONVERSATION_CITATION_REPOSITORY_PORT,
   AI_CONVERSATION_TRANSACTION_RUNNER,
 } from '@kinergy-platform/core';
+import { PrismaAiConversationCitationRepository } from '@kinergy-platform/core/server';
 
 /**
  * NestJS module establishing the REST API foundation for AI conversation persistence & lifecycle.
@@ -47,10 +51,14 @@ import {
     PrivilegedInspectConversationUseCase,
     LoadCanonicalConversationHistoryUseCase,
     CancelConversationTurnUseCase,
+    GetMessageCitationsUseCase,
+    GetCitationDetailUseCase,
     AI_CONVERSATION_REPOSITORY_PORT,
     AI_CONVERSATION_TURN_REPOSITORY_PORT,
     AI_CONVERSATION_MESSAGE_REPOSITORY_PORT,
     AI_CONVERSATION_AUDIT_REPOSITORY_PORT,
+    AI_CONVERSATION_CITATION_REPOSITORY_PORT,
+    PrismaAiConversationCitationRepository,
     AI_CONVERSATION_TRANSACTION_RUNNER,
   ],
 })

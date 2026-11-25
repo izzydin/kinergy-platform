@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, act, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
 import {
@@ -10,6 +10,39 @@ import { useGenerationLifecycle } from '../hooks/use-generation-lifecycle';
 import { assistantApi } from '../api/assistant.api';
 import { assistantStorageService } from '../services/assistant-storage.service';
 import type { RAGAnswerResponseDto } from '../types/assistant.types';
+
+jest.mock('../api/conversation.api', () => ({
+  conversationApi: {
+    createConversation: jest
+      .fn()
+      .mockImplementation(async ({ clientTurnId, userPrompt, title }) => ({
+        conversationId: `conv_${Date.now()}`,
+        turnId: `turn_${Date.now()}`,
+        clientTurnId,
+        turnIndex: 1,
+        userMessageId: `msg_u_${Date.now()}`,
+        assistantAttemptId: `msg_a_${Date.now()}`,
+        title: title || userPrompt.slice(0, 45),
+        turnStatus: 'PENDING',
+        isIdempotentReplay: false,
+        idempotencyOutcome: 'CREATED',
+        createdAt: new Date().toISOString(),
+      })),
+    reserveTurn: jest.fn().mockImplementation(async (conversationId, { clientTurnId }) => ({
+      conversationId,
+      turnId: `turn_${Date.now()}`,
+      clientTurnId,
+      turnIndex: 2,
+      userMessageId: `msg_u_${Date.now()}`,
+      assistantAttemptId: `msg_a_${Date.now()}`,
+      turnStatus: 'PENDING',
+      isIdempotentReplay: false,
+      idempotencyOutcome: 'CREATED',
+      createdAt: new Date().toISOString(),
+    })),
+    cancelTurn: jest.fn().mockResolvedValue({}),
+  },
+}));
 
 function createTestWrapper() {
   const queryClient = new QueryClient({
@@ -247,7 +280,9 @@ describe('Message Submission & Generation Lifecycle (AI-09.2.04)', () => {
         secondPromise = result.current.submitMessage({ prompt: 'Segunda consulta duplicada' });
       });
 
-      expect(queryKnowledgeSpy).toHaveBeenCalledTimes(1);
+      await waitFor(() => {
+        expect(queryKnowledgeSpy).toHaveBeenCalledTimes(1);
+      });
 
       // Resolve first query
       await act(async () => {
@@ -341,6 +376,12 @@ describe('Message Submission & Generation Lifecycle (AI-09.2.04)', () => {
 
       jest.spyOn(assistantApi, 'queryKnowledge').mockImplementationOnce((_req, signal) => {
         return new Promise((_, reject) => {
+          if (signal?.aborted) {
+            const abortErr = new Error('The operation was aborted');
+            abortErr.name = 'AbortError';
+            reject(abortErr);
+            return;
+          }
           if (signal) {
             signal.addEventListener('abort', () => {
               const abortErr = new Error('The operation was aborted');
@@ -370,6 +411,10 @@ describe('Message Submission & Generation Lifecycle (AI-09.2.04)', () => {
       });
 
       expect(result.current.isPending).toBe(true);
+
+      await waitFor(() => {
+        expect(assistantApi.queryKnowledge).toHaveBeenCalled();
+      });
 
       // Trigger user cancel
       act(() => {

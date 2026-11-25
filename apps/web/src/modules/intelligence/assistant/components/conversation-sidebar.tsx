@@ -1,9 +1,28 @@
 import React from 'react';
-import { MessageSquare, MessageSquarePlus, Trash2, X, Clock, Sparkles } from 'lucide-react';
+import {
+  MessageSquare,
+  MessageSquarePlus,
+  Trash2,
+  X,
+  Clock,
+  Sparkles,
+  Pencil,
+  Check,
+  Loader2,
+} from 'lucide-react';
 import { Button } from '@kinergy-platform/ui';
-import type { ConversationSummary } from '../types/assistant.types';
 import { useConversationList } from '../hooks/use-assistant-queries';
-import { useDeleteConversationMutation } from '../hooks/use-assistant-mutations';
+import {
+  useDeleteConversationMutation,
+  useUpdateConversationTitleMutation,
+} from '../hooks/use-assistant-mutations';
+import { useInfiniteConversations } from '../hooks/use-conversation-queries';
+import {
+  useArchiveConversationMutation,
+  useRenameConversationMutation,
+} from '../hooks/use-conversation-mutations';
+import { groupConversationsByDate } from '../utils/conversation-grouping.util';
+import { DeleteConversationDialog } from './delete-conversation-dialog';
 import { IntelligenceLoadingState } from '../../components/intelligence-loading-state';
 import { IntelligenceErrorState } from '../../components/intelligence-error-state';
 
@@ -21,9 +40,11 @@ export interface ConversationSidebarProps {
  * Conversation Sidebar Navigation Component.
  *
  * Provides:
- * - Conversation history listing partitioned by tenant and user
+ * - Persistent conversation history listing backed by PostgreSQL
+ * - Chronological date grouping (Hoy, Ayer, Últimos 7 días, Anteriores)
+ * - Single thread selection and active highlight indicator
  * - New conversation trigger action
- * - Active thread indication
+ * - Graceful truncation with full title hover tooltip
  * - Loading, error, and empty history states
  * - Mobile overlay / drawer behavior
  */
@@ -36,19 +57,144 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
   tenantId,
   userId,
 }) => {
+  // 1. Persistent backend query with keyset infinite cursor pagination
   const {
-    data: conversations = [],
-    isLoading,
-    isError,
-    refetch,
+    data: infiniteConversationsData,
+    isLoading: isLoadingPersistent,
+    isError: isErrorPersistent,
+    refetch: refetchPersistent,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteConversations(undefined, {
+    scope: { tenantId, userId },
+  });
+
+  // 2. Local storage query for offline / test compatibility
+  const {
+    data: localConversations = [],
+    isLoading: isLoadingLocal,
+    isError: isErrorLocal,
+    refetch: refetchLocal,
   } = useConversationList(tenantId, userId);
 
   const deleteMutation = useDeleteConversationMutation(tenantId, userId);
+  const archiveMutation = useArchiveConversationMutation({ scope: { tenantId, userId } });
+  const renameMutation = useRenameConversationMutation({ scope: { tenantId, userId } });
+  const localRenameMutation = useUpdateConversationTitleMutation(tenantId, userId);
 
-  const handleDelete = (e: React.MouseEvent, id: string) => {
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = React.useState<string>('');
+  const [validationError, setValidationError] = React.useState<string | null>(null);
+  const [deletingConversation, setDeletingConversation] = React.useState<{
+    id: string;
+    title: string;
+  } | null>(null);
+
+  const handleStartRename = (e: React.MouseEvent, id: string, currentTitle: string) => {
     e.stopPropagation();
-    deleteMutation.mutate({ conversationId: id });
+    setEditingId(id);
+    setEditingTitle(currentTitle);
+    setValidationError(null);
   };
+
+  const handleCancelRename = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setEditingId(null);
+    setEditingTitle('');
+    setValidationError(null);
+  };
+
+  const handleSaveRename = async (e: React.FormEvent | React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const trimmed = editingTitle.trim();
+    if (!trimmed) {
+      setValidationError('El título no puede estar vacío');
+      return;
+    }
+    if (trimmed.length > 255) {
+      setValidationError('El título no puede superar los 255 caracteres');
+      return;
+    }
+
+    if (renameMutation.isPending) {
+      return;
+    }
+
+    try {
+      await renameMutation.mutateAsync({
+        conversationId: id,
+        request: { title: trimmed },
+      });
+      localRenameMutation.mutate({ conversationId: id, title: trimmed });
+      setEditingId(null);
+      setEditingTitle('');
+      setValidationError(null);
+    } catch (err) {
+      setValidationError(err instanceof Error ? err.message : 'Error al renombrar la conversación');
+    }
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent, id: string, title: string) => {
+    e.stopPropagation();
+    setDeletingConversation({ id, title });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deletingConversation) return;
+    const { id } = deletingConversation;
+
+    await archiveMutation.mutateAsync(id);
+    deleteMutation.mutate({ conversationId: id });
+
+    if (activeConversationId === id) {
+      onSelectConversation('');
+    }
+  };
+
+  // Harmonize conversation items with backend precedence and cross-page deduplication
+  const conversations = React.useMemo(() => {
+    const backendItems = infiniteConversationsData?.pages.flatMap((page) => page.items) ?? [];
+    if (backendItems.length > 0) {
+      const seen = new Set<string>();
+      const uniqueItems: typeof backendItems = [];
+      for (const item of backendItems) {
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          uniqueItems.push(item);
+        }
+      }
+      return uniqueItems.map((item) => ({
+        id: item.id,
+        title: item.title,
+        turnCounter: item.turnCounter,
+        lastActivityAt: item.lastActivityAt,
+        createdAt: item.createdAt,
+        updatedAt: item.lastActivityAt,
+        isArchived: item.isArchived,
+      }));
+    }
+    return localConversations.map((item) => ({
+      id: item.id,
+      title: item.title,
+      turnCounter: Math.ceil(item.messageCount / 2),
+      lastActivityAt: item.updatedAt,
+      createdAt: item.createdAt,
+      updatedAt: item.updatedAt,
+      isArchived: false,
+    }));
+  }, [infiniteConversationsData, localConversations]);
+
+  const grouped = React.useMemo(() => groupConversationsByDate(conversations), [conversations]);
+
+  const isLoading = (isLoadingPersistent || isLoadingLocal) && conversations.length === 0;
+  const isError = (isErrorPersistent || isErrorLocal) && conversations.length === 0;
+
+  const refetch = React.useCallback(async () => {
+    await Promise.all([refetchPersistent(), refetchLocal()]);
+  }, [refetchPersistent, refetchLocal]);
 
   const renderContent = () => {
     if (isLoading) {
@@ -67,7 +213,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
         <div className="p-4 flex-1">
           <IntelligenceErrorState
             title="Error al cargar historial"
-            error="No se pudo sincronizar el historial local."
+            error="No se pudo sincronizar el historial de conversaciones."
             onRetry={() => {
               void refetch();
             }}
@@ -103,63 +249,188 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
       <nav
         role="navigation"
         aria-label="Historial de conversaciones"
-        className="flex-1 overflow-y-auto px-2 py-2 space-y-1"
+        className="flex-1 overflow-y-auto px-2 py-2 space-y-3"
       >
-        {conversations.map((conv: ConversationSummary) => {
-          const isActive = conv.id === activeConversationId;
-          const formattedDate = new Date(conv.updatedAt).toLocaleDateString(undefined, {
-            month: 'short',
-            day: 'numeric',
-          });
-
-          return (
-            <div
-              key={conv.id}
-              role="button"
-              tabIndex={0}
-              aria-current={isActive ? 'true' : undefined}
-              onClick={() => {
-                onSelectConversation(conv.id);
-                onCloseMobile();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  onSelectConversation(conv.id);
-                  onCloseMobile();
-                }
-              }}
-              className={`group flex items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-xs transition-colors cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-hidden ${
-                isActive
-                  ? 'bg-primary/10 text-primary font-medium border-l-2 border-primary shadow-2xs'
-                  : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
-              }`}
-            >
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="truncate font-medium text-foreground/90">
-                  {conv.title || 'Nueva Conversación'}
-                </span>
-                <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-                  <span className="flex items-center gap-1">
-                    <Clock className="h-3 w-3" />
-                    {formattedDate}
-                  </span>
-                  <span>•</span>
-                  <span>{conv.messageCount} msgs</span>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                aria-label={`Eliminar conversación ${conv.title}`}
-                onClick={(e) => handleDelete(e, conv.id)}
-                className="opacity-0 group-hover:opacity-100 hover:text-destructive focus:opacity-100 rounded p-1 transition-opacity text-muted-foreground/60"
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+        {grouped.map((group) => (
+          <div key={group.key} className="space-y-1">
+            <div className="px-3 pt-2 pb-0.5 text-[10px] font-semibold tracking-wider text-muted-foreground/60 uppercase select-none">
+              {group.label}
             </div>
-          );
-        })}
+            {group.items.map((conv) => {
+              const isActive = conv.id === activeConversationId;
+              const isEditingThis = editingId === conv.id;
+              const rawDate = conv.lastActivityAt || conv.updatedAt || conv.createdAt;
+              const formattedDate = rawDate
+                ? new Date(rawDate).toLocaleDateString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                  })
+                : '';
+
+              if (isEditingThis) {
+                return (
+                  <div
+                    key={conv.id}
+                    data-testid={`conversation-item-${conv.id}`}
+                    className={`flex flex-col gap-1.5 rounded-lg px-2.5 py-2 text-xs border bg-card/80 shadow-xs ${
+                      isActive ? 'border-primary' : 'border-primary/40'
+                    }`}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <form
+                      data-testid="rename-form"
+                      onSubmit={(e) => void handleSaveRename(e, conv.id)}
+                      className="flex items-center gap-1.5"
+                    >
+                      <input
+                        type="text"
+                        data-testid="rename-input"
+                        aria-label="Editar título de conversación"
+                        value={editingTitle}
+                        maxLength={255}
+                        autoFocus
+                        disabled={renameMutation.isPending}
+                        onChange={(e) => {
+                          setEditingTitle(e.target.value);
+                          if (validationError) setValidationError(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Escape') {
+                            e.preventDefault();
+                            handleCancelRename();
+                          }
+                        }}
+                        className="flex-1 min-w-0 rounded border border-input bg-background px-2 py-1 text-xs text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-primary disabled:opacity-50"
+                      />
+                      <button
+                        type="submit"
+                        data-testid="save-rename-button"
+                        aria-label="Guardar título"
+                        disabled={renameMutation.isPending}
+                        className="rounded p-1 text-primary hover:bg-primary/10 disabled:opacity-50 transition-colors cursor-pointer"
+                      >
+                        {renameMutation.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Check className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="cancel-rename-button"
+                        aria-label="Cancelar edición"
+                        disabled={renameMutation.isPending}
+                        onClick={handleCancelRename}
+                        className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground disabled:opacity-50 transition-colors cursor-pointer"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </form>
+                    {validationError && (
+                      <span
+                        role="alert"
+                        data-testid="rename-error"
+                        className="text-[10px] text-destructive font-medium pl-1"
+                      >
+                        {validationError}
+                      </span>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={conv.id}
+                  data-testid={`conversation-item-${conv.id}`}
+                  role="button"
+                  tabIndex={0}
+                  aria-current={isActive ? 'true' : undefined}
+                  onClick={() => {
+                    onSelectConversation(conv.id);
+                    onCloseMobile();
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      onSelectConversation(conv.id);
+                      onCloseMobile();
+                    }
+                  }}
+                  className={`group flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-xs transition-colors cursor-pointer select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-hidden ${
+                    isActive
+                      ? 'bg-primary/10 text-primary font-medium border-l-2 border-primary shadow-2xs'
+                      : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                  }`}
+                >
+                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                    <span className="truncate font-medium text-foreground/90" title={conv.title}>
+                      {conv.title || 'Nueva Conversación'}
+                    </span>
+                    <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
+                      <span className="flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        {formattedDate}
+                      </span>
+                      {conv.turnCounter !== undefined && (
+                        <>
+                          <span>•</span>
+                          <span>
+                            {conv.turnCounter} {conv.turnCounter === 1 ? 'turno' : 'turnos'}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                    <button
+                      type="button"
+                      aria-label={`Renombrar conversación ${conv.title}`}
+                      data-testid={`rename-conversation-${conv.id}`}
+                      onClick={(e) => handleStartRename(e, conv.id, conv.title)}
+                      className="hover:text-foreground rounded p-1 transition-colors text-muted-foreground/70"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Eliminar conversación ${conv.title}`}
+                      data-testid={`delete-conversation-${conv.id}`}
+                      onClick={(e) => handleDeleteClick(e, conv.id, conv.title)}
+                      className="hover:text-destructive rounded p-1 transition-colors text-muted-foreground/70 cursor-pointer"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+
+        {/* Keyset Cursor Pagination Trigger */}
+        {hasNextPage && (
+          <div className="pt-1 pb-2 flex justify-center">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => void fetchNextPage()}
+              disabled={isFetchingNextPage}
+              className="w-full text-xs text-muted-foreground hover:text-foreground h-8 gap-1.5 cursor-pointer"
+              data-testid="load-more-conversations-button"
+            >
+              {isFetchingNextPage ? (
+                <>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>Cargando más conversaciones...</span>
+                </>
+              ) : (
+                <span>Cargar más conversaciones</span>
+              )}
+            </Button>
+          </div>
+        )}
       </nav>
     );
   };
@@ -206,6 +477,17 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
         </span>
         <span>Persistencia Local (ADR-01)</span>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteConversationDialog
+        open={Boolean(deletingConversation)}
+        onOpenChange={(open) => {
+          if (!open) setDeletingConversation(null);
+        }}
+        conversationTitle={deletingConversation?.title}
+        onConfirm={handleConfirmDelete}
+        isDeleting={archiveMutation.isPending || deleteMutation.isPending}
+      />
     </aside>
   );
 

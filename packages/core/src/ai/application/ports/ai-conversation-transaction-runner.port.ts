@@ -2,6 +2,7 @@ import { IAiConversationRepositoryPort } from '../../ports/outbound/ai-conversat
 import { IAiConversationTurnRepositoryPort } from '../../ports/outbound/ai-conversation-turn-repository.port';
 import { IAiConversationMessageRepositoryPort } from '../../ports/outbound/ai-conversation-message-repository.port';
 import { IAiConversationAuditRepositoryPort } from '../../ports/outbound/ai-conversation-audit-repository.port';
+import { IAiConversationCitationRepositoryPort } from '../../ports/outbound/ai-conversation-citation-repository.port';
 
 export const AI_CONVERSATION_TRANSACTION_RUNNER = Symbol('IAiConversationTransactionRunner');
 
@@ -13,7 +14,8 @@ export interface ConversationTransactionalRepositories {
   readonly conversationRepo: IAiConversationRepositoryPort;
   readonly turnRepo: IAiConversationTurnRepositoryPort;
   readonly messageRepo: IAiConversationMessageRepositoryPort;
-  readonly auditRepo: IAiConversationAuditRepositoryPort;
+  readonly auditRepo?: IAiConversationAuditRepositoryPort;
+  readonly citationRepo?: IAiConversationCitationRepositoryPort;
 }
 
 /**

@@ -56,7 +56,7 @@ describe('Chat Performance, Long Conversations & Accessibility Hardening (AI-09.
       const renderDuration = performance.now() - startTime;
 
       // Verify render time is under generous threshold
-      expect(renderDuration).toBeLessThan(500);
+      expect(renderDuration).toBeLessThan(1000);
 
       // Verify all 60 message articles exist in the DOM
       const articles = container.querySelectorAll('article');

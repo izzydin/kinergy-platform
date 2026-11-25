@@ -373,6 +373,88 @@ export class ConversationDetailResponseDto {
   activeTurnId?: string | null;
 }
 
+export class ConversationSourceCitationDto {
+  @ApiProperty({
+    description: 'Unique document identifier providing the evidence',
+    example: 'd09a2b5e-4b72-4b21-8288-466fa1d9f8c1',
+  })
+  documentId!: string;
+
+  @ApiProperty({
+    description: 'Title of the referenced knowledge document',
+    example: 'Manual de Kinesiología y Vendaje Funcional',
+  })
+  documentTitle!: string;
+
+  @ApiProperty({
+    description: 'Exact knowledge chunk identifier supporting the generation',
+    example: 'kc_018f3a5e-b5c6-7a1b-9f0e-1a2b3c4d5e6f',
+  })
+  chunkId!: string;
+
+  @ApiPropertyOptional({
+    description: 'Page number within the source document where chunk originates',
+    example: 14,
+    nullable: true,
+  })
+  pageNumber?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Hierarchical section path of headings containing the chunk',
+    example: ['Capítulo 2: Técnicas de Vendaje', 'Contraindicaciones Absolutas'],
+    type: [String],
+    nullable: true,
+  })
+  headingPath?: string[] | null;
+
+  @ApiProperty({
+    description: 'Similarity or fused relevance score in [0.0, 1.0]',
+    example: 0.942,
+  })
+  relevanceScore!: number;
+
+  @ApiPropertyOptional({
+    description: 'Strategy that surfaced this chunk (SEMANTIC, KEYWORD, HYBRID, RERANKED)',
+    example: 'HYBRID',
+    nullable: true,
+  })
+  sourceStrategy?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Persistent citation identifier if stored',
+    example: 'cite_018f3a5e-b5c6-7a1b-9f0e-1a2b3c4d5e6f',
+    nullable: true,
+  })
+  citationId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Document version identifier',
+    example: 'dver_018f3a5e-b5c6-7a1b-9f0e-1a2b3c4d5e6f',
+    nullable: true,
+  })
+  documentVersionId?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Document version number (1-based)',
+    example: 1,
+    nullable: true,
+  })
+  documentVersionNumber?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Exact evidence excerpt retrieved for generation',
+    nullable: true,
+  })
+  excerpt?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Initial retrieval rank (1-based)',
+    example: 1,
+    nullable: true,
+  })
+  retrievalRank?: number | null;
+}
+
 export class MessageResponseDto {
   @ApiProperty({ description: 'Message identifier', example: 'msg_123' })
   id!: string;
@@ -411,9 +493,10 @@ export class MessageResponseDto {
 
   @ApiPropertyOptional({
     description: 'Retrieved citations or sources for assistant responses',
+    type: [ConversationSourceCitationDto],
     nullable: true,
   })
-  sources?: readonly Record<string, unknown>[] | null;
+  sources?: readonly ConversationSourceCitationDto[] | null;
 
   @ApiProperty({ description: 'ISO 8601 creation timestamp' })
   createdAt!: string;
@@ -663,4 +746,117 @@ export class CancelTurnResponseDto {
 
   @ApiProperty({ description: 'ISO 8601 cancellation timestamp' })
   cancelledAt!: string;
+}
+
+export class CitationDetailResponseDto {
+  @ApiProperty({ description: 'Persistent citation identifier', example: 'cite_123' })
+  id!: string;
+
+  @ApiProperty({ description: 'Parent assistant message identifier', example: 'msg_123' })
+  messageId!: string;
+
+  @ApiProperty({ description: 'Associated conversation turn identifier', example: 'turn_456' })
+  turnId!: string;
+
+  @ApiProperty({ description: 'Parent conversation identifier', example: 'conv_789' })
+  conversationId!: string;
+
+  @ApiProperty({ description: '1-based deterministic citation position', example: 1 })
+  citationPosition!: number;
+
+  @ApiProperty({ description: 'Target knowledge document identifier', example: 'doc_101' })
+  documentId!: string;
+
+  @ApiProperty({
+    description: 'Title snapshot of the source document at generation time',
+    example: 'Manual de Kinesiología y Vendaje Funcional',
+  })
+  documentTitleSnapshot!: string;
+
+  @ApiPropertyOptional({
+    description: 'Verified document title if available from repository',
+    example: 'Manual de Kinesiología y Vendaje Funcional',
+  })
+  documentTitle?: string;
+
+  @ApiPropertyOptional({
+    description: 'Original uploaded filename of the source document',
+    example: 'manual-kinesiologia.pdf',
+    nullable: true,
+  })
+  originalFileName?: string | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Document lifecycle status in repository (ACTIVE, ARCHIVED, RESTRICTED, NOT_FOUND)',
+    example: 'ACTIVE',
+    nullable: true,
+  })
+  documentStatus?: string | null;
+
+  @ApiPropertyOptional({ description: 'Document version ID if available', nullable: true })
+  documentVersionId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Document version number if available', nullable: true })
+  documentVersionNumber?: number | null;
+
+  @ApiPropertyOptional({ description: 'Target knowledge chunk identifier', nullable: true })
+  chunkId?: string | null;
+
+  @ApiProperty({ description: 'Exact evidence excerpt retrieved for generation' })
+  excerpt!: string;
+
+  @ApiPropertyOptional({ description: 'Page number in source document', nullable: true })
+  pageNumber?: number | null;
+
+  @ApiProperty({ description: 'Hierarchical section path', type: [String] })
+  headingPath!: readonly string[];
+
+  @ApiPropertyOptional({ description: 'Initial retrieval rank (1-based)', nullable: true })
+  retrievalRank?: number | null;
+
+  @ApiPropertyOptional({ description: 'Computed relevance score in [0.0, 1.0]', nullable: true })
+  relevanceScore?: number | null;
+
+  @ApiPropertyOptional({ description: 'Retrieval strategy used', nullable: true })
+  sourceStrategy?: string | null;
+
+  @ApiProperty({
+    description: 'Dynamic document preview status',
+    enum: ['DOCUMENT_AVAILABLE', 'DOCUMENT_SOFT_DELETED', 'DOCUMENT_RESTRICTED', 'EXCERPT_ONLY'],
+    example: 'DOCUMENT_AVAILABLE',
+  })
+  previewStatus!: string;
+
+  @ApiProperty({
+    description: 'Whether full document preview is accessible to caller',
+    example: true,
+  })
+  canPreview!: boolean;
+
+  @ApiPropertyOptional({ description: 'Reason why preview is unavailable', nullable: true })
+  previewUnavailableReason?: string | null;
+
+  @ApiPropertyOptional({ description: 'Document MIME type if previewable', nullable: true })
+  mimeType?: string | null;
+
+  @ApiPropertyOptional({ description: 'File size in bytes if available', nullable: true })
+  fileSizeBytes?: number | null;
+
+  @ApiProperty({ description: 'Creation ISO timestamp' })
+  createdAt!: string;
+}
+
+export class MessageCitationsResponseDto {
+  @ApiProperty({ description: 'Target assistant message ID', example: 'msg_123' })
+  messageId!: string;
+
+  @ApiProperty({ description: 'Parent conversation ID', example: 'conv_789' })
+  conversationId!: string;
+
+  @ApiProperty({
+    description: 'List of citations ordered by citationPosition ASC',
+    type: [CitationDetailResponseDto],
+  })
+  citations!: readonly CitationDetailResponseDto[];
 }

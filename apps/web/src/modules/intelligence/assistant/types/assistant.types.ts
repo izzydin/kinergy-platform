@@ -45,13 +45,26 @@ export interface QueryKnowledgeRequestDto {
  * Verifiable source citation matching backend RAGSourceCitationDto.
  */
 export interface RAGSourceCitationDto {
+  readonly citationId?: string | null;
   readonly documentId: string;
   readonly documentTitle: string;
   readonly chunkId: string;
+  readonly excerpt?: string;
   readonly pageNumber?: number;
   readonly headingPath?: readonly string[];
   readonly relevanceScore: number;
+  readonly retrievalRank?: number;
   readonly sourceStrategy?: string;
+  readonly documentVersionId?: string;
+  readonly documentVersionNumber?: number;
+  readonly originalFileName?: string | null;
+  readonly mimeType?: string | null;
+  readonly fileSizeBytes?: number | null;
+  readonly documentStatus?: string | null;
+  readonly previewStatus?:
+    'DOCUMENT_AVAILABLE' | 'DOCUMENT_SOFT_DELETED' | 'DOCUMENT_RESTRICTED' | 'EXCERPT_ONLY';
+  readonly canPreview?: boolean;
+  readonly previewUnavailableReason?: string | null;
 }
 
 /**
@@ -112,6 +125,7 @@ export interface ChatMessage {
   readonly sources?: readonly RAGSourceCitationDto[];
   readonly metadata?: RAGMetadataDto;
   readonly error?: string;
+  readonly sequenceNumber?: number;
 }
 
 /**

@@ -87,6 +87,13 @@ export class PersistMessageStateUseCase {
       );
     }
 
+    // Source attribution is reserved strictly for successful completions.
+    // Incomplete, failed, or cancelled messages must never retain source provenance.
+    const sourcesToPersist =
+      input.status === GenerationStatus.SUCCESS && input.sources && input.sources.length > 0
+        ? input.sources
+        : null;
+
     const updated = await this.messageRepo.updateStatus(tenantId, conversationId, messageId, {
       status: input.status,
       content: input.content,
@@ -94,7 +101,7 @@ export class PersistMessageStateUseCase {
       completedAt: input.completedAt,
       errorCode: input.errorCode,
       errorMessage: input.errorMessage,
-      sources: input.sources,
+      sources: sourcesToPersist,
       metadata: input.metadata,
     });
 
