@@ -34,6 +34,7 @@ export interface ConversationSidebarProps {
   onNewConversation: () => void;
   tenantId: string;
   userId: string;
+  referenceDate?: Date;
 }
 
 /**
@@ -56,6 +57,7 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
   onNewConversation,
   tenantId,
   userId,
+  referenceDate,
 }) => {
   // 1. Persistent backend query with keyset infinite cursor pagination
   const {
@@ -187,7 +189,10 @@ export const ConversationSidebar: React.FC<ConversationSidebarProps> = ({
     }));
   }, [infiniteConversationsData, localConversations]);
 
-  const grouped = React.useMemo(() => groupConversationsByDate(conversations), [conversations]);
+  const grouped = React.useMemo(
+    () => groupConversationsByDate(conversations, referenceDate),
+    [conversations, referenceDate],
+  );
 
   const isLoading = (isLoadingPersistent || isLoadingLocal) && conversations.length === 0;
   const isError = (isErrorPersistent || isErrorLocal) && conversations.length === 0;
