@@ -1,4 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Response } from 'express';
+import { UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { AiConversationController } from '../ai-conversation.controller';
 import { AuthenticationGuard } from '../../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../../platform/identity/authorization/authorization.guard';
@@ -14,16 +16,22 @@ import {
   CancelConversationTurnUseCase,
   GetMessageCitationsUseCase,
   GetCitationDetailUseCase,
+  GetCitationPreviewUseCase,
+  GetCitationDocumentStreamUseCase,
   CitationNotFoundError,
   ConversationNotFoundError,
   MessageNotFoundError,
 } from '@kinergy-platform/core';
+import { PreviewTokenService } from '../../services/preview-token.service';
 import { TrustedAiContext } from '../decorators/trusted-ai-context.decorator';
 
 describe('AiConversationController — Citation Endpoints Unit Tests', () => {
   let controller: AiConversationController;
   let getCitationsUseCase: jest.Mocked<GetMessageCitationsUseCase>;
   let getCitationDetailUseCase: jest.Mocked<GetCitationDetailUseCase>;
+  let getCitationPreviewUseCase: jest.Mocked<GetCitationPreviewUseCase>;
+  let getCitationDocumentStreamUseCase: jest.Mocked<GetCitationDocumentStreamUseCase>;
+  let previewTokenService: PreviewTokenService;
 
   const mockAuthUser: TrustedAiContext = {
     actorId: 'usr_doc_001',
@@ -61,6 +69,30 @@ describe('AiConversationController — Citation Endpoints Unit Tests', () => {
     createdAt: '2026-11-24T18:00:00.000Z',
   };
 
+  const samplePreviewResult = {
+    documentId: 'doc_202',
+    citationId: 'cite_123',
+    messageId: 'msg_456',
+    conversationId: 'conv_101',
+    documentTitleSnapshot: 'Manual de Kinesiología y Rehabilitación',
+    documentTitle: 'Manual de Kinesiología y Rehabilitación',
+    originalFileName: 'manual-kinesiologia-v1.pdf',
+    mimeType: 'application/pdf',
+    fileSizeBytes: 1048576,
+    documentVersionId: 'dver_303',
+    documentVersionNumber: 1,
+    pageNumber: 22,
+    headingPath: ['Capítulo 3', 'Tracción Mecánica'],
+    excerpt: 'La tracción cervical mecánica debe iniciarse a bajas cargas.',
+    canPreview: true,
+    supportedFormat: true,
+    previewStatus: 'DOCUMENT_AVAILABLE' as const,
+    previewUnavailableReason: null,
+    downloadAllowed: true,
+  };
+
+  const samplePdfBuffer = Buffer.from('%PDF-1.4 mock binary stream');
+
   beforeEach(async () => {
     getCitationsUseCase = {
       execute: jest.fn().mockResolvedValue({
@@ -77,6 +109,26 @@ describe('AiConversationController — Citation Endpoints Unit Tests', () => {
       }),
     } as unknown as jest.Mocked<GetCitationDetailUseCase>;
 
+    getCitationPreviewUseCase = {
+      execute: jest.fn().mockResolvedValue({
+        preview: samplePreviewResult,
+      }),
+    } as unknown as jest.Mocked<GetCitationPreviewUseCase>;
+
+    getCitationDocumentStreamUseCase = {
+      execute: jest.fn().mockResolvedValue({
+        data: samplePdfBuffer,
+        mimeType: 'application/pdf',
+        fileSize: samplePdfBuffer.length,
+        originalFileName: 'manual-kinesiologia-v1.pdf',
+        checksum: 'a'.repeat(64),
+        pageNumber: 22,
+        headingPath: ['Capítulo 3', 'Tracción Mecánica'],
+      }),
+    } as unknown as jest.Mocked<GetCitationDocumentStreamUseCase>;
+
+    previewTokenService = new PreviewTokenService();
+
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AiConversationController],
       providers: [
@@ -91,6 +143,9 @@ describe('AiConversationController — Citation Endpoints Unit Tests', () => {
         { provide: CancelConversationTurnUseCase, useValue: {} },
         { provide: GetMessageCitationsUseCase, useValue: getCitationsUseCase },
         { provide: GetCitationDetailUseCase, useValue: getCitationDetailUseCase },
+        { provide: GetCitationPreviewUseCase, useValue: getCitationPreviewUseCase },
+        { provide: GetCitationDocumentStreamUseCase, useValue: getCitationDocumentStreamUseCase },
+        { provide: PreviewTokenService, useValue: previewTokenService },
       ],
     })
       .overrideGuard(AuthenticationGuard)
@@ -178,6 +233,183 @@ describe('AiConversationController — Citation Endpoints Unit Tests', () => {
       await expect(
         controller.getCitationDetail(mockAuthUser, 'conv_101', 'msg_456', 'cite_missing'),
       ).rejects.toThrow(CitationNotFoundError);
+    });
+  });
+
+  describe('GET :conversationId/messages/:messageId/citations/:citationId/preview', () => {
+    it('6. successfully returns preview metadata and creates short-lived preview token', async () => {
+      const response = await controller.getCitationPreview(
+        mockAuthUser,
+        'conv_101',
+        'msg_456',
+        'cite_123',
+      );
+
+      expect(getCitationPreviewUseCase.execute).toHaveBeenCalledWith({
+        tenantId: mockAuthUser.tenantId,
+        userId: mockAuthUser.actorId,
+        conversationId: 'conv_101',
+        messageId: 'msg_456',
+        citationId: 'cite_123',
+        userRoles: mockAuthUser.roles,
+      });
+
+      expect(response.canPreview).toBe(true);
+      expect(response.supportedFormat).toBe(true);
+      expect(response.previewStatus).toBe('DOCUMENT_AVAILABLE');
+      expect(response.documentId).toBe('doc_202');
+      expect(response.pageNumber).toBe(22);
+      expect(response.previewUrl).toBe(
+        '/api/v1/ai/conversations/conv_101/messages/msg_456/citations/cite_123/content',
+      );
+      expect(response.previewToken).toBeDefined();
+      expect(typeof response.previewToken).toBe('string');
+    });
+
+    it('7. reports supportedFormat false and does not issue preview token for unsupported format', async () => {
+      getCitationPreviewUseCase.execute.mockResolvedValueOnce({
+        preview: {
+          ...samplePreviewResult,
+          canPreview: false,
+          supportedFormat: false,
+          previewStatus: 'UNSUPPORTED_FORMAT',
+          previewUnavailableReason: 'Inline preview is not supported for this file format (DOCX).',
+        },
+      });
+
+      const response = await controller.getCitationPreview(
+        mockAuthUser,
+        'conv_101',
+        'msg_456',
+        'cite_123',
+      );
+
+      expect(response.canPreview).toBe(false);
+      expect(response.supportedFormat).toBe(false);
+      expect(response.previewStatus).toBe('UNSUPPORTED_FORMAT');
+      expect(response.previewToken).toBeNull();
+    });
+  });
+
+  describe('GET :conversationId/messages/:messageId/citations/:citationId/content', () => {
+    it('8. streams document content with strict security and cache headers when authenticated', async () => {
+      const mockRes = {
+        setHeader: jest.fn(),
+        send: jest.fn(),
+      } as unknown as Response;
+
+      await controller.getCitationDocumentContent(
+        'conv_101',
+        'msg_456',
+        'cite_123',
+        undefined,
+        {
+          id: mockAuthUser.actorId,
+          email: mockAuthUser.email!,
+          status: 'ACTIVE',
+          roles: [...mockAuthUser.roles],
+          permissions: [...mockAuthUser.permissions],
+          tenantId: mockAuthUser.tenantId,
+        },
+        mockRes,
+      );
+
+      expect(getCitationDocumentStreamUseCase.execute).toHaveBeenCalledWith({
+        tenantId: mockAuthUser.tenantId,
+        userId: mockAuthUser.actorId,
+        conversationId: 'conv_101',
+        messageId: 'msg_456',
+        citationId: 'cite_123',
+        userRoles: mockAuthUser.roles,
+      });
+
+      expect(mockRes.setHeader).toHaveBeenCalledWith('Content-Type', 'application/pdf');
+      expect(mockRes.setHeader).toHaveBeenCalledWith('X-Content-Type-Options', 'nosniff');
+      expect(mockRes.setHeader).toHaveBeenCalledWith(
+        'Cache-Control',
+        'private, no-cache, no-store, must-revalidate',
+      );
+      expect(mockRes.setHeader).toHaveBeenCalledWith(
+        'Content-Disposition',
+        expect.stringContaining('inline; filename='),
+      );
+      expect(mockRes.send).toHaveBeenCalledWith(samplePdfBuffer);
+    });
+
+    it('9. streams document content with valid query token without Authorization header', async () => {
+      const token = previewTokenService.generateToken({
+        tenantId: mockAuthUser.tenantId,
+        userId: mockAuthUser.actorId,
+        conversationId: 'conv_101',
+        messageId: 'msg_456',
+        citationId: 'cite_123',
+        documentId: 'doc_202',
+      });
+
+      const mockRes = {
+        setHeader: jest.fn(),
+        send: jest.fn(),
+      } as unknown as Response;
+
+      await controller.getCitationDocumentContent(
+        'conv_101',
+        'msg_456',
+        'cite_123',
+        token,
+        null, // No JWT user!
+        mockRes,
+      );
+
+      expect(getCitationDocumentStreamUseCase.execute).toHaveBeenCalled();
+      expect(mockRes.send).toHaveBeenCalledWith(samplePdfBuffer);
+    });
+
+    it('10. throws ForbiddenException when query token is expired', async () => {
+      const expiredToken = previewTokenService.generateToken(
+        {
+          tenantId: mockAuthUser.tenantId,
+          userId: mockAuthUser.actorId,
+          conversationId: 'conv_101',
+          messageId: 'msg_456',
+          citationId: 'cite_123',
+          documentId: 'doc_202',
+        },
+        -10, // Expired
+      );
+
+      const mockRes = {
+        setHeader: jest.fn(),
+        send: jest.fn(),
+      } as unknown as Response;
+
+      await expect(
+        controller.getCitationDocumentContent(
+          'conv_101',
+          'msg_456',
+          'cite_123',
+          expiredToken,
+          null,
+          mockRes,
+        ),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('11. throws UnauthorizedException when neither user nor token is provided', async () => {
+      const mockRes = {
+        setHeader: jest.fn(),
+        send: jest.fn(),
+      } as unknown as Response;
+
+      await expect(
+        controller.getCitationDocumentContent(
+          'conv_101',
+          'msg_456',
+          'cite_123',
+          undefined,
+          null,
+          mockRes,
+        ),
+      ).rejects.toThrow(UnauthorizedException);
     });
   });
 });

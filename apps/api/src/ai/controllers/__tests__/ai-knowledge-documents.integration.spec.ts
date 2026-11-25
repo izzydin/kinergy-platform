@@ -303,6 +303,28 @@ describe('AI-03.4 — Knowledge Document Management HTTP APIs (Integration)', ()
       initialVersionId = res.body.versionId;
     });
 
+    it('GET /api/v1/ai/knowledge/documents/capabilities returns authoritative configuration', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/ai/knowledge/documents/capabilities')
+        .expect(200);
+
+      expect(res.body.maxFileSizeBytes).toBe(10 * 1024 * 1024);
+      expect(res.body.maxFileSizeMb).toBe(10);
+      expect(res.body.allowedMimeTypes).toContain('application/pdf');
+      expect(res.body.allowedExtensions).toContain('.pdf');
+      expect(res.body.supportedVisibilityScopes).toContain(VisibilityScope.ALL_STAFF);
+    });
+
+    it('POST /api/v1/ai/knowledge/documents rejects duplicate active document content with 409 Conflict', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/ai/knowledge/documents')
+        .field('title', 'Duplicate Cervical Spine Protocol')
+        .attach('file', validPdfBuffer, 'duplicate-spine-protocol.pdf')
+        .expect(409);
+
+      expect(res.body.message).toContain('A document with identical content already exists');
+    });
+
     it('GET /api/v1/ai/knowledge/documents lists documents with pagination', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/v1/ai/knowledge/documents?search=Cervical&page=1&limit=10')
@@ -312,6 +334,11 @@ describe('AI-03.4 — Knowledge Document Management HTTP APIs (Integration)', ()
       expect(res.body.page).toBe(1);
       expect(res.body.items).toHaveLength(1);
       expect(res.body.items[0].id).toBe(createdDocId);
+      expect(res.body.items[0].fileExtension).toBe('pdf');
+      expect(res.body.items[0].originalFileName).toBe('spine-protocol.pdf');
+      expect(res.body.items[0].status).toBe('ACTIVE');
+      expect(res.body.items[0].isDeleted).toBe(false);
+      expect(res.body.items[0].storageReference).toBeDefined();
       expect(res.body.items[0].versions[0].storageKey).toBeUndefined();
     });
 

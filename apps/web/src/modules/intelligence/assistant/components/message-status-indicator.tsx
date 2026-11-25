@@ -32,9 +32,41 @@ export const MessageStatusIndicator: React.FC<MessageStatusIndicatorProps> = ({
         aria-live="polite"
         className="flex items-center gap-2.5 text-muted-foreground py-0.5"
       >
-        <Sparkles className="h-4 w-4 animate-spin text-primary" />
-        <span className="text-xs font-medium animate-pulse">
+        <Sparkles className="h-4 w-4 motion-safe:animate-spin text-primary" />
+        <span className="text-xs font-medium motion-safe:animate-pulse">
           Sintetizando respuesta fundamentada...
+        </span>
+      </div>
+    );
+  }
+
+  if (status === 'generating') {
+    return (
+      <div
+        data-testid="message-generating-state"
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-2.5 text-muted-foreground py-0.5"
+      >
+        <Sparkles className="h-4 w-4 motion-safe:animate-spin text-primary" />
+        <span className="text-xs font-medium motion-safe:animate-pulse">
+          Generando respuesta...
+        </span>
+      </div>
+    );
+  }
+
+  if (status === 'cancelling') {
+    return (
+      <div
+        data-testid="message-cancelling-state"
+        role="status"
+        aria-live="polite"
+        className="flex items-center gap-2.5 text-amber-600 dark:text-amber-400 py-0.5"
+      >
+        <Ban className="h-4 w-4 motion-safe:animate-spin text-amber-500" />
+        <span className="text-xs font-medium motion-safe:animate-pulse">
+          Deteniendo generación...
         </span>
       </div>
     );

@@ -23,6 +23,13 @@ import type {
   AiConversationErrorResponse,
   CitationDetailResponse,
   ListMessageCitationsResponse,
+  CitationPreviewResponse,
+  FeedbackRating,
+  SubmitFeedbackRequest,
+  MessageFeedbackResponse,
+  RevokeFeedbackResponse,
+  RegenerateTurnRequest,
+  RegenerateTurnResponse,
 } from '../types/conversation-contract.types';
 
 // ==========================================
@@ -174,6 +181,30 @@ export const listMessageCitationsResponseSchema: z.ZodType<ListMessageCitationsR
     citations: z.array(citationDetailResponseSchema),
   },
 );
+
+export const citationPreviewResponseSchema: z.ZodType<CitationPreviewResponse> = z.object({
+  documentId: z.string().min(1),
+  citationId: z.string().min(1),
+  messageId: z.string().min(1),
+  conversationId: z.string().min(1),
+  documentTitleSnapshot: z.string().min(1),
+  documentTitle: z.string().min(1),
+  originalFileName: z.string().nullable().optional(),
+  mimeType: z.string().nullable().optional(),
+  fileSizeBytes: z.number().int().nonnegative().nullable().optional(),
+  documentVersionId: z.string().nullable().optional(),
+  documentVersionNumber: z.number().int().positive().nullable().optional(),
+  pageNumber: z.number().int().positive().nullable().optional(),
+  headingPath: z.array(z.string()),
+  excerpt: z.string(),
+  canPreview: z.boolean(),
+  supportedFormat: z.boolean(),
+  previewStatus: z.string(),
+  previewUnavailableReason: z.string().nullable().optional(),
+  downloadAllowed: z.boolean(),
+  previewToken: z.string().nullable().optional(),
+  previewUrl: z.string(),
+});
 
 export const messageResponseSchema: z.ZodType<MessageResponse> = z.object({
   id: z.string().min(1, 'Message id is required.'),
@@ -351,4 +382,76 @@ export function parseCitationDetailResponse(data: unknown): CitationDetailRespon
 
 export function parseListMessageCitationsResponse(data: unknown): ListMessageCitationsResponse {
   return listMessageCitationsResponseSchema.parse(data);
+}
+
+export function parseCitationPreviewResponse(data: unknown): CitationPreviewResponse {
+  return citationPreviewResponseSchema.parse(data);
+}
+
+// ==========================================
+// 8. Message Feedback Schemas (AI-09.5 - FB.02 / FB.03)
+// ==========================================
+
+export const feedbackRatingSchema: z.ZodType<FeedbackRating> = z.enum(['POSITIVE', 'NEGATIVE']);
+
+export const submitFeedbackRequestSchema = z.object({
+  rating: feedbackRatingSchema,
+  explanation: z.string().max(1000, 'explanation must not exceed 1000 characters').optional(),
+  category: z.string().max(64).optional(),
+});
+
+export const messageFeedbackResponseSchema = z.object({
+  id: z.string(),
+  messageId: z.string(),
+  conversationId: z.string(),
+  userId: z.string(),
+  rating: feedbackRatingSchema,
+  explanation: z.string().nullable().optional(),
+  category: z.string().nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+export const revokeFeedbackResponseSchema = z.object({
+  revoked: z.boolean(),
+  messageId: z.string(),
+});
+
+export function validateSubmitFeedbackRequest(data: unknown): SubmitFeedbackRequest {
+  return submitFeedbackRequestSchema.parse(data);
+}
+
+export function parseMessageFeedbackResponse(data: unknown): MessageFeedbackResponse {
+  return messageFeedbackResponseSchema.parse(data);
+}
+
+export function parseRevokeFeedbackResponse(data: unknown): RevokeFeedbackResponse {
+  return revokeFeedbackResponseSchema.parse(data);
+}
+
+// ==========================================
+// 9. Response Regeneration Schemas (AI-09.5 - FB.05)
+// ==========================================
+
+export const regenerateTurnRequestSchema = z.object({
+  clientTurnId: z.string().max(64).optional(),
+  messageId: z.string().optional(),
+});
+
+export const regenerateTurnResponseSchema: z.ZodType<RegenerateTurnResponse> = z.object({
+  conversationId: z.string(),
+  turnId: z.string(),
+  turnIndex: z.number().int().positive(),
+  attemptNumber: z.number().int().positive(),
+  assistantMessageId: z.string(),
+  status: z.enum(['PENDING', 'STREAMING', 'COMPLETED', 'FAILED', 'CANCELLED']),
+  userPrompt: z.string(),
+});
+
+export function validateRegenerateTurnRequest(data: unknown): RegenerateTurnRequest {
+  return regenerateTurnRequestSchema.parse(data);
+}
+
+export function parseRegenerateTurnResponse(data: unknown): RegenerateTurnResponse {
+  return regenerateTurnResponseSchema.parse(data);
 }

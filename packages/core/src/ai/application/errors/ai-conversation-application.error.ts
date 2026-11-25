@@ -205,3 +205,116 @@ export class CitationNotFoundError extends AiConversationApplicationError {
     );
   }
 }
+
+/**
+ * Thrown when an authenticated user attempts to access a document whose visibility scope requires higher clearance.
+ */
+export class DocumentAccessRestrictedError extends AiConversationApplicationError {
+  public override readonly code = 'AI_DOCUMENT_ACCESS_RESTRICTED';
+
+  constructor(documentId: string, requiredScope?: string) {
+    super(
+      requiredScope
+        ? `Access to document '${documentId}' is restricted by scope '${requiredScope}'.`
+        : `Access to document '${documentId}' is restricted by security policy.`,
+      { documentId, requiredScope },
+    );
+  }
+}
+
+/**
+ * Thrown when document format is not supported for inline preview.
+ */
+export class DocumentPreviewUnsupportedFormatError extends AiConversationApplicationError {
+  public override readonly code = 'AI_DOCUMENT_PREVIEW_UNSUPPORTED_FORMAT';
+
+  constructor(mimeType: string, documentId?: string) {
+    super(`Document format '${mimeType}' is not supported for inline preview.`, {
+      mimeType,
+      documentId,
+    });
+  }
+}
+
+/**
+ * Thrown when a document source file is not found in the storage subsystem.
+ */
+export class DocumentFileNotFoundInStorageError extends AiConversationApplicationError {
+  public override readonly code = 'AI_DOCUMENT_FILE_NOT_FOUND_IN_STORAGE';
+
+  constructor(storageKey: string, tenantId: string) {
+    super(`Document file for key '${storageKey}' not found in storage for tenant '${tenantId}'.`, {
+      storageKey,
+      tenantId,
+    });
+  }
+}
+
+/**
+ * Thrown when an operation is requested on a document that has been archived or soft-deleted.
+ */
+export class DocumentArchivedOrDeletedError extends AiConversationApplicationError {
+  public override readonly code = 'AI_DOCUMENT_ARCHIVED_OR_DELETED';
+
+  constructor(documentId: string) {
+    super(
+      `Document '${documentId}' has been archived or deleted and its source file cannot be previewed.`,
+      {
+        documentId,
+      },
+    );
+  }
+}
+
+/**
+ * Thrown when feedback is submitted for a message whose role is not ASSISTANT.
+ */
+export class FeedbackTargetNotAssistantMessageError extends AiConversationApplicationError {
+  public override readonly code = 'AI_FEEDBACK_TARGET_NOT_ASSISTANT';
+
+  constructor(messageId: string, role: string) {
+    super(
+      `Cannot submit feedback on message '${messageId}' with role '${role}'. Feedback is only accepted for assistant responses.`,
+      { messageId, role },
+    );
+  }
+}
+
+/**
+ * Thrown when the specified message does not belong to the target conversation.
+ */
+export class MessageNotBelongingToConversationError extends AiConversationApplicationError {
+  public override readonly code = 'AI_MESSAGE_NOT_IN_CONVERSATION';
+
+  constructor(messageId: string, conversationId: string) {
+    super(`Message '${messageId}' does not belong to conversation '${conversationId}'.`, {
+      messageId,
+      conversationId,
+    });
+  }
+}
+
+/**
+ * Thrown when requested feedback cannot be found.
+ */
+export class FeedbackNotFoundError extends AiConversationApplicationError {
+  public override readonly code = 'AI_FEEDBACK_NOT_FOUND';
+
+  constructor(messageId: string, userId: string) {
+    super(`Feedback for message '${messageId}' by user '${userId}' was not found.`, {
+      messageId,
+      userId,
+    });
+  }
+}
+
+/**
+ * Thrown when feedback input validation fails.
+ */
+export class InvalidFeedbackInputError extends AiConversationApplicationError {
+  public override readonly code = 'AI_INVALID_FEEDBACK_INPUT';
+
+  constructor(field: string, reason: string) {
+    super(`Invalid feedback input for field '${field}': ${reason}`, { field, reason });
+  }
+}

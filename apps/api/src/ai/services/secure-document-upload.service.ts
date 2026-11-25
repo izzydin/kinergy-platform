@@ -10,6 +10,8 @@ import {
   IIngestionJobRepositoryPort,
   DocumentNotFoundException,
   UnauthorizedDocumentAccessException,
+  DuplicateDocumentVersionException,
+  DuplicateDocumentContentException,
 } from '@kinergy-platform/core';
 import {
   OBJECT_STORAGE_PORT,
@@ -100,7 +102,7 @@ export class SecureDocumentUploadService {
       declaredMimeType: file.mimeType,
     });
 
-    // 3. Pre-check existing document if adding a version
+    // 3. Pre-check existing document if adding a version OR prevent duplicate active document in tenant
     let existingDoc: KnowledgeDocument | null = null;
     if (documentId) {
       existingDoc = await this.documentRepo.findById(tenantId, documentId);
@@ -116,9 +118,19 @@ export class SecureDocumentUploadService {
         const existingVer = versions.find(
           (v: DocumentVersion) => v.checksum === validated.checksum,
         );
-        throw new (await import('@kinergy-platform/core')).DuplicateDocumentVersionException(
+        throw new DuplicateDocumentVersionException(validated.checksum, existingVer!.versionNumber);
+      }
+    } else {
+      // Prevent accidental duplicate records: check if active document with identical checksum exists in tenant
+      const existingChecksumDoc = await this.documentRepo.findByChecksum(
+        tenantId,
+        validated.checksum,
+      );
+      if (existingChecksumDoc && !existingChecksumDoc.isDeleted()) {
+        throw new DuplicateDocumentContentException(
           validated.checksum,
-          existingVer!.versionNumber,
+          existingChecksumDoc.id.toString(),
+          existingChecksumDoc.title,
         );
       }
     }

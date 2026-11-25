@@ -108,6 +108,7 @@ export function toDomainChatMessage(msg: MessageResponse): ChatMessage {
 
   return {
     id: msg.id,
+    turnId: msg.turnId,
     role: legacyRole,
     content: msg.content,
     createdAt: msg.createdAt,

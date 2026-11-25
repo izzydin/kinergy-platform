@@ -13,6 +13,9 @@ import type {
   ArchiveConversationResponse,
   ConversationDetailResponse,
   ConversationListResponse,
+  SubmitFeedbackRequest,
+  MessageFeedbackResponse,
+  RevokeFeedbackResponse,
 } from '../types/conversation-contract.types';
 
 /**
@@ -334,6 +337,187 @@ export function useReserveTurnMutation(
     onSettled: (data, error, variables) => {
       if (options?.onSettled) {
         void options.onSettled(data, error, variables);
+      }
+    },
+  });
+}
+
+/**
+ * Variables for submitting or updating response feedback.
+ */
+export interface SubmitFeedbackVariables {
+  readonly conversationId: string;
+  readonly messageId: string;
+  readonly request: SubmitFeedbackRequest;
+}
+
+/**
+ * Optimistic mutation context for rolling back feedback on failure.
+ */
+export interface SubmitFeedbackContext {
+  readonly previousFeedback?: MessageFeedbackResponse | null;
+}
+
+/**
+ * Custom TanStack Query Hook: Mutation for submitting or updating assistant response feedback.
+ *
+ * Implements optimistic updates:
+ * - Updates local query cache immediately for responsive UI feedback.
+ * - Snapshots prior state and rolls back automatically on error.
+ * - Reconciles with server response on settlement.
+ */
+export function useSubmitFeedbackMutation(
+  options?: UseConversationMutationOptions<MessageFeedbackResponse, SubmitFeedbackVariables>,
+): UseMutationResult<
+  MessageFeedbackResponse,
+  Error,
+  SubmitFeedbackVariables,
+  SubmitFeedbackContext
+> {
+  const queryClient = useQueryClient();
+  const scope = useResolvedConversationScope(options?.scope);
+
+  return useMutation({
+    mutationFn: ({ conversationId, messageId, request }: SubmitFeedbackVariables) =>
+      conversationApi.submitFeedback(conversationId, messageId, request),
+    onMutate: async ({ conversationId, messageId, request }) => {
+      const queryKey = conversationQueryKeys.feedback(conversationId, messageId, scope);
+      await queryClient.cancelQueries({ queryKey });
+
+      const previousFeedback = queryClient.getQueryData<MessageFeedbackResponse | null>(queryKey);
+
+      // Optimistically set feedback
+      const optimisticFeedback: MessageFeedbackResponse = {
+        id: previousFeedback?.id ?? `opt_${Date.now()}`,
+        messageId,
+        conversationId,
+        userId: scope?.userId ?? 'current_user',
+        rating: request.rating,
+        explanation: request.explanation ?? null,
+        category: request.category ?? null,
+        createdAt: previousFeedback?.createdAt ?? new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      queryClient.setQueryData(queryKey, optimisticFeedback);
+
+      return { previousFeedback };
+    },
+    onError: (error, variables, context) => {
+      if (context) {
+        const queryKey = conversationQueryKeys.feedback(
+          variables.conversationId,
+          variables.messageId,
+          scope,
+        );
+        queryClient.setQueryData(queryKey, context.previousFeedback);
+      }
+      if (options?.onError) {
+        void options.onError(error, variables);
+      }
+    },
+    onSuccess: async (data, variables) => {
+      const queryKey = conversationQueryKeys.feedback(
+        variables.conversationId,
+        variables.messageId,
+        scope,
+      );
+      queryClient.setQueryData(queryKey, data);
+      if (options?.onSuccess) {
+        await options.onSuccess(data, variables);
+      }
+    },
+    onSettled: async (data, error, variables) => {
+      if (variables) {
+        await conversationCachePolicies.invalidateMessageFeedback(
+          queryClient,
+          variables.conversationId,
+          variables.messageId,
+          scope,
+        );
+      }
+      if (options?.onSettled) {
+        void options.onSettled(data, error, variables as SubmitFeedbackVariables);
+      }
+    },
+  });
+}
+
+/**
+ * Variables for revoking response feedback.
+ */
+export interface RevokeFeedbackVariables {
+  readonly conversationId: string;
+  readonly messageId: string;
+}
+
+/**
+ * Optimistic mutation context for revoking feedback.
+ */
+export interface RevokeFeedbackContext {
+  readonly previousFeedback?: MessageFeedbackResponse | null;
+}
+
+/**
+ * Custom TanStack Query Hook: Mutation for revoking assistant response feedback.
+ */
+export function useRevokeFeedbackMutation(
+  options?: UseConversationMutationOptions<RevokeFeedbackResponse, RevokeFeedbackVariables>,
+): UseMutationResult<
+  RevokeFeedbackResponse,
+  Error,
+  RevokeFeedbackVariables,
+  RevokeFeedbackContext
+> {
+  const queryClient = useQueryClient();
+  const scope = useResolvedConversationScope(options?.scope);
+
+  return useMutation({
+    mutationFn: ({ conversationId, messageId }: RevokeFeedbackVariables) =>
+      conversationApi.revokeFeedback(conversationId, messageId),
+    onMutate: async ({ conversationId, messageId }) => {
+      const queryKey = conversationQueryKeys.feedback(conversationId, messageId, scope);
+      await queryClient.cancelQueries({ queryKey });
+
+      const previousFeedback = queryClient.getQueryData<MessageFeedbackResponse | null>(queryKey);
+      queryClient.setQueryData(queryKey, null);
+
+      return { previousFeedback };
+    },
+    onError: (error, variables, context) => {
+      if (context) {
+        const queryKey = conversationQueryKeys.feedback(
+          variables.conversationId,
+          variables.messageId,
+          scope,
+        );
+        queryClient.setQueryData(queryKey, context.previousFeedback);
+      }
+      if (options?.onError) {
+        void options.onError(error, variables);
+      }
+    },
+    onSuccess: async (data, variables) => {
+      const queryKey = conversationQueryKeys.feedback(
+        variables.conversationId,
+        variables.messageId,
+        scope,
+      );
+      queryClient.setQueryData(queryKey, null);
+      if (options?.onSuccess) {
+        await options.onSuccess(data, variables);
+      }
+    },
+    onSettled: async (data, error, variables) => {
+      if (variables) {
+        await conversationCachePolicies.invalidateMessageFeedback(
+          queryClient,
+          variables.conversationId,
+          variables.messageId,
+          scope,
+        );
+      }
+      if (options?.onSettled) {
+        void options.onSettled(data, error, variables as RevokeFeedbackVariables);
       }
     },
   });

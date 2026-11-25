@@ -27,3 +27,4 @@ export * from './message-history-cursor.vo';
 export * from './conversation-list-cursor.vo';
 export * from './audit-history-cursor.vo';
 export * from './citation-id.vo';
+export * from './feedback-id.vo';

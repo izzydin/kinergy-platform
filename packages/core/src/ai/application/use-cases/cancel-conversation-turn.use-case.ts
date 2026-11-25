@@ -12,6 +12,7 @@ import {
   InvalidTurnInputError,
   ConversationNotFoundError,
   TurnNotFoundError,
+  MessageNotFoundError,
   TenantOwnershipViolationError,
   InvalidConversationLifecycleError,
 } from '../errors/ai-conversation-application.error';
@@ -20,7 +21,8 @@ export interface CancelConversationTurnInput {
   readonly tenantId: string;
   readonly userId: string;
   readonly conversationId: string;
-  readonly turnId: string;
+  readonly turnId?: string;
+  readonly messageId?: string;
   readonly reason?: string;
 }
 
@@ -64,10 +66,6 @@ export class CancelConversationTurnUseCase {
     if (!conversationId) {
       throw new InvalidTurnInputError('conversationId', 'Conversation ID is required.');
     }
-    const turnId = input.turnId?.trim();
-    if (!turnId) {
-      throw new InvalidTurnInputError('turnId', 'Turn ID is required.');
-    }
     const userId = input.userId?.trim();
     if (!userId) {
       throw new InvalidTurnInputError('userId', 'User ID is required.');
@@ -82,7 +80,31 @@ export class CancelConversationTurnUseCase {
       throw new TenantOwnershipViolationError('AiConversation', conversationId, tenantId);
     }
 
-    // 2. Verify Turn
+    // 2. Resolve Turn ID (from turnId, messageId, or active in-flight turn)
+    let resolvedTurnId = input.turnId?.trim();
+    if (!resolvedTurnId && input.messageId?.trim()) {
+      const msg = await this.messageRepo.findById(tenantId, conversationId, input.messageId.trim());
+      if (!msg) {
+        throw new MessageNotFoundError(input.messageId.trim(), conversationId, tenantId);
+      }
+      resolvedTurnId = msg.turnId.value;
+    }
+    if (!resolvedTurnId) {
+      const activeTurn = this.turnRepo.findActiveTurn
+        ? await this.turnRepo.findActiveTurn(tenantId, conversationId)
+        : null;
+      if (!activeTurn) {
+        throw new InvalidTurnInputError(
+          'turnId',
+          'Either turnId or messageId must be provided, or an active turn must exist in the conversation.',
+        );
+      }
+      resolvedTurnId = activeTurn.id.value;
+    }
+
+    const turnId = resolvedTurnId;
+
+    // 3. Verify Turn
     const turn = await this.turnRepo.findById(tenantId, conversationId, turnId);
     if (!turn) {
       throw new TurnNotFoundError(turnId, conversationId, tenantId);

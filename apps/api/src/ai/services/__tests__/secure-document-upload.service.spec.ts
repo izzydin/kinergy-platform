@@ -10,6 +10,7 @@ import {
   VisibilityScope,
   DocumentNotFoundException,
   DuplicateDocumentVersionException,
+  DuplicateDocumentContentException,
   UnauthorizedDocumentAccessException,
 } from '@kinergy-platform/core';
 import { DEFAULT_AI_CONFIG } from '../../config/ai.config';
@@ -216,6 +217,77 @@ describe('SecureDocumentUploadService (Unit & Consistency)', () => {
 
       // Verify storage was never touched
       expect(mockStoragePort.upload).not.toHaveBeenCalled();
+    });
+
+    it('rejects new document creation when identical content checksum already exists in tenant', async () => {
+      const existingDoc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Original Active Protocol',
+        uploadedBy: therapistUser,
+        initialVersion: {
+          originalFileName: 'original.pdf',
+          mimeType: 'application/pdf',
+          fileSize: validPdfBuffer.length,
+          checksum: 'a'.repeat(64),
+          storageKey: 'tenants/tenantA/knowledge_base/orig.pdf',
+          uploadedBy: therapistUser,
+        },
+      });
+
+      mockDocRepo.findByChecksum.mockResolvedValueOnce(existingDoc);
+
+      const input: UploadDocumentDto = {
+        tenantId: tenantA,
+        uploadedBy: therapistUser,
+        file: {
+          originalFileName: 'copy-attempt.pdf',
+          mimeType: 'application/pdf',
+          buffer: validPdfBuffer,
+          size: validPdfBuffer.length,
+        },
+      };
+
+      await expect(uploadService.uploadDocument(input)).rejects.toThrow(
+        DuplicateDocumentContentException,
+      );
+
+      expect(mockStoragePort.upload).not.toHaveBeenCalled();
+    });
+
+    it('permits new document creation when identical content checksum exists in a soft-deleted document', async () => {
+      const deletedDoc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Deleted Protocol',
+        uploadedBy: therapistUser,
+        initialVersion: {
+          originalFileName: 'deleted.pdf',
+          mimeType: 'application/pdf',
+          fileSize: validPdfBuffer.length,
+          checksum: 'a'.repeat(64),
+          storageKey: 'tenants/tenantA/knowledge_base/del.pdf',
+          uploadedBy: therapistUser,
+        },
+      });
+      deletedDoc.softDelete('admin_01');
+
+      mockDocRepo.findByChecksum.mockResolvedValueOnce(deletedDoc);
+      mockDocRepo.save.mockImplementationOnce(async (doc) => doc);
+      mockIngestionRepo.save.mockImplementationOnce(async (job) => job);
+
+      const input: UploadDocumentDto = {
+        tenantId: tenantA,
+        uploadedBy: therapistUser,
+        file: {
+          originalFileName: 're-upload.pdf',
+          mimeType: 'application/pdf',
+          buffer: validPdfBuffer,
+          size: validPdfBuffer.length,
+        },
+      };
+
+      const result = await uploadService.uploadDocument(input);
+      expect(result.documentId).toBeDefined();
+      expect(mockStoragePort.upload).toHaveBeenCalled();
     });
   });
 

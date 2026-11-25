@@ -1,5 +1,8 @@
 import { IAiConversationRepositoryPort } from '../../ports/outbound/ai-conversation-repository.port';
 import { IAiConversationMessageRepositoryPort } from '../../ports/outbound/ai-conversation-message-repository.port';
+import { IAiConversationCitationRepositoryPort } from '../../ports/outbound/ai-conversation-citation-repository.port';
+import { AiConversationCitation } from '../../domain/models/ai-conversation-citation.entity';
+import { ConversationRole } from '../../domain/enums/conversation-role.enum';
 import {
   GetMessageHistoryInput,
   MessageHistoryResultDto,
@@ -18,11 +21,15 @@ import {
  * - Preflight tenant-scoped conversation existence check.
  * - Snapshot-consistent iteration through message history.
  * - Bounded page sizes (default 20, max 100).
+ * - Authoritative reconstruction of persisted citations (CIT.07) mapped to originating assistant messages.
+ * - Stable citation ordering by citationPosition ASC.
+ * - Safe fallback to legacy sources without altering historical answer text.
  */
 export class GetMessageHistoryUseCase {
   constructor(
     private readonly convRepo: IAiConversationRepositoryPort,
     private readonly messageRepo: IAiConversationMessageRepositoryPort,
+    private readonly citationRepo?: IAiConversationCitationRepositoryPort,
   ) {}
 
   public async execute(input: GetMessageHistoryInput): Promise<MessageHistoryResultDto> {
@@ -58,20 +65,69 @@ export class GetMessageHistoryUseCase {
       limit,
     });
 
-    const messages: MessageDto[] = historyResult.messages.map((m) => ({
-      id: m.id.value,
-      turnId: m.turnId.value,
-      role: m.role,
-      sequenceNumber: m.sequenceNumber,
-      attemptNumber: m.attemptNumber,
-      isCanonical: m.isCanonical,
-      status: m.status,
-      content: m.content,
-      sources: m.sources,
-      metadata: m.metadata ? { ...m.metadata } : null,
-      createdAt: m.createdAt.toISOString(),
-      completedAt: m.completedAt ? m.completedAt.toISOString() : null,
-    }));
+    // 3. Batch-retrieve persisted citations for the conversation to associate with historical messages
+    const citationsByMessageId = new Map<string, AiConversationCitation[]>();
+    if (this.citationRepo) {
+      try {
+        const persistedCitations = await this.citationRepo.listByConversation(
+          tenantId,
+          conversationId,
+        );
+        for (const citation of persistedCitations) {
+          const msgId = citation.messageId.value;
+          const list = citationsByMessageId.get(msgId) ?? [];
+          list.push(citation);
+          citationsByMessageId.set(msgId, list);
+        }
+      } catch {
+        // Fallback gracefully to message.sources on transient database or persistence errors
+      }
+    }
+
+    const messages: MessageDto[] = historyResult.messages.map((m) => {
+      let sources: Record<string, unknown>[] | null = null;
+
+      if (m.role === ConversationRole.ASSISTANT) {
+        const messageCitations = citationsByMessageId.get(m.id.value);
+        if (messageCitations && messageCitations.length > 0) {
+          // Stable ordering strictly by citationPosition ASC
+          const sorted = [...messageCitations].sort(
+            (a, b) => a.citationPosition - b.citationPosition,
+          );
+          sources = sorted.map((c) => ({
+            citationId: c.id.value,
+            documentId: c.documentId,
+            documentTitle: c.documentTitleSnapshot,
+            chunkId: c.chunkId ?? `chk_${c.id.value}`,
+            excerpt: c.excerpt,
+            pageNumber: c.pageNumber,
+            headingPath: c.headingPath ? [...c.headingPath] : null,
+            relevanceScore: c.relevanceScore ?? 1.0,
+            retrievalRank: c.retrievalRank,
+            sourceStrategy: c.sourceStrategy,
+            documentVersionId: c.documentVersionId,
+          }));
+        } else if (m.sources && Array.isArray(m.sources) && m.sources.length > 0) {
+          // Graceful fallback to legacy message.sources JSON if no relational citation rows exist
+          sources = m.sources as Record<string, unknown>[];
+        }
+      }
+
+      return {
+        id: m.id.value,
+        turnId: m.turnId.value,
+        role: m.role,
+        sequenceNumber: m.sequenceNumber,
+        attemptNumber: m.attemptNumber,
+        isCanonical: m.isCanonical,
+        status: m.status,
+        content: m.content,
+        sources,
+        metadata: m.metadata ? { ...m.metadata } : null,
+        createdAt: m.createdAt.toISOString(),
+        completedAt: m.completedAt ? m.completedAt.toISOString() : null,
+      };
+    });
 
     return {
       messages,

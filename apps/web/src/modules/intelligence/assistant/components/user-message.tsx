@@ -25,6 +25,7 @@ export const UserMessage: React.FC<UserMessageProps> = React.memo(({ message }) 
   return (
     <article
       data-testid={`chat-message-${message.id}`}
+      id={`message-${message.id}`}
       aria-label="Mensaje de usuario"
       className="flex w-full justify-end gap-3 py-2"
     >

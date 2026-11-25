@@ -18,12 +18,20 @@ import type {
   AuditInspectResponse,
   CitationDetailResponse,
   ListMessageCitationsResponse,
+  CitationPreviewResponse,
+  SubmitFeedbackRequest,
+  MessageFeedbackResponse,
+  RevokeFeedbackResponse,
+  RegenerateTurnRequest,
+  RegenerateTurnResponse,
 } from '../types/conversation-contract.types';
 import {
   validateCreateConversationRequest,
   validateReserveTurnRequest,
   validateUpdateConversationTitleRequest,
   validateCancelTurnRequest,
+  validateSubmitFeedbackRequest,
+  validateRegenerateTurnRequest,
   parseCreateConversationResponse,
   parseReserveTurnResponse,
   parseCancelTurnResponse,
@@ -34,6 +42,10 @@ import {
   parseArchiveConversationResponse,
   parseCitationDetailResponse,
   parseListMessageCitationsResponse,
+  parseCitationPreviewResponse,
+  parseMessageFeedbackResponse,
+  parseRevokeFeedbackResponse,
+  parseRegenerateTurnResponse,
 } from '../schemas/conversation-contract.schemas';
 import { normalizeConversationApiError } from './conversation-api.errors';
 
@@ -137,6 +149,74 @@ export const conversationApi = {
       return parseCancelTurnResponse(rawResponse);
     } catch (error) {
       throw normalizeConversationApiError(error, 'cancelTurn');
+    }
+  },
+
+  /**
+   * Cancels generation for a specific assistant message.
+   *
+   * @param conversationId Unique identifier of the conversation.
+   * @param messageId Unique identifier of the assistant message.
+   * @param request Optional cancellation payload.
+   * @param options Optional RequestOptions.
+   */
+  async cancelMessage(
+    conversationId: string,
+    messageId: string,
+    request?: CancelTurnRequest,
+    options?: RequestOptions,
+  ): Promise<CancelTurnResponse> {
+    if (!conversationId || conversationId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('conversationId is required and must not be empty.'),
+        'cancelMessage',
+      );
+    }
+    if (!messageId || messageId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('messageId is required and must not be empty.'),
+        'cancelMessage',
+      );
+    }
+
+    const validatedRequest = request ? validateCancelTurnRequest(request) : undefined;
+    const path = `${BASE_PATH}/${encodeURIComponent(conversationId.trim())}/messages/${encodeURIComponent(messageId.trim())}/cancel`;
+
+    try {
+      const rawResponse = await httpClient.post<unknown>(path, validatedRequest, options);
+      return parseCancelTurnResponse(rawResponse);
+    } catch (error) {
+      throw normalizeConversationApiError(error, 'cancelMessage');
+    }
+  },
+
+  /**
+   * Cancels any currently active in-flight generation in the conversation.
+   *
+   * @param conversationId Unique identifier of the conversation.
+   * @param request Optional cancellation payload.
+   * @param options Optional RequestOptions.
+   */
+  async cancelActiveGeneration(
+    conversationId: string,
+    request?: CancelTurnRequest,
+    options?: RequestOptions,
+  ): Promise<CancelTurnResponse> {
+    if (!conversationId || conversationId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('conversationId is required and must not be empty.'),
+        'cancelActiveGeneration',
+      );
+    }
+
+    const validatedRequest = request ? validateCancelTurnRequest(request) : undefined;
+    const path = `${BASE_PATH}/${encodeURIComponent(conversationId.trim())}/cancel`;
+
+    try {
+      const rawResponse = await httpClient.post<unknown>(path, validatedRequest, options);
+      return parseCancelTurnResponse(rawResponse);
+    } catch (error) {
+      throw normalizeConversationApiError(error, 'cancelActiveGeneration');
     }
   },
 
@@ -417,6 +497,285 @@ export const conversationApi = {
       return parseCitationDetailResponse(rawResponse);
     } catch (error) {
       throw normalizeConversationApiError(error, 'getCitationDetail');
+    }
+  },
+
+  /**
+   * Retrieves preview metadata and an authorized short-lived preview token for a citation document.
+   *
+   * @param conversationId Unique identifier of the conversation.
+   * @param messageId Unique identifier of the assistant message.
+   * @param citationId Unique identifier of the citation.
+   * @param options Optional RequestOptions.
+   */
+  async getCitationPreview(
+    conversationId: string,
+    messageId: string,
+    citationId: string,
+    options?: RequestOptions,
+  ): Promise<CitationPreviewResponse> {
+    if (
+      !conversationId ||
+      conversationId.trim().length === 0 ||
+      !messageId ||
+      messageId.trim().length === 0 ||
+      !citationId ||
+      citationId.trim().length === 0
+    ) {
+      throw normalizeConversationApiError(
+        new Error('conversationId, messageId, and citationId are required and must not be empty.'),
+        'getCitationPreview',
+      );
+    }
+
+    const path = `${BASE_PATH}/${encodeURIComponent(conversationId.trim())}/messages/${encodeURIComponent(messageId.trim())}/citations/${encodeURIComponent(citationId.trim())}/preview`;
+
+    try {
+      const rawResponse = await httpClient.get<unknown>(path, options);
+      return parseCitationPreviewResponse(rawResponse);
+    } catch (error) {
+      throw normalizeConversationApiError(error, 'getCitationPreview');
+    }
+  },
+
+  /**
+   * Builds the authorized content streaming URL for iframe embed or download.
+   *
+   * @param conversationId Unique identifier of the conversation.
+   * @param messageId Unique identifier of the assistant message.
+   * @param citationId Unique identifier of the citation.
+   * @param previewToken Short-lived preview token returned by getCitationPreview.
+   */
+  getCitationDocumentContentUrl(
+    conversationId: string,
+    messageId: string,
+    citationId: string,
+    previewToken?: string | null,
+  ): string {
+    const basePath = `${BASE_PATH}/${encodeURIComponent(conversationId.trim())}/messages/${encodeURIComponent(messageId.trim())}/citations/${encodeURIComponent(citationId.trim())}/content`;
+    if (previewToken) {
+      return `${basePath}?token=${encodeURIComponent(previewToken)}`;
+    }
+    return basePath;
+  },
+
+  /**
+   * Fetches document content as plain text (used for text/markdown/csv/json preview rendering).
+   */
+  async getCitationDocumentContentText(
+    conversationId: string,
+    messageId: string,
+    citationId: string,
+    previewToken?: string | null,
+    options?: RequestOptions,
+  ): Promise<string> {
+    const url = this.getCitationDocumentContentUrl(
+      conversationId,
+      messageId,
+      citationId,
+      previewToken,
+    );
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        signal: options?.signal,
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Failed to load document content: ${response.status} ${response.statusText}`,
+        );
+      }
+      return await response.text();
+    } catch (error) {
+      throw normalizeConversationApiError(error, 'getCitationDocumentContentText');
+    }
+  },
+
+  /**
+   * Submits or updates feedback for a canonical assistant response (AI-09.5 - FB.02 / FB.03).
+   *
+   * @param conversationId Unique identifier of the conversation.
+   * @param messageId Unique identifier of the assistant message.
+   * @param request Typed feedback payload containing rating ('POSITIVE' | 'NEGATIVE') and optional explanation.
+   * @param options Optional RequestOptions.
+   */
+  async submitFeedback(
+    conversationId: string,
+    messageId: string,
+    request: SubmitFeedbackRequest,
+    options?: RequestOptions,
+  ): Promise<MessageFeedbackResponse> {
+    if (!conversationId || conversationId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('conversationId is required and must not be empty.'),
+        'submitFeedback',
+      );
+    }
+    if (!messageId || messageId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('messageId is required and must not be empty.'),
+        'submitFeedback',
+      );
+    }
+
+    const validatedPayload = validateSubmitFeedbackRequest(request);
+    const path = `${BASE_PATH}/${encodeURIComponent(conversationId.trim())}/messages/${encodeURIComponent(messageId.trim())}/feedback`;
+
+    try {
+      const raw = await httpClient.post<unknown>(path, validatedPayload, options);
+      return parseMessageFeedbackResponse(raw);
+    } catch (error) {
+      throw normalizeConversationApiError(error, 'submitFeedback');
+    }
+  },
+
+  /**
+   * Retrieves the current user's feedback for a specific assistant message.
+   * Returns null if no feedback has been submitted.
+   *
+   * @param conversationId Unique identifier of the conversation.
+   * @param messageId Unique identifier of the assistant message.
+   * @param options Optional RequestOptions.
+   */
+  async getFeedback(
+    conversationId: string,
+    messageId: string,
+    options?: RequestOptions,
+  ): Promise<MessageFeedbackResponse | null> {
+    if (!conversationId || conversationId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('conversationId is required and must not be empty.'),
+        'getFeedback',
+      );
+    }
+    if (!messageId || messageId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('messageId is required and must not be empty.'),
+        'getFeedback',
+      );
+    }
+
+    const path = `${BASE_PATH}/${encodeURIComponent(conversationId.trim())}/messages/${encodeURIComponent(messageId.trim())}/feedback`;
+
+    try {
+      const raw = await httpClient.get<unknown>(path, options);
+      if (raw === null || raw === undefined) {
+        return null;
+      }
+      return parseMessageFeedbackResponse(raw);
+    } catch (error) {
+      throw normalizeConversationApiError(error, 'getFeedback');
+    }
+  },
+
+  /**
+   * Revokes (deletes) existing user feedback for a specific assistant message.
+   *
+   * @param conversationId Unique identifier of the conversation.
+   * @param messageId Unique identifier of the assistant message.
+   * @param options Optional RequestOptions.
+   */
+  async revokeFeedback(
+    conversationId: string,
+    messageId: string,
+    options?: RequestOptions,
+  ): Promise<RevokeFeedbackResponse> {
+    if (!conversationId || conversationId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('conversationId is required and must not be empty.'),
+        'revokeFeedback',
+      );
+    }
+    if (!messageId || messageId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('messageId is required and must not be empty.'),
+        'revokeFeedback',
+      );
+    }
+
+    const path = `${BASE_PATH}/${encodeURIComponent(conversationId.trim())}/messages/${encodeURIComponent(messageId.trim())}/feedback`;
+
+    try {
+      const raw = await httpClient.delete<unknown>(path, options);
+      return parseRevokeFeedbackResponse(raw);
+    } catch (error) {
+      throw normalizeConversationApiError(error, 'revokeFeedback');
+    }
+  },
+
+  /**
+   * Regenerates an eligible assistant response for a given turn.
+   *
+   * @param conversationId Unique identifier of the conversation.
+   * @param turnId Unique identifier of the turn.
+   * @param request Optional request payload with clientTurnId or messageId.
+   * @param options Optional RequestOptions.
+   */
+  async regenerateTurn(
+    conversationId: string,
+    turnId: string,
+    request?: RegenerateTurnRequest,
+    options?: RequestOptions,
+  ): Promise<RegenerateTurnResponse> {
+    if (!conversationId || conversationId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('conversationId is required and must not be empty.'),
+        'regenerateTurn',
+      );
+    }
+    if (!turnId || turnId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('turnId is required and must not be empty.'),
+        'regenerateTurn',
+      );
+    }
+
+    const validatedRequest = request ? validateRegenerateTurnRequest(request) : {};
+    const path = `${BASE_PATH}/${encodeURIComponent(conversationId.trim())}/turns/${encodeURIComponent(turnId.trim())}/regenerate`;
+
+    try {
+      const raw = await httpClient.post<unknown>(path, validatedRequest, options);
+      return parseRegenerateTurnResponse(raw);
+    } catch (error) {
+      throw normalizeConversationApiError(error, 'regenerateTurn');
+    }
+  },
+
+  /**
+   * Regenerates an eligible assistant response for a given message.
+   *
+   * @param conversationId Unique identifier of the conversation.
+   * @param messageId Unique identifier of the assistant message.
+   * @param request Optional request payload with clientTurnId.
+   * @param options Optional RequestOptions.
+   */
+  async regenerateMessage(
+    conversationId: string,
+    messageId: string,
+    request?: RegenerateTurnRequest,
+    options?: RequestOptions,
+  ): Promise<RegenerateTurnResponse> {
+    if (!conversationId || conversationId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('conversationId is required and must not be empty.'),
+        'regenerateMessage',
+      );
+    }
+    if (!messageId || messageId.trim().length === 0) {
+      throw normalizeConversationApiError(
+        new Error('messageId is required and must not be empty.'),
+        'regenerateMessage',
+      );
+    }
+
+    const validatedRequest = request ? validateRegenerateTurnRequest(request) : {};
+    const path = `${BASE_PATH}/${encodeURIComponent(conversationId.trim())}/messages/${encodeURIComponent(messageId.trim())}/regenerate`;
+
+    try {
+      const raw = await httpClient.post<unknown>(path, validatedRequest, options);
+      return parseRegenerateTurnResponse(raw);
+    } catch (error) {
+      throw normalizeConversationApiError(error, 'regenerateMessage');
     }
   },
 };

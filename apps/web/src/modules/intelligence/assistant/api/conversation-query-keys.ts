@@ -112,6 +112,24 @@ export const conversationQueryKeys = {
       ...conversationQueryKeys.messageCitations(conversationId, messageId, scope),
       citationId,
     ] as const,
+
+  citationPreview: (
+    conversationId: string,
+    messageId: string,
+    citationId: string,
+    scope?: ConversationQueryScope,
+  ) =>
+    [
+      ...conversationQueryKeys.citationDetail(conversationId, messageId, citationId, scope),
+      'preview',
+    ] as const,
+
+  // Message Feedback (AI-09.5 - FB.02 / FB.03)
+  feedbackRoot: (conversationId: string, scope?: ConversationQueryScope) =>
+    [...conversationQueryKeys.messages(conversationId, scope), 'feedback'] as const,
+
+  feedback: (conversationId: string, messageId: string, scope?: ConversationQueryScope) =>
+    [...conversationQueryKeys.feedbackRoot(conversationId, scope), messageId] as const,
 };
 
 // Convenient alias matching monorepo conventions

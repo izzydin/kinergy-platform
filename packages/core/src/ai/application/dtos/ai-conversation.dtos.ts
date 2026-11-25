@@ -1,6 +1,7 @@
 import { GenerationStatus } from '../../domain/enums/generation-status.enum';
 import { ConversationRole } from '../../domain/enums/conversation-role.enum';
 import { TurnStatus } from '../../domain/enums/turn-status.enum';
+import { FeedbackRating } from '../../domain/enums/feedback-rating.enum';
 
 // ==========================================
 // 1. Create Conversation With Initial Turn
@@ -232,7 +233,11 @@ export interface PersistMessageStateResult {
 // ==========================================
 
 export type CitationPreviewStatus =
-  'DOCUMENT_AVAILABLE' | 'DOCUMENT_SOFT_DELETED' | 'DOCUMENT_RESTRICTED' | 'EXCERPT_ONLY';
+  | 'DOCUMENT_AVAILABLE'
+  | 'DOCUMENT_SOFT_DELETED'
+  | 'DOCUMENT_RESTRICTED'
+  | 'EXCERPT_ONLY'
+  | 'UNSUPPORTED_FORMAT';
 
 export interface CitationDetailDto {
   readonly id: string;
@@ -290,4 +295,148 @@ export interface GetCitationDetailInput {
 
 export interface GetCitationDetailResult {
   readonly citation: CitationDetailDto;
+}
+
+// ==========================================
+// 10. CIT.06 Authorized Citation Preview & Streaming
+// ==========================================
+
+export interface CitationPreviewResultDto {
+  readonly documentId: string;
+  readonly citationId: string;
+  readonly messageId: string;
+  readonly conversationId: string;
+  readonly documentTitleSnapshot: string;
+  readonly documentTitle: string;
+  readonly originalFileName: string | null;
+  readonly mimeType: string | null;
+  readonly fileSizeBytes: number | null;
+  readonly documentVersionId: string | null;
+  readonly documentVersionNumber: number | null;
+  readonly pageNumber: number | null;
+  readonly headingPath: readonly string[];
+  readonly excerpt: string;
+  readonly canPreview: boolean;
+  readonly supportedFormat: boolean;
+  readonly previewStatus: CitationPreviewStatus;
+  readonly previewUnavailableReason: string | null;
+  readonly downloadAllowed: boolean;
+}
+
+export interface GetCitationPreviewInput {
+  readonly tenantId: string;
+  readonly userId?: string;
+  readonly conversationId: string;
+  readonly messageId: string;
+  readonly citationId: string;
+  readonly userRoles?: readonly string[];
+  readonly actorRoles?: readonly string[];
+}
+
+export interface GetCitationPreviewResult {
+  readonly preview: CitationPreviewResultDto;
+}
+
+export interface GetCitationDocumentStreamInput {
+  readonly tenantId: string;
+  readonly userId?: string;
+  readonly conversationId: string;
+  readonly messageId: string;
+  readonly citationId: string;
+  readonly userRoles?: readonly string[];
+  readonly actorRoles?: readonly string[];
+}
+
+export interface GetCitationDocumentStreamResult {
+  readonly data: Uint8Array;
+  readonly mimeType: string;
+  readonly fileSize: number;
+  readonly originalFileName: string;
+  readonly checksum: string;
+  readonly pageNumber: number | null;
+  readonly headingPath: readonly string[];
+}
+
+// ==========================================
+// 10. Message Feedback
+// ==========================================
+
+export interface MessageFeedbackDto {
+  readonly id: string;
+  readonly messageId: string;
+  readonly conversationId: string;
+  readonly userId: string;
+  readonly rating: FeedbackRating;
+  readonly explanation: string | null;
+  readonly category: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export interface SubmitMessageFeedbackInput {
+  readonly tenantId: string;
+  readonly userId: string;
+  readonly conversationId: string;
+  readonly messageId: string;
+  readonly rating: FeedbackRating;
+  readonly explanation?: string | null;
+  readonly category?: string | null;
+}
+
+export interface SubmitMessageFeedbackResult {
+  readonly feedback: MessageFeedbackDto;
+  readonly isUpdate: boolean;
+}
+
+export interface GetMessageFeedbackInput {
+  readonly tenantId: string;
+  readonly userId: string;
+  readonly conversationId: string;
+  readonly messageId: string;
+}
+
+export interface GetMessageFeedbackResult {
+  readonly feedback: MessageFeedbackDto | null;
+}
+
+export interface RevokeMessageFeedbackInput {
+  readonly tenantId: string;
+  readonly userId: string;
+  readonly conversationId: string;
+  readonly messageId: string;
+}
+
+export interface RevokeMessageFeedbackResult {
+  readonly revoked: boolean;
+  readonly messageId: string;
+}
+
+// ==========================================
+// 12. Regenerate Conversation Turn
+// ==========================================
+
+export interface RegenerateConversationTurnInput {
+  readonly tenantId: string;
+  readonly userId: string;
+  readonly conversationId: string;
+  readonly turnId?: string;
+  readonly messageId?: string;
+  readonly clientTurnId?: string;
+  readonly actorContext?: {
+    readonly roles: readonly string[];
+    readonly permissions: readonly string[];
+  };
+  readonly executionConfig?: Record<string, unknown>;
+  readonly requestId?: string;
+  readonly correlationId?: string;
+}
+
+export interface RegenerateTurnResult {
+  readonly conversationId: string;
+  readonly turnId: string;
+  readonly turnIndex: number;
+  readonly attemptNumber: number;
+  readonly assistantMessageId: string;
+  readonly status: TurnStatus;
+  readonly userPrompt: string;
 }

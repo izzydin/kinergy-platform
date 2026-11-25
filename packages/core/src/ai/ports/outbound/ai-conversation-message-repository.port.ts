@@ -82,6 +82,14 @@ export interface IAiConversationMessageRepositoryPort {
   ): Promise<AiConversationMessage | null>;
 
   /**
+   * Retrieves a message across conversations within a tenant by message ID alone.
+   */
+  findMessageById?(
+    tenantId: string,
+    messageId: MessageId | string,
+  ): Promise<AiConversationMessage | null>;
+
+  /**
    * Retrieves a message by its monotonic sequence number within a conversation.
    */
   findBySequenceNumber(

@@ -17,6 +17,8 @@ import type {
   MessageHistoryResponse,
   CitationDetailResponse,
   ListMessageCitationsResponse,
+  CitationPreviewResponse,
+  MessageFeedbackResponse,
 } from '../types/conversation-contract.types';
 import { useOptionalAuth } from '../../../../app/providers/auth-provider';
 
@@ -87,6 +89,24 @@ export interface UseMessageCitationsOptions extends QueryScopeOptions {
  * Options for configuring useCitationDetail query hook.
  */
 export interface UseCitationDetailOptions extends QueryScopeOptions {
+  readonly enabled?: boolean;
+  readonly staleTime?: number;
+  readonly gcTime?: number;
+}
+
+/**
+ * Options for configuring useCitationPreview query hook.
+ */
+export interface UseCitationPreviewOptions extends QueryScopeOptions {
+  readonly enabled?: boolean;
+  readonly staleTime?: number;
+  readonly gcTime?: number;
+}
+
+/**
+ * Options for configuring useMessageFeedback query hook.
+ */
+export interface UseMessageFeedbackOptions extends QueryScopeOptions {
   readonly enabled?: boolean;
   readonly staleTime?: number;
   readonly gcTime?: number;
@@ -282,6 +302,62 @@ export function useCitationDetail(
       conversationApi.getCitationDetail(conversationId!, messageId!, citationId!, { signal }),
     enabled: isValid && (options?.enabled ?? true),
     staleTime: options?.staleTime ?? CONVERSATION_CACHE_CONFIG.messagesStaleTimeMs,
+    gcTime: options?.gcTime ?? CONVERSATION_CACHE_CONFIG.gcTimeMs,
+  });
+}
+
+/**
+ * Query hook to fetch citation preview metadata and token.
+ */
+export function useCitationPreview(
+  conversationId: string | undefined,
+  messageId: string | undefined,
+  citationId: string | undefined,
+  options?: UseCitationPreviewOptions,
+): UseQueryResult<CitationPreviewResponse, Error> {
+  const scope = useResolvedConversationScope(options?.scope);
+  const isValid = Boolean(
+    conversationId &&
+    conversationId.trim().length > 0 &&
+    messageId &&
+    messageId.trim().length > 0 &&
+    citationId &&
+    citationId.trim().length > 0,
+  );
+
+  return useQuery({
+    queryKey: conversationQueryKeys.citationPreview(
+      conversationId ?? '',
+      messageId ?? '',
+      citationId ?? '',
+      scope,
+    ),
+    queryFn: ({ signal }) =>
+      conversationApi.getCitationPreview(conversationId!, messageId!, citationId!, { signal }),
+    enabled: isValid && (options?.enabled ?? true),
+    staleTime: options?.staleTime ?? 60_000,
+    gcTime: options?.gcTime ?? CONVERSATION_CACHE_CONFIG.gcTimeMs,
+  });
+}
+
+/**
+ * Query hook to fetch user feedback for a specific assistant message.
+ */
+export function useMessageFeedback(
+  conversationId: string | undefined,
+  messageId: string | undefined,
+  options?: UseMessageFeedbackOptions,
+): UseQueryResult<MessageFeedbackResponse | null, Error> {
+  const scope = useResolvedConversationScope(options?.scope);
+  const isValid = Boolean(
+    conversationId && conversationId.trim().length > 0 && messageId && messageId.trim().length > 0,
+  );
+
+  return useQuery({
+    queryKey: conversationQueryKeys.feedback(conversationId ?? '', messageId ?? '', scope),
+    queryFn: ({ signal }) => conversationApi.getFeedback(conversationId!, messageId!, { signal }),
+    enabled: isValid && (options?.enabled ?? true),
+    staleTime: options?.staleTime ?? CONVERSATION_CACHE_CONFIG.feedbackStaleTimeMs,
     gcTime: options?.gcTime ?? CONVERSATION_CACHE_CONFIG.gcTimeMs,
   });
 }

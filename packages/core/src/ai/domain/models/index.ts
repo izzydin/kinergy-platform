@@ -25,3 +25,4 @@ export * from './ai-conversation-turn.entity';
 export * from './ai-conversation-message.entity';
 export * from './ai-conversation-audit-log.entity';
 export * from './ai-conversation-citation.entity';
+export * from './ai-message-feedback.entity';

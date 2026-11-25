@@ -311,6 +311,33 @@ export interface ListMessageCitationsResponse {
 }
 
 /**
+ * Full preview metadata and access authorization state for a citation.
+ */
+export interface CitationPreviewResponse {
+  readonly documentId: string;
+  readonly citationId: string;
+  readonly messageId: string;
+  readonly conversationId: string;
+  readonly documentTitleSnapshot: string;
+  readonly documentTitle: string;
+  readonly originalFileName?: string | null;
+  readonly mimeType?: string | null;
+  readonly fileSizeBytes?: number | null;
+  readonly documentVersionId?: string | null;
+  readonly documentVersionNumber?: number | null;
+  readonly pageNumber?: number | null;
+  readonly headingPath: readonly string[];
+  readonly excerpt: string;
+  readonly canPreview: boolean;
+  readonly supportedFormat: boolean;
+  readonly previewStatus: string;
+  readonly previewUnavailableReason?: string | null;
+  readonly downloadAllowed: boolean;
+  readonly previewToken?: string | null;
+  readonly previewUrl: string;
+}
+
+/**
  * Canonical message record in message history.
  */
 export interface MessageResponse {
@@ -420,3 +447,67 @@ export type RenameConversationRequest = UpdateConversationTitleRequest;
  * Direct alias for ListConversationsQueryParams.
  */
 export type ConversationPagination = ListConversationsQueryParams;
+
+// ==========================================
+// 5. Message Feedback Types (AI-09.5 - FB.02 / FB.03)
+// ==========================================
+
+/**
+ * Feedback rating for assistant response evaluation.
+ */
+export type FeedbackRating = 'POSITIVE' | 'NEGATIVE';
+export const FeedbackRating = {
+  POSITIVE: 'POSITIVE' as const,
+  NEGATIVE: 'NEGATIVE' as const,
+};
+
+/**
+ * Request payload for submitting or updating response feedback.
+ */
+export interface SubmitFeedbackRequest {
+  readonly rating: FeedbackRating;
+  readonly explanation?: string;
+  readonly category?: string;
+}
+
+/**
+ * Persisted message feedback response envelope matching backend contract.
+ */
+export interface MessageFeedbackResponse {
+  readonly id: string;
+  readonly messageId: string;
+  readonly conversationId: string;
+  readonly userId: string;
+  readonly rating: FeedbackRating;
+  readonly explanation?: string | null;
+  readonly category?: string | null;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+/**
+ * Response payload for revoking feedback.
+ */
+export interface RevokeFeedbackResponse {
+  readonly revoked: boolean;
+  readonly messageId: string;
+}
+
+// ==========================================
+// 6. Response Regeneration Types (AI-09.5 - FB.05)
+// ==========================================
+
+export interface RegenerateTurnRequest {
+  readonly clientTurnId?: string;
+  readonly messageId?: string;
+}
+
+export interface RegenerateTurnResponse {
+  readonly conversationId: string;
+  readonly turnId: string;
+  readonly turnIndex: number;
+  readonly attemptNumber: number;
+  readonly assistantMessageId: string;
+  readonly status: 'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+  readonly userPrompt: string;
+}

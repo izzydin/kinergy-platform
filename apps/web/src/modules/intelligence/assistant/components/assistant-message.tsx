@@ -5,12 +5,21 @@ import { MarkdownRenderer } from './markdown-renderer';
 import { MessageCitations } from './message-citations';
 import { MessageMetadata } from './message-metadata';
 import { MessageActions } from './message-actions';
+import { MessageFeedback } from './message-feedback';
 import type { ChatMessage } from '../types/assistant.types';
 
 export interface AssistantMessageProps {
   message: ChatMessage;
   conversationId?: string;
   onRetry?: () => void;
+  onRegenerate?: () => void;
+  isRegenerating?: boolean;
+  onPreviewDocument?: (
+    documentId: string,
+    pageNumber?: number | null,
+    citationId?: string | null,
+    messageId?: string | null,
+  ) => void;
 }
 
 /**
@@ -24,7 +33,7 @@ export interface AssistantMessageProps {
  * - Telemetry & copy action footer
  */
 export const AssistantMessage: React.FC<AssistantMessageProps> = React.memo(
-  ({ message, conversationId, onRetry }) => {
+  ({ message, conversationId, onRetry, onRegenerate, isRegenerating, onPreviewDocument }) => {
     const isPending = message.status === 'pending';
     const hasText = Boolean(message.content && message.content.trim().length > 0);
     const isTerminalSuccess = message.status === 'success';
@@ -32,6 +41,7 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = React.memo(
     return (
       <article
         data-testid={`chat-message-${message.id}`}
+        id={`message-${message.id}`}
         aria-label="Mensaje de asistente"
         className="flex w-full justify-start gap-3 py-2"
       >
@@ -72,21 +82,33 @@ export const AssistantMessage: React.FC<AssistantMessageProps> = React.memo(
                 sources={message.sources}
                 conversationId={conversationId}
                 messageId={message.id}
+                onPreviewDocument={onPreviewDocument}
               />
             )}
           </div>
 
           {/* Footer: Metadata & Actions */}
-          <div className="flex w-full items-center justify-between gap-2 px-1">
+          <div className="flex w-full flex-wrap items-center justify-between gap-2 px-1">
             <MessageMetadata
               createdAt={message.createdAt}
               metadata={message.metadata}
               grounded={message.grounded}
             />
 
-            {hasText && (
-              <MessageActions content={message.content} label="Copiar respuesta del asistente" />
-            )}
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+              {conversationId && isTerminalSuccess && hasText && (
+                <MessageFeedback conversationId={conversationId} messageId={message.id} />
+              )}
+              {hasText && (
+                <MessageActions
+                  content={message.content}
+                  sources={message.sources}
+                  onRegenerate={onRegenerate}
+                  isRegenerating={isRegenerating}
+                  label="Copiar respuesta del asistente"
+                />
+              )}
+            </div>
           </div>
         </div>
       </article>

@@ -283,4 +283,22 @@ export class AiConversationTurn {
 
     this.setActiveAttempt(attempt.id, attempt.attemptNumber);
   }
+
+  /**
+   * Transitions a terminal turn to PENDING with a newly allocated assistant attempt for regeneration.
+   * Preserves historical attempts and maintains turn index continuity.
+   */
+  public prepareForRegeneration(newAttemptId: MessageId | string, nextAttemptNumber: number): void {
+    if (this._status === TurnStatus.STREAMING || this._status === TurnStatus.PENDING) {
+      throw new InvalidLifecycleTransitionException(
+        `Cannot regenerate turn '${this._id.value}' while currently in '${this._status}' status.`,
+      );
+    }
+    this._status = TurnStatus.PENDING;
+    this._activeAttemptId =
+      newAttemptId instanceof MessageId ? newAttemptId : MessageId.create(newAttemptId);
+    this._activeAttemptNumber = Math.max(1, nextAttemptNumber);
+    this._completedAt = null;
+    this._updatedAt = new Date();
+  }
 }

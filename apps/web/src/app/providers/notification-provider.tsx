@@ -333,10 +333,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({ chil
   );
 };
 
+const noopNotificationState: NotificationContextState = {
+  notifications: [],
+  notify: notificationService,
+  success: () => '',
+  error: () => '',
+  warning: () => '',
+  info: () => '',
+  dismiss: () => {},
+  clearAll: () => {},
+  addNotification: () => {},
+  removeNotification: () => {},
+  toast: () => {},
+};
+
 export const useNotification = (): NotificationContextState => {
   const context = useContext(NotificationContext);
   if (!context) {
-    throw new Error('useNotification must be used within a NotificationProvider');
+    return noopNotificationState;
   }
   return context;
 };

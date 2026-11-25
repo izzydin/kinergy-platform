@@ -1,8 +1,11 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 import { PrismaModule } from '../../platform/persistence/prisma/prisma.module';
 import { IdentityModule } from '../../platform/identity/identity.module';
+import { StorageModule } from '../../platform/storage/storage.module';
 import { AiConversationController } from './ai-conversation.controller';
 import { aiConversationProviders } from './providers/ai-conversation.providers';
+import { PreviewTokenService } from '../services/preview-token.service';
 import {
   CreateConversationWithInitialTurnUseCase,
   ReserveConversationTurnUseCase,
@@ -17,14 +20,24 @@ import {
   CancelConversationTurnUseCase,
   GetMessageCitationsUseCase,
   GetCitationDetailUseCase,
+  GetCitationPreviewUseCase,
+  GetCitationDocumentStreamUseCase,
+  SubmitMessageFeedbackUseCase,
+  GetMessageFeedbackUseCase,
+  RevokeMessageFeedbackUseCase,
+  RegenerateConversationTurnUseCase,
   AI_CONVERSATION_REPOSITORY_PORT,
   AI_CONVERSATION_TURN_REPOSITORY_PORT,
   AI_CONVERSATION_MESSAGE_REPOSITORY_PORT,
   AI_CONVERSATION_AUDIT_REPOSITORY_PORT,
   AI_CONVERSATION_CITATION_REPOSITORY_PORT,
+  AI_MESSAGE_FEEDBACK_REPOSITORY_PORT,
   AI_CONVERSATION_TRANSACTION_RUNNER,
 } from '@kinergy-platform/core';
-import { PrismaAiConversationCitationRepository } from '@kinergy-platform/core/server';
+import {
+  PrismaAiConversationCitationRepository,
+  PrismaAiMessageFeedbackRepository,
+} from '@kinergy-platform/core/server';
 
 /**
  * NestJS module establishing the REST API foundation for AI conversation persistence & lifecycle.
@@ -36,7 +49,7 @@ import { PrismaAiConversationCitationRepository } from '@kinergy-platform/core/s
  * - Integrates with Swagger/OpenAPI documentation.
  */
 @Module({
-  imports: [PrismaModule, IdentityModule],
+  imports: [ConfigModule, PrismaModule, IdentityModule, StorageModule.register()],
   controllers: [AiConversationController],
   providers: [...aiConversationProviders],
   exports: [
@@ -53,12 +66,21 @@ import { PrismaAiConversationCitationRepository } from '@kinergy-platform/core/s
     CancelConversationTurnUseCase,
     GetMessageCitationsUseCase,
     GetCitationDetailUseCase,
+    GetCitationPreviewUseCase,
+    GetCitationDocumentStreamUseCase,
+    SubmitMessageFeedbackUseCase,
+    GetMessageFeedbackUseCase,
+    RevokeMessageFeedbackUseCase,
+    RegenerateConversationTurnUseCase,
+    PreviewTokenService,
     AI_CONVERSATION_REPOSITORY_PORT,
     AI_CONVERSATION_TURN_REPOSITORY_PORT,
     AI_CONVERSATION_MESSAGE_REPOSITORY_PORT,
     AI_CONVERSATION_AUDIT_REPOSITORY_PORT,
     AI_CONVERSATION_CITATION_REPOSITORY_PORT,
+    AI_MESSAGE_FEEDBACK_REPOSITORY_PORT,
     PrismaAiConversationCitationRepository,
+    PrismaAiMessageFeedbackRepository,
     AI_CONVERSATION_TRANSACTION_RUNNER,
   ],
 })

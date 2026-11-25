@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
+  IsEnum,
   IsInt,
   IsObject,
   IsOptional,
@@ -19,6 +20,7 @@ import {
   GenerationStatus,
   MessageHistoryCursor,
   TurnStatus,
+  FeedbackRating,
 } from '@kinergy-platform/core';
 
 // ==========================================
@@ -859,4 +861,232 @@ export class MessageCitationsResponseDto {
     type: [CitationDetailResponseDto],
   })
   citations!: readonly CitationDetailResponseDto[];
+}
+
+export class CitationPreviewResponseDto {
+  @ApiProperty({ description: 'Target knowledge document identifier', example: 'doc_101' })
+  documentId!: string;
+
+  @ApiProperty({ description: 'Persistent citation identifier', example: 'cite_123' })
+  citationId!: string;
+
+  @ApiProperty({ description: 'Parent assistant message identifier', example: 'msg_123' })
+  messageId!: string;
+
+  @ApiProperty({ description: 'Parent conversation identifier', example: 'conv_789' })
+  conversationId!: string;
+
+  @ApiProperty({
+    description: 'Title snapshot of the source document at generation time',
+    example: 'Manual de Kinesiología y Vendaje Funcional',
+  })
+  documentTitleSnapshot!: string;
+
+  @ApiProperty({
+    description: 'Verified document title from repository',
+    example: 'Manual de Kinesiología y Vendaje Funcional',
+  })
+  documentTitle!: string;
+
+  @ApiPropertyOptional({
+    description: 'Original uploaded filename of the source document',
+    example: 'manual-kinesiologia.pdf',
+    nullable: true,
+  })
+  originalFileName?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Document MIME type if previewable',
+    example: 'application/pdf',
+    nullable: true,
+  })
+  mimeType?: string | null;
+
+  @ApiPropertyOptional({ description: 'File size in bytes if available', nullable: true })
+  fileSizeBytes?: number | null;
+
+  @ApiPropertyOptional({ description: 'Document version ID if available', nullable: true })
+  documentVersionId?: string | null;
+
+  @ApiPropertyOptional({ description: 'Document version number if available', nullable: true })
+  documentVersionNumber?: number | null;
+
+  @ApiPropertyOptional({ description: 'Page number in source document', nullable: true })
+  pageNumber?: number | null;
+
+  @ApiProperty({ description: 'Hierarchical section path', type: [String] })
+  headingPath!: readonly string[];
+
+  @ApiProperty({ description: 'Exact evidence excerpt retrieved for generation' })
+  excerpt!: string;
+
+  @ApiProperty({
+    description: 'Whether full document preview is accessible to caller',
+    example: true,
+  })
+  canPreview!: boolean;
+
+  @ApiProperty({
+    description: 'Whether document format is supported for inline browser preview',
+    example: true,
+  })
+  supportedFormat!: boolean;
+
+  @ApiProperty({
+    description: 'Dynamic document preview status',
+    enum: [
+      'DOCUMENT_AVAILABLE',
+      'DOCUMENT_SOFT_DELETED',
+      'DOCUMENT_RESTRICTED',
+      'EXCERPT_ONLY',
+      'UNSUPPORTED_FORMAT',
+    ],
+    example: 'DOCUMENT_AVAILABLE',
+  })
+  previewStatus!: string;
+
+  @ApiPropertyOptional({ description: 'Reason why preview is unavailable', nullable: true })
+  previewUnavailableReason?: string | null;
+
+  @ApiProperty({
+    description: 'Whether authorized download is permitted for caller',
+    example: true,
+  })
+  downloadAllowed!: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Short-lived controlled preview token for streaming endpoint',
+    nullable: true,
+  })
+  previewToken?: string | null;
+
+  @ApiProperty({
+    description: 'Authorized streaming URL for document content preview',
+    example: '/api/v1/ai/conversations/conv_1/messages/msg_1/citations/cite_1/content',
+  })
+  previewUrl!: string;
+}
+
+// ==========================================
+// 10. Message Feedback DTOs
+// ==========================================
+
+export class SubmitFeedbackRequestDto {
+  @ApiProperty({
+    description: 'Explicit feedback rating for assistant response',
+    enum: FeedbackRating,
+    example: FeedbackRating.POSITIVE,
+  })
+  @IsEnum(FeedbackRating, { message: "rating must be either 'POSITIVE' or 'NEGATIVE'" })
+  rating!: FeedbackRating;
+
+  @ApiPropertyOptional({
+    description: 'Optional user explanation or feedback rationale',
+    maxLength: 1000,
+    example: 'La explicación clínica es clara y cita la guía correctamente.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000, { message: 'explanation must not exceed 1000 characters' })
+  explanation?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional feedback categorization tag',
+    maxLength: 64,
+    example: 'ACCURACY',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64, { message: 'category must not exceed 64 characters' })
+  category?: string;
+}
+
+export class MessageFeedbackResponseDto {
+  @ApiProperty({ description: 'Feedback unique identifier', example: 'fb_123' })
+  id!: string;
+
+  @ApiProperty({ description: 'Message unique identifier', example: 'msg_123' })
+  messageId!: string;
+
+  @ApiProperty({ description: 'Conversation unique identifier', example: 'conv_123' })
+  conversationId!: string;
+
+  @ApiProperty({ description: 'Authenticated user identifier', example: 'usr_123' })
+  userId!: string;
+
+  @ApiProperty({
+    description: 'Feedback rating',
+    enum: ['POSITIVE', 'NEGATIVE'],
+    example: 'POSITIVE',
+  })
+  rating!: string;
+
+  @ApiPropertyOptional({ description: 'Optional explanation text', nullable: true })
+  explanation?: string | null;
+
+  @ApiPropertyOptional({ description: 'Optional category tag', nullable: true })
+  category?: string | null;
+
+  @ApiProperty({ description: 'Creation ISO timestamp', example: '2026-11-25T11:00:00.000Z' })
+  createdAt!: string;
+
+  @ApiProperty({ description: 'Last update ISO timestamp', example: '2026-11-25T11:00:00.000Z' })
+  updatedAt!: string;
+}
+
+export class RevokeFeedbackResponseDto {
+  @ApiProperty({ description: 'Whether feedback was successfully revoked', example: true })
+  revoked!: boolean;
+
+  @ApiProperty({ description: 'Message unique identifier', example: 'msg_123' })
+  messageId!: string;
+}
+
+export class RegenerateTurnRequestDto {
+  @ApiPropertyOptional({
+    description: 'Optional client-side turn identifier for deduplication / idempotency',
+    maxLength: 64,
+    example: 'turn_client_regen_123',
+  })
+  @IsOptional()
+  @IsString({ message: 'clientTurnId must be a string' })
+  @MaxLength(64, { message: 'clientTurnId must not exceed 64 characters' })
+  clientTurnId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional target message identifier to regenerate',
+    example: 'msg_123',
+  })
+  @IsOptional()
+  @IsString({ message: 'messageId must be a string' })
+  messageId?: string;
+}
+
+export class RegenerateTurnResponseDto {
+  @ApiProperty({ description: 'Conversation unique identifier', example: 'conv_123' })
+  conversationId!: string;
+
+  @ApiProperty({ description: 'Turn unique identifier', example: 'turn_123' })
+  turnId!: string;
+
+  @ApiProperty({ description: 'Sequential turn index', example: 1 })
+  turnIndex!: number;
+
+  @ApiProperty({ description: 'Newly allocated attempt sequence number', example: 2 })
+  attemptNumber!: number;
+
+  @ApiProperty({
+    description: 'Newly allocated pending assistant message identifier',
+    example: 'msg_asst_456',
+  })
+  assistantMessageId!: string;
+
+  @ApiProperty({ description: 'Turn status', example: 'PENDING' })
+  status!: string;
+
+  @ApiProperty({
+    description: 'Original user prompt used for generation',
+    example: 'Protocolo de rodilla',
+  })
+  userPrompt!: string;
 }

@@ -2,6 +2,7 @@ import '@testing-library/jest-dom';
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { moduleRegistry } from '../../../app/routes/module-registry';
 import { navigationRegistry } from '../../../app/navigation/navigation-registry';
 
@@ -163,10 +164,13 @@ describe('Intelligence Module Foundation (Milestone AI-09.1.01)', () => {
     });
 
     it('should render KnowledgePage placeholder with accepted formats', () => {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       render(
-        <MemoryRouter>
-          <KnowledgePage />
-        </MemoryRouter>,
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter>
+            <KnowledgePage />
+          </MemoryRouter>
+        </QueryClientProvider>,
       );
 
       expect(screen.getByTestId('intelligence-knowledge-page')).toBeInTheDocument();
@@ -175,15 +179,18 @@ describe('Intelligence Module Foundation (Milestone AI-09.1.01)', () => {
     });
 
     it('should render DocumentDetailPage with documentId parameter', () => {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
       render(
-        <MemoryRouter initialEntries={['/intelligence/knowledge/documents/doc-5678']}>
-          <Routes>
-            <Route
-              path="/intelligence/knowledge/documents/:documentId"
-              element={<DocumentDetailPage />}
-            />
-          </Routes>
-        </MemoryRouter>,
+        <QueryClientProvider client={queryClient}>
+          <MemoryRouter initialEntries={['/intelligence/knowledge/documents/doc-5678']}>
+            <Routes>
+              <Route
+                path="/intelligence/knowledge/documents/:documentId"
+                element={<DocumentDetailPage />}
+              />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>,
       );
 
       expect(screen.getByTestId('intelligence-document-detail-page')).toBeInTheDocument();

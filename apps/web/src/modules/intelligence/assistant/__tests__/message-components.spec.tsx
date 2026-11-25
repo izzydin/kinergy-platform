@@ -146,7 +146,10 @@ describe('Message Components & Message Composer (AI-09.2.03)', () => {
       const copyBtn = screen.getByLabelText(/Copiar respuesta del asistente/i);
       fireEvent.click(copyBtn);
       expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-        'Este es el resultado del análisis clínico.',
+        expect.stringContaining('Este es el resultado del análisis clínico.'),
+      );
+      expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+        expect.stringContaining('Guía de Rehabilitación Motora (p. 14)'),
       );
     });
   });

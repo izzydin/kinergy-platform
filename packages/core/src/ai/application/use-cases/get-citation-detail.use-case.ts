@@ -61,6 +61,12 @@ export class GetCitationDetailUseCase {
       throw new TenantOwnershipViolationError('AiConversation', conversationId, tenantId);
     }
 
+    const actorRoles = input.actorRoles ?? input.userRoles ?? [];
+    const isPrivileged = actorRoles.some((r) => ['Owner', 'Director', 'Admin'].includes(r));
+    if (input.userId && conversation.userId !== input.userId && !isPrivileged) {
+      throw new TenantOwnershipViolationError('AiConversation', conversationId, tenantId);
+    }
+
     // 2. Verify Message Existence & Association
     const message = await this.messageRepo.findById(tenantId, conversationId, messageId);
     if (!message || message.conversationId.value !== conversationId) {
@@ -86,8 +92,6 @@ export class GetCitationDetailUseCase {
     let fileSizeBytes: number | null = null;
     let documentVersionNumber: number | null = null;
     let documentStatus = 'ACTIVE';
-
-    const actorRoles = input.actorRoles ?? input.userRoles ?? [];
 
     if (this.documentRepo) {
       try {
@@ -116,7 +120,13 @@ export class GetCitationDetailUseCase {
           let version = citation.documentVersionId
             ? doc.getVersionById(citation.documentVersionId)
             : undefined;
-          if (!version) {
+          if (!version && !citation.documentVersionId) {
+            version = doc.getCurrentVersion();
+          } else if (!version && citation.documentVersionId && doc.getCurrentVersion()) {
+            if (previewStatus === 'DOCUMENT_AVAILABLE') {
+              previewStatus = 'EXCERPT_ONLY';
+            }
+          } else if (!version) {
             version = doc.getCurrentVersion();
           }
           if (version) {
@@ -124,6 +134,20 @@ export class GetCitationDetailUseCase {
             mimeType = version.mimeType;
             fileSizeBytes = version.fileSize;
             documentVersionNumber = version.versionNumber;
+
+            const previewableMimes = new Set([
+              'application/pdf',
+              'text/plain',
+              'text/markdown',
+              'text/csv',
+              'application/json',
+            ]);
+            if (
+              previewStatus === 'DOCUMENT_AVAILABLE' &&
+              !previewableMimes.has(version.mimeType.toLowerCase())
+            ) {
+              previewStatus = 'UNSUPPORTED_FORMAT';
+            }
           }
         }
       } catch {
@@ -140,7 +164,9 @@ export class GetCitationDetailUseCase {
           ? 'Document has been archived or soft-deleted.'
           : previewStatus === 'DOCUMENT_RESTRICTED'
             ? 'Document access is restricted by role security policy.'
-            : 'Full document is not available for preview.';
+            : previewStatus === 'UNSUPPORTED_FORMAT'
+              ? 'Inline preview is not supported for this file format.'
+              : 'Full document is not available for preview.';
 
     return {
       citation: {

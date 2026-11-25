@@ -1,5 +1,5 @@
 import { DynamicModule, Module, Provider } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OBJECT_STORAGE_PORT } from './ports/object-storage.port';
 import { LocalStorageAdapter } from './adapters/local-storage.adapter';
 import { S3StorageAdapter } from './adapters/s3-storage.adapter';
@@ -55,6 +55,7 @@ export class StorageModule {
 
     return {
       module: StorageModule,
+      imports: [ConfigModule],
       controllers: [StorageController],
       providers: [configProvider, storagePortProvider, MediaStorageService],
       exports: [OBJECT_STORAGE_PORT, MediaStorageService, 'STORAGE_CONFIGURATION'],

@@ -1,3 +1,4 @@
+import * as path from 'path';
 import {
   Controller,
   Post,
@@ -36,6 +37,7 @@ import type { Response } from 'express';
 import {
   DocumentValidationException,
   DuplicateDocumentVersionException,
+  DuplicateDocumentContentException,
   DocumentNotFoundException,
   DocumentAlreadyDeletedException,
   UnauthorizedDocumentAccessException,
@@ -47,6 +49,8 @@ import {
   KnowledgeDocument,
   DocumentVersion,
   IngestionJob,
+  VisibilityScope,
+  IngestionStatus,
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
@@ -79,6 +83,7 @@ import {
   IngestionJobResponseDto,
   CancelIngestionJobRequestDto,
   DocumentPreviewMetadataResponseDto,
+  KnowledgeCapabilitiesResponseDto,
 } from './dtos/ai-document.dto';
 
 interface MulterUploadedFile {
@@ -192,7 +197,7 @@ export class AiDocumentController {
     const offset = (page - 1) * limit;
 
     const filter = {
-      includeDeleted: false,
+      includeDeleted: query.includeDeleted ?? false,
       search: query.search?.trim(),
       visibilityScope: query.visibilityScope,
       mimeType: query.mimeType?.trim(),
@@ -212,7 +217,19 @@ export class AiDocumentController {
 
     const totalPages = Math.ceil(total / limit) || 1;
 
-    const items = docs.map((doc) => this.toDocumentDetailDto(doc));
+    const items = await Promise.all(
+      docs.map(async (doc) => {
+        let latestStatus: IngestionStatus | undefined;
+        const currentVer = doc.getCurrentVersion();
+        if (currentVer) {
+          const jobs = await this.ingestionJobRepo.findByVersionId(tenantId, currentVer.id);
+          if (jobs.length > 0) {
+            latestStatus = jobs[jobs.length - 1]?.status;
+          }
+        }
+        return this.toDocumentDetailDto(doc, latestStatus);
+      }),
+    );
 
     return {
       items,
@@ -223,6 +240,36 @@ export class AiDocumentController {
       hasNextPage: page < totalPages,
       hasPreviousPage: page > 1,
       data: items,
+    };
+  }
+
+  /**
+   * 2b. GET /api/v1/ai/knowledge/documents/capabilities
+   * Authoritative capabilities contract for Knowledge Center uploads and formats.
+   */
+  @Get('capabilities')
+  @ApiOperation({
+    summary: 'Get document management upload capabilities and constraints',
+    description:
+      'Authoritative contract exposing maximum file size, permitted MIME types, file extensions, and visibility scopes.',
+  })
+  @ApiResponse({ status: 200, type: KnowledgeCapabilitiesResponseDto })
+  getCapabilities(): KnowledgeCapabilitiesResponseDto {
+    return {
+      maxFileSizeBytes: 10 * 1024 * 1024,
+      maxFileSizeMb: 10,
+      allowedMimeTypes: [
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'text/markdown',
+        'text/plain',
+      ],
+      allowedExtensions: ['.pdf', '.docx', '.md', '.markdown', '.txt'],
+      supportedVisibilityScopes: [
+        VisibilityScope.ALL_STAFF,
+        VisibilityScope.CLINICAL_STAFF,
+        VisibilityScope.MANAGEMENT,
+      ],
     };
   }
 
@@ -238,11 +285,12 @@ export class AiDocumentController {
   async getDocument(
     @Param('id') documentId: string,
     @CurrentUser() user: AuthenticatedUserPayload | null,
+    @Query('includeDeleted') includeDeleted?: string | boolean,
   ): Promise<DocumentDetailResponseDto> {
     const { tenantId } = this.extractAuthContext(user);
 
     const doc = await this.documentRepo.findById(tenantId, documentId);
-    if (!doc || doc.isDeleted()) {
+    if (!doc) {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
     }
 
@@ -255,7 +303,29 @@ export class AiDocumentController {
       }
     }
 
-    return this.toDocumentDetailDto(doc);
+    const shouldIncludeDeleted =
+      includeDeleted === true || includeDeleted === 'true' || includeDeleted === '1';
+
+    if (doc.isDeleted()) {
+      if (!shouldIncludeDeleted) {
+        throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+      }
+      const isManager = this.canUserManageDocument(user, doc);
+      if (!isManager) {
+        throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+      }
+    }
+
+    let latestStatus: IngestionStatus | undefined;
+    const currentVer = doc.getCurrentVersion();
+    if (currentVer) {
+      const jobs = await this.ingestionJobRepo.findByVersionId(tenantId, currentVer.id);
+      if (jobs.length > 0) {
+        latestStatus = jobs[jobs.length - 1]?.status;
+      }
+    }
+
+    return this.toDocumentDetailDto(doc, latestStatus);
   }
 
   /**
@@ -293,6 +363,8 @@ export class AiDocumentController {
       }
     }
 
+    this.assertCanManageDocument(user, doc);
+
     try {
       if (dto.title !== undefined || dto.description !== undefined) {
         doc.updateMetadata(dto.title ?? doc.title, dto.description);
@@ -303,7 +375,17 @@ export class AiDocumentController {
       }
 
       const updated = await this.documentRepo.save(doc);
-      return this.toDocumentDetailDto(updated);
+
+      let latestStatus: IngestionStatus | undefined;
+      const currentVer = updated.getCurrentVersion();
+      if (currentVer) {
+        const jobs = await this.ingestionJobRepo.findByVersionId(tenantId, currentVer.id);
+        if (jobs.length > 0) {
+          latestStatus = jobs[jobs.length - 1]?.status;
+        }
+      }
+
+      return this.toDocumentDetailDto(updated, latestStatus);
     } catch (err: unknown) {
       this.translateDomainException(err);
     }
@@ -343,6 +425,8 @@ export class AiDocumentController {
       }
     }
 
+    this.assertCanManageDocument(user, doc);
+
     try {
       doc.softDelete(userId);
       await this.documentRepo.save(doc);
@@ -351,6 +435,76 @@ export class AiDocumentController {
       if (this.cleanupService) {
         await this.cleanupService.cleanupDocumentVectors(tenantId, documentId);
       }
+    } catch (err: unknown) {
+      this.translateDomainException(err);
+    }
+  }
+
+  /**
+   * 5b. POST /api/v1/ai/knowledge/documents/:id/restore
+   * Restore a soft-deleted knowledge document back to ACTIVE status.
+   */
+  @Post(':id/restore')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Restore a soft-deleted knowledge document',
+    description:
+      'Restores a previously soft-deleted document back to ACTIVE status and enqueues re-indexing for its active version.',
+  })
+  @ApiParam({ name: 'id', description: 'Logical Knowledge Document ID' })
+  @ApiResponse({ status: 200, type: DocumentDetailResponseDto })
+  @ApiResponse({ status: 400, description: 'Document is not deleted' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Document not found' })
+  async restoreDocument(
+    @Param('id') documentId: string,
+    @CurrentUser() user: AuthenticatedUserPayload | null,
+  ): Promise<DocumentDetailResponseDto> {
+    const { tenantId } = this.extractAuthContext(user);
+
+    const doc = await this.documentRepo.findById(tenantId, documentId);
+    if (!doc) {
+      throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    if (!doc.isDeleted()) {
+      throw new BadRequestException(`Knowledge document '${documentId}' is not deleted.`);
+    }
+
+    this.assertCanManageDocument(user, doc);
+
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to restore this document.',
+        );
+      }
+    }
+
+    try {
+      doc.restore();
+      await this.documentRepo.save(doc);
+
+      let latestStatus: IngestionStatus | undefined;
+      const currentVer = doc.getCurrentVersion();
+      if (currentVer) {
+        const newJob = IngestionJob.create({
+          tenantId,
+          documentId: doc.id.value,
+          documentVersionId: currentVer.id,
+        });
+        await this.ingestionJobRepo.save(newJob);
+        latestStatus = newJob.status;
+
+        if (this.orchestrator) {
+          setImmediate(() => {
+            this.orchestrator!.processJob(newJob.id, tenantId).catch(() => {});
+          });
+        }
+      }
+
+      return this.toDocumentDetailDto(doc, latestStatus);
     } catch (err: unknown) {
       this.translateDomainException(err);
     }
@@ -458,6 +612,22 @@ export class AiDocumentController {
     if (!file || !file.buffer) {
       throw new BadRequestException('A file is required for document version upload.');
     }
+
+    const doc = await this.documentRepo.findById(tenantId, documentId);
+    if (!doc || doc.isDeleted()) {
+      throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or download this document.',
+        );
+      }
+    }
+
+    this.assertCanManageDocument(user, doc);
 
     try {
       const result = await this.uploadService.uploadDocument({
@@ -716,6 +886,8 @@ export class AiDocumentController {
       }
     }
 
+    this.assertCanManageDocument(user, doc);
+
     const currentVersion = doc.getCurrentVersion();
     if (!currentVersion) {
       throw new NotFoundException('Current version not found.');
@@ -742,6 +914,84 @@ export class AiDocumentController {
     } catch (err: unknown) {
       this.translateDomainException(err);
     }
+  }
+
+  /**
+   * 12b. POST /api/v1/ai/knowledge/documents/:id/reprocess
+   * Trigger full reprocessing and re-indexing of the document's current version.
+   */
+  @Post(':id/reprocess')
+  @HttpCode(HttpStatus.ACCEPTED)
+  @ApiOperation({
+    summary: 'Reprocess and reindex a knowledge document',
+    description:
+      'Creates a new ingestion job for the current version, triggering text extraction, chunking, and embedding generation.',
+  })
+  @ApiParam({ name: 'id', description: 'Logical Knowledge Document ID' })
+  @ApiResponse({ status: 202, type: IngestionJobResponseDto })
+  @ApiResponse({ status: 400, description: 'Document is deleted or has an in-flight job' })
+  @ApiResponse({ status: 403, description: 'Insufficient permissions' })
+  @ApiResponse({ status: 404, description: 'Document not found' })
+  async reprocessDocument(
+    @Param('id') documentId: string,
+    @CurrentUser() user: AuthenticatedUserPayload | null,
+  ): Promise<IngestionJobResponseDto> {
+    const { tenantId } = this.extractAuthContext(user);
+
+    const doc = await this.documentRepo.findById(tenantId, documentId);
+    if (!doc || doc.isDeleted()) {
+      throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    this.assertCanManageDocument(user, doc);
+
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to reprocess this document.',
+        );
+      }
+    }
+
+    const currentVersion = doc.getCurrentVersion();
+    if (!currentVersion) {
+      throw new NotFoundException('Current version not found.');
+    }
+
+    const jobs = await this.ingestionJobRepo.findByVersionId(tenantId, currentVersion.id);
+    const activeJob = jobs.find((j) =>
+      [
+        IngestionStatus.UPLOADED,
+        IngestionStatus.VALIDATING,
+        IngestionStatus.PROCESSING,
+        IngestionStatus.INDEXING,
+      ].includes(j.status),
+    );
+    if (activeJob) {
+      throw new BadRequestException(
+        `An ingestion job is already in progress for this document (Job '${activeJob.id}', Status '${activeJob.status}').`,
+      );
+    }
+
+    if (this.cleanupService) {
+      await this.cleanupService.cleanupDocumentVectors(tenantId, documentId);
+    }
+
+    const newJob = IngestionJob.create({
+      tenantId,
+      documentId: doc.id.value,
+      documentVersionId: currentVersion.id,
+    });
+    await this.ingestionJobRepo.save(newJob);
+
+    if (this.orchestrator) {
+      setImmediate(() => {
+        this.orchestrator!.processJob(newJob.id, tenantId).catch(() => {});
+      });
+    }
+
+    return this.toIngestionJobDto(newJob);
   }
 
   /**
@@ -776,6 +1026,8 @@ export class AiDocumentController {
       }
     }
 
+    this.assertCanManageDocument(user, doc);
+
     const currentVersion = doc.getCurrentVersion();
     if (!currentVersion) {
       throw new NotFoundException('Current version not found.');
@@ -802,7 +1054,15 @@ export class AiDocumentController {
 
   // --- Helper Mapping Methods ---
 
-  private toDocumentDetailDto(doc: KnowledgeDocument): DocumentDetailResponseDto {
+  private toDocumentDetailDto(
+    doc: KnowledgeDocument,
+    latestIngestionStatus?: IngestionStatus,
+  ): DocumentDetailResponseDto {
+    const currentVersion = doc.getCurrentVersion();
+    const ext = currentVersion
+      ? path.extname(currentVersion.originalFileName).replace(/^\./, '').toLowerCase()
+      : undefined;
+
     return {
       id: doc.id.toString(),
       title: doc.title,
@@ -812,20 +1072,41 @@ export class AiDocumentController {
       uploadedBy: doc.uploadedBy,
       createdAt: doc.createdAt.toISOString(),
       updatedAt: doc.updatedAt.toISOString(),
+      deletedAt: doc.deletedAt ? doc.deletedAt.toISOString() : null,
+      isDeleted: doc.isDeleted(),
+      status: doc.isDeleted() ? 'DELETED' : 'ACTIVE',
+      versionNumber: currentVersion?.versionNumber ?? doc.version,
+      versionCount: doc.getAllVersions().length,
+      originalFileName: currentVersion?.originalFileName,
+      mimeType: currentVersion?.mimeType,
+      fileExtension: ext,
+      fileSize: currentVersion?.fileSize,
+      checksum: currentVersion?.checksum,
+      storageReference: currentVersion
+        ? `doc-storage:${doc.id.toString()}:${currentVersion.id}`
+        : undefined,
+      ingestionStatus: latestIngestionStatus,
       versions: doc.getAllVersions().map((v) => this.toVersionDto(v)),
     };
   }
 
-  private toVersionDto(v: DocumentVersion): DocumentVersionResponseDto {
+  private toVersionDto(
+    v: DocumentVersion,
+    ingestionStatus?: IngestionStatus,
+  ): DocumentVersionResponseDto {
+    const ext = path.extname(v.originalFileName).replace(/^\./, '').toLowerCase();
     return {
       id: v.id,
       versionNumber: v.versionNumber,
       originalFileName: v.originalFileName,
       mimeType: v.mimeType,
+      fileExtension: ext,
       fileSize: v.fileSize,
       checksum: v.checksum,
       language: v.language,
       uploadedBy: v.uploadedBy,
+      storageReference: `doc-storage:${v.id}`,
+      ingestionStatus,
       createdAt: v.createdAt.toISOString(),
     };
   }
@@ -863,8 +1144,37 @@ export class AiDocumentController {
     return { tenantId, userId };
   }
 
+  private canUserManageDocument(
+    user: AuthenticatedUserPayload | null,
+    doc: KnowledgeDocument,
+  ): boolean {
+    if (!user) return false;
+    const userId = user.id || user.userId;
+    if (userId && userId === doc.uploadedBy) return true;
+    const roles = (user.roles ?? []).map((r) => r.toLowerCase());
+    return roles.some((r) =>
+      ['owner', 'superadmin', 'admin', 'administrator', 'manager', 'management', 'gestor'].includes(
+        r,
+      ),
+    );
+  }
+
+  private assertCanManageDocument(
+    user: AuthenticatedUserPayload | null,
+    doc: KnowledgeDocument,
+  ): void {
+    if (!this.canUserManageDocument(user, doc)) {
+      throw new ForbiddenException(
+        'You do not have administrative or management permissions to modify this document.',
+      );
+    }
+  }
+
   private translateDomainException(err: unknown): never {
-    if (err instanceof DuplicateDocumentVersionException) {
+    if (
+      err instanceof DuplicateDocumentVersionException ||
+      err instanceof DuplicateDocumentContentException
+    ) {
       throw new ConflictException(err.message);
     }
     if (err instanceof IngestionJobCancellationConflictException) {

@@ -110,3 +110,16 @@ export class DuplicateDocumentVersionException extends AiDomainException {
     );
   }
 }
+
+export class DuplicateDocumentContentException extends AiDomainException {
+  constructor(
+    public readonly checksum: string,
+    public readonly existingDocumentId: string,
+    public readonly existingTitle: string,
+  ) {
+    super(
+      `A document with identical content already exists ('${existingTitle}', ID: ${existingDocumentId}). To update this document, upload a new version.`,
+      'DUPLICATE_DOCUMENT_CONTENT',
+    );
+  }
+}

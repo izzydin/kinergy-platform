@@ -14,6 +14,14 @@ import {
   MessageNotFoundError,
   CitationNotFoundError,
   TenantOwnershipViolationError,
+  DocumentAccessRestrictedError,
+  DocumentPreviewUnsupportedFormatError,
+  DocumentFileNotFoundInStorageError,
+  DocumentArchivedOrDeletedError,
+  FeedbackNotFoundError,
+  FeedbackTargetNotAssistantMessageError,
+  MessageNotBelongingToConversationError,
+  InvalidFeedbackInputError,
   InvalidTurnInputError,
   DuplicateClientTurnPayloadMismatchError,
   TurnAlreadyInProgressError,
@@ -63,6 +71,9 @@ export class AiConversationExceptionFilter implements ExceptionFilter {
       exception instanceof TurnNotFoundError ||
       exception instanceof MessageNotFoundError ||
       exception instanceof CitationNotFoundError ||
+      exception instanceof DocumentFileNotFoundInStorageError ||
+      exception instanceof DocumentArchivedOrDeletedError ||
+      exception instanceof FeedbackNotFoundError ||
       exception instanceof ConversationNotFoundException ||
       exception instanceof TurnNotFoundException ||
       exception instanceof MessageNotFoundException
@@ -75,6 +86,9 @@ export class AiConversationExceptionFilter implements ExceptionFilter {
     }
     // 2. Bad Request / Validation Failure (400)
     else if (
+      exception instanceof InvalidFeedbackInputError ||
+      exception instanceof FeedbackTargetNotAssistantMessageError ||
+      exception instanceof MessageNotBelongingToConversationError ||
       exception instanceof InvalidTurnInputError ||
       exception instanceof InvalidConversationLifecycleError ||
       exception instanceof InvalidMessageOperationError ||
@@ -113,12 +127,20 @@ export class AiConversationExceptionFilter implements ExceptionFilter {
     // 4. Forbidden / Ownership Violation (403)
     else if (
       exception instanceof TenantOwnershipViolationError ||
-      exception instanceof InvalidOwnershipException
+      exception instanceof InvalidOwnershipException ||
+      exception instanceof DocumentAccessRestrictedError
     ) {
       statusCode = HttpStatus.FORBIDDEN;
       errorTitle = 'Forbidden';
       errorCode =
         exception instanceof AiConversationApplicationError ? exception.code : 'AI_FORBIDDEN';
+      errorMessage = exception.message;
+    }
+    // 4b. Unsupported Media Type (415)
+    else if (exception instanceof DocumentPreviewUnsupportedFormatError) {
+      statusCode = HttpStatus.UNSUPPORTED_MEDIA_TYPE;
+      errorTitle = 'Unsupported Media Type';
+      errorCode = exception.code;
       errorMessage = exception.message;
     }
     // 5. Transient Database Failure (503)

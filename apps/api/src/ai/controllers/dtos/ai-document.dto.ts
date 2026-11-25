@@ -4,12 +4,13 @@ import {
   IsInt,
   IsOptional,
   IsString,
+  IsBoolean,
   Max,
   MaxLength,
   Min,
   IsDateString,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Type, Transform } from 'class-transformer';
 import { VisibilityScope, IngestionStatus } from '@kinergy-platform/core';
 
 export class UploadDocumentRequestDto {
@@ -100,6 +101,14 @@ export class ListDocumentsQueryDto {
   @Min(1)
   @Max(100)
   limit: number = 20;
+
+  @ApiPropertyOptional({
+    description: 'Whether to include soft-deleted documents in the list. Default: false.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  @IsBoolean()
+  includeDeleted?: boolean;
 
   @ApiPropertyOptional({ description: 'Case-insensitive search term against document title' })
   @IsOptional()
@@ -193,6 +202,9 @@ export class DocumentVersionResponseDto {
   @ApiProperty({ example: 'application/pdf' })
   mimeType!: string;
 
+  @ApiPropertyOptional({ example: 'pdf' })
+  fileExtension?: string;
+
   @ApiProperty({ example: 204857 })
   fileSize!: number;
 
@@ -204,6 +216,12 @@ export class DocumentVersionResponseDto {
 
   @ApiProperty({ example: 'usr_therapist_01' })
   uploadedBy!: string;
+
+  @ApiPropertyOptional({ example: 'doc-storage:ver_01' })
+  storageReference?: string;
+
+  @ApiPropertyOptional({ enum: IngestionStatus, example: IngestionStatus.READY })
+  ingestionStatus?: IngestionStatus;
 
   @ApiProperty({ example: '2026-11-19T12:00:00.000Z' })
   createdAt!: string;
@@ -236,6 +254,81 @@ export class DocumentDetailResponseDto {
 
   @ApiProperty({ example: '2026-11-19T12:00:00.000Z' })
   updatedAt!: string;
+
+  @ApiPropertyOptional({ example: 'cervical-spine-protocol.pdf' })
+  originalFileName?: string;
+
+  @ApiPropertyOptional({ example: 'application/pdf' })
+  mimeType?: string;
+
+  @ApiPropertyOptional({ example: 'pdf' })
+  fileExtension?: string;
+
+  @ApiPropertyOptional({ example: 204857 })
+  fileSize?: number;
+
+  @ApiPropertyOptional({
+    example: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+  })
+  checksum?: string;
+
+  @ApiPropertyOptional({ example: 1 })
+  versionNumber?: number;
+
+  @ApiPropertyOptional({ example: 1 })
+  versionCount?: number;
+
+  @ApiPropertyOptional({ example: 'doc-storage:doc_c1a2b3c4d5e6:ver_01' })
+  storageReference?: string;
+
+  @ApiPropertyOptional({ enum: IngestionStatus, example: IngestionStatus.READY })
+  ingestionStatus?: IngestionStatus;
+
+  @ApiPropertyOptional({ example: 'ACTIVE', enum: ['ACTIVE', 'DELETED'] })
+  status?: 'ACTIVE' | 'DELETED';
+
+  @ApiPropertyOptional({ example: false })
+  isDeleted?: boolean;
+
+  @ApiPropertyOptional({ example: null })
+  deletedAt?: string | null;
+}
+
+export class KnowledgeCapabilitiesResponseDto {
+  @ApiProperty({ example: 10485760, description: 'Maximum allowed upload size in bytes (10 MB)' })
+  maxFileSizeBytes!: number;
+
+  @ApiProperty({ example: 10, description: 'Maximum allowed upload size in megabytes' })
+  maxFileSizeMb!: number;
+
+  @ApiProperty({
+    example: [
+      'application/pdf',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'text/markdown',
+      'text/plain',
+    ],
+    description: 'Permitted MIME types for knowledge documents',
+  })
+  allowedMimeTypes!: string[];
+
+  @ApiProperty({
+    example: ['.pdf', '.docx', '.md', '.markdown', '.txt'],
+    description: 'Permitted file extensions',
+  })
+  allowedExtensions!: string[];
+
+  @ApiProperty({
+    enum: VisibilityScope,
+    isArray: true,
+    example: [
+      VisibilityScope.ALL_STAFF,
+      VisibilityScope.CLINICAL_STAFF,
+      VisibilityScope.MANAGEMENT,
+    ],
+    description: 'Supported visibility classification scopes',
+  })
+  supportedVisibilityScopes!: VisibilityScope[];
 }
 
 export class PaginatedDocumentsResponseDto {

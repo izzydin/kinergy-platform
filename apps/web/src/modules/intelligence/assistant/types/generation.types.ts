@@ -13,7 +13,14 @@ import type { RAGAnswerResponseDto } from './assistant.types';
  * - INTERRUPTED: Stream was disconnected prematurely before canonical completion.
  */
 export type GenerationStatus =
-  'IDLE' | 'PENDING' | 'STREAMING' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'INTERRUPTED';
+  | 'IDLE'
+  | 'PENDING'
+  | 'STREAMING'
+  | 'CANCELLING'
+  | 'COMPLETED'
+  | 'FAILED'
+  | 'CANCELLED'
+  | 'INTERRUPTED';
 
 /**
  * Valid state transition map ensuring strict state machine progression.
@@ -23,8 +30,9 @@ export const VALID_GENERATION_TRANSITIONS: Readonly<
   Record<GenerationStatus, readonly GenerationStatus[]>
 > = {
   IDLE: ['PENDING'],
-  PENDING: ['STREAMING', 'COMPLETED', 'FAILED', 'CANCELLED', 'INTERRUPTED'],
-  STREAMING: ['COMPLETED', 'INTERRUPTED', 'CANCELLED', 'FAILED'],
+  PENDING: ['STREAMING', 'COMPLETED', 'FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'],
+  STREAMING: ['COMPLETED', 'INTERRUPTED', 'CANCELLING', 'CANCELLED', 'FAILED'],
+  CANCELLING: ['CANCELLED', 'FAILED', 'COMPLETED'],
   COMPLETED: ['IDLE', 'PENDING'],
   FAILED: ['IDLE', 'PENDING'],
   CANCELLED: ['IDLE', 'PENDING'],
@@ -46,6 +54,7 @@ export function isValidGenerationTransition(from: GenerationStatus, to: Generati
 export interface GenerationState {
   readonly status: GenerationStatus;
   readonly conversationId: string | null;
+  readonly turnId?: string | null;
   readonly userMessageId: string | null;
   readonly assistantMessageId: string | null;
   readonly userPrompt?: string | null;
@@ -59,6 +68,7 @@ export interface GenerationState {
 export const INITIAL_GENERATION_STATE: GenerationState = {
   status: 'IDLE',
   conversationId: null,
+  turnId: null,
   userMessageId: null,
   assistantMessageId: null,
   userPrompt: null,
@@ -73,13 +83,16 @@ export type GenerationEvent =
   | {
       readonly type: 'SUBMIT';
       readonly conversationId: string;
+      readonly turnId?: string;
       readonly userMessageId: string;
       readonly assistantMessageId: string;
       readonly userPrompt?: string;
     }
+  | { readonly type: 'SET_TURN_ID'; readonly turnId: string }
   | { readonly type: 'STREAM_START' }
   | { readonly type: 'COMPLETE'; readonly response?: RAGAnswerResponseDto }
   | { readonly type: 'FAIL'; readonly error: Error }
+  | { readonly type: 'START_CANCEL' }
   | { readonly type: 'CANCEL' }
   | { readonly type: 'INTERRUPT' }
   | { readonly type: 'RESET' };
@@ -100,11 +113,29 @@ export function generationStateReducer(
       return {
         status: 'PENDING',
         conversationId: event.conversationId,
+        turnId: event.turnId ?? null,
         userMessageId: event.userMessageId,
         assistantMessageId: event.assistantMessageId,
         userPrompt: event.userPrompt ?? null,
         error: null,
         completedAt: null,
+      };
+    }
+
+    case 'SET_TURN_ID': {
+      return {
+        ...state,
+        turnId: event.turnId,
+      };
+    }
+
+    case 'START_CANCEL': {
+      if (!isValidGenerationTransition(state.status, 'CANCELLING')) {
+        return state;
+      }
+      return {
+        ...state,
+        status: 'CANCELLING',
       };
     }
 

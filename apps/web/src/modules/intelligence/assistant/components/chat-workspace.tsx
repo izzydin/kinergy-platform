@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useOptionalAuth } from '../../../../app/providers/auth-provider';
 import {
   useConversation,
@@ -21,6 +21,7 @@ import type { ApiError } from '../../../../shared/api/api-error';
 import { ConversationSidebar } from './conversation-sidebar';
 import { ChatWorkspaceHeader } from './chat-workspace-header';
 import { DeleteConversationDialog } from './delete-conversation-dialog';
+import { DocumentPreview } from './document-preview';
 import { ChatMessageFeed } from './chat-message-feed';
 import { ChatComposer } from './chat-composer';
 import { IntelligenceLoadingState } from '../../components/intelligence-loading-state';
@@ -39,6 +40,7 @@ import { IntelligenceErrorState } from '../../components/intelligence-error-stat
  */
 export const ChatWorkspace: React.FC = () => {
   const { conversationId } = useParams<{ conversationId?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const auth = useOptionalAuth();
 
@@ -84,14 +86,15 @@ export const ChatWorkspace: React.FC = () => {
   });
 
   // Generation lifecycle state machine
-  const { isGenerating, submitMessage, cancelGeneration, state } = useGenerationLifecycle({
-    tenantId,
-    userId,
-    conversationId,
-    onConversationCreated: (newId) => {
-      navigate(`/intelligence/chat/${newId}`, { replace: true });
-    },
-  });
+  const { isGenerating, isCancelling, submitMessage, regenerateMessage, cancelGeneration, state } =
+    useGenerationLifecycle({
+      tenantId,
+      userId,
+      conversationId,
+      onConversationCreated: (newId) => {
+        navigate(`/intelligence/chat/${newId}`, { replace: true });
+      },
+    });
 
   // Reconcile authoritative backend persistence with local fallback and active generation
   const activeConversation = useMemo(() => {
@@ -108,7 +111,9 @@ export const ChatWorkspace: React.FC = () => {
       // Immediate in-flight turn messages directly from active generation state machine
       if (
         state.conversationId === persistentConversation.id &&
-        (state.status === 'PENDING' || state.status === 'STREAMING')
+        (state.status === 'PENDING' ||
+          state.status === 'STREAMING' ||
+          state.status === 'CANCELLING')
       ) {
         if (state.userMessageId && !persistedIds.has(state.userMessageId)) {
           inFlightMessages.push({
@@ -125,7 +130,12 @@ export const ChatWorkspace: React.FC = () => {
             role: 'assistant',
             content: '',
             createdAt: new Date().toISOString(),
-            status: 'pending',
+            status:
+              state.status === 'CANCELLING'
+                ? 'cancelling'
+                : state.status === 'STREAMING'
+                  ? 'generating'
+                  : 'pending',
           });
         }
       }
@@ -259,6 +269,96 @@ export const ChatWorkspace: React.FC = () => {
   }, [navigate]);
 
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = React.useState(false);
+  const [previewTarget, setPreviewTarget] = React.useState<{
+    isOpen: boolean;
+    documentId?: string;
+    pageNumber?: number | null;
+    citationId?: string | null;
+    messageId?: string | null;
+  } | null>(null);
+
+  // URL-addressable preview state synchronization (CIT.07)
+  const urlPreviewCitationId = searchParams.get('preview') || searchParams.get('citationId');
+  const urlMessageId = searchParams.get('messageId');
+  const urlDocumentId = searchParams.get('doc') || searchParams.get('documentId');
+  const urlPageParam = searchParams.get('page');
+  const urlPageNumber =
+    urlPageParam && !Number.isNaN(Number(urlPageParam)) ? Number(urlPageParam) : undefined;
+
+  // Sync URL search params with local previewTarget (supports Back/Forward navigation, Refresh, Direct Link)
+  React.useEffect(() => {
+    if (urlPreviewCitationId) {
+      setPreviewTarget((prev) => {
+        if (
+          prev?.isOpen &&
+          prev.citationId === urlPreviewCitationId &&
+          prev.messageId === (urlMessageId || undefined) &&
+          prev.documentId === (urlDocumentId || undefined) &&
+          prev.pageNumber === urlPageNumber
+        ) {
+          return prev;
+        }
+        return {
+          isOpen: true,
+          citationId: urlPreviewCitationId,
+          messageId: urlMessageId || undefined,
+          documentId: urlDocumentId || undefined,
+          pageNumber: urlPageNumber,
+        };
+      });
+    } else {
+      setPreviewTarget((prev) => (prev?.isOpen ? null : prev));
+    }
+  }, [urlPreviewCitationId, urlMessageId, urlDocumentId, urlPageNumber]);
+
+  const handlePreviewDocument = React.useCallback(
+    (
+      documentId: string,
+      pageNumber?: number | null,
+      citationId?: string | null,
+      messageId?: string | null,
+    ) => {
+      setPreviewTarget({
+        isOpen: true,
+        documentId,
+        pageNumber,
+        citationId,
+        messageId,
+      });
+
+      setSearchParams(
+        (prev) => {
+          const updated = new URLSearchParams(prev);
+          if (citationId) updated.set('preview', citationId);
+          if (messageId) updated.set('messageId', messageId);
+          if (documentId) updated.set('doc', documentId);
+          if (typeof pageNumber === 'number' && pageNumber > 0) {
+            updated.set('page', String(pageNumber));
+          }
+          return updated;
+        },
+        { replace: false },
+      );
+    },
+    [setSearchParams],
+  );
+
+  const handleClosePreview = React.useCallback(() => {
+    setPreviewTarget(null);
+    setSearchParams(
+      (prev) => {
+        const updated = new URLSearchParams(prev);
+        updated.delete('preview');
+        updated.delete('citationId');
+        updated.delete('messageId');
+        updated.delete('doc');
+        updated.delete('documentId');
+        updated.delete('page');
+        return updated;
+      },
+      { replace: true },
+    );
+  }, [setSearchParams]);
 
   const handleDeleteActiveConversation = React.useCallback(() => {
     if (!conversationId) return;
@@ -303,6 +403,17 @@ export const ChatWorkspace: React.FC = () => {
       }
     },
     [activeConversation?.messages, handleSendMessage],
+  );
+
+  const handleRegenerateMessage = React.useCallback(
+    async (messageId: string) => {
+      await regenerateMessage({
+        messageId,
+        searchMode: 'HYBRID',
+        topK: 5,
+      });
+    },
+    [regenerateMessage],
   );
 
   // Determine current view state
@@ -409,12 +520,16 @@ export const ChatWorkspace: React.FC = () => {
                 void handleSendMessage(prompt);
               }}
               onRetryMessage={handleRetryMessage}
+              onRegenerateMessage={handleRegenerateMessage}
+              isGenerating={isGenerating}
+              onPreviewDocument={handlePreviewDocument}
             />
 
             <ChatComposer
               onSend={handleSendMessage}
-              onCancel={() => cancelGeneration()}
+              onCancel={() => void cancelGeneration()}
               isSubmitting={isGenerating}
+              isCancelling={isCancelling}
               disabled={isNotFound}
             />
           </>
@@ -429,6 +544,19 @@ export const ChatWorkspace: React.FC = () => {
         onConfirm={handleConfirmDeleteActive}
         isDeleting={archiveMutation.isPending || deleteConversationMutation.isPending}
       />
+
+      {/* Document Preview Modal */}
+      {previewTarget?.isOpen && (
+        <DocumentPreview
+          isOpen={previewTarget.isOpen}
+          onClose={handleClosePreview}
+          conversationId={conversationId}
+          messageId={previewTarget.messageId ?? undefined}
+          citationId={previewTarget.citationId ?? undefined}
+          documentId={previewTarget.documentId}
+          initialPageNumber={previewTarget.pageNumber}
+        />
+      )}
     </div>
   );
 };

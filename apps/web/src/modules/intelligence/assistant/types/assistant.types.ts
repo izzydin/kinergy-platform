@@ -8,7 +8,8 @@ export type MessageRole = 'system' | 'user' | 'assistant';
 /**
  * Local delivery and processing status of a conversation message.
  */
-export type MessageStatus = 'pending' | 'success' | 'error' | 'cancelled' | 'interrupted';
+export type MessageStatus =
+  'pending' | 'generating' | 'cancelling' | 'success' | 'error' | 'cancelled' | 'interrupted';
 
 /**
  * Search mode options for knowledge retrieval.
@@ -117,6 +118,7 @@ export interface PaginatedResponse<T> {
  */
 export interface ChatMessage {
   readonly id: string;
+  readonly turnId?: string;
   readonly role: MessageRole;
   readonly content: string;
   readonly createdAt: string;

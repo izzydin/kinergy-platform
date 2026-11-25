@@ -255,5 +255,54 @@ describe('CancelConversationTurnUseCase', () => {
         }),
       );
     });
+
+    it('resolves turn from messageId when turnId is omitted', async () => {
+      const mockMsg = {
+        id: MessageId.create('msg_assistant_1'),
+        turnId: testTurn.id,
+      } as unknown as AiConversationMessage;
+      messageRepo.findById.mockResolvedValue(mockMsg);
+
+      const result = await useCase.execute({
+        tenantId: TENANT_ID,
+        userId: USER_ID,
+        conversationId: testConv.id.value,
+        messageId: 'msg_assistant_1',
+      });
+
+      expect(messageRepo.findById).toHaveBeenCalledWith(
+        TENANT_ID,
+        testConv.id.value,
+        'msg_assistant_1',
+      );
+      expect(result.turnId).toBe(testTurn.id.value);
+      expect(result.turnStatus).toBe(TurnStatus.CANCELLED);
+    });
+
+    it('resolves active in-flight turn when neither turnId nor messageId is provided', async () => {
+      (turnRepo.findActiveTurn as jest.Mock).mockResolvedValue(testTurn);
+
+      const result = await useCase.execute({
+        tenantId: TENANT_ID,
+        userId: USER_ID,
+        conversationId: testConv.id.value,
+      });
+
+      expect(turnRepo.findActiveTurn).toHaveBeenCalledWith(TENANT_ID, testConv.id.value);
+      expect(result.turnId).toBe(testTurn.id.value);
+      expect(result.turnStatus).toBe(TurnStatus.CANCELLED);
+    });
+
+    it('throws InvalidTurnInputError if neither turnId nor messageId is provided and no active turn exists', async () => {
+      (turnRepo.findActiveTurn as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        useCase.execute({
+          tenantId: TENANT_ID,
+          userId: USER_ID,
+          conversationId: testConv.id.value,
+        }),
+      ).rejects.toThrow(InvalidTurnInputError);
+    });
   });
 });

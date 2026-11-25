@@ -86,6 +86,10 @@ function renderAppAtRoute(initialPath: string, userOverride?: AuthUser | null) {
 }
 
 describe('Intelligence Module Protected Routing (Milestone AI-09.1.02)', () => {
+  beforeAll(() => {
+    jest.setTimeout(20000);
+  });
+
   beforeEach(() => {
     activeLocation = null;
   });

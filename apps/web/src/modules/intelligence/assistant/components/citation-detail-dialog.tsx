@@ -33,6 +33,12 @@ export interface CitationDetailDialogProps {
   readonly citationIndex?: number;
   readonly conversationId?: string;
   readonly messageId?: string;
+  readonly onPreviewDocument?: (
+    documentId: string,
+    pageNumber?: number | null,
+    citationId?: string | null,
+    messageId?: string | null,
+  ) => void;
 }
 
 /**
@@ -46,7 +52,15 @@ export interface CitationDetailDialogProps {
  * - Secure direct navigation link to original document when authorized.
  */
 export const CitationDetailDialog: React.FC<CitationDetailDialogProps> = React.memo(
-  ({ open, onOpenChange, citation, citationIndex = 0, conversationId, messageId }) => {
+  ({
+    open,
+    onOpenChange,
+    citation,
+    citationIndex = 0,
+    conversationId,
+    messageId,
+    onPreviewDocument,
+  }) => {
     // Attempt to fetch fresh detail from server if citationId, conversationId, and messageId are provided
     const shouldFetch = Boolean(
       open &&
@@ -263,18 +277,36 @@ export const CitationDetailDialog: React.FC<CitationDetailDialogProps> = React.m
               Cerrar
             </Button>
 
-            {canPreview && previewStatus === 'DOCUMENT_AVAILABLE' && documentId && (
-              <a
-                href={`/api/v1/ai/knowledge/documents/${documentId}/content`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary"
-                data-testid="citation-open-document-link"
-              >
-                <ExternalLink className="h-3.5 w-3.5" />
-                <span>Ver documento original</span>
-              </a>
-            )}
+            {canPreview &&
+              previewStatus === 'DOCUMENT_AVAILABLE' &&
+              documentId &&
+              (onPreviewDocument ? (
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() => {
+                    onOpenChange(false);
+                    onPreviewDocument(documentId, pageNumber, citation?.citationId, messageId);
+                  }}
+                  className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-2xs cursor-pointer"
+                  data-testid="citation-open-document-link"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Ver documento original</span>
+                </Button>
+              ) : (
+                <a
+                  href={`/api/v1/ai/knowledge/documents/${documentId}/content`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary"
+                  data-testid="citation-open-document-link"
+                >
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  <span>Ver documento original</span>
+                </a>
+              ))}
           </DialogFooter>
         </DialogContent>
       </Dialog>

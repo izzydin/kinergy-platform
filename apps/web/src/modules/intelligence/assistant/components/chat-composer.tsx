@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, CornerDownLeft, Square } from 'lucide-react';
+import { Send, CornerDownLeft, Square, RotateCcw } from 'lucide-react';
 import { Button } from '@kinergy-platform/ui';
 
 export interface ChatComposerProps {
   onSend: (text: string) => Promise<unknown> | void;
   onCancel?: () => void;
   isSubmitting?: boolean;
+  isCancelling?: boolean;
   placeholder?: string;
   disabled?: boolean;
 }
@@ -31,6 +32,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   onSend,
   onCancel,
   isSubmitting = false,
+  isCancelling = false,
   placeholder = 'Pregunta sobre políticas, protocolos de kinesiología o guías clínicas...',
   disabled = false,
 }) => {
@@ -40,7 +42,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   const trimmed = draft.trim();
   const isOverLimit = draft.length > MAX_QUERY_LENGTH;
   const isUnderMin = trimmed.length < MIN_QUERY_LENGTH;
-  const canSubmit = !isUnderMin && !isOverLimit && !isSubmitting && !disabled;
+  const canSubmit = !isUnderMin && !isOverLimit && !isSubmitting && !isCancelling && !disabled;
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -64,7 +66,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // Escape key: stop active generation
-    if (e.key === 'Escape' && isSubmitting && onCancel) {
+    if (e.key === 'Escape' && isSubmitting && !isCancelling && onCancel) {
       e.preventDefault();
       onCancel();
       return;
@@ -116,9 +118,10 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            disabled={disabled || isSubmitting}
+            disabled={disabled || isSubmitting || isCancelling}
             aria-label="Escribe tu consulta para el asistente"
             aria-describedby="composer-helper-text"
+            aria-keyshortcuts="Enter Control+Enter Escape"
             className="flex-1 resize-none bg-transparent px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground/60 focus:outline-hidden disabled:opacity-50"
           />
 
@@ -128,11 +131,20 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               size="sm"
               variant="outline"
               onClick={onCancel}
-              aria-label="Detener generación de respuesta"
-              title="Detener generación"
-              className="h-8 w-8 rounded-lg p-0 shrink-0 border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 shadow-xs focus-visible:ring-2 focus-visible:ring-destructive focus-visible:outline-hidden"
+              disabled={isCancelling}
+              aria-label={
+                isCancelling
+                  ? 'Deteniendo generación de respuesta...'
+                  : 'Detener generación de respuesta'
+              }
+              title={isCancelling ? 'Deteniendo...' : 'Detener generación (Esc)'}
+              className="h-8 w-8 min-h-[32px] min-w-[32px] rounded-lg p-0 shrink-0 border-destructive/40 bg-destructive/10 text-destructive hover:bg-destructive/20 shadow-xs focus-visible:ring-2 focus-visible:ring-destructive focus-visible:outline-hidden disabled:opacity-60"
             >
-              <Square className="h-3.5 w-3.5 fill-current" />
+              {isCancelling ? (
+                <RotateCcw className="h-3.5 w-3.5 motion-safe:animate-spin" aria-hidden="true" />
+              ) : (
+                <Square className="h-3.5 w-3.5 fill-current" aria-hidden="true" />
+              )}
             </Button>
           ) : (
             <Button
@@ -141,9 +153,9 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               variant="primary"
               disabled={!canSubmit}
               aria-label="Enviar mensaje"
-              className="h-8 w-8 rounded-lg p-0 shrink-0 shadow-xs focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-hidden"
+              className="h-8 w-8 min-h-[32px] min-w-[32px] rounded-lg p-0 shrink-0 shadow-xs focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-hidden"
             >
-              <Send className="h-4 w-4" />
+              <Send className="h-4 w-4" aria-hidden="true" />
             </Button>
           )}
         </div>
@@ -153,10 +165,17 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
           id="composer-helper-text"
           className="flex items-center justify-between px-1 text-[11px] text-muted-foreground/60"
         >
-          <span className="flex items-center gap-1 hidden sm:inline-flex">
-            <CornerDownLeft className="h-3 w-3" />
-            <span>Presiona Enter para enviar, Shift+Enter para nueva línea</span>
-          </span>
+          {isSubmitting && onCancel ? (
+            <span className="hidden sm:inline-flex items-center gap-1 text-muted-foreground">
+              <Square className="h-3 w-3 text-destructive" aria-hidden="true" />
+              <span>Generando respuesta. Presiona Escape o el botón para detener.</span>
+            </span>
+          ) : (
+            <span className="hidden sm:inline-flex items-center gap-1">
+              <CornerDownLeft className="h-3 w-3" aria-hidden="true" />
+              <span>Presiona Enter para enviar, Shift+Enter para nueva línea</span>
+            </span>
+          )}
           <span
             className={
               isOverLimit

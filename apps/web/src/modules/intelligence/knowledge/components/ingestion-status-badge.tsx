@@ -1,0 +1,104 @@
+import React from 'react';
+import { CheckCircle2, Clock, Loader2, AlertTriangle, Ban, FileCheck } from 'lucide-react';
+import type { IngestionStatus } from '../types/knowledge-contract.types';
+
+export interface IngestionStatusBadgeProps {
+  readonly status?: IngestionStatus | null;
+  readonly className?: string;
+  readonly showIcon?: boolean;
+}
+
+interface StatusConfig {
+  label: string;
+  badgeClass: string;
+  icon: React.ComponentType<{ className?: string }>;
+  animate?: boolean;
+}
+
+const STATUS_CONFIGS: Record<IngestionStatus, StatusConfig> = {
+  READY: {
+    label: 'Indexado',
+    badgeClass: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400',
+    icon: CheckCircle2,
+  },
+  INDEXING: {
+    label: 'Indexando',
+    badgeClass: 'bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400',
+    icon: Loader2,
+    animate: true,
+  },
+  PROCESSING: {
+    label: 'Procesando',
+    badgeClass: 'bg-sky-500/10 text-sky-600 border-sky-500/20 dark:text-sky-400',
+    icon: Loader2,
+    animate: true,
+  },
+  VALIDATING: {
+    label: 'Validando',
+    badgeClass: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20 dark:text-indigo-400',
+    icon: Clock,
+  },
+  UPLOADED: {
+    label: 'En cola',
+    badgeClass: 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400',
+    icon: Clock,
+  },
+  FAILED: {
+    label: 'Error',
+    badgeClass: 'bg-rose-500/10 text-rose-600 border-rose-500/20 dark:text-rose-400',
+    icon: AlertTriangle,
+  },
+  CANCELLED: {
+    label: 'Cancelado',
+    badgeClass: 'bg-muted text-muted-foreground border-border/60',
+    icon: Ban,
+  },
+};
+
+/**
+ * Accessible status badge indicating document RAG ingestion lifecycle state.
+ * Clarifies the distinction between storage upload and semantic indexing.
+ */
+export const IngestionStatusBadge: React.FC<IngestionStatusBadgeProps> = ({
+  status,
+  className = '',
+  showIcon = true,
+}) => {
+  if (!status) {
+    return (
+      <span
+        role="status"
+        aria-label="Estado de indexación: Desconocido"
+        className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground border-border/60 ${className}`}
+      >
+        <FileCheck className="h-3 w-3" />
+        <span>Subido</span>
+      </span>
+    );
+  }
+
+  const config = STATUS_CONFIGS[status] ?? {
+    label: status,
+    badgeClass: 'bg-muted text-muted-foreground border-border/60',
+    icon: FileCheck,
+  };
+
+  const Icon = config.icon;
+
+  return (
+    <span
+      role="status"
+      data-testid={`ingestion-status-${status.toLowerCase()}`}
+      aria-label={`Estado de indexación: ${config.label}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors ${config.badgeClass} ${className}`}
+    >
+      {showIcon && (
+        <Icon
+          className={`h-3 w-3 shrink-0 ${config.animate ? 'motion-safe:animate-spin' : ''}`}
+          aria-hidden="true"
+        />
+      )}
+      <span>{config.label}</span>
+    </span>
+  );
+};

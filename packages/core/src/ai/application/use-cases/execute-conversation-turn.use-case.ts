@@ -329,6 +329,30 @@ export class ExecuteConversationTurnUseCase {
         const serializedSources =
           AiSourceAttributionService.serializeForPersistence(validatedSources);
 
+        // FB.05: Demote any previous canonical assistant message for this turn to preserve single canonical invariant
+        if (repos.messageRepo.findCanonicalAssistantMessage && repos.messageRepo.updateStatus) {
+          try {
+            const previousCanonical = await repos.messageRepo.findCanonicalAssistantMessage(
+              tenantId,
+              conversationId,
+              turnId,
+            );
+            if (previousCanonical && previousCanonical.id.value !== assistantAttempt.id.value) {
+              await repos.messageRepo.updateStatus(
+                tenantId,
+                conversationId,
+                previousCanonical.id.value,
+                {
+                  status: previousCanonical.status,
+                  isCanonical: false,
+                },
+              );
+            }
+          } catch {
+            // Non-fatal if prior message resolution fails in non-relational or mock environments
+          }
+        }
+
         await targetPersistUseCase.execute({
           tenantId,
           conversationId,

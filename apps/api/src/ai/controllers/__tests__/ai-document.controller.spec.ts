@@ -19,6 +19,7 @@ import {
   IngestionStatus,
   VisibilityScope,
   DuplicateDocumentVersionException,
+  DuplicateDocumentContentException,
   DocumentValidationException,
 } from '@kinergy-platform/core';
 import { AuthenticatedUserPayload } from '../../../platform/identity/decorators/current-user.decorator';
@@ -40,6 +41,24 @@ describe('AiDocumentController (Unit & REST Contract)', () => {
     status: 'ACTIVE',
     roles: ['THERAPIST'],
     permissions: ['ai:documents:upload', 'ai:documents:read'],
+    tenantId: tenantA,
+  };
+
+  const viewerUser: AuthenticatedUserPayload = {
+    id: 'usr_viewer_01',
+    email: 'viewer@clinic.com',
+    status: 'ACTIVE',
+    roles: ['VIEWER'],
+    permissions: ['ai:documents:read'],
+    tenantId: tenantA,
+  };
+
+  const managerUser: AuthenticatedUserPayload = {
+    id: 'usr_manager_01',
+    email: 'manager@clinic.com',
+    status: 'ACTIVE',
+    roles: ['MANAGER'],
+    permissions: ['ai:documents:upload', 'ai:documents:read', 'ai:documents:manage'],
     tenantId: tenantA,
   };
 
@@ -179,6 +198,16 @@ describe('AiDocumentController (Unit & REST Contract)', () => {
       ).rejects.toThrow(ConflictException);
     });
 
+    it('translates DuplicateDocumentContentException to 409 ConflictException', async () => {
+      mockUploadService.uploadDocument.mockRejectedValueOnce(
+        new DuplicateDocumentContentException('abc', 'doc_orig_123', 'Existing Protocol'),
+      );
+
+      await expect(
+        controller.uploadDocument(validUser, mockFile, { title: 'Test' }),
+      ).rejects.toThrow(ConflictException);
+    });
+
     it('translates DocumentValidationException to 400 BadRequestException', async () => {
       mockUploadService.uploadDocument.mockRejectedValueOnce(
         new DocumentValidationException('Invalid content'),
@@ -260,6 +289,68 @@ describe('AiDocumentController (Unit & REST Contract)', () => {
       );
       expect(response.limit).toBe(100);
       expect(response.page).toBe(1);
+    });
+
+    it('returns enriched document metadata including file extension, size, checksum, and storage reference', async () => {
+      const doc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Cervical Spine Protocol',
+        uploadedBy: therapistUser,
+        initialVersion: {
+          originalFileName: 'protocol.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 1024,
+          checksum: 'b'.repeat(64),
+          storageKey: 'tenants/t1/doc.pdf',
+          uploadedBy: therapistUser,
+        },
+      });
+
+      mockDocRepo.findAll.mockResolvedValueOnce([doc]);
+      mockDocRepo.count.mockResolvedValueOnce(1);
+
+      const response = await controller.listDocuments(validUser, {
+        page: 1,
+        limit: 10,
+        orderBy: 'createdAt',
+        orderDirection: 'desc',
+      });
+      const item = response.items[0]!;
+
+      expect(item.fileExtension).toBe('pdf');
+      expect(item.originalFileName).toBe('protocol.pdf');
+      expect(item.mimeType).toBe('application/pdf');
+      expect(item.fileSize).toBe(1024);
+      expect(item.checksum).toBe('b'.repeat(64));
+      expect(item.storageReference).toBe(
+        `doc-storage:${doc.id.toString()}:${doc.currentVersionId}`,
+      );
+      expect(item.status).toBe('ACTIVE');
+      expect(item.isDeleted).toBe(false);
+      expect(item.versionNumber).toBe(1);
+      expect(item.versionCount).toBe(1);
+    });
+  });
+
+  describe('2b. GET /api/v1/ai/knowledge/documents/capabilities (Authoritative Contract)', () => {
+    it('returns authoritative upload size limits, permitted MIME types, and visibility scopes', () => {
+      const capabilities = controller.getCapabilities();
+
+      expect(capabilities.maxFileSizeBytes).toBe(10 * 1024 * 1024);
+      expect(capabilities.maxFileSizeMb).toBe(10);
+      expect(capabilities.allowedMimeTypes).toEqual(
+        expect.arrayContaining(['application/pdf', 'text/markdown', 'text/plain']),
+      );
+      expect(capabilities.allowedExtensions).toEqual(
+        expect.arrayContaining(['.pdf', '.docx', '.md', '.txt']),
+      );
+      expect(capabilities.supportedVisibilityScopes).toEqual(
+        expect.arrayContaining([
+          VisibilityScope.ALL_STAFF,
+          VisibilityScope.CLINICAL_STAFF,
+          VisibilityScope.MANAGEMENT,
+        ]),
+      );
     });
   });
 
@@ -679,6 +770,177 @@ describe('AiDocumentController (Unit & REST Contract)', () => {
 
       expect(cancelled.status).toBe(IngestionStatus.CANCELLED);
       expect(mockIngestionRepo.save).toHaveBeenCalledWith(job);
+    });
+  });
+
+  describe('14. Document Lifecycle & RBAC Enforcement (KC.09)', () => {
+    it('rejects soft deletion when user is a viewer and not the document uploader', async () => {
+      const doc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Protected Protocol',
+        uploadedBy: 'usr_different_owner',
+        initialVersion: {
+          originalFileName: 'protected.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 1024,
+          checksum: 'e'.repeat(64),
+          storageKey: 'tenants/t1/prot.pdf',
+        },
+      });
+
+      mockDocRepo.findById.mockResolvedValueOnce(doc);
+
+      await expect(controller.deleteDocument(doc.id.toString(), viewerUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('successfully restores soft-deleted document, marks ACTIVE and enqueues re-ingestion', async () => {
+      const doc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Restorable Doc',
+        uploadedBy: therapistUser,
+        initialVersion: {
+          originalFileName: 'restore.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 1024,
+          checksum: 'f'.repeat(64),
+          storageKey: 'tenants/t1/res.pdf',
+          uploadedBy: therapistUser,
+        },
+      });
+      doc.softDelete(therapistUser);
+      expect(doc.isDeleted()).toBe(true);
+
+      mockDocRepo.findById.mockResolvedValueOnce(doc);
+      mockIngestionRepo.save.mockImplementation(async (j) => j);
+
+      const response = await controller.restoreDocument(doc.id.toString(), validUser);
+
+      expect(doc.isDeleted()).toBe(false);
+      expect(response.status).toBe('ACTIVE');
+      expect(response.isDeleted).toBe(false);
+      expect(mockDocRepo.save).toHaveBeenCalledWith(doc);
+      expect(mockIngestionRepo.save).toHaveBeenCalled();
+    });
+
+    it('rejects restore on non-deleted document with BadRequestException', async () => {
+      const doc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Active Doc',
+        uploadedBy: therapistUser,
+        initialVersion: {
+          originalFileName: 'active.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 1024,
+          checksum: '1'.repeat(64),
+          storageKey: 'tenants/t1/act.pdf',
+        },
+      });
+
+      mockDocRepo.findById.mockResolvedValueOnce(doc);
+
+      await expect(controller.restoreDocument(doc.id.toString(), validUser)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('rejects restore when caller has viewer role without management clearance', async () => {
+      const doc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Active Doc',
+        uploadedBy: 'another_user',
+        initialVersion: {
+          originalFileName: 'active.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 1024,
+          checksum: '2'.repeat(64),
+          storageKey: 'tenants/t1/act2.pdf',
+        },
+      });
+      doc.softDelete('another_user');
+
+      mockDocRepo.findById.mockResolvedValueOnce(doc);
+
+      await expect(controller.restoreDocument(doc.id.toString(), viewerUser)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('reprocesses active document, purges previous vectors and returns 202 ACCEPTED', async () => {
+      const doc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Document to Reprocess',
+        uploadedBy: therapistUser,
+        initialVersion: {
+          originalFileName: 'reprocess.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 2048,
+          checksum: '3'.repeat(64),
+          storageKey: 'tenants/t1/rep.pdf',
+          uploadedBy: therapistUser,
+        },
+      });
+
+      mockDocRepo.findById.mockResolvedValueOnce(doc);
+      mockIngestionRepo.findByVersionId.mockResolvedValueOnce([]);
+      mockIngestionRepo.save.mockImplementation(async (j) => j);
+
+      const job = await controller.reprocessDocument(doc.id.toString(), managerUser);
+
+      expect(job.status).toBe(IngestionStatus.UPLOADED);
+      expect(mockIngestionRepo.save).toHaveBeenCalled();
+    });
+
+    it('rejects reprocess when an ingestion job is already active', async () => {
+      const doc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Busy Document',
+        uploadedBy: therapistUser,
+        initialVersion: {
+          originalFileName: 'busy.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 2048,
+          checksum: '4'.repeat(64),
+          storageKey: 'tenants/t1/busy.pdf',
+        },
+      });
+
+      const activeJob = IngestionJob.create({
+        tenantId: tenantA,
+        documentId: doc.id.toString(),
+        documentVersionId: doc.currentVersionId!,
+      });
+      activeJob.startValidation();
+
+      mockDocRepo.findById.mockResolvedValueOnce(doc);
+      mockIngestionRepo.findByVersionId.mockResolvedValueOnce([activeJob]);
+
+      await expect(controller.reprocessDocument(doc.id.toString(), validUser)).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('rejects reprocess on soft-deleted document with NotFoundException', async () => {
+      const doc = KnowledgeDocument.create({
+        tenantId: tenantA,
+        title: 'Deleted Doc',
+        uploadedBy: therapistUser,
+        initialVersion: {
+          originalFileName: 'deleted.pdf',
+          mimeType: 'application/pdf',
+          fileSize: 1024,
+          checksum: '5'.repeat(64),
+          storageKey: 'tenants/t1/del5.pdf',
+        },
+      });
+      doc.softDelete(therapistUser);
+
+      mockDocRepo.findById.mockResolvedValueOnce(doc);
+
+      await expect(controller.reprocessDocument(doc.id.toString(), validUser)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 });

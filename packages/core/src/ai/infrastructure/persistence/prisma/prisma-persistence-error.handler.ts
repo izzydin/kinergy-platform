@@ -13,7 +13,8 @@ export type EntityContext =
   | 'AiConversationTurn'
   | 'AiConversationMessage'
   | 'AiConversationAuditLog'
-  | 'AiConversationCitation';
+  | 'AiConversationCitation'
+  | 'AiMessageFeedback';
 
 /**
  * Translates Prisma and PostgreSQL database errors into strongly typed domain exceptions.
@@ -49,6 +50,10 @@ export class PrismaPersistenceErrorHandler {
           case 'AiConversationCitation':
             throw new ConversationPersistenceException(
               `Citation record '${identifier}' not found.`,
+            );
+          case 'AiMessageFeedback':
+            throw new ConversationPersistenceException(
+              `Feedback record '${identifier}' not found.`,
             );
         }
       }

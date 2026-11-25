@@ -63,6 +63,12 @@ export class GetMessageCitationsUseCase {
       throw new TenantOwnershipViolationError('AiConversation', conversationId, tenantId);
     }
 
+    const actorRoles = input.actorRoles ?? input.userRoles ?? [];
+    const isPrivileged = actorRoles.some((r) => ['Owner', 'Director', 'Admin'].includes(r));
+    if (input.userId && conversation.userId !== input.userId && !isPrivileged) {
+      throw new TenantOwnershipViolationError('AiConversation', conversationId, tenantId);
+    }
+
     // 2. Verify Message Existence & Association
     const message = await this.messageRepo.findById(tenantId, conversationId, messageId);
     if (!message) {
@@ -72,14 +78,14 @@ export class GetMessageCitationsUseCase {
       throw new MessageNotFoundError(messageId, undefined, conversationId);
     }
 
-    // 3. Retrieve Citations from Repository
+    // 3. Retrieve Citations from Repository & Enforce Deterministic Order by citationPosition ASC
     const citations = await this.citationRepo.listByMessage(tenantId, conversationId, messageId);
+    const sortedCitations = [...citations].sort((a, b) => a.citationPosition - b.citationPosition);
 
     // 4. Map Citations with Dynamic Document Preview Availability
-    const actorRoles = input.actorRoles ?? input.userRoles ?? [];
     const mappedCitations: CitationDetailDto[] = [];
 
-    for (const citation of citations) {
+    for (const citation of sortedCitations) {
       let previewStatus: CitationPreviewStatus = 'DOCUMENT_AVAILABLE';
       let documentTitle = citation.documentTitleSnapshot;
       let originalFileName: string | null = null;
@@ -115,7 +121,13 @@ export class GetMessageCitationsUseCase {
             let version = citation.documentVersionId
               ? doc.getVersionById(citation.documentVersionId)
               : undefined;
-            if (!version) {
+            if (!version && !citation.documentVersionId) {
+              version = doc.getCurrentVersion();
+            } else if (!version && citation.documentVersionId && doc.getCurrentVersion()) {
+              if (previewStatus === 'DOCUMENT_AVAILABLE') {
+                previewStatus = 'EXCERPT_ONLY';
+              }
+            } else if (!version) {
               version = doc.getCurrentVersion();
             }
             if (version) {
@@ -123,6 +135,20 @@ export class GetMessageCitationsUseCase {
               mimeType = version.mimeType;
               fileSizeBytes = version.fileSize;
               documentVersionNumber = version.versionNumber;
+
+              const previewableMimes = new Set([
+                'application/pdf',
+                'text/plain',
+                'text/markdown',
+                'text/csv',
+                'application/json',
+              ]);
+              if (
+                previewStatus === 'DOCUMENT_AVAILABLE' &&
+                !previewableMimes.has(version.mimeType.toLowerCase())
+              ) {
+                previewStatus = 'UNSUPPORTED_FORMAT';
+              }
             }
           }
         } catch {
@@ -139,7 +165,9 @@ export class GetMessageCitationsUseCase {
             ? 'Document has been archived or soft-deleted.'
             : previewStatus === 'DOCUMENT_RESTRICTED'
               ? 'Document access is restricted by role security policy.'
-              : 'Full document is not available for preview.';
+              : previewStatus === 'UNSUPPORTED_FORMAT'
+                ? 'Inline preview is not supported for this file format.'
+                : 'Full document is not available for preview.';
 
       mappedCitations.push({
         id: citation.id.value,

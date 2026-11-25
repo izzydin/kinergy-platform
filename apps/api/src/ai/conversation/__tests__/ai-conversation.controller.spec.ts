@@ -698,5 +698,54 @@ describe('AI-09.3-BE.05.03 — AiConversationController Unit Tests', () => {
       expect(response.turnStatus).toBe(TurnStatus.CANCELLED);
       expect(response.isAlreadyCancelled).toBe(false);
     });
+
+    it('2. delegates message cancellation to CancelConversationTurnUseCase with messageId', async () => {
+      cancelTurnUseCase.execute.mockResolvedValueOnce({
+        conversationId: 'conv_1',
+        turnId: 'turn_1',
+        turnStatus: TurnStatus.CANCELLED,
+        assistantMessageId: 'msg_asst_1',
+        isAlreadyCancelled: false,
+        cancelledAt: '2026-11-23T19:00:00.000Z',
+      });
+
+      const response = await controller.cancelMessage(mockAuthUser, 'conv_1', 'msg_asst_1', {
+        reason: 'User stopped message generation',
+      });
+
+      expect(cancelTurnUseCase.execute).toHaveBeenCalledWith({
+        tenantId: mockAuthUser.tenantId,
+        userId: mockAuthUser.actorId,
+        conversationId: 'conv_1',
+        messageId: 'msg_asst_1',
+        reason: 'User stopped message generation',
+      });
+      expect(response.turnStatus).toBe(TurnStatus.CANCELLED);
+      expect(response.assistantMessageId).toBe('msg_asst_1');
+    });
+
+    it('3. delegates active conversation generation cancellation to CancelConversationTurnUseCase', async () => {
+      cancelTurnUseCase.execute.mockResolvedValueOnce({
+        conversationId: 'conv_1',
+        turnId: 'turn_active',
+        turnStatus: TurnStatus.CANCELLED,
+        assistantMessageId: 'msg_asst_active',
+        isAlreadyCancelled: false,
+        cancelledAt: '2026-11-23T19:00:00.000Z',
+      });
+
+      const response = await controller.cancelActiveGeneration(mockAuthUser, 'conv_1', {
+        reason: 'User aborted active conversation generation',
+      });
+
+      expect(cancelTurnUseCase.execute).toHaveBeenCalledWith({
+        tenantId: mockAuthUser.tenantId,
+        userId: mockAuthUser.actorId,
+        conversationId: 'conv_1',
+        reason: 'User aborted active conversation generation',
+      });
+      expect(response.turnStatus).toBe(TurnStatus.CANCELLED);
+      expect(response.turnId).toBe('turn_active');
+    });
   });
 });

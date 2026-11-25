@@ -9,6 +9,9 @@ import {
   PrivilegedInspectConversationResult,
   CancelConversationTurnResult,
   AiSourceAttributionService,
+  MessageFeedbackDto,
+  RevokeMessageFeedbackResult,
+  RegenerateTurnResult,
 } from '@kinergy-platform/core';
 import {
   CreateConversationResponseDto,
@@ -22,6 +25,9 @@ import {
   TurnSummaryResponseDto,
   MessageResponseDto,
   CancelTurnResponseDto,
+  MessageFeedbackResponseDto,
+  RevokeFeedbackResponseDto,
+  RegenerateTurnResponseDto,
 } from '../dtos/ai-conversation.dtos';
 
 /**
@@ -184,6 +190,43 @@ export class AiConversationResponseMapper {
     dto.assistantMessageId = result.assistantMessageId;
     dto.isAlreadyCancelled = result.isAlreadyCancelled;
     dto.cancelledAt = result.cancelledAt;
+    return dto;
+  }
+
+  public static toMessageFeedbackResponse(
+    feedback: MessageFeedbackDto,
+  ): MessageFeedbackResponseDto {
+    const dto = new MessageFeedbackResponseDto();
+    dto.id = feedback.id;
+    dto.messageId = feedback.messageId;
+    dto.conversationId = feedback.conversationId;
+    dto.userId = feedback.userId;
+    dto.rating = feedback.rating;
+    dto.explanation = feedback.explanation;
+    dto.category = feedback.category;
+    dto.createdAt = feedback.createdAt;
+    dto.updatedAt = feedback.updatedAt;
+    return dto;
+  }
+
+  public static toRevokeFeedbackResponse(
+    result: RevokeMessageFeedbackResult,
+  ): RevokeFeedbackResponseDto {
+    const dto = new RevokeFeedbackResponseDto();
+    dto.revoked = result.revoked;
+    dto.messageId = result.messageId;
+    return dto;
+  }
+
+  public static toRegenerateTurnResponse(result: RegenerateTurnResult): RegenerateTurnResponseDto {
+    const dto = new RegenerateTurnResponseDto();
+    dto.conversationId = result.conversationId;
+    dto.turnId = result.turnId;
+    dto.turnIndex = result.turnIndex;
+    dto.attemptNumber = result.attemptNumber;
+    dto.assistantMessageId = result.assistantMessageId;
+    dto.status = result.status;
+    dto.userPrompt = result.userPrompt;
     return dto;
   }
 }

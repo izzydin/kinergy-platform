@@ -10,7 +10,12 @@ export interface MessageCitationsProps {
   readonly conversationId?: string;
   readonly messageId?: string;
   readonly displayMode?: 'drawer' | 'dialog';
-  readonly onPreviewDocument?: (documentId: string, pageNumber?: number | null) => void;
+  readonly onPreviewDocument?: (
+    documentId: string,
+    pageNumber?: number | null,
+    citationId?: string | null,
+    messageId?: string | null,
+  ) => void;
   readonly className?: string;
 }
 
@@ -109,6 +114,7 @@ export const MessageCitations: React.FC<MessageCitationsProps> = React.memo(
               citationIndex={selectedCitation.index}
               conversationId={conversationId}
               messageId={messageId}
+              onPreviewDocument={onPreviewDocument}
             />
           ))}
       </>

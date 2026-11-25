@@ -38,7 +38,12 @@ export interface SourceDetailsDrawerProps {
   /** Parent assistant message ID for remote verification */
   readonly messageId?: string;
   /** Callback when user clicks 'Abrir documento completo' */
-  readonly onPreviewDocument?: (documentId: string, pageNumber?: number | null) => void;
+  readonly onPreviewDocument?: (
+    documentId: string,
+    pageNumber?: number | null,
+    citationId?: string | null,
+    messageId?: string | null,
+  ) => void;
   /** Custom CSS classes */
   readonly className?: string;
 }
@@ -129,41 +134,48 @@ export const SourceDetailsDrawer: React.FC<SourceDetailsDrawerProps> = React.mem
       enabled: shouldFetch,
     });
 
+    // Guard against race conditions when user rapidly switches citations
+    const isMatchingRemote = Boolean(
+      remoteDetail && citation?.citationId && remoteDetail.id === citation.citationId,
+    );
+    const activeRemoteDetail = isMatchingRemote ? remoteDetail : null;
+
     // Merge remote verified detail with fallback citation snapshot
     const displayTitle =
-      remoteDetail?.documentTitle ||
-      remoteDetail?.documentTitleSnapshot ||
+      activeRemoteDetail?.documentTitle ||
+      activeRemoteDetail?.documentTitleSnapshot ||
       citation?.documentTitle ||
       'Documento de conocimiento';
 
-    const documentId = remoteDetail?.documentId || citation?.documentId || '';
-    const originalFileName = remoteDetail?.originalFileName || citation?.originalFileName || null;
-    const mimeType = remoteDetail?.mimeType || citation?.mimeType || null;
-    const fileSizeBytes = remoteDetail?.fileSizeBytes ?? citation?.fileSizeBytes ?? null;
+    const documentId = activeRemoteDetail?.documentId || citation?.documentId || '';
+    const originalFileName =
+      activeRemoteDetail?.originalFileName || citation?.originalFileName || null;
+    const mimeType = activeRemoteDetail?.mimeType || citation?.mimeType || null;
+    const fileSizeBytes = activeRemoteDetail?.fileSizeBytes ?? citation?.fileSizeBytes ?? null;
     const versionNumber =
-      remoteDetail?.documentVersionNumber ?? citation?.documentVersionNumber ?? null;
+      activeRemoteDetail?.documentVersionNumber ?? citation?.documentVersionNumber ?? null;
 
     const excerpt =
-      remoteDetail?.excerpt || citation?.excerpt || 'Extracto de evidencia no disponible.';
-    const pageNumber = remoteDetail?.pageNumber ?? citation?.pageNumber;
-    const headingPath = remoteDetail?.headingPath ?? citation?.headingPath;
-    const relevanceScore = remoteDetail?.relevanceScore ?? citation?.relevanceScore;
-    const retrievalRank = remoteDetail?.retrievalRank ?? citation?.retrievalRank;
-    const sourceStrategy = remoteDetail?.sourceStrategy ?? citation?.sourceStrategy;
-    const chunkId = remoteDetail?.chunkId || citation?.chunkId;
+      activeRemoteDetail?.excerpt || citation?.excerpt || 'Extracto de evidencia no disponible.';
+    const pageNumber = activeRemoteDetail?.pageNumber ?? citation?.pageNumber;
+    const headingPath = activeRemoteDetail?.headingPath ?? citation?.headingPath;
+    const relevanceScore = activeRemoteDetail?.relevanceScore ?? citation?.relevanceScore;
+    const retrievalRank = activeRemoteDetail?.retrievalRank ?? citation?.retrievalRank;
+    const sourceStrategy = activeRemoteDetail?.sourceStrategy ?? citation?.sourceStrategy;
+    const chunkId = activeRemoteDetail?.chunkId || citation?.chunkId;
 
     const previewStatus =
-      remoteDetail?.previewStatus ?? citation?.previewStatus ?? 'DOCUMENT_AVAILABLE';
+      activeRemoteDetail?.previewStatus ?? citation?.previewStatus ?? 'DOCUMENT_AVAILABLE';
 
     const canPreview =
-      remoteDetail?.canPreview !== undefined
-        ? remoteDetail.canPreview
+      activeRemoteDetail?.canPreview !== undefined
+        ? activeRemoteDetail.canPreview
         : citation?.canPreview !== undefined
           ? citation.canPreview
           : previewStatus === 'DOCUMENT_AVAILABLE';
 
     const previewUnavailableReason =
-      remoteDetail?.previewUnavailableReason ?? citation?.previewUnavailableReason;
+      activeRemoteDetail?.previewUnavailableReason ?? citation?.previewUnavailableReason;
 
     const formattedScore =
       relevanceScore !== undefined && relevanceScore !== null
@@ -199,9 +211,9 @@ export const SourceDetailsDrawer: React.FC<SourceDetailsDrawerProps> = React.mem
 
     const handlePreviewClick = useCallback(() => {
       if (canPreview && documentId) {
-        onPreviewDocument?.(documentId, pageNumber);
+        onPreviewDocument?.(documentId, pageNumber, citation?.citationId, messageId);
       }
-    }, [canPreview, documentId, pageNumber, onPreviewDocument]);
+    }, [canPreview, documentId, pageNumber, citation?.citationId, messageId, onPreviewDocument]);
 
     if (!isOpen || !citation) {
       return null;

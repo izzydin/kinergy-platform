@@ -52,6 +52,30 @@ export class PrismaAiConversationMessageRepository implements IAiConversationMes
     }
   }
 
+  public async findMessageById(
+    tenantId: string,
+    messageId: MessageId | string,
+  ): Promise<AiConversationMessage | null> {
+    const msgIdStr = messageId instanceof MessageId ? messageId.value : messageId;
+
+    try {
+      const raw = await this.prisma.aiConversationMessage.findFirst({
+        where: {
+          id: msgIdStr,
+          tenantId,
+        },
+      });
+
+      if (!raw) {
+        return null;
+      }
+
+      return PrismaAiConversationMessageMapper.toDomain(raw);
+    } catch (err) {
+      PrismaPersistenceErrorHandler.handle(err, 'AiConversationMessage', msgIdStr, tenantId);
+    }
+  }
+
   public async findBySequenceNumber(
     tenantId: string,
     conversationId: ConversationId | string,

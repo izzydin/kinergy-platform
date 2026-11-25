@@ -274,7 +274,7 @@ describe('AI-09.4-CIT.05 — Source Details Drawer & Excerpt Rendering', () => {
       expect(previewBtn).toBeEnabled();
 
       fireEvent.click(previewBtn);
-      expect(onPreviewDocument).toHaveBeenCalledWith('doc-knee-101', 22);
+      expect(onPreviewDocument).toHaveBeenCalledWith('doc-knee-101', 22, 'cite-001', undefined);
     });
 
     it('renders archive alert banner and disables preview when DOCUMENT_SOFT_DELETED', () => {

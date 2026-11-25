@@ -3,6 +3,7 @@ import { conversationQueryKeys, type ConversationQueryScope } from './conversati
 import type {
   ConversationDetailResponse,
   ConversationListResponse,
+  MessageFeedbackResponse,
 } from '../types/conversation-contract.types';
 
 /**
@@ -15,6 +16,8 @@ export const CONVERSATION_CACHE_CONFIG = {
   detailStaleTimeMs: 15_000,
   /** Conversation message history cache stale time: 10 seconds */
   messagesStaleTimeMs: 10_000,
+  /** Message feedback cache stale time: 30 seconds */
+  feedbackStaleTimeMs: 30_000,
   /** Garbage collection time (cache retention): 10 minutes */
   gcTimeMs: 10 * 60 * 1000,
 } as const;
@@ -195,5 +198,77 @@ export const conversationCachePolicies = {
       conversation,
     );
     void this.invalidateConversationLists(queryClient, scope);
+  },
+
+  /**
+   * Invalidates citation queries for a specific message or entire conversation.
+   */
+  async invalidateCitations(
+    queryClient: QueryClient,
+    conversationId: string,
+    messageId?: string,
+    scope?: ConversationQueryScope,
+  ): Promise<void> {
+    const queryKey = messageId
+      ? conversationQueryKeys.messageCitations(conversationId, messageId, scope)
+      : conversationQueryKeys.citationsRoot(conversationId, scope);
+
+    await queryClient.invalidateQueries({ queryKey });
+  },
+
+  /**
+   * Clears preview and citation caches for a conversation to purge memory and sensitive preview tokens.
+   */
+  clearCitationPreviewCache(
+    queryClient: QueryClient,
+    conversationId: string,
+    scope?: ConversationQueryScope,
+  ): void {
+    const rootKey = conversationQueryKeys.citationsRoot(conversationId, scope);
+    void queryClient.cancelQueries({ queryKey: rootKey });
+    queryClient.removeQueries({ queryKey: rootKey });
+  },
+
+  /**
+   * Invalidates feedback query for a specific message or entire conversation.
+   */
+  async invalidateMessageFeedback(
+    queryClient: QueryClient,
+    conversationId: string,
+    messageId?: string,
+    scope?: ConversationQueryScope,
+  ): Promise<void> {
+    const queryKey = messageId
+      ? conversationQueryKeys.feedback(conversationId, messageId, scope)
+      : conversationQueryKeys.feedbackRoot(conversationId, scope);
+
+    await queryClient.invalidateQueries({ queryKey });
+  },
+
+  /**
+   * Optimistically sets or updates feedback in query cache.
+   */
+  setOptimisticFeedback(
+    queryClient: QueryClient,
+    conversationId: string,
+    messageId: string,
+    feedback: MessageFeedbackResponse | null,
+    scope?: ConversationQueryScope,
+  ): void {
+    const queryKey = conversationQueryKeys.feedback(conversationId, messageId, scope);
+    queryClient.setQueryData<MessageFeedbackResponse | null>(queryKey, feedback);
+  },
+
+  /**
+   * Removes feedback query from cache for a message.
+   */
+  removeMessageFeedback(
+    queryClient: QueryClient,
+    conversationId: string,
+    messageId: string,
+    scope?: ConversationQueryScope,
+  ): void {
+    const queryKey = conversationQueryKeys.feedback(conversationId, messageId, scope);
+    queryClient.removeQueries({ queryKey });
   },
 };

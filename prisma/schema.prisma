@@ -1159,6 +1159,11 @@ enum TurnStatus {
   INTERRUPTED
 }
 
+enum FeedbackRating {
+  POSITIVE
+  NEGATIVE
+}
+
 model AiConversation {
   id             String    @id @default(uuid()) @map("id")
   tenantId       String    @map("tenant_id")
@@ -1174,6 +1179,7 @@ model AiConversation {
 
   turns    AiConversationTurn[]
   messages AiConversationMessage[]
+  feedback AiMessageFeedback[]     @relation("ConversationToFeedback")
 
   @@unique([id, tenantId], name: "uq_conversation_id_tenant")
   @@unique([tenantId, userId, idempotencyKey], name: "uq_conversation_user_idempotency")
@@ -1236,6 +1242,7 @@ model AiConversationMessage {
   turn           AiConversationTurn @relation("TurnAllMessages", fields: [turnId, conversationId, tenantId], references: [id, conversationId, tenantId], onDelete: Cascade)
   activeForTurns AiConversationTurn[] @relation("TurnActiveAttempt")
   citations      AiConversationCitation[] @relation("MessageToCitations")
+  feedback       AiMessageFeedback[]      @relation("MessageToFeedback")
 
   @@unique([id, turnId, conversationId, tenantId], name: "uq_msg_id_turn_conv_tenant")
   @@unique([conversationId, sequenceNumber], name: "uq_conversation_sequence_number")
@@ -1276,6 +1283,29 @@ model AiConversationCitation {
   @@index([tenantId, documentId], name: "idx_citation_tenant_document")
   @@index([chunkId], name: "idx_citation_chunk")
   @@map("ai_conversation_citations")
+}
+
+model AiMessageFeedback {
+  id             String         @id @default(uuid()) @map("id")
+  tenantId       String         @map("tenant_id")
+  conversationId String         @map("conversation_id")
+  messageId      String         @map("message_id")
+  userId         String         @map("user_id")
+  rating         FeedbackRating @map("rating")
+  explanation    String?        @map("explanation") @db.Text
+  category       String?        @map("category") @db.VarChar(64)
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  message      AiConversationMessage @relation("MessageToFeedback", fields: [messageId], references: [id], onDelete: Cascade)
+  conversation AiConversation        @relation("ConversationToFeedback", fields: [conversationId, tenantId], references: [id, tenantId], onDelete: Cascade)
+
+  @@unique([messageId, userId], name: "uq_message_user_feedback")
+  @@unique([id, tenantId], name: "uq_feedback_id_tenant")
+  @@index([conversationId], name: "idx_feedback_conversation")
+  @@index([tenantId, userId], name: "idx_feedback_tenant_user")
+  @@index([messageId], name: "idx_feedback_message")
+  @@map("ai_message_feedback")
 }
 
 model AiConversationAuditLog {

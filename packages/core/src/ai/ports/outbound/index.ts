@@ -21,3 +21,5 @@ export * from './ai-conversation-turn-repository.port';
 export * from './ai-conversation-message-repository.port';
 export * from './ai-conversation-audit-repository.port';
 export * from './ai-conversation-citation-repository.port';
+export * from './ai-message-feedback-repository.port';
+export * from './document-storage.port';

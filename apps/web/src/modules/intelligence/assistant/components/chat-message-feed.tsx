@@ -8,11 +8,19 @@ export interface ChatMessageFeedProps {
   messages: readonly ChatMessage[];
   conversationId?: string;
   isLoading?: boolean;
+  isGenerating?: boolean;
   onPromptSuggestionClick?: (prompt: string) => void;
   onRetryMessage?: (messageId: string) => void;
+  onRegenerateMessage?: (messageId: string) => void;
   hasMoreMessages?: boolean;
   isLoadingMore?: boolean;
   onLoadMoreMessages?: () => void;
+  onPreviewDocument?: (
+    documentId: string,
+    pageNumber?: number | null,
+    citationId?: string | null,
+    messageId?: string | null,
+  ) => void;
 }
 
 const CLINICAL_SUGGESTIONS = [
@@ -38,11 +46,14 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
     messages,
     conversationId,
     isLoading = false,
+    isGenerating = false,
     onPromptSuggestionClick,
     onRetryMessage,
+    onRegenerateMessage,
     hasMoreMessages = false,
     isLoadingMore = false,
     onLoadMoreMessages,
+    onPreviewDocument,
   }) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const [showScrollBottom, setShowScrollBottom] = useState(false);
@@ -68,6 +79,17 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       });
     }, [messages]);
+
+    // Identify latest assistant message for regeneration eligibility (FB.05)
+    const latestAssistantMessageId = useMemo(() => {
+      for (let i = orderedMessages.length - 1; i >= 0; i--) {
+        const item = orderedMessages[i];
+        if (item && item.role === 'assistant') {
+          return item.id;
+        }
+      }
+      return null;
+    }, [orderedMessages]);
 
     // Stable retry handler passed to memoized children
     const handleItemRetry = React.useCallback(
@@ -226,14 +248,22 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
           )}
 
           {/* Render Canonical Messages */}
-          {orderedMessages.map((msg) => (
-            <ChatMessageItem
-              key={msg.id}
-              message={msg}
-              conversationId={conversationId}
-              onRetry={onRetryMessage ? handleItemRetry : undefined}
-            />
-          ))}
+          {orderedMessages.map((msg) => {
+            const isLatestAssistant = msg.id === latestAssistantMessageId;
+            const isEligibleForRegeneration = isLatestAssistant && msg.status !== 'pending';
+
+            return (
+              <ChatMessageItem
+                key={msg.id}
+                message={msg}
+                conversationId={conversationId}
+                onRetry={onRetryMessage ? handleItemRetry : undefined}
+                onRegenerate={isEligibleForRegeneration ? onRegenerateMessage : undefined}
+                isRegenerating={isGenerating}
+                onPreviewDocument={onPreviewDocument}
+              />
+            );
+          })}
         </div>
 
         {/* Floating Scroll-to-Bottom Button */}

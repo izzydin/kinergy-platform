@@ -15,6 +15,17 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
   skipAuth?: boolean;
 }
 
+export interface UploadProgress {
+  readonly loaded: number;
+  readonly total: number;
+  readonly percentage: number;
+  readonly lengthComputable: boolean;
+}
+
+export interface UploadOptions extends RequestOptions {
+  readonly onProgress?: (progress: UploadProgress) => void;
+}
+
 export type RequestInterceptor = (config: {
   url: string;
   init: RequestInit;
@@ -108,6 +119,161 @@ export class HttpClient {
 
   async delete<T>(path: string, options?: RequestOptions): Promise<T> {
     return this.request<T>(path, { ...options, method: 'DELETE' });
+  }
+
+  async getBlob(path: string, options?: RequestOptions): Promise<Blob> {
+    const { params, headers: customHeaders, skipAuth, signal, ...restInit } = options || {};
+
+    const url = this.buildUrl(path, params);
+    const headers = new Headers(customHeaders || {});
+
+    if (this.tenantIdGetter && !headers.has('X-Tenant-ID')) {
+      const tenantId = await this.tenantIdGetter();
+      if (tenantId) {
+        headers.set('X-Tenant-ID', tenantId);
+      }
+    }
+
+    if (!skipAuth && this.authTokenGetter && !headers.has('Authorization')) {
+      const token = await this.authTokenGetter();
+      if (token) {
+        headers.set('Authorization', `Bearer ${token}`);
+      }
+    }
+
+    let requestConfig: { url: string; init: RequestInit } = {
+      url,
+      init: {
+        ...restInit,
+        headers,
+        signal,
+        method: 'GET',
+      },
+    };
+
+    for (const interceptor of this.requestInterceptors) {
+      requestConfig = await interceptor(requestConfig);
+    }
+
+    let response: Response;
+    try {
+      response = await fetch(requestConfig.url, requestConfig.init);
+    } catch (error) {
+      if (
+        (error instanceof DOMException && error.name === 'AbortError') ||
+        (error &&
+          typeof error === 'object' &&
+          'name' in error &&
+          (error as { name?: string }).name === 'AbortError')
+      ) {
+        throw new RequestCanceledError();
+      }
+      throw normalizeApiError(error);
+    }
+
+    for (const interceptor of this.responseInterceptors) {
+      response = await interceptor(response, requestConfig);
+    }
+
+    if (!response.ok) {
+      const errorPayload = await response.json().catch(() => ({}));
+      const statusCode = response.status;
+      throw normalizeApiError({ statusCode, ...errorPayload });
+    }
+
+    return response.blob();
+  }
+
+  async upload<T>(path: string, formData: FormData, options?: UploadOptions): Promise<T> {
+    const { params, headers: customHeaders, skipAuth, signal, onProgress } = options || {};
+    const url = this.buildUrl(path, params);
+
+    const headers: Record<string, string> = { ...customHeaders };
+
+    if (this.tenantIdGetter && !headers['X-Tenant-ID']) {
+      const tenantId = await this.tenantIdGetter();
+      if (tenantId) {
+        headers['X-Tenant-ID'] = tenantId;
+      }
+    }
+
+    if (!skipAuth && this.authTokenGetter && !headers['Authorization']) {
+      const token = await this.authTokenGetter();
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+    }
+
+    if (typeof XMLHttpRequest !== 'undefined' && onProgress) {
+      return new Promise<T>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', url, true);
+
+        for (const [key, val] of Object.entries(headers)) {
+          xhr.setRequestHeader(key, val);
+        }
+
+        if (signal) {
+          if (signal.aborted) {
+            reject(new RequestCanceledError());
+            return;
+          }
+          signal.addEventListener('abort', () => {
+            xhr.abort();
+            reject(new RequestCanceledError());
+          });
+        }
+
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable && event.total > 0) {
+            const percentage = Math.min(99, Math.round((event.loaded / event.total) * 100));
+            onProgress({
+              loaded: event.loaded,
+              total: event.total,
+              percentage,
+              lengthComputable: true,
+            });
+          } else {
+            onProgress({
+              loaded: event.loaded,
+              total: 0,
+              percentage: 0,
+              lengthComputable: false,
+            });
+          }
+        };
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            try {
+              const parsed = xhr.responseText ? JSON.parse(xhr.responseText) : null;
+              resolve(parsed as T);
+            } catch {
+              reject(new ServerError('Invalid JSON response from server.', xhr.status));
+            }
+          } else {
+            try {
+              const errPayload = xhr.responseText ? JSON.parse(xhr.responseText) : {};
+              reject(normalizeApiError({ statusCode: xhr.status, ...errPayload }));
+            } catch {
+              reject(normalizeApiError({ statusCode: xhr.status, message: xhr.statusText }));
+            }
+          }
+        };
+
+        xhr.onerror = () => {
+          reject(normalizeApiError({ statusCode: 0, message: 'Network connection failed.' }));
+        };
+
+        xhr.send(formData);
+      });
+    }
+
+    return this.request<T>(path, {
+      ...options,
+      method: 'POST',
+      body: formData,
+    });
   }
 
   private async request<T>(

@@ -20,6 +20,13 @@ import {
   CancelConversationTurnUseCase,
   GetMessageCitationsUseCase,
   GetCitationDetailUseCase,
+  GetCitationPreviewUseCase,
+  GetCitationDocumentStreamUseCase,
+  AI_MESSAGE_FEEDBACK_REPOSITORY_PORT,
+  SubmitMessageFeedbackUseCase,
+  GetMessageFeedbackUseCase,
+  RevokeMessageFeedbackUseCase,
+  RegenerateConversationTurnUseCase,
   AI_TURN_DISPATCHER_PORT,
   IAiTurnDispatcherPort,
 } from '@kinergy-platform/core';
@@ -29,9 +36,15 @@ import {
   PrismaAiConversationMessageRepository,
   PrismaAiConversationAuditRepository,
   PrismaAiConversationCitationRepository,
+  PrismaAiMessageFeedbackRepository,
   PrismaKnowledgeDocumentRepository,
   PrismaAiConversationTransactionRunner,
 } from '@kinergy-platform/core/server';
+import {
+  OBJECT_STORAGE_PORT,
+  ObjectStoragePort,
+} from '../../../platform/storage/ports/object-storage.port';
+import { PreviewTokenService } from '../../services/preview-token.service';
 
 /**
  * Dependency injection providers for AI Conversation persistence and application use cases.
@@ -87,6 +100,15 @@ export const aiConversationProviders: Provider[] = [
   {
     provide: AI_CONVERSATION_CITATION_REPOSITORY_PORT,
     useExisting: PrismaAiConversationCitationRepository,
+  },
+  {
+    provide: PrismaAiMessageFeedbackRepository,
+    useFactory: (prisma: PrismaService) => new PrismaAiMessageFeedbackRepository(prisma),
+    inject: [PrismaService],
+  },
+  {
+    provide: AI_MESSAGE_FEEDBACK_REPOSITORY_PORT,
+    useExisting: PrismaAiMessageFeedbackRepository,
   },
   {
     provide: PrismaKnowledgeDocumentRepository,
@@ -214,8 +236,13 @@ export const aiConversationProviders: Provider[] = [
     useFactory: (
       convRepo: PrismaAiConversationRepository,
       msgRepo: PrismaAiConversationMessageRepository,
-    ) => new GetMessageHistoryUseCase(convRepo, msgRepo),
-    inject: [PrismaAiConversationRepository, PrismaAiConversationMessageRepository],
+      citationRepo: PrismaAiConversationCitationRepository,
+    ) => new GetMessageHistoryUseCase(convRepo, msgRepo, citationRepo),
+    inject: [
+      PrismaAiConversationRepository,
+      PrismaAiConversationMessageRepository,
+      PrismaAiConversationCitationRepository,
+    ],
   },
   {
     provide: UpdateConversationTitleUseCase,
@@ -291,6 +318,101 @@ export const aiConversationProviders: Provider[] = [
       PrismaAiConversationMessageRepository,
       PrismaAiConversationCitationRepository,
       { token: PrismaKnowledgeDocumentRepository, optional: true },
+    ],
+  },
+  {
+    provide: PreviewTokenService,
+    useClass: PreviewTokenService,
+  },
+  {
+    provide: GetCitationPreviewUseCase,
+    useFactory: (
+      convRepo: PrismaAiConversationRepository,
+      msgRepo: PrismaAiConversationMessageRepository,
+      citationRepo: PrismaAiConversationCitationRepository,
+      docRepo?: PrismaKnowledgeDocumentRepository,
+      storagePort?: ObjectStoragePort,
+    ) => new GetCitationPreviewUseCase(convRepo, msgRepo, citationRepo, docRepo, storagePort),
+    inject: [
+      PrismaAiConversationRepository,
+      PrismaAiConversationMessageRepository,
+      PrismaAiConversationCitationRepository,
+      { token: PrismaKnowledgeDocumentRepository, optional: true },
+      { token: OBJECT_STORAGE_PORT, optional: true },
+    ],
+  },
+  {
+    provide: GetCitationDocumentStreamUseCase,
+    useFactory: (
+      convRepo: PrismaAiConversationRepository,
+      msgRepo: PrismaAiConversationMessageRepository,
+      citationRepo: PrismaAiConversationCitationRepository,
+      docRepo: PrismaKnowledgeDocumentRepository,
+      storagePort: ObjectStoragePort,
+    ) =>
+      new GetCitationDocumentStreamUseCase(convRepo, msgRepo, citationRepo, docRepo, storagePort),
+    inject: [
+      PrismaAiConversationRepository,
+      PrismaAiConversationMessageRepository,
+      PrismaAiConversationCitationRepository,
+      PrismaKnowledgeDocumentRepository,
+      OBJECT_STORAGE_PORT,
+    ],
+  },
+  {
+    provide: SubmitMessageFeedbackUseCase,
+    useFactory: (
+      convRepo: PrismaAiConversationRepository,
+      msgRepo: PrismaAiConversationMessageRepository,
+      feedbackRepo: PrismaAiMessageFeedbackRepository,
+    ) => new SubmitMessageFeedbackUseCase(convRepo, msgRepo, feedbackRepo),
+    inject: [
+      PrismaAiConversationRepository,
+      PrismaAiConversationMessageRepository,
+      PrismaAiMessageFeedbackRepository,
+    ],
+  },
+  {
+    provide: GetMessageFeedbackUseCase,
+    useFactory: (
+      convRepo: PrismaAiConversationRepository,
+      msgRepo: PrismaAiConversationMessageRepository,
+      feedbackRepo: PrismaAiMessageFeedbackRepository,
+    ) => new GetMessageFeedbackUseCase(convRepo, msgRepo, feedbackRepo),
+    inject: [
+      PrismaAiConversationRepository,
+      PrismaAiConversationMessageRepository,
+      PrismaAiMessageFeedbackRepository,
+    ],
+  },
+  {
+    provide: RevokeMessageFeedbackUseCase,
+    useFactory: (
+      convRepo: PrismaAiConversationRepository,
+      msgRepo: PrismaAiConversationMessageRepository,
+      feedbackRepo: PrismaAiMessageFeedbackRepository,
+    ) => new RevokeMessageFeedbackUseCase(convRepo, msgRepo, feedbackRepo),
+    inject: [
+      PrismaAiConversationRepository,
+      PrismaAiConversationMessageRepository,
+      PrismaAiMessageFeedbackRepository,
+    ],
+  },
+  {
+    provide: RegenerateConversationTurnUseCase,
+    useFactory: (
+      convRepo: PrismaAiConversationRepository,
+      turnRepo: PrismaAiConversationTurnRepository,
+      msgRepo: PrismaAiConversationMessageRepository,
+      txRunner: PrismaAiConversationTransactionRunner,
+      dispatcher?: IAiTurnDispatcherPort,
+    ) => new RegenerateConversationTurnUseCase(convRepo, turnRepo, msgRepo, txRunner, dispatcher),
+    inject: [
+      PrismaAiConversationRepository,
+      PrismaAiConversationTurnRepository,
+      PrismaAiConversationMessageRepository,
+      PrismaAiConversationTransactionRunner,
+      { token: AI_TURN_DISPATCHER_PORT, optional: true },
     ],
   },
 ];
