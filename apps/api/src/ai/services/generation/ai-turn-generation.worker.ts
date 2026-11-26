@@ -113,6 +113,9 @@ export class AiTurnGenerationWorker implements OnModuleInit, OnApplicationShutdo
           `Shutdown budget expired with ${this.dispatcher.getActiveCount()} active turns remaining. Aborting in-flight turns with WORKER_SHUTDOWN.`,
         );
         this.dispatcher.abortAllActive('WORKER_SHUTDOWN');
+        if (typeof this.dispatcher.awaitAllActive === 'function') {
+          await this.dispatcher.awaitAllActive(1000);
+        }
       }
     }
 

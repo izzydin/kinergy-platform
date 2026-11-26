@@ -67,44 +67,17 @@ describe('AI-09.3-BE.07.07: Final Security & Integration Acceptance (PostgreSQL)
   let worker: AiTurnGenerationWorker;
   let controller: AiConversationController;
 
-  const TENANT_ALPHA = 'tenant_final_alpha';
-  const TENANT_BETA = 'tenant_final_beta';
-  const USER_ALPHA_1 = 'usr_physio_alpha_01';
-  const USER_ALPHA_2 = 'usr_physio_alpha_02';
-  const USER_ALPHA_OWNER = 'usr_owner_alpha';
-  const USER_BETA_1 = 'usr_physio_beta_01';
+  let TENANT_ALPHA: string;
+  let TENANT_BETA: string;
+  let USER_ALPHA_1: string;
+  let USER_ALPHA_2: string;
+  let USER_ALPHA_OWNER: string;
+  let USER_BETA_1: string;
 
-  const PRINCIPAL_ALPHA_1: TrustedAiContext = {
-    actorId: USER_ALPHA_1,
-    tenantId: TENANT_ALPHA,
-    roles: ['Trainer'],
-    permissions: [],
-    email: 'alpha1@kinergy.com',
-  };
-
-  const PRINCIPAL_ALPHA_2: TrustedAiContext = {
-    actorId: USER_ALPHA_2,
-    tenantId: TENANT_ALPHA,
-    roles: ['Trainer'],
-    permissions: [],
-    email: 'alpha2@kinergy.com',
-  };
-
-  const PRINCIPAL_ALPHA_OWNER: TrustedAiContext = {
-    actorId: USER_ALPHA_OWNER,
-    tenantId: TENANT_ALPHA,
-    roles: ['Owner'],
-    permissions: ['ai.conversations.audit'],
-    email: 'owner@kinergy.com',
-  };
-
-  const PRINCIPAL_BETA_1: TrustedAiContext = {
-    actorId: USER_BETA_1,
-    tenantId: TENANT_BETA,
-    roles: ['Trainer'],
-    permissions: [],
-    email: 'beta1@kinergy.com',
-  };
+  let PRINCIPAL_ALPHA_1: TrustedAiContext;
+  let PRINCIPAL_ALPHA_2: TrustedAiContext;
+  let PRINCIPAL_ALPHA_OWNER: TrustedAiContext;
+  let PRINCIPAL_BETA_1: TrustedAiContext;
 
   let ragExecutionLog: Array<{ prompt: string; historyCount: number }> = [];
 
@@ -218,10 +191,31 @@ describe('AI-09.3-BE.07.07: Final Security & Integration Acceptance (PostgreSQL)
   });
 
   afterAll(async () => {
-    await prisma.$executeRawUnsafe(
-      `DELETE FROM "ai_conversations" WHERE "tenant_id" IN ('${TENANT_ALPHA}', '${TENANT_BETA}')`,
-    );
+    if (dispatcher) {
+      await dispatcher.abortAndDrainAll('TEARDOWN');
+    }
+    if (worker) {
+      await worker.onApplicationShutdown('TEARDOWN');
+    }
     await prisma.$disconnect();
+  });
+
+  afterEach(async () => {
+    if (dispatcher) {
+      await dispatcher.abortAndDrainAll('TEARDOWN');
+    }
+    if (worker) {
+      await worker.onApplicationShutdown('TEARDOWN');
+    }
+
+    if (prisma && TENANT_ALPHA && TENANT_BETA) {
+      await prisma.$executeRaw`
+        DELETE FROM "ai_conversations" WHERE "tenant_id" IN (${TENANT_ALPHA}, ${TENANT_BETA})
+      `;
+      await prisma.$executeRaw`
+        DELETE FROM "ai_conversation_audit_logs" WHERE "tenant_id" IN (${TENANT_ALPHA}, ${TENANT_BETA})
+      `;
+    }
   });
 
   beforeEach(async () => {
@@ -229,9 +223,51 @@ describe('AI-09.3-BE.07.07: Final Security & Integration Acceptance (PostgreSQL)
     jest.clearAllMocks();
 
     if (dispatcher) {
-      dispatcher.abortAllActive('TEARDOWN');
-      await new Promise((r) => setImmediate(r));
+      await dispatcher.abortAndDrainAll('TEARDOWN');
     }
+    if (worker) {
+      await worker.onApplicationShutdown('TEARDOWN');
+    }
+
+    const testId = `be07_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    TENANT_ALPHA = `tenant_final_alpha_${testId}`;
+    TENANT_BETA = `tenant_final_beta_${testId}`;
+    USER_ALPHA_1 = `usr_physio_alpha_01_${testId}`;
+    USER_ALPHA_2 = `usr_physio_alpha_02_${testId}`;
+    USER_ALPHA_OWNER = `usr_owner_alpha_${testId}`;
+    USER_BETA_1 = `usr_physio_beta_01_${testId}`;
+
+    PRINCIPAL_ALPHA_1 = {
+      actorId: USER_ALPHA_1,
+      tenantId: TENANT_ALPHA,
+      roles: ['Trainer'],
+      permissions: [],
+      email: `alpha1_${testId}@kinergy.com`,
+    };
+
+    PRINCIPAL_ALPHA_2 = {
+      actorId: USER_ALPHA_2,
+      tenantId: TENANT_ALPHA,
+      roles: ['Trainer'],
+      permissions: [],
+      email: `alpha2_${testId}@kinergy.com`,
+    };
+
+    PRINCIPAL_ALPHA_OWNER = {
+      actorId: USER_ALPHA_OWNER,
+      tenantId: TENANT_ALPHA,
+      roles: ['Owner'],
+      permissions: ['ai.conversations.audit'],
+      email: `owner_${testId}@kinergy.com`,
+    };
+
+    PRINCIPAL_BETA_1 = {
+      actorId: USER_BETA_1,
+      tenantId: TENANT_BETA,
+      roles: ['Trainer'],
+      permissions: [],
+      email: `beta1_${testId}@kinergy.com`,
+    };
 
     dispatcher = new AiTurnDispatcherService(turnRepo, executeUseCase);
     worker = new AiTurnGenerationWorker(turnRepo, convRepo, dispatcher, {
@@ -270,10 +306,6 @@ describe('AI-09.3-BE.07.07: Final Security & Integration Acceptance (PostgreSQL)
       null as unknown as ArchiveConversationUseCase,
       inspectUseCase,
       null as unknown as CancelConversationTurnUseCase,
-    );
-
-    await prisma.$executeRawUnsafe(
-      `DELETE FROM "ai_conversations" WHERE "tenant_id" IN ('${TENANT_ALPHA}', '${TENANT_BETA}')`,
     );
   });
 
@@ -513,6 +545,18 @@ describe('AI-09.3-BE.07.07: Final Security & Integration Acceptance (PostgreSQL)
       expect(auditLog?.reason).toBe(
         'Supervisión de calidad de fisioterapia para certificación ISO',
       );
+
+      // 5. Ensure background turn generation completes cleanly before concluding test
+      for (let attempt = 0; attempt < 40; attempt++) {
+        const turn = await turnRepo.findById(
+          TENANT_ALPHA,
+          convAlpha.conversationId,
+          convAlpha.turnId,
+        );
+        if (turn && turn.status === TurnStatus.COMPLETED) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      await dispatcher.awaitAllActive();
     });
   });
 
@@ -562,6 +606,7 @@ describe('AI-09.3-BE.07.07: Final Security & Integration Acceptance (PostgreSQL)
         if (turn && turn.status === TurnStatus.COMPLETED) break;
         await new Promise((r) => setTimeout(r, 50));
       }
+      await dispatcher.awaitAllActive();
 
       // 5. Verify database integrity in PostgreSQL
       const completedTurn = await turnRepo.findById(
@@ -596,7 +641,17 @@ describe('AI-09.3-BE.07.07: Final Security & Integration Acceptance (PostgreSQL)
   // =========================================================================
   describe('Task 6: Direct PostgreSQL Database Invariant Assertions', () => {
     it('verifies all relational constraints, partial indexes, and check constraints against PostgreSQL', async () => {
-      const created = await createUseCase.execute({
+      // Use offline use case to avoid racing background dispatch during direct constraint verification
+      const offlineCreate = new CreateConversationWithInitialTurnUseCase(
+        txRunner,
+        turnRepo,
+        convRepo,
+        messageRepo,
+        undefined,
+        undefined,
+      );
+
+      const created = await offlineCreate.execute({
         tenantId: TENANT_ALPHA,
         userId: USER_ALPHA_1,
         clientTurnId: 'turn_invariants_proof_01',
@@ -614,57 +669,57 @@ describe('AI-09.3-BE.07.07: Final Security & Integration Acceptance (PostgreSQL)
 
       // Invariant 1: Single user message per turn (uq_turn_single_user_message)
       await expect(
-        prisma.$executeRawUnsafe(`
+        prisma.$executeRaw`
           INSERT INTO "ai_conversation_messages" (
             "id", "turn_id", "conversation_id", "tenant_id", "role", "sequence_number", "attempt_number", "status", "created_at", "updated_at"
           ) VALUES (
-            'msg_illegal_dup_user', '${created.turnId}', '${created.conversationId}', '${TENANT_ALPHA}', 'USER', 99, 1, 'SUCCESS', NOW(), NOW()
+            'msg_illegal_dup_user', ${created.turnId}, ${created.conversationId}, ${TENANT_ALPHA}, 'USER', 99, 1, 'SUCCESS', NOW(), NOW()
           )
-        `),
+        `,
       ).rejects.toThrow(/23505|uq_turn_single_user_message/i);
 
       // Invariant 2: Single canonical assistant message per turn (uq_turn_single_canonical_assistant)
       await expect(
-        prisma.$executeRawUnsafe(`
+        prisma.$executeRaw`
           INSERT INTO "ai_conversation_messages" (
             "id", "turn_id", "conversation_id", "tenant_id", "role", "sequence_number", "attempt_number", "is_canonical", "status", "created_at", "updated_at"
           ) VALUES (
-            'msg_illegal_second_canonical', '${created.turnId}', '${created.conversationId}', '${TENANT_ALPHA}', 'ASSISTANT', 100, 2, TRUE, 'SUCCESS', NOW(), NOW()
+            'msg_illegal_second_canonical', ${created.turnId}, ${created.conversationId}, ${TENANT_ALPHA}, 'ASSISTANT', 100, 2, TRUE, 'SUCCESS', NOW(), NOW()
           )
-        `),
+        `,
       ).rejects.toThrow(/23505|uq_turn_single_canonical_assistant/i);
 
       // Invariant 3: Canonical requires success check constraint (chk_canonical_requires_success)
       await expect(
-        prisma.$executeRawUnsafe(`
+        prisma.$executeRaw`
           INSERT INTO "ai_conversation_messages" (
             "id", "turn_id", "conversation_id", "tenant_id", "role", "sequence_number", "attempt_number", "is_canonical", "status", "created_at", "updated_at"
           ) VALUES (
-            'msg_illegal_canonical_failed', '${created.turnId}', '${created.conversationId}', '${TENANT_ALPHA}', 'ASSISTANT', 101, 3, TRUE, 'FAILED', NOW(), NOW()
+            'msg_illegal_canonical_failed', ${created.turnId}, ${created.conversationId}, ${TENANT_ALPHA}, 'ASSISTANT', 101, 3, TRUE, 'FAILED', NOW(), NOW()
           )
-        `),
+        `,
       ).rejects.toThrow(/23514|chk_canonical_requires_success/i);
 
       // Invariant 4: Terminal attempt has no active lease (chk_terminal_attempt_no_active_lease)
       await expect(
-        prisma.$executeRawUnsafe(`
+        prisma.$executeRaw`
           INSERT INTO "ai_conversation_messages" (
             "id", "turn_id", "conversation_id", "tenant_id", "role", "sequence_number", "attempt_number", "is_canonical", "status", "lease_token", "created_at", "updated_at"
           ) VALUES (
-            'msg_illegal_lease_on_success', '${created.turnId}', '${created.conversationId}', '${TENANT_ALPHA}', 'ASSISTANT', 102, 4, FALSE, 'SUCCESS', 'active_lease_tok', NOW(), NOW()
+            'msg_illegal_lease_on_success', ${created.turnId}, ${created.conversationId}, ${TENANT_ALPHA}, 'ASSISTANT', 102, 4, FALSE, 'SUCCESS', 'active_lease_tok', NOW(), NOW()
           )
-        `),
+        `,
       ).rejects.toThrow(/23514|chk_terminal_attempt_no_active_lease/i);
 
       // Invariant 5: Unique clientTurnId per tenant (uq_turn_tenant_client_turn_id)
       await expect(
-        prisma.$executeRawUnsafe(`
+        prisma.$executeRaw`
           INSERT INTO "ai_conversation_turns" (
             "id", "conversation_id", "tenant_id", "turn_index", "client_turn_id", "idempotency_key", "idempotency_payload_hash", "status", "created_at", "updated_at"
           ) VALUES (
-            'turn_illegal_dup_key', '${created.conversationId}', '${TENANT_ALPHA}', 99, 'turn_invariants_proof_01', 'idemp_key_dup', 'hash_dup', 'PENDING', NOW(), NOW()
+            'turn_illegal_dup_key', ${created.conversationId}, ${TENANT_ALPHA}, 99, 'turn_invariants_proof_01', 'idemp_key_dup', 'hash_dup', 'PENDING', NOW(), NOW()
           )
-        `),
+        `,
       ).rejects.toThrow(
         /23505|uq_turn_tenant_client_turn_id|ai_conversation_turns_tenant_id_client_turn_id_key/i,
       );

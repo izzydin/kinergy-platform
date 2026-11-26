@@ -223,6 +223,19 @@ export class ExecuteConversationTurnUseCase {
       );
     }
 
+    // Pre-execution abort check: immediately abort if torn down or shutting down
+    if (input.signal?.aborted) {
+      const reasonMsg =
+        input.signal.reason instanceof Error
+          ? input.signal.reason.message
+          : typeof input.signal.reason === 'string'
+            ? input.signal.reason
+            : '';
+      if (reasonMsg === 'TEARDOWN' || reasonMsg === 'WORKER_SHUTDOWN') {
+        throw new Error(`Turn execution aborted before pipeline execution: ${reasonMsg}`);
+      }
+    }
+
     // 6. Invoke AI-08 RAG Pipeline through the Integration Boundary
     const ragResult = await this.ragPipeline.executeTurn({
       tenantId,
@@ -243,6 +256,19 @@ export class ExecuteConversationTurnUseCase {
         permissions: input.actorContext?.permissions ?? [],
       },
     });
+
+    // Post-execution abort check: prevent entering atomic finalization transaction on teardown / shutdown abort
+    if (input.signal?.aborted) {
+      const reasonMsg =
+        input.signal.reason instanceof Error
+          ? input.signal.reason.message
+          : typeof input.signal.reason === 'string'
+            ? input.signal.reason
+            : 'GENERATION_ABORTED';
+      if (reasonMsg === 'TEARDOWN' || reasonMsg === 'WORKER_SHUTDOWN') {
+        throw new Error(`Turn execution aborted during pipeline execution: ${reasonMsg}`);
+      }
+    }
 
     // 7. Atomic Turn & Message Finalization with Fencing
     const finalizeWork = async (repos: ConversationTransactionalRepositories) => {

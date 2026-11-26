@@ -16,6 +16,7 @@ export interface ActiveExecutionRecord {
   readonly tenantId: string;
   readonly conversationId: string;
   readonly turnId: string;
+  readonly executionPromise?: Promise<void>;
 }
 
 /**
@@ -92,12 +93,18 @@ export class AiTurnDispatcherService implements IAiTurnDispatcherPort {
 
     // 3. Register In-flight Execution Record
     const abortController = new AbortController();
+    let executionResolve: () => void = () => {};
+    const executionPromise = new Promise<void>((resolve) => {
+      executionResolve = resolve;
+    });
+
     this.activeExecutions.set(executionKey, {
       abortController,
       startedAt: new Date(),
       tenantId,
       conversationId,
       turnId,
+      executionPromise,
     });
 
     // 4. Detach Asynchronous Generation Execution
@@ -120,6 +127,7 @@ export class AiTurnDispatcherService implements IAiTurnDispatcherPort {
         );
       } finally {
         this.activeExecutions.delete(executionKey);
+        executionResolve();
       }
     });
 
@@ -162,6 +170,28 @@ export class AiTurnDispatcherService implements IAiTurnDispatcherPort {
       this.logger.warn(`Aborting active turn execution '${key}' due to: ${reason}`);
       execution.abortController.abort(new Error(reason));
     }
+  }
+
+  public async awaitAllActive(timeoutMs = 5000): Promise<void> {
+    const promises = Array.from(this.activeExecutions.values())
+      .map((e) => e.executionPromise)
+      .filter((p): p is Promise<void> => !!p);
+
+    if (promises.length === 0) return;
+
+    await Promise.race([
+      Promise.allSettled(promises),
+      new Promise<void>((resolve) => setTimeout(resolve, timeoutMs)),
+    ]);
+  }
+
+  public async drain(timeoutMs = 5000): Promise<void> {
+    await this.awaitAllActive(timeoutMs);
+  }
+
+  public async abortAndDrainAll(reason = 'WORKER_SHUTDOWN', timeoutMs = 5000): Promise<void> {
+    this.abortAllActive(reason);
+    await this.awaitAllActive(timeoutMs);
   }
 
   private buildKey(tenantId: string, conversationId: string, turnId: string): string {
