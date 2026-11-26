@@ -136,6 +136,9 @@ export type NotificationListener = (action: NotificationAction) => void;
  */
 export class NotificationService {
   private readonly listeners = new Set<NotificationListener>();
+  /** Deduplication cache mapping a fingerprint (`type:title:description`) to timestamp */
+  private readonly recentFingerprints = new Map<string, number>();
+  private readonly deduplicationWindowMs = 2500;
 
   subscribe(listener: NotificationListener): () => void {
     this.listeners.add(listener);
@@ -166,6 +169,7 @@ export class NotificationService {
   }
 
   clearAll(): void {
+    this.recentFingerprints.clear();
     this.emit({ type: 'CLEAR' });
   }
 
@@ -175,6 +179,26 @@ export class NotificationService {
     description?: string,
     durationMs = 4000,
   ): string {
+    const now = Date.now();
+    const fingerprint = `${type}:${title}:${description ?? ''}`;
+    const lastEmitted = this.recentFingerprints.get(fingerprint);
+
+    // Suppress duplicate notifications dispatched within deduplication window
+    if (lastEmitted && now - lastEmitted < this.deduplicationWindowMs) {
+      return '';
+    }
+
+    this.recentFingerprints.set(fingerprint, now);
+
+    // Clean up fingerprints older than deduplicationWindowMs to prevent memory leak
+    if (this.recentFingerprints.size > 50) {
+      for (const [key, timestamp] of this.recentFingerprints.entries()) {
+        if (now - timestamp > this.deduplicationWindowMs) {
+          this.recentFingerprints.delete(key);
+        }
+      }
+    }
+
     const id = `notif_${Math.random().toString(36).substring(2, 9)}`;
     const notification: NotificationMessage = {
       id,

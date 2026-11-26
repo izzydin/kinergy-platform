@@ -104,7 +104,7 @@ export const DeleteConversationDialog: React.FC<DeleteConversationDialogProps> =
             onClick={() => onOpenChange(false)}
             disabled={isDeleting}
             data-testid="cancel-delete-button"
-            className="text-xs cursor-pointer"
+            className="text-xs cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
           >
             Cancelar
           </Button>
@@ -114,7 +114,7 @@ export const DeleteConversationDialog: React.FC<DeleteConversationDialogProps> =
             onClick={handleConfirm}
             disabled={isDeleting}
             data-testid="confirm-delete-button"
-            className="text-xs gap-1.5 cursor-pointer"
+            className="text-xs gap-1.5 cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
           >
             {isDeleting ? (
               <>

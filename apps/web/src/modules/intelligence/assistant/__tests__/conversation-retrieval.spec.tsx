@@ -221,7 +221,7 @@ describe('FE.05 — Conversation Retrieval & Message History', () => {
 
       expect(screen.getByTestId('message-interrupted-state')).toBeInTheDocument();
       expect(
-        screen.getByText(/Conexión interrumpida antes de recibir respuesta completa/i),
+        screen.getByText(/interrumpió antes de recibir la respuesta completa/i),
       ).toBeInTheDocument();
     });
 
@@ -368,7 +368,7 @@ describe('FE.05 — Conversation Retrieval & Message History', () => {
   });
 
   describe('4. Empty and Unavailable Conversation Handling', () => {
-    it('renders empty prompt suggestions when conversation exists but has zero messages', async () => {
+    it('renders deliberate empty state when conversation exists but has zero messages', async () => {
       mockedConversationApi.getConversation.mockResolvedValueOnce({
         ...mockConversationDetail,
         turnCounter: 0,
@@ -384,14 +384,10 @@ describe('FE.05 — Conversation Retrieval & Message History', () => {
       renderWithProviders('/intelligence/chat/conv-fe05-01');
 
       await waitFor(() => {
-        expect(screen.getByTestId('chat-empty-state')).toBeInTheDocument();
+        expect(screen.getByTestId('chat-empty-conversation-state')).toBeInTheDocument();
       });
 
-      expect(
-        screen.getByText(
-          /¿Cuáles son las contraindicaciones absolutas del vendaje neuromuscular\?/i,
-        ),
-      ).toBeInTheDocument();
+      expect(screen.getByText('Conversación vacía')).toBeInTheDocument();
     });
 
     it('renders conversation not found error state for 404 (nonexistent or unauthorized)', async () => {

@@ -1,5 +1,6 @@
 import React from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { Button } from '@kinergy-platform/ui';
 
 export interface IntelligenceErrorStateProps {
   /** Error heading title (default: "Error en el módulo de Inteligencia") */
@@ -14,6 +15,8 @@ export interface IntelligenceErrorStateProps {
   readonly retryLabel?: string;
   /** Optional secondary action button */
   readonly secondaryAction?: React.ReactNode;
+  /** Compact presentation for narrow drawers and sidebars */
+  readonly compact?: boolean;
   /** Additional container CSS classes */
   readonly className?: string;
   /** Custom test identifier */
@@ -69,6 +72,7 @@ export const IntelligenceErrorState: React.FC<IntelligenceErrorStateProps> = ({
   onRetry,
   retryLabel = 'Reintentar',
   secondaryAction,
+  compact = false,
   className = '',
   testId = 'intelligence-error-state',
 }) => {
@@ -79,22 +83,36 @@ export const IntelligenceErrorState: React.FC<IntelligenceErrorStateProps> = ({
       role="alert"
       aria-live="assertive"
       data-testid={testId}
-      className={`flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 p-6 md:p-8 text-center transition-colors min-w-0 ${className}`}
+      className={`flex flex-col items-center justify-center rounded-xl border border-destructive/30 bg-destructive/5 text-center transition-colors min-w-0 ${
+        compact ? 'p-4' : 'p-6 md:p-8'
+      } ${className}`}
     >
-      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-destructive/10 text-destructive mb-4 shrink-0 shadow-xs">
-        <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+      <div
+        className={`flex items-center justify-center rounded-2xl bg-destructive/10 text-destructive shrink-0 shadow-xs ${
+          compact ? 'h-9 w-9 mb-2.5 rounded-xl' : 'h-12 w-12 mb-4'
+        }`}
+      >
+        <AlertTriangle className={compact ? 'h-5 w-5' : 'h-6 w-6'} aria-hidden="true" />
       </div>
 
-      <h3 className="text-base font-bold tracking-tight text-foreground mb-1 break-words">
+      <h3
+        className={`font-bold tracking-tight text-foreground mb-1 break-words ${
+          compact ? 'text-sm' : 'text-base'
+        }`}
+      >
         {title}
       </h3>
 
-      <p className="max-w-md text-xs sm:text-sm text-muted-foreground mb-4 leading-relaxed break-words">
+      <p
+        className={`text-muted-foreground mb-4 leading-relaxed break-words ${
+          compact ? 'text-xs max-w-xs' : 'text-xs sm:text-sm max-w-md'
+        }`}
+      >
         {sanitizedMessage}
       </p>
 
       {correlationId && (
-        <p className="text-[11px] font-mono text-muted-foreground/70 mb-4 select-all">
+        <p className="text-[11px] font-mono text-muted-foreground mb-4 select-all">
           ID de referencia: {correlationId}
         </p>
       )}
@@ -103,14 +121,15 @@ export const IntelligenceErrorState: React.FC<IntelligenceErrorStateProps> = ({
         <div className="flex flex-wrap items-center justify-center gap-2.5 shrink-0">
           {secondaryAction}
           {onRetry && (
-            <button
+            <Button
               type="button"
+              size="sm"
               onClick={onRetry}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground shadow-sm transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="gap-1.5 font-semibold shadow-xs"
             >
               <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
               <span>{retryLabel}</span>
-            </button>
+            </Button>
           )}
         </div>
       )}

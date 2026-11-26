@@ -7,6 +7,7 @@ import {
   DialogDescription,
   DialogFooter,
   Button,
+  Select,
 } from '@kinergy-platform/ui';
 import { GitCompare, Download, Eye, ShieldCheck, ShieldAlert } from 'lucide-react';
 import { IngestionStatusBadge } from './ingestion-status-badge';
@@ -162,12 +163,12 @@ export const VersionComparisonModal: React.FC<VersionComparisonModalProps> = ({
                 </span>
               )}
             </label>
-            <select
+            <Select
               id="version-a-select"
               data-testid="version-a-select"
               value={versionAId}
               onChange={(e) => setVersionAId(e.target.value)}
-              className="w-full text-xs rounded-md border border-input bg-background px-3 py-1.5 font-medium shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="h-9 text-xs font-medium shadow-xs"
             >
               {sortedVersions.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -175,7 +176,7 @@ export const VersionComparisonModal: React.FC<VersionComparisonModalProps> = ({
                   {v.id === currentVersionId ? 'Actual' : formatDate(v.createdAt)})
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
 
           {/* Selector Versión B */}
@@ -191,12 +192,12 @@ export const VersionComparisonModal: React.FC<VersionComparisonModalProps> = ({
                 </span>
               )}
             </label>
-            <select
+            <Select
               id="version-b-select"
               data-testid="version-b-select"
               value={versionBId}
               onChange={(e) => setVersionBId(e.target.value)}
-              className="w-full text-xs rounded-md border border-input bg-background px-3 py-1.5 font-medium shadow-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+              className="h-9 text-xs font-medium shadow-xs"
             >
               {sortedVersions.map((v) => (
                 <option key={v.id} value={v.id}>
@@ -204,12 +205,17 @@ export const VersionComparisonModal: React.FC<VersionComparisonModalProps> = ({
                   {v.id === currentVersionId ? 'Actual' : formatDate(v.createdAt)})
                 </option>
               ))}
-            </select>
+            </Select>
           </div>
         </div>
 
         {/* Comparison Matrix Table */}
-        <div className="overflow-x-auto rounded-lg border border-border/60">
+        <div
+          tabIndex={0}
+          role="region"
+          aria-label="Matriz comparativa de versiones"
+          className="overflow-x-auto rounded-lg border border-border/60 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+        >
           <table className="w-full text-xs text-left border-collapse">
             <thead>
               <tr className="bg-muted/40 border-b border-border/60 text-muted-foreground text-[11px]">

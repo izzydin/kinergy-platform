@@ -88,8 +88,10 @@ export class ServerError extends ApiError {
     message = 'An unexpected server error occurred.',
     statusCode = 500,
     correlationId?: string,
+    code = 'INTERNAL_SERVER_ERROR',
+    public readonly retryAfterSeconds?: number,
   ) {
-    super(message, statusCode, 'INTERNAL_SERVER_ERROR', undefined, correlationId);
+    super(message, statusCode, code, undefined, correlationId);
   }
 }
 
@@ -144,6 +146,9 @@ export function normalizeApiError(error: unknown): ApiError {
       details?: unknown;
       correlationId?: unknown;
       retryAfterSeconds?: unknown;
+      code?: unknown;
+      errorCode?: unknown;
+      retryAfter?: unknown;
     };
 
     const statusCode = Number(errObj.statusCode || errObj.status || 500);
@@ -159,6 +164,18 @@ export function normalizeApiError(error: unknown): ApiError {
     const details = (errObj.details as Record<string, string[]>) || undefined;
     const correlationId =
       typeof errObj.correlationId === 'string' ? errObj.correlationId : undefined;
+    const code =
+      typeof errObj.code === 'string'
+        ? errObj.code
+        : typeof (errObj as { errorCode?: unknown }).errorCode === 'string'
+          ? (errObj as { errorCode: string }).errorCode
+          : undefined;
+    const retryAfterSeconds =
+      typeof errObj.retryAfterSeconds === 'number'
+        ? errObj.retryAfterSeconds
+        : typeof (errObj as { retryAfter?: unknown }).retryAfter === 'number'
+          ? (errObj as { retryAfter: number }).retryAfter
+          : undefined;
 
     switch (statusCode) {
       case 400:
@@ -172,13 +189,20 @@ export function normalizeApiError(error: unknown): ApiError {
       case 409:
         return new ConflictError(message, correlationId, errObj);
       case 429:
-        return new RateLimitError(
-          message,
-          typeof errObj.retryAfterSeconds === 'number' ? errObj.retryAfterSeconds : undefined,
-          correlationId,
-        );
+        return new RateLimitError(message, retryAfterSeconds, correlationId);
       default:
-        return new ServerError(message, statusCode, correlationId);
+        return new ServerError(
+          message,
+          statusCode,
+          correlationId,
+          code ||
+            (statusCode === 503
+              ? 'PROVIDER_UNAVAILABLE'
+              : statusCode === 504
+                ? 'PROVIDER_TIMEOUT'
+                : 'INTERNAL_SERVER_ERROR'),
+          retryAfterSeconds,
+        );
     }
   }
 

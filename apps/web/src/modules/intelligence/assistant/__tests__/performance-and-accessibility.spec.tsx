@@ -290,7 +290,7 @@ const cervicalProtocol: ClinicalProtocol = {
       fireEvent.change(textarea, { target: { value: 'a'.repeat(950) } });
       counter = screen.getByText('950/1000');
       expect(counter).toHaveAttribute('aria-live', 'polite');
-      expect(counter).toHaveClass('text-amber-500');
+      expect(counter.className).toMatch(/text-amber-(?:500|700)/);
     });
 
     it('renders accessible code copy button with visible focus indicator and feedback', async () => {

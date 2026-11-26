@@ -93,8 +93,9 @@ export class PlainTextParserAdapter implements IDocumentParserPort {
       );
     }
 
+    let timer: NodeJS.Timeout | undefined;
     const timeoutPromise = new Promise<never>((_, reject) => {
-      const timer = setTimeout(() => {
+      timer = setTimeout(() => {
         reject(
           new ExtractionTimeoutException(timeoutMs, request.documentId, request.documentVersionId),
         );
@@ -128,6 +129,8 @@ export class PlainTextParserAdapter implements IDocumentParserPort {
         request.documentId,
         request.documentVersionId,
       );
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 

@@ -215,4 +215,6 @@ export interface DocumentPreviewMetadataResponse {
   readonly visibilityScope: VisibilityScope;
   readonly isAuthorized: boolean;
   readonly isDeleted: boolean;
+  readonly status?: 'ACTIVE' | 'ARCHIVED' | 'DELETED';
+  readonly isArchived?: boolean;
 }

@@ -9,7 +9,16 @@ export type MessageRole = 'system' | 'user' | 'assistant';
  * Local delivery and processing status of a conversation message.
  */
 export type MessageStatus =
-  'pending' | 'generating' | 'cancelling' | 'success' | 'error' | 'cancelled' | 'interrupted';
+  | 'pending'
+  | 'submitting'
+  | 'retrieving'
+  | 'generating'
+  | 'cancelling'
+  | 'success'
+  | 'error'
+  | 'cancelled'
+  | 'interrupted'
+  | 'unknown';
 
 /**
  * Search mode options for knowledge retrieval.
@@ -127,6 +136,10 @@ export interface ChatMessage {
   readonly sources?: readonly RAGSourceCitationDto[];
   readonly metadata?: RAGMetadataDto;
   readonly error?: string;
+  readonly errorCode?: string;
+  readonly retryable?: boolean;
+  readonly retryAfterSeconds?: number;
+  readonly correlationId?: string;
   readonly sequenceNumber?: number;
 }
 

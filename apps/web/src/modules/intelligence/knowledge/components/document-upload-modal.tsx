@@ -21,6 +21,7 @@ import {
   Button,
   Input,
   Textarea,
+  Select,
   Alert,
 } from '@kinergy-platform/ui';
 import { cn } from '../../../../shared/lib/utils';
@@ -68,6 +69,7 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
     formValues,
     validationError,
     errorMessage,
+    failureDetails,
     progress,
     uploadedDocument,
     capabilities,
@@ -403,7 +405,27 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
                 className="text-xs py-2.5"
               >
                 <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-                <div className="ml-2 font-medium">{validationError.message}</div>
+                <div className="ml-2 space-y-1.5 w-full">
+                  <p className="font-semibold text-foreground">
+                    {failureDetails?.category === 'FILE_TOO_LARGE'
+                      ? 'Archivo demasiado grande'
+                      : failureDetails?.category === 'EMPTY_FILE'
+                        ? 'Archivo vacío'
+                        : failureDetails?.category === 'UNSUPPORTED_FORMAT'
+                          ? 'Formato no admitido'
+                          : 'Validación de archivo fallida'}
+                  </p>
+                  <p className="font-medium text-foreground/90">{validationError.message}</p>
+                  <div
+                    data-testid="upload-backend-storage-status"
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-background/60 border border-border/40 text-foreground"
+                  >
+                    <span>
+                      Estado en servidor: No almacenado (la operación no modificó la base de datos
+                      ni el almacenamiento)
+                    </span>
+                  </div>
+                </div>
               </Alert>
             )}
 
@@ -429,6 +451,7 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
                     placeholder="Título del documento..."
                     className="h-9 text-xs"
                     required
+                    aria-required="true"
                   />
                 </div>
 
@@ -455,18 +478,18 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
                   <label htmlFor={scopeSelectId} className="text-xs font-semibold text-foreground">
                     Alcance de visibilidad
                   </label>
-                  <select
+                  <Select
                     id={scopeSelectId}
                     data-testid="upload-visibility-select"
                     value={formValues.visibilityScope}
                     onChange={(e) => actions.setVisibilityScope(e.target.value as VisibilityScope)}
                     disabled={isUploading}
-                    className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                    className="h-9 text-xs"
                   >
                     <option value="ALL_STAFF">Toda la organización (General)</option>
                     <option value="CLINICAL_STAFF">Personal Clínico</option>
                     <option value="MANAGEMENT">Dirección / Gestión</option>
-                  </select>
+                  </Select>
                 </div>
               </div>
             )}
@@ -519,17 +542,76 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
               </div>
             )}
 
-            {/* Upload Error Banner */}
-            {errorMessage && (
+            {/* Upload Error Banner (Server/Network/Storage failures) */}
+            {errorMessage && !validationError && (
               <Alert
                 variant="destructive"
                 data-testid="upload-error-alert"
                 className="text-xs py-3"
               >
                 <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-                <div className="ml-2 space-y-1">
-                  <p className="font-semibold">Error en la subida</p>
-                  <p className="text-muted-foreground">{errorMessage}</p>
+                <div className="ml-2 space-y-1.5 w-full">
+                  <p className="font-semibold text-foreground">
+                    {failureDetails?.category === 'UNKNOWN_OUTCOME'
+                      ? 'Resultado de subida no confirmado'
+                      : failureDetails?.category === 'STORAGE_FAILURE'
+                        ? 'Fallo en el servicio de almacenamiento'
+                        : failureDetails?.category === 'NETWORK_INTERRUPTION'
+                          ? 'Conexión de red interrumpida'
+                          : failureDetails?.category === 'REQUEST_TIMEOUT'
+                            ? 'Tiempo de espera agotado'
+                            : failureDetails?.category === 'AUTH_EXPIRED'
+                              ? 'Sesión de autenticación expirada'
+                              : failureDetails?.category === 'PERMISSION_DENIED'
+                                ? 'Permisos insuficientes'
+                                : failureDetails?.category === 'DUPLICATE_UPLOAD'
+                                  ? 'Documento duplicado'
+                                  : failureDetails?.category === 'FILE_TOO_LARGE'
+                                    ? 'Archivo demasiado grande'
+                                    : failureDetails?.category === 'UNSUPPORTED_FORMAT'
+                                      ? 'Formato no admitido'
+                                      : 'Error en la subida'}
+                  </p>
+                  <p className="text-muted-foreground leading-relaxed">{errorMessage}</p>
+
+                  {/* Authoritative backend storage confirmation status */}
+                  <div
+                    data-testid="upload-backend-storage-status"
+                    className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-background/60 border border-border/40 text-foreground"
+                  >
+                    <span>
+                      {failureDetails?.backendConfirmedStored === 'UNKNOWN'
+                        ? 'Estado en servidor: No confirmado (el servidor podría haber completado la creación; verifica antes de reintentar)'
+                        : 'Estado en servidor: No almacenado (la operación no modificó la base de datos ni el almacenamiento)'}
+                    </span>
+                  </div>
+
+                  {/* Transport restart explanation */}
+                  <p
+                    data-testid="upload-restart-explanation"
+                    className="text-[11px] text-muted-foreground/90 italic"
+                  >
+                    Nota de transporte: Las subidas HTTP multiparte no admiten reanudación por
+                    fragmentos. El reintento iniciará la transferencia desde el 0%, conservando el
+                    archivo seleccionado y los metadatos.
+                  </p>
+
+                  {/* Safe reconciliation action when outcome is unknown */}
+                  {failureDetails?.reconciliationSupported && (
+                    <div className="pt-1">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleNavigateToLibrary}
+                        data-testid="upload-reconcile-button"
+                        className="h-7 text-xs gap-1.5"
+                      >
+                        <FolderOpen className="h-3 w-3" />
+                        <span>Verificar en biblioteca</span>
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </Alert>
             )}
@@ -578,7 +660,11 @@ export const DocumentUploadModal: React.FC<DocumentUploadModalProps> = ({
                   <Button
                     type="submit"
                     variant="default"
-                    disabled={!canSubmit || Boolean(validationError)}
+                    disabled={
+                      !canSubmit ||
+                      Boolean(validationError) ||
+                      (failureDetails ? !failureDetails.canRetry : false)
+                    }
                     data-testid="submit-upload-button"
                     className="text-xs gap-1.5"
                   >

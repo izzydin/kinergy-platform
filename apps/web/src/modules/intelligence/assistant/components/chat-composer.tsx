@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Send, CornerDownLeft, Square, RotateCcw } from 'lucide-react';
 import { Button } from '@kinergy-platform/ui';
+import { assistantStorageService } from '../services/assistant-storage.service';
 
 export interface ChatComposerProps {
   onSend: (text: string) => Promise<unknown> | void;
@@ -9,6 +10,11 @@ export interface ChatComposerProps {
   isCancelling?: boolean;
   placeholder?: string;
   disabled?: boolean;
+  conversationId?: string;
+  tenantId?: string;
+  userId?: string;
+  initialDraft?: string;
+  onDraftChange?: (draft: string) => void;
 }
 
 const MIN_QUERY_LENGTH = 3;
@@ -26,7 +32,9 @@ const MAX_QUERY_LENGTH = 1000;
  * - Explicit cancellation stop button when generation is in-flight
  * - Character count indicator respecting backend limits (1000 chars)
  * - Accessible disabled states during pending requests
+ * - Synchronous client-side submission mutex preventing duplicate calls on rapid Enter/click
  * - Preserves draft if submission throws an error
+ * - Partitioned draft storage keyed by conversationId to prevent cross-thread contamination
  */
 export const ChatComposer: React.FC<ChatComposerProps> = ({
   onSend,
@@ -35,24 +43,49 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   isCancelling = false,
   placeholder = 'Pregunta sobre políticas, protocolos de kinesiología o guías clínicas...',
   disabled = false,
+  conversationId,
+  tenantId = 'global',
+  userId = 'anonymous',
+  initialDraft,
+  onDraftChange,
 }) => {
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(() => {
+    if (initialDraft !== undefined) return initialDraft ?? '';
+    if (typeof assistantStorageService?.getDraft === 'function') {
+      return assistantStorageService.getDraft(tenantId, userId, conversationId) || '';
+    }
+    return '';
+  });
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const isSubmittingInternalRef = useRef<boolean>(false);
 
-  const trimmed = draft.trim();
-  const isOverLimit = draft.length > MAX_QUERY_LENGTH;
+  // Sync draft if initialDraft prop explicitly changes from outside
+  useEffect(() => {
+    if (initialDraft !== undefined) {
+      setDraft(initialDraft ?? '');
+    }
+  }, [initialDraft]);
+
+  const safeDraft = draft ?? '';
+  const trimmed = safeDraft.trim();
+  const isOverLimit = safeDraft.length > MAX_QUERY_LENGTH;
   const isUnderMin = trimmed.length < MIN_QUERY_LENGTH;
   const canSubmit = !isUnderMin && !isOverLimit && !isSubmitting && !isCancelling && !disabled;
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || isSubmittingInternalRef.current) return;
 
+    isSubmittingInternalRef.current = true;
     const textToSubmit = trimmed;
     try {
       const result = onSend(textToSubmit);
       if (result && typeof (result as Promise<unknown>).then === 'function') {
         await result;
+      }
+      // Clear draft in storage and state only upon successful submission
+      if (typeof assistantStorageService?.clearDraft === 'function') {
+        assistantStorageService.clearDraft(tenantId, userId, conversationId);
       }
       setDraft('');
       if (textareaRef.current) {
@@ -61,6 +94,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
       }
     } catch {
       // Preserve draft on submission failure so user never loses their query
+    } finally {
+      isSubmittingInternalRef.current = false;
     }
   };
 
@@ -87,7 +122,12 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setDraft(e.target.value);
+    const value = e.target.value ?? '';
+    setDraft(value);
+    if (typeof assistantStorageService?.setDraft === 'function') {
+      assistantStorageService.setDraft(tenantId, userId, conversationId, value);
+    }
+    onDraftChange?.(value);
   };
 
   // Auto-resize textarea based on input content
@@ -107,8 +147,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         <div
           className={`relative flex items-end gap-2 rounded-xl border bg-background/80 p-2 shadow-2xs transition-all ${
             isOverLimit
-              ? 'border-destructive/60 focus-within:ring-2 focus-within:ring-destructive/20'
-              : 'border-border/60 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10'
+              ? 'border-destructive focus-within:ring-2 focus-within:ring-destructive/30'
+              : 'border-border/60 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/25'
           }`}
         >
           <textarea
@@ -163,7 +203,7 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
         {/* Footer Helper & Character Counter */}
         <div
           id="composer-helper-text"
-          className="flex items-center justify-between px-1 text-[11px] text-muted-foreground/60"
+          className="flex items-center justify-between px-1 text-[11px] text-muted-foreground"
         >
           {isSubmitting && onCancel ? (
             <span className="hidden sm:inline-flex items-center gap-1 text-muted-foreground">
@@ -181,8 +221,8 @@ export const ChatComposer: React.FC<ChatComposerProps> = ({
               isOverLimit
                 ? 'font-semibold text-destructive'
                 : draft.length > MAX_QUERY_LENGTH - 100
-                  ? 'text-amber-500 font-medium'
-                  : 'text-muted-foreground/60'
+                  ? 'text-amber-700 dark:text-amber-400 font-medium'
+                  : 'text-muted-foreground'
             }
             aria-live={draft.length > MAX_QUERY_LENGTH - 100 ? 'polite' : 'off'}
             aria-atomic="true"

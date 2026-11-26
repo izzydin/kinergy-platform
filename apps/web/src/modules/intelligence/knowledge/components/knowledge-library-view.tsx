@@ -97,9 +97,9 @@ export const KnowledgeLibraryView: React.FC<KnowledgeLibraryViewProps> = ({
           </div>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-lg md:text-xl font-bold tracking-tight text-foreground truncate">
+              <h2 className="text-lg md:text-xl font-bold tracking-tight text-foreground truncate">
                 Biblioteca de Documentos
-              </h1>
+              </h2>
               <span
                 data-testid="library-total-count-badge"
                 className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-muted text-muted-foreground border border-border/50"
@@ -147,6 +147,7 @@ export const KnowledgeLibraryView: React.FC<KnowledgeLibraryViewProps> = ({
         errorMessage={error?.message}
         onRetry={() => void refetch()}
         isFiltered={isFiltered}
+        searchTerm={state.q}
         onResetFilters={actions.resetAllFilters}
         onDownload={handleDownload}
         onRetryIngestion={handleRetryIngestion}

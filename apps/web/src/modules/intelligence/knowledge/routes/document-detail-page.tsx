@@ -668,7 +668,7 @@ export const DocumentDetailPage: React.FC = () => {
         {/* Description Banner if available */}
         {document.description && (
           <div className="rounded-lg border border-border/60 bg-muted/20 p-4 text-xs text-muted-foreground leading-relaxed">
-            <h4 className="font-semibold text-foreground mb-1 text-xs">Descripción</h4>
+            <h3 className="font-semibold text-foreground mb-1 text-xs">Descripción</h3>
             <p data-testid="document-description-text">{document.description}</p>
           </div>
         )}
@@ -743,19 +743,21 @@ export const DocumentDetailPage: React.FC = () => {
                     >
                       {document.checksum}
                     </span>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost"
+                      size="sm"
                       onClick={() => handleCopyChecksum(document.checksum)}
                       data-testid="copy-checksum-button"
                       aria-label="Copiar checksum SHA-256"
-                      className="p-1 hover:text-foreground text-muted-foreground shrink-0 rounded transition-colors"
+                      className="h-6 w-6 p-0 hover:text-foreground text-muted-foreground shrink-0 rounded transition-colors"
                     >
                       {copiedChecksum ? (
                         <Check className="h-3 w-3 text-emerald-500" />
                       ) : (
                         <Copy className="h-3 w-3" />
                       )}
-                    </button>
+                    </Button>
                   </div>
                 </div>
               )}

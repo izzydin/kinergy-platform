@@ -7,6 +7,7 @@ export interface ChatMessageItemProps {
   message: ChatMessage;
   conversationId?: string;
   onRetry?: (messageId: string) => void;
+  onReconcile?: (messageId: string) => void;
   onRegenerate?: (messageId: string) => void;
   isRegenerating?: boolean;
   onPreviewDocument?: (
@@ -24,10 +25,22 @@ export interface ChatMessageItemProps {
  * decoupling user input rendering from complex assistant markdown/telemetry logic.
  */
 export const ChatMessageItem: React.FC<ChatMessageItemProps> = React.memo(
-  ({ message, conversationId, onRetry, onRegenerate, isRegenerating, onPreviewDocument }) => {
+  ({
+    message,
+    conversationId,
+    onRetry,
+    onReconcile,
+    onRegenerate,
+    isRegenerating,
+    onPreviewDocument,
+  }) => {
     const handleRetry = React.useCallback(() => {
       onRetry?.(message.id);
     }, [onRetry, message.id]);
+
+    const handleReconcile = React.useCallback(() => {
+      onReconcile?.(message.id);
+    }, [onReconcile, message.id]);
 
     const handleRegenerate = React.useCallback(() => {
       onRegenerate?.(message.id);
@@ -42,6 +55,7 @@ export const ChatMessageItem: React.FC<ChatMessageItemProps> = React.memo(
         message={message}
         conversationId={conversationId}
         onRetry={onRetry ? handleRetry : undefined}
+        onReconcile={onReconcile ? handleReconcile : undefined}
         onRegenerate={onRegenerate ? handleRegenerate : undefined}
         isRegenerating={isRegenerating}
         onPreviewDocument={onPreviewDocument}

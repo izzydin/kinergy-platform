@@ -76,16 +76,13 @@ export const MessageCitations: React.FC<MessageCitationsProps> = React.memo(
           </div>
 
           {/* Citation Badges Container */}
-          <div className="flex flex-wrap gap-1.5" data-testid="citations-badge-list">
+          <ul className="flex flex-wrap gap-1.5" data-testid="citations-badge-list" role="list">
             {sources.map((source, idx) => (
-              <CitationBadge
-                key={`${source.documentId}-${source.chunkId ?? idx}-${idx}`}
-                source={source}
-                index={idx}
-                onClick={handleCitationClick}
-              />
+              <li key={`${source.documentId}-${source.chunkId ?? idx}-${idx}`}>
+                <CitationBadge source={source} index={idx} onClick={handleCitationClick} />
+              </li>
             ))}
-          </div>
+          </ul>
         </aside>
 
         {/* Detailed Modal Dialog or Slide-Over Drawer */}

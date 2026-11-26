@@ -75,6 +75,11 @@ export class RAGTurnPipelineAdapter implements IRAGTurnPipelinePort {
         },
       };
     } catch (error: unknown) {
+      const partialContent =
+        typeof (error as { partialContent?: unknown })?.partialContent === 'string'
+          ? (error as { partialContent: string }).partialContent
+          : '';
+
       if (
         error instanceof GenerationCancelledException ||
         (error instanceof Error && error.name === 'AbortError') ||
@@ -83,7 +88,7 @@ export class RAGTurnPipelineAdapter implements IRAGTurnPipelinePort {
         this.logger.log(`Turn '${command.turnId}' execution was cancelled.`);
         return {
           outcome: 'CANCELLED',
-          content: '',
+          content: partialContent,
           isGrounded: false,
           sources: [],
           metadata: {
@@ -105,7 +110,7 @@ export class RAGTurnPipelineAdapter implements IRAGTurnPipelinePort {
         );
         return {
           outcome: 'FAILED',
-          content: '',
+          content: partialContent,
           isGrounded: false,
           sources: [],
           metadata: {
@@ -129,7 +134,7 @@ export class RAGTurnPipelineAdapter implements IRAGTurnPipelinePort {
 
       return {
         outcome: 'FAILED',
-        content: '',
+        content: partialContent,
         isGrounded: false,
         sources: [],
         metadata: {

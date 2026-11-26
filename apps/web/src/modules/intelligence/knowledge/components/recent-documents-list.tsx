@@ -200,9 +200,13 @@ export const RecentDocumentsList: React.FC<RecentDocumentsListProps> = ({
         )}
       </div>
 
-      <div className="flex flex-col divide-y divide-border/30">
+      <ul
+        role="list"
+        aria-label="Lista de documentos recientes"
+        className="flex flex-col divide-y divide-border/30"
+      >
         {documents.map((doc) => (
-          <div
+          <li
             key={doc.id}
             data-testid={`recent-document-item-${doc.id}`}
             className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 py-3 px-2 rounded-lg transition-colors hover:bg-muted/40"
@@ -263,9 +267,9 @@ export const RecentDocumentsList: React.FC<RecentDocumentsListProps> = ({
                 <ExternalLink className="h-3.5 w-3.5" />
               </Link>
             </div>
-          </div>
+          </li>
         ))}
-      </div>
+      </ul>
     </div>
   );
 };

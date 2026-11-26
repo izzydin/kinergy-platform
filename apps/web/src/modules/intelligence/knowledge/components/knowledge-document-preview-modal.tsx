@@ -22,6 +22,10 @@ import {
   AlertTriangle,
   Loader2,
   FileCode,
+  Archive,
+  History,
+  Clock,
+  ServerCrash,
 } from 'lucide-react';
 import { knowledgeApi } from '../api/knowledge.api';
 import { useDocumentPreviewMetadata } from '../hooks/use-knowledge-queries';
@@ -239,22 +243,101 @@ export const KnowledgeDocumentPreviewModal: React.FC<KnowledgeDocumentPreviewMod
     return `${blobUrl}#page=${currentPage}&zoom=${zoom}`;
   }, [blobUrl, currentPage, zoom]);
 
-  // Authorization and status checks
-  const is403 =
-    (metaError &&
-      typeof metaError === 'object' &&
-      'statusCode' in metaError &&
-      (metaError as { statusCode: number }).statusCode === 403) ||
-    previewMeta?.isAuthorized === false;
+  // Helper to extract HTTP status code from any error object
+  const getStatusCode = (err: unknown): number | null => {
+    if (!err || typeof err !== 'object') return null;
+    if ('statusCode' in err && typeof (err as { statusCode: unknown }).statusCode === 'number') {
+      return (err as { statusCode: number }).statusCode;
+    }
+    if ('status' in err && typeof (err as { status: unknown }).status === 'number') {
+      return (err as { status: number }).status;
+    }
+    const response = (err as { response?: { status?: number } }).response;
+    if (response && typeof response.status === 'number') {
+      return response.status;
+    }
+    return null;
+  };
 
+  const sanitizeError = (raw?: string | null): string => {
+    if (!raw) return 'Error al cargar la previsualización del documento.';
+    const cleaned = raw
+      .replace(/[A-Za-z]:\\[\w-./\\]+/g, '[ruta protegida]')
+      .replace(/(?:s3|minio|gcs):\/\/[^\s]+/gi, '[almacenamiento]')
+      .replace(/(?:bearer\s+)?[a-zA-Z0-9_\-.]{25,}/gi, '[token]')
+      .trim();
+    return cleaned || 'Error al cargar la previsualización del documento.';
+  };
+
+  const metaStatus = getStatusCode(metaError);
+  const rawMsg = contentError || (metaError instanceof Error ? metaError.message : '');
+
+  // 1. Authorization check
+  const is403 = metaStatus === 403 || previewMeta?.isAuthorized === false;
+
+  // 2. Archived check
+  const isArchived =
+    !is403 && (previewMeta?.status === 'ARCHIVED' || previewMeta?.isArchived === true);
+
+  // 3. Missing historical version check
+  const isMissingVersion = !is403 && !isArchived && Boolean(versionId) && metaStatus === 404;
+
+  // 4. Deleted or Not Found (when entire document or current version is 404 / deleted)
   const is404OrDeleted =
-    (metaError &&
-      typeof metaError === 'object' &&
-      'statusCode' in metaError &&
-      (metaError as { statusCode: number }).statusCode === 404) ||
-    previewMeta?.isDeleted === true;
+    !is403 &&
+    !isArchived &&
+    !isMissingVersion &&
+    (metaStatus === 404 || previewMeta?.isDeleted === true || previewMeta?.status === 'DELETED');
 
-  const isUnsupportedFormat = previewMeta && !previewMeta.canPreview && !is403 && !is404OrDeleted;
+  // 5. Expired resource check (HTTP 410 or token expiration)
+  const isExpired =
+    !is403 &&
+    !isArchived &&
+    !isMissingVersion &&
+    !is404OrDeleted &&
+    (metaStatus === 410 ||
+      rawMsg.toLowerCase().includes('expired') ||
+      rawMsg.toLowerCase().includes('caducad'));
+
+  // 6. Service / Storage unavailable (502, 503, 507 or storage unavailable message)
+  const isServiceUnavailable =
+    !is403 &&
+    !isArchived &&
+    !isMissingVersion &&
+    !is404OrDeleted &&
+    !isExpired &&
+    (metaStatus === 502 ||
+      metaStatus === 503 ||
+      metaStatus === 507 ||
+      rawMsg.toLowerCase().includes('unavailable') ||
+      rawMsg.toLowerCase().includes('almacenamiento no disponible') ||
+      rawMsg.toLowerCase().includes('storage unavailable'));
+
+  // 7. Unsupported format (DOCX, etc.)
+  const isUnsupportedFormat =
+    previewMeta &&
+    !previewMeta.canPreview &&
+    !is403 &&
+    !isArchived &&
+    !isMissingVersion &&
+    !is404OrDeleted &&
+    !isExpired &&
+    !isServiceUnavailable;
+
+  // 8. Malformed content (when meta succeeded and canPreview is true, but content decoding failed)
+  const isMalformed =
+    previewMeta?.canPreview &&
+    Boolean(contentError) &&
+    !is403 &&
+    !isArchived &&
+    !isMissingVersion &&
+    !is404OrDeleted &&
+    !isExpired &&
+    !isServiceUnavailable &&
+    (rawMsg.toLowerCase().includes('malformed') ||
+      rawMsg.toLowerCase().includes('decod') ||
+      rawMsg.toLowerCase().includes('corrupt') ||
+      rawMsg.toLowerCase().includes('dañado'));
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -303,24 +386,28 @@ export const KnowledgeDocumentPreviewModal: React.FC<KnowledgeDocumentPreviewMod
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            {/* Download button if not deleted and user is authorized */}
-            {!isDeletedDoc(previewMeta) && !is403 && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleDownload}
-                disabled={isDownloading || isMetaLoading}
-                data-testid="preview-download-button"
-                className="h-8 px-2.5 text-xs gap-1.5"
-              >
-                {isDownloading ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-                ) : (
-                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                )}
-                <span className="hidden sm:inline">Descargar</span>
-              </Button>
-            )}
+            {/* Download button if not deleted, not archived, and user is authorized */}
+            {!isDeletedDoc(previewMeta) &&
+              !is403 &&
+              !isArchived &&
+              !is404OrDeleted &&
+              !isMissingVersion && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDownload}
+                  disabled={isDownloading || isMetaLoading}
+                  data-testid="preview-download-button"
+                  className="h-8 px-2.5 text-xs gap-1.5"
+                >
+                  {isDownloading ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  )}
+                  <span className="hidden sm:inline">Descargar</span>
+                </Button>
+              )}
 
             <Button
               variant="ghost"
@@ -456,8 +543,49 @@ export const KnowledgeDocumentPreviewModal: React.FC<KnowledgeDocumentPreviewMod
             </div>
           )}
 
-          {/* STATE 3: 404 NOT FOUND / DELETED */}
-          {!is403 && is404OrDeleted && (
+          {/* STATE 3: ARCHIVED DOCUMENT */}
+          {!is403 && isArchived && (
+            <div
+              data-testid="preview-archived-state"
+              className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto gap-3"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <Archive className="h-6 w-6" aria-hidden="true" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground">Documento archivado</h3>
+              <p className="text-xs text-muted-foreground">
+                Este documento ha sido archivado y se encuentra fuera del catálogo activo. Su
+                contenido no está disponible para previsualización directa ni para respuestas del
+                asistente.
+              </p>
+              <Button variant="outline" size="sm" onClick={onClose} className="mt-2 text-xs">
+                Cerrar visor
+              </Button>
+            </div>
+          )}
+
+          {/* STATE 4: MISSING HISTORICAL VERSION */}
+          {!is403 && !isArchived && isMissingVersion && (
+            <div
+              data-testid="preview-missing-version-state"
+              className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto gap-3"
+            >
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+                <History className="h-6 w-6" aria-hidden="true" />
+              </div>
+              <h3 className="text-sm font-bold text-foreground">Versión histórica no disponible</h3>
+              <p className="text-xs text-muted-foreground">
+                La versión solicitada de este documento no fue encontrada o ha sido depurada por las
+                políticas de retención.
+              </p>
+              <Button variant="outline" size="sm" onClick={onClose} className="mt-2 text-xs">
+                Cerrar visor
+              </Button>
+            </div>
+          )}
+
+          {/* STATE 5: 404 NOT FOUND / DELETED */}
+          {!is403 && !isArchived && !isMissingVersion && is404OrDeleted && (
             <div
               data-testid="preview-deleted-state"
               className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto gap-3"
@@ -469,8 +597,8 @@ export const KnowledgeDocumentPreviewModal: React.FC<KnowledgeDocumentPreviewMod
                 Documento eliminado o no encontrado
               </h3>
               <p className="text-xs text-muted-foreground">
-                El documento solicitado ha sido retirado de la base de conocimiento o la versión
-                especificada ya no está disponible.
+                El documento solicitado ha sido retirado de la base de conocimiento o ya no está
+                disponible.
               </p>
               <Button variant="outline" size="sm" onClick={onClose} className="mt-2 text-xs">
                 Cerrar visor
@@ -478,107 +606,210 @@ export const KnowledgeDocumentPreviewModal: React.FC<KnowledgeDocumentPreviewMod
             </div>
           )}
 
-          {/* STATE 4: UNSUPPORTED FORMAT FALLBACK (E.G. WORD / DOCX) */}
-          {!is403 && !is404OrDeleted && isUnsupportedFormat && (
+          {/* STATE 6: EXPIRED TEMPORARY RESOURCE */}
+          {!is403 && !isArchived && !isMissingVersion && !is404OrDeleted && isExpired && (
             <div
-              data-testid="preview-unsupported-format-state"
-              className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto gap-4"
+              data-testid="preview-expired-state"
+              className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto gap-3"
             >
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
-                <FileCode className="h-7 w-7" aria-hidden="true" />
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                <Clock className="h-6 w-6" aria-hidden="true" />
               </div>
-              <div>
-                <h3 className="text-sm font-bold text-foreground">
-                  Previsualización en navegador no compatible
-                </h3>
-                <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto leading-relaxed">
-                  Los archivos en formato{' '}
-                  <span className="font-semibold text-foreground">
-                    {formatMimeTypeLabel(previewMeta?.mimeType)}
-                  </span>{' '}
-                  no admiten renderizado directo en el navegador para preservar la seguridad y
-                  evitar la ejecución de macros o contenido no seguro.
-                </p>
-              </div>
-
-              {/* Document details box */}
-              {previewMeta && (
-                <div className="w-full rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-left space-y-1.5">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Nombre original:</span>
-                    <span className="font-medium text-foreground truncate max-w-[200px]">
-                      {previewMeta.originalFileName}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Tamaño:</span>
-                    <span className="font-medium text-foreground">
-                      {formatBytes(previewMeta.fileSize)}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">MIME:</span>
-                    <span className="font-mono text-[11px] text-foreground">
-                      {previewMeta.mimeType}
-                    </span>
-                  </div>
-                </div>
-              )}
-
+              <h3 className="text-sm font-bold text-foreground">
+                Enlace de previsualización expirado
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                El enlace seguro de previsualización o la sesión temporal ha caducado. Vuelva a
+                intentar para generar un nuevo pase de acceso.
+              </p>
               <Button
-                variant="default"
+                variant="outline"
                 size="sm"
-                onClick={handleDownload}
-                disabled={isDownloading}
-                data-testid="unsupported-format-download-button"
-                className="gap-2 text-xs"
+                onClick={() => void refetchMeta()}
+                className="mt-2 text-xs gap-1.5"
               >
-                <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Descargar archivo para ver en aplicación local</span>
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Reintentar acceso</span>
               </Button>
             </div>
           )}
 
-          {/* STATE 5: NETWORK / STREAM ERROR */}
-          {!is403 && !is404OrDeleted && (isMetaError || contentError) && (
-            <div
-              data-testid="preview-error-state"
-              className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto gap-3"
-            >
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
-                <AlertTriangle className="h-6 w-6" aria-hidden="true" />
-              </div>
-              <h3 className="text-sm font-bold text-foreground">
-                Error al cargar la previsualización
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                {contentError ||
-                  (metaError instanceof Error
-                    ? metaError.message
-                    : 'No se pudo comunicar con el repositorio de conocimiento.')}
-              </p>
-              <div className="flex items-center gap-2 mt-2">
-                <Button variant="outline" size="sm" onClick={onClose} className="text-xs">
-                  Cerrar
-                </Button>
+          {/* STATE 7: SERVICE / STORAGE UNAVAILABLE */}
+          {!is403 &&
+            !isArchived &&
+            !isMissingVersion &&
+            !is404OrDeleted &&
+            !isExpired &&
+            isServiceUnavailable && (
+              <div
+                data-testid="preview-service-unavailable-state"
+                className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto gap-3"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <ServerCrash className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <h3 className="text-sm font-bold text-foreground">
+                  Servicio o almacenamiento no disponible
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  El repositorio de almacenamiento o el servicio de renderizado seguro no están
+                  disponibles en este momento. Intente nuevamente en unos momentos.
+                </p>
                 <Button
-                  variant="default"
+                  variant="outline"
                   size="sm"
                   onClick={() => void refetchMeta()}
-                  className="text-xs gap-1.5"
+                  className="mt-2 text-xs gap-1.5"
                 >
                   <RotateCcw className="h-3.5 w-3.5" />
                   <span>Reintentar</span>
                 </Button>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* STATE 6: PDF RENDERING (SECURE IFRAME) */}
+          {/* STATE 8: UNSUPPORTED FORMAT FALLBACK (E.G. WORD / DOCX) */}
           {!is403 &&
+            !isArchived &&
+            !isMissingVersion &&
             !is404OrDeleted &&
+            !isExpired &&
+            !isServiceUnavailable &&
+            isUnsupportedFormat && (
+              <div
+                data-testid="preview-unsupported-format-state"
+                className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-lg mx-auto gap-4"
+              >
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <FileCode className="h-7 w-7" aria-hidden="true" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">
+                    Previsualización en navegador no compatible
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto leading-relaxed">
+                    Los archivos en formato{' '}
+                    <span className="font-semibold text-foreground">
+                      {formatMimeTypeLabel(previewMeta?.mimeType)}
+                    </span>{' '}
+                    no admiten renderizado directo en el navegador para preservar la seguridad y
+                    evitar la ejecución de macros o contenido no seguro.
+                  </p>
+                </div>
+
+                {/* Document details box */}
+                {previewMeta && (
+                  <div className="w-full rounded-lg border border-border/60 bg-muted/30 p-3 text-xs text-left space-y-1.5">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Nombre original:</span>
+                      <span className="font-medium text-foreground truncate max-w-[200px]">
+                        {previewMeta.originalFileName}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tamaño:</span>
+                      <span className="font-medium text-foreground">
+                        {formatBytes(previewMeta.fileSize)}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">MIME:</span>
+                      <span className="font-mono text-[11px] text-foreground">
+                        {previewMeta.mimeType}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  variant="default"
+                  size="sm"
+                  onClick={handleDownload}
+                  disabled={isDownloading}
+                  data-testid="unsupported-format-download-button"
+                  className="gap-2 text-xs"
+                >
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span>Descargar archivo para ver en aplicación local</span>
+                </Button>
+              </div>
+            )}
+
+          {/* STATE 9: MALFORMED CONTENT */}
+          {!is403 &&
+            !isArchived &&
+            !isMissingVersion &&
+            !is404OrDeleted &&
+            !isExpired &&
+            !isServiceUnavailable &&
             !isUnsupportedFormat &&
+            isMalformed && (
+              <div
+                data-testid="preview-malformed-state"
+                className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto gap-3"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <h3 className="text-sm font-bold text-foreground">Contenido no válido o dañado</h3>
+                <p className="text-xs text-muted-foreground">
+                  No fue posible decodificar o estructurar el contenido protegido del documento. Es
+                  posible que el archivo esté incompleto o presente un formato corrupto.
+                </p>
+                <Button variant="outline" size="sm" onClick={onClose} className="mt-2 text-xs">
+                  Cerrar visor
+                </Button>
+              </div>
+            )}
+
+          {/* STATE 10: NETWORK / STREAM ERROR FALLBACK */}
+          {!is403 &&
+            !isArchived &&
+            !isMissingVersion &&
+            !is404OrDeleted &&
+            !isExpired &&
+            !isServiceUnavailable &&
+            !isUnsupportedFormat &&
+            !isMalformed &&
+            (isMetaError || contentError) && (
+              <div
+                data-testid="preview-error-state"
+                className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-md mx-auto gap-3"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+                </div>
+                <h3 className="text-sm font-bold text-foreground">
+                  Error al cargar la previsualización
+                </h3>
+                <p className="text-xs text-muted-foreground">{sanitizeError(rawMsg)}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  <Button variant="outline" size="sm" onClick={onClose} className="text-xs">
+                    Cerrar
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => void refetchMeta()}
+                    className="text-xs gap-1.5"
+                  >
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span>Reintentar</span>
+                  </Button>
+                </div>
+              </div>
+            )}
+
+          {/* STATE 11: PDF RENDERING (SECURE IFRAME) */}
+          {!is403 &&
+            !isArchived &&
+            !isMissingVersion &&
+            !is404OrDeleted &&
+            !isExpired &&
+            !isServiceUnavailable &&
+            !isUnsupportedFormat &&
+            !isMalformed &&
             !contentError &&
+            !isMetaError &&
             isPdf &&
             blobUrl && (
               <div className="w-full h-full flex flex-col overflow-hidden">
@@ -592,11 +823,17 @@ export const KnowledgeDocumentPreviewModal: React.FC<KnowledgeDocumentPreviewMod
               </div>
             )}
 
-          {/* STATE 7: MARKDOWN RENDERING (SAFE PARSED COMPONENT) */}
+          {/* STATE 12: MARKDOWN RENDERING (SAFE PARSED COMPONENT) */}
           {!is403 &&
+            !isArchived &&
+            !isMissingVersion &&
             !is404OrDeleted &&
+            !isExpired &&
+            !isServiceUnavailable &&
             !isUnsupportedFormat &&
+            !isMalformed &&
             !contentError &&
+            !isMetaError &&
             isMarkdown &&
             textContent !== null && (
               <div
@@ -607,15 +844,26 @@ export const KnowledgeDocumentPreviewModal: React.FC<KnowledgeDocumentPreviewMod
               </div>
             )}
 
-          {/* STATE 8: PLAIN TEXT / CSV / JSON (ESCAPED PRE-FORMATTED TEXT) */}
+          {/* STATE 13: PLAIN TEXT / CSV / JSON (ESCAPED PRE-FORMATTED TEXT) */}
           {!is403 &&
+            !isArchived &&
+            !isMissingVersion &&
             !is404OrDeleted &&
+            !isExpired &&
+            !isServiceUnavailable &&
             !isUnsupportedFormat &&
+            !isMalformed &&
             !contentError &&
+            !isMetaError &&
             isPlainOrData &&
             textContent !== null && (
               <div data-testid="plaintext-preview-container" className="p-4 md:p-6 w-full">
-                <pre className="font-mono text-xs p-4 bg-muted/20 border border-border/40 rounded-lg overflow-x-auto whitespace-pre-wrap select-text leading-relaxed">
+                <pre
+                  tabIndex={0}
+                  role="region"
+                  aria-label="Contenido de texto plano del documento"
+                  className="font-mono text-xs p-4 bg-muted/20 border border-border/40 rounded-lg overflow-x-auto whitespace-pre-wrap break-words select-text leading-relaxed focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+                >
                   {textContent}
                 </pre>
               </div>

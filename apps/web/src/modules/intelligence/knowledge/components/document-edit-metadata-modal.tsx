@@ -9,6 +9,7 @@ import {
   Button,
   Input,
   Textarea,
+  Select,
 } from '@kinergy-platform/ui';
 import { Edit3, Loader2 } from 'lucide-react';
 import { useUpdateDocumentMetadata } from '../hooks/use-knowledge-mutations';
@@ -97,6 +98,7 @@ export const DocumentEditMetadataModal: React.FC<DocumentEditMetadataModalProps>
                 placeholder="Título del documento..."
                 className="h-9 text-xs"
                 required
+                aria-required="true"
               />
             </div>
 
@@ -123,18 +125,18 @@ export const DocumentEditMetadataModal: React.FC<DocumentEditMetadataModalProps>
               <label htmlFor="edit-doc-scope" className="text-xs font-semibold text-foreground">
                 Alcance de visibilidad
               </label>
-              <select
+              <Select
                 id="edit-doc-scope"
                 data-testid="edit-document-scope-select"
                 value={visibilityScope}
                 onChange={(e) => setVisibilityScope(e.target.value as VisibilityScope)}
                 disabled={isSaving}
-                className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs text-foreground shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                className="h-9 text-xs"
               >
                 <option value="ALL_STAFF">Toda la organización (General)</option>
                 <option value="CLINICAL_STAFF">Personal Clínico</option>
                 <option value="MANAGEMENT">Dirección / Gestión</option>
-              </select>
+              </Select>
             </div>
           </div>
 

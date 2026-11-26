@@ -1,6 +1,6 @@
 import React from 'react';
 import { FileText, CheckCircle2, Clock, AlertTriangle } from 'lucide-react';
-import { Skeleton } from '@kinergy-platform/ui';
+import { Card, Skeleton } from '@kinergy-platform/ui';
 import type {
   KnowledgeDocumentItem,
   KnowledgeCapabilitiesResponse,
@@ -25,14 +25,14 @@ export const KnowledgeMetricCards: React.FC<KnowledgeMetricCardsProps> = ({
         className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
       >
         {Array.from({ length: 4 }).map((_, i) => (
-          <div
+          <Card
             key={i}
-            className="rounded-xl border border-border/50 bg-card/60 p-4 shadow-2xs flex flex-col gap-2.5"
+            className="rounded-xl border-border/50 bg-card/60 p-4 shadow-2xs flex flex-col gap-2.5"
           >
             <Skeleton className="h-4 w-24" />
             <Skeleton className="h-8 w-16" />
             <Skeleton className="h-3 w-36" />
-          </div>
+          </Card>
         ))}
       </div>
     );
@@ -60,9 +60,9 @@ export const KnowledgeMetricCards: React.FC<KnowledgeMetricCardsProps> = ({
       className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
     >
       {/* 1. Total Documents */}
-      <div
+      <Card
         data-testid="metric-total-documents"
-        className="rounded-xl border border-border/60 bg-card/60 p-4 shadow-2xs flex flex-col justify-between transition-colors hover:border-border"
+        className="rounded-xl border-border/60 bg-card/60 p-4 shadow-2xs flex flex-col justify-between transition-colors hover:border-border"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">Total Documentos</span>
@@ -78,12 +78,12 @@ export const KnowledgeMetricCards: React.FC<KnowledgeMetricCardsProps> = ({
             Archivos registrados en el repositorio
           </p>
         </div>
-      </div>
+      </Card>
 
       {/* 2. Ready / Indexed for RAG */}
-      <div
+      <Card
         data-testid="metric-indexed-documents"
-        className="rounded-xl border border-border/60 bg-card/60 p-4 shadow-2xs flex flex-col justify-between transition-colors hover:border-border"
+        className="rounded-xl border-border/60 bg-card/60 p-4 shadow-2xs flex flex-col justify-between transition-colors hover:border-border"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">Indexados (RAG Listo)</span>
@@ -101,12 +101,12 @@ export const KnowledgeMetricCards: React.FC<KnowledgeMetricCardsProps> = ({
               : 'Disponibles para consultas asistidas'}
           </p>
         </div>
-      </div>
+      </Card>
 
       {/* 3. In-flight / Processing */}
-      <div
+      <Card
         data-testid="metric-processing-documents"
-        className="rounded-xl border border-border/60 bg-card/60 p-4 shadow-2xs flex flex-col justify-between transition-colors hover:border-border"
+        className="rounded-xl border-border/60 bg-card/60 p-4 shadow-2xs flex flex-col justify-between transition-colors hover:border-border"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">En Proceso / En Cola</span>
@@ -122,12 +122,12 @@ export const KnowledgeMetricCards: React.FC<KnowledgeMetricCardsProps> = ({
             En extracción o incrustación vectorial
           </p>
         </div>
-      </div>
+      </Card>
 
       {/* 4. Attention / Failed */}
-      <div
+      <Card
         data-testid="metric-failed-documents"
-        className="rounded-xl border border-border/60 bg-card/60 p-4 shadow-2xs flex flex-col justify-between transition-colors hover:border-border"
+        className="rounded-xl border-border/60 bg-card/60 p-4 shadow-2xs flex flex-col justify-between transition-colors hover:border-border"
       >
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-muted-foreground">Errores de Indexación</span>
@@ -143,7 +143,7 @@ export const KnowledgeMetricCards: React.FC<KnowledgeMetricCardsProps> = ({
             {failedCount > 0 ? 'Requieren revisión o reintento' : 'Sin fallos reportados'}
           </p>
         </div>
-      </div>
+      </Card>
     </div>
   );
 };

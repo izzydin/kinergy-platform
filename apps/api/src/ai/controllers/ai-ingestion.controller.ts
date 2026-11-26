@@ -4,6 +4,7 @@ import {
   Param,
   Query,
   UseGuards,
+  UseFilters,
   Inject,
   ForbiddenException,
   NotFoundException,
@@ -25,6 +26,7 @@ import {
   ListIngestionJobsQueryDto,
   PaginatedIngestionJobsResponseDto,
 } from './dtos/ingestion-observability.dto';
+import { AiExceptionFilter } from '../filters/ai-exception.filter';
 
 /**
  * Controller exposing administrative tenant-wide ingestion and indexing monitoring.
@@ -34,6 +36,7 @@ import {
 @ApiBearerAuth()
 @Controller(['api/v1/ai/knowledge/ingestion', 'api/v1/ai/ingestion'])
 @UseGuards(AuthenticationGuard, AuthorizationGuard)
+@UseFilters(AiExceptionFilter)
 export class AiIngestionController {
   constructor(
     @Inject(INGESTION_OBSERVABILITY_SERVICE)

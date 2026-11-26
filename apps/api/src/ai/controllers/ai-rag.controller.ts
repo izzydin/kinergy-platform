@@ -5,6 +5,7 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  UseFilters,
   Inject,
   BadRequestException,
   ForbiddenException,
@@ -12,7 +13,6 @@ import {
   GatewayTimeoutException,
   ServiceUnavailableException,
   UnauthorizedException,
-  Logger,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 import {
@@ -42,6 +42,7 @@ import {
 import { RETRIEVAL_SECURITY_POLICY_SERVICE } from '../ai.tokens';
 import { RetrievalSecurityPolicyService } from '../services/retrieval/retrieval-security-policy.service';
 import { QueryKnowledgeRequestDto, RAGAnswerResponseDto } from './dtos/rag-query.dto';
+import { AiExceptionFilter } from '../filters/ai-exception.filter';
 
 /**
  * Controller exposing production RAG (Retrieval-Augmented Generation) query endpoints.
@@ -53,9 +54,8 @@ import { QueryKnowledgeRequestDto, RAGAnswerResponseDto } from './dtos/rag-query
 @ApiBearerAuth()
 @Controller(['api/v1/ai/knowledge/query', 'api/v1/ai/rag/query', 'api/v1/ai/query'])
 @UseGuards(AuthenticationGuard, AuthorizationGuard)
+@UseFilters(AiExceptionFilter)
 export class AiRAGController {
-  private readonly logger = new Logger(AiRAGController.name);
-
   constructor(
     @Inject(GENERATE_GROUNDED_ANSWER_USE_CASE_PORT)
     private readonly ragOrchestrator: IGenerateGroundedAnswerUseCase,
@@ -204,11 +204,6 @@ export class AiRAGController {
       throw new BadRequestException('Request cancelled by client or deadline budget.');
     }
 
-    if (err instanceof Error) {
-      this.logger.error(`Unhandled generation error: ${err.message}`, err.stack);
-      throw new BadRequestException(err.message);
-    }
-
-    throw new BadRequestException('An unhandled generation error occurred.');
+    throw err;
   }
 }

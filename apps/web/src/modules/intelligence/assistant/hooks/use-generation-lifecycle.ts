@@ -11,7 +11,12 @@ import {
   generationStateReducer,
   type GenerationState,
 } from '../types/generation.types';
-import type { ChatMessage, RetrievalSearchMode, Conversation } from '../types/assistant.types';
+import type {
+  ChatMessage,
+  RetrievalSearchMode,
+  Conversation,
+  RAGSourceCitationDto,
+} from '../types/assistant.types';
 import type { MessageHistoryResponse, MessageResponse } from '../types/conversation-contract.types';
 import { normalizeApiError } from '../../../../shared/api/api-error';
 
@@ -40,9 +45,11 @@ export interface UseGenerationLifecycleResult {
   readonly isPending: boolean;
   readonly isStreaming: boolean;
   readonly isCancelling: boolean;
+  readonly isUnknownOutcome: boolean;
   readonly submitMessage: (options: SubmitMessageOptions) => Promise<void>;
   readonly regenerateMessage: (options: RegenerateMessageOptions) => Promise<void>;
   readonly cancelGeneration: (targetConversationId?: string) => Promise<void>;
+  readonly reconcileGeneration: (targetConversationId?: string) => Promise<boolean>;
   readonly resetGeneration: () => void;
 }
 
@@ -99,10 +106,18 @@ export function useGenerationLifecycle({
         const createdAt = activeCreatedAtRef.current || new Date().toISOString();
 
         if (activeConvId && activeAsstId) {
+          const existingConv = assistantStorageService.getConversation(
+            tenantId,
+            userId,
+            activeConvId,
+          );
+          const existingMsg = existingConv?.messages.find((m) => m.id === activeAsstId);
+          const preservedContent = existingMsg?.content ?? '';
+
           const interruptedMsg: ChatMessage = {
             id: activeAsstId,
             role: 'assistant',
-            content: '',
+            content: preservedContent,
             createdAt,
             status: 'interrupted',
             error: 'Operación interrumpida por desmontaje de componente o navegación.',
@@ -152,10 +167,14 @@ export function useGenerationLifecycle({
 
     // 2. Update local storage with cancelled assistant message immediately
     if (activeConvId && activeAsstId) {
+      const existingConv = assistantStorageService.getConversation(tenantId, userId, activeConvId);
+      const existingMsg = existingConv?.messages.find((m) => m.id === activeAsstId);
+      const preservedContent = existingMsg?.content ?? '';
+
       const cancelledMsg: ChatMessage = {
         id: activeAsstId,
         role: 'assistant',
-        content: '',
+        content: preservedContent,
         createdAt: originalCreatedAt,
         status: 'cancelled',
         error: 'Generación detenida en el cliente (conexión cerrada).',
@@ -564,10 +583,18 @@ export function useGenerationLifecycle({
         controller.signal.aborted;
 
       if (isAbort) {
+        const existingConv = assistantStorageService.getConversation(
+          tenantId,
+          userId,
+          targetConvId,
+        );
+        const existingMsg = existingConv?.messages.find((m) => m.id === assistantMessageId);
+        const preservedContent = existingMsg?.content ?? '';
+
         const cancelledAssistantMessage: ChatMessage = {
           id: assistantMessageId,
           role: 'assistant',
-          content: '',
+          content: preservedContent,
           createdAt: pendingCreatedAt,
           status: 'cancelled',
           error: 'Generación detenida en el cliente (conexión cerrada).',
@@ -594,13 +621,20 @@ export function useGenerationLifecycle({
 
       const error = normalizeApiError(rawError);
 
-      // Classify interruption: offline, gateway timeout (504), proxy bad gateway (502/503), network loss
+      // Distinguish frontend request timeout, backend gateway timeout (504), provider timeout, and network interruption
+      const isClientTimeout =
+        (rawError instanceof DOMException && rawError.name === 'TimeoutError') ||
+        (rawError instanceof Error && rawError.name === 'TimeoutError') ||
+        error.code === 'ECONNABORTED' ||
+        error.code === 'ETIMEDOUT' ||
+        error.message.toLowerCase().includes('client timeout');
+
       const isOffline = typeof navigator !== 'undefined' && !navigator.onLine;
-      const isTimeout =
+      const isGatewayTimeout =
         error.statusCode === 504 ||
-        error.message.toLowerCase().includes('gateway timeout') ||
-        error.message.toLowerCase().includes('timeout') ||
-        error.code === 'PROVIDER_TIMEOUT';
+        error.code === 'PROVIDER_TIMEOUT' ||
+        error.message.toLowerCase().includes('gateway timeout');
+
       const isNetworkInterruption =
         isOffline ||
         error.statusCode === 0 ||
@@ -608,19 +642,47 @@ export function useGenerationLifecycle({
         error.message.toLowerCase().includes('failed to fetch') ||
         error.message.toLowerCase().includes('network request failed');
 
-      const isInterrupted = isTimeout || isNetworkInterruption;
+      // Preserve any partial response already emitted
+      const existingConv = assistantStorageService.getConversation(tenantId, userId, targetConvId);
+      const existingMsg = existingConv?.messages.find((m) => m.id === assistantMessageId);
+      const preservedContent = existingMsg?.content ?? '';
+
+      // An unconfirmed/unknown outcome occurs when client times out or disconnects while a turn was already reserved on backend
+      const isUnknownOutcome = Boolean(
+        activeTurnIdRef.current && (isClientTimeout || isNetworkInterruption),
+      );
+
+      const isInterrupted = isGatewayTimeout || isNetworkInterruption;
+
+      const errorCode =
+        error.code ||
+        (isGatewayTimeout
+          ? 'PROVIDER_TIMEOUT'
+          : isNetworkInterruption
+            ? 'NETWORK_ERROR'
+            : undefined);
+      const retryable = error.isRecoverable ?? true;
+      const retryAfterSeconds = (error as { retryAfterSeconds?: number }).retryAfterSeconds;
+      const correlationId = error.correlationId;
 
       const failedAssistantMessage: ChatMessage = {
         id: assistantMessageId,
+        turnId: activeTurnIdRef.current || undefined,
         role: 'assistant',
-        content: '',
+        content: preservedContent,
         createdAt: pendingCreatedAt,
-        status: isInterrupted ? 'interrupted' : 'error',
-        error: isTimeout
-          ? 'Tiempo de espera agotado en la pasarela de inferencia (504).'
-          : isNetworkInterruption
-            ? 'Conexión de red interrumpida antes de recibir respuesta completa.'
-            : error.message,
+        status: isUnknownOutcome ? 'unknown' : isInterrupted ? 'interrupted' : 'error',
+        error: isUnknownOutcome
+          ? 'Tiempo de espera del cliente agotado o desconexión de red. El servidor puede continuar procesando la respuesta.'
+          : isGatewayTimeout
+            ? 'Tiempo de espera agotado en la pasarela de inferencia (504).'
+            : isNetworkInterruption
+              ? 'Conexión de red interrumpida antes de recibir respuesta completa.'
+              : error.message,
+        errorCode,
+        retryable,
+        retryAfterSeconds,
+        correlationId,
       };
 
       const failedConv = assistantStorageService.updateMessage(
@@ -638,7 +700,9 @@ export function useGenerationLifecycle({
         );
       }
 
-      if (isInterrupted) {
+      if (isUnknownOutcome) {
+        dispatch({ type: 'MARK_UNKNOWN', error });
+      } else if (isInterrupted) {
         dispatch({ type: 'INTERRUPT' });
       } else {
         dispatch({ type: 'FAIL', error });
@@ -839,9 +903,112 @@ export function useGenerationLifecycle({
     }
   };
 
+  /**
+   * Reconciles an unknown or interrupted generation against authoritative backend persistence.
+   * Prevents unsafe duplicate resubmission if the backend successfully finalized the turn.
+   */
+  const reconcileGeneration = async (targetConversationId?: string): Promise<boolean> => {
+    const activeConvId = targetConversationId || activeTargetConvIdRef.current || conversationId;
+    if (!activeConvId) return false;
+
+    try {
+      const history = await conversationApi.getMessageHistory(activeConvId);
+      const latestAssistant = [...history.messages].reverse().find((m) => m.role === 'ASSISTANT');
+
+      if (latestAssistant && latestAssistant.status === 'SUCCESS') {
+        const completedMsg: ChatMessage = {
+          id: latestAssistant.id,
+          turnId: latestAssistant.turnId,
+          role: 'assistant',
+          content: latestAssistant.content,
+          createdAt: latestAssistant.createdAt,
+          status: 'success',
+          grounded: true,
+          sources: (latestAssistant.sources as readonly RAGSourceCitationDto[]) ?? [],
+        };
+
+        const localConv = assistantStorageService.getConversation(tenantId, userId, activeConvId);
+        const matchingLocalMsg = localConv?.messages.find(
+          (m) =>
+            m.id === latestAssistant.id ||
+            (latestAssistant.turnId &&
+              m.turnId === latestAssistant.turnId &&
+              m.role === 'assistant'),
+        );
+
+        if (matchingLocalMsg) {
+          assistantStorageService.updateMessage(
+            tenantId,
+            userId,
+            activeConvId,
+            matchingLocalMsg.id,
+            completedMsg,
+          );
+        } else {
+          assistantStorageService.appendMessage(tenantId, userId, activeConvId, completedMsg);
+        }
+
+        const updatedLocal = assistantStorageService.getConversation(
+          tenantId,
+          userId,
+          activeConvId,
+        );
+        if (updatedLocal) {
+          queryClient.setQueryData(
+            aiAssistantKeys.conversation(tenantId, userId, activeConvId),
+            updatedLocal,
+          );
+        }
+
+        await conversationCachePolicies.invalidateEntireConversation(queryClient, activeConvId, {
+          tenantId,
+          userId,
+        });
+
+        dispatch({ type: 'COMPLETE' });
+        return true;
+      } else if (
+        latestAssistant &&
+        (latestAssistant.status === 'FAILED' || latestAssistant.status === 'CANCELLED')
+      ) {
+        const isCancelled = latestAssistant.status === 'CANCELLED';
+        const localConv = assistantStorageService.getConversation(tenantId, userId, activeConvId);
+        const matchingLocalMsg = localConv?.messages.find(
+          (m) =>
+            m.id === latestAssistant.id ||
+            (latestAssistant.turnId &&
+              m.turnId === latestAssistant.turnId &&
+              m.role === 'assistant'),
+        );
+        const targetId = matchingLocalMsg?.id || latestAssistant.id;
+
+        assistantStorageService.updateMessage(tenantId, userId, activeConvId, targetId, {
+          status: isCancelled ? 'cancelled' : 'error',
+          error: isCancelled
+            ? 'Generación cancelada en el servidor.'
+            : 'Fallo de inferencia confirmado por el servidor.',
+        });
+
+        if (isCancelled) {
+          dispatch({ type: 'CANCEL' });
+        } else {
+          dispatch({
+            type: 'FAIL',
+            error: new Error('Fallo de inferencia confirmado por el servidor.'),
+          });
+        }
+        return true;
+      }
+    } catch {
+      // Server still unreachable or offline
+    }
+    return false;
+  };
+
   const isPending = state.status === 'PENDING';
   const isStreaming = state.status === 'STREAMING';
   const isCancelling = state.status === 'CANCELLING';
+  const isUnknownOutcome = state.status === 'UNKNOWN';
   const isGenerating = isPending || isStreaming || isCancelling;
 
   return {
@@ -850,9 +1017,11 @@ export function useGenerationLifecycle({
     isPending,
     isStreaming,
     isCancelling,
+    isUnknownOutcome,
     submitMessage,
     regenerateMessage,
     cancelGeneration,
+    reconcileGeneration,
     resetGeneration,
   };
 }

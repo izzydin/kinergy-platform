@@ -48,7 +48,7 @@ function renderInlineContent(text: string): React.ReactNode[] {
       return (
         <code
           key={index}
-          className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px] font-semibold text-primary"
+          className="rounded bg-muted px-1.5 py-0.5 font-mono text-[12px] font-semibold text-primary break-all"
         >
           {part.slice(1, -1)}
         </code>
@@ -61,7 +61,7 @@ function renderInlineContent(text: string): React.ReactNode[] {
       (part.startsWith('__') && part.endsWith('__') && part.length >= 4)
     ) {
       return (
-        <strong key={index} className="font-semibold">
+        <strong key={index} className="font-semibold break-words">
           {part.slice(2, -2)}
         </strong>
       );
@@ -73,7 +73,7 @@ function renderInlineContent(text: string): React.ReactNode[] {
       (part.startsWith('_') && part.endsWith('_') && part.length >= 2)
     ) {
       return (
-        <em key={index} className="italic">
+        <em key={index} className="italic break-words">
           {part.slice(1, -1)}
         </em>
       );
@@ -92,17 +92,17 @@ function renderInlineContent(text: string): React.ReactNode[] {
             href={linkUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary"
+            className="inline-flex max-w-full items-center gap-1 font-medium text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary break-all"
           >
-            <span>{linkText}</span>
-            <ExternalLink className="h-3 w-3 shrink-0 opacity-70" />
+            <span className="break-all">{linkText}</span>
+            <ExternalLink className="h-3 w-3 shrink-0 opacity-70" aria-hidden="true" />
           </a>
         );
       }
 
       // If unsafe URL protocol, neutralize and render plain text
       return (
-        <span key={index} className="text-muted-foreground">
+        <span key={index} className="text-muted-foreground break-all">
           {linkText}
         </span>
       );
@@ -141,7 +141,13 @@ function renderTable(lines: string[], keyPrefix: number | string): React.ReactNo
   );
 
   return (
-    <div key={keyPrefix} className="my-3 overflow-x-auto rounded-lg border border-border/70">
+    <div
+      key={keyPrefix}
+      tabIndex={0}
+      role="region"
+      aria-label="Tabla de datos markdown"
+      className="my-3 overflow-x-auto rounded-lg border border-border/70 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+    >
       <table className="min-w-full divide-y divide-border/60 text-xs">
         <thead className="bg-muted/70">
           <tr>
@@ -149,7 +155,7 @@ function renderTable(lines: string[], keyPrefix: number | string): React.ReactNo
               <th
                 key={idx}
                 scope="col"
-                className="px-3 py-2 text-left font-semibold text-foreground/90"
+                className="px-3 py-2 text-left font-semibold text-foreground/90 break-words whitespace-normal"
               >
                 {renderInlineContent(cell)}
               </th>
@@ -160,7 +166,10 @@ function renderTable(lines: string[], keyPrefix: number | string): React.ReactNo
           {bodyRows.map((row, rowIdx) => (
             <tr key={rowIdx} className="hover:bg-muted/30 transition-colors">
               {row.map((cell, colIdx) => (
-                <td key={colIdx} className="px-3 py-2 text-foreground/80">
+                <td
+                  key={colIdx}
+                  className="px-3 py-2 text-foreground/80 break-words whitespace-normal"
+                >
                   {renderInlineContent(cell)}
                 </td>
               ))}
@@ -278,7 +287,7 @@ function parseProseBlocks(prose: string, prefix: string): React.ReactNode[] {
       elements.push(
         <h6
           key={`${prefix}-h6-${i}`}
-          className="text-xs font-semibold text-foreground/90 mt-3 mb-1"
+          className="text-xs font-semibold text-foreground/90 mt-3 mb-1 break-words"
         >
           {renderInlineContent(trimmed.substring(5))}
         </h6>,
@@ -290,7 +299,7 @@ function parseProseBlocks(prose: string, prefix: string): React.ReactNode[] {
       elements.push(
         <h5
           key={`${prefix}-h5-${i}`}
-          className="text-sm font-semibold text-foreground/95 mt-3 mb-1"
+          className="text-sm font-semibold text-foreground/95 mt-3 mb-1 break-words"
         >
           {renderInlineContent(trimmed.substring(4))}
         </h5>,
@@ -300,7 +309,10 @@ function parseProseBlocks(prose: string, prefix: string): React.ReactNode[] {
     }
     if (trimmed.startsWith('## ')) {
       elements.push(
-        <h4 key={`${prefix}-h4-${i}`} className="text-sm font-bold text-foreground mt-4 mb-1.5">
+        <h4
+          key={`${prefix}-h4-${i}`}
+          className="text-sm font-bold text-foreground mt-4 mb-1.5 break-words"
+        >
           {renderInlineContent(trimmed.substring(3))}
         </h4>,
       );
@@ -309,7 +321,10 @@ function parseProseBlocks(prose: string, prefix: string): React.ReactNode[] {
     }
     if (trimmed.startsWith('# ')) {
       elements.push(
-        <h3 key={`${prefix}-h3-${i}`} className="text-base font-bold text-foreground mt-4 mb-2">
+        <h3
+          key={`${prefix}-h3-${i}`}
+          className="text-base font-bold text-foreground mt-4 mb-2 break-words"
+        >
           {renderInlineContent(trimmed.substring(2))}
         </h3>,
       );
@@ -332,10 +347,12 @@ function parseProseBlocks(prose: string, prefix: string): React.ReactNode[] {
       elements.push(
         <blockquote
           key={`${prefix}-quote-${i}`}
-          className="border-l-3 border-primary/50 bg-muted/20 py-1.5 pl-3 pr-2 my-2.5 rounded-r text-xs italic text-muted-foreground"
+          className="border-l-3 border-primary/50 bg-muted/20 py-1.5 pl-3 pr-2 my-2.5 rounded-r text-xs italic text-muted-foreground break-words"
         >
           {quoteLines.map((q, qIdx) => (
-            <p key={qIdx}>{renderInlineContent(q)}</p>
+            <p key={qIdx} className="break-words">
+              {renderInlineContent(q)}
+            </p>
           ))}
         </blockquote>,
       );
@@ -355,9 +372,14 @@ function parseProseBlocks(prose: string, prefix: string): React.ReactNode[] {
         }
       }
       elements.push(
-        <ul key={`${prefix}-ul-${i}`} className="my-2 list-disc pl-5 space-y-1 text-xs sm:text-sm">
+        <ul
+          key={`${prefix}-ul-${i}`}
+          className="my-2 list-disc pl-5 space-y-1 text-xs sm:text-sm break-words"
+        >
           {listItems.map((item, itemIdx) => (
-            <li key={itemIdx}>{renderInlineContent(item)}</li>
+            <li key={itemIdx} className="break-words">
+              {renderInlineContent(item)}
+            </li>
           ))}
         </ul>,
       );
@@ -379,10 +401,12 @@ function parseProseBlocks(prose: string, prefix: string): React.ReactNode[] {
       elements.push(
         <ol
           key={`${prefix}-ol-${i}`}
-          className="my-2 list-decimal pl-5 space-y-1 text-xs sm:text-sm"
+          className="my-2 list-decimal pl-5 space-y-1 text-xs sm:text-sm break-words"
         >
           {listItems.map((item, itemIdx) => (
-            <li key={itemIdx}>{renderInlineContent(item)}</li>
+            <li key={itemIdx} className="break-words">
+              {renderInlineContent(item)}
+            </li>
           ))}
         </ol>,
       );
@@ -410,7 +434,7 @@ function parseProseBlocks(prose: string, prefix: string): React.ReactNode[] {
     }
 
     elements.push(
-      <p key={`${prefix}-p-${i}`} className="text-xs sm:text-sm leading-relaxed my-1.5">
+      <p key={`${prefix}-p-${i}`} className="text-xs sm:text-sm leading-relaxed my-1.5 break-words">
         {renderInlineContent(paragraphLines.join(' '))}
       </p>,
     );

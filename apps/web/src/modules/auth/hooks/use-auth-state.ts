@@ -161,8 +161,13 @@ export function useAuthState(
   useEffect(() => {
     const unsubscribe = authTokenStore.subscribe((event) => {
       if (event === 'unauthorized' || event === 'logout') {
-        log.info(`AuthTokenStore session event [${event}]. Evicting session & purging QueryCache.`);
+        log.info(
+          `AuthTokenStore session event [${event}]. Evicting session, aborting in-flight queries & purging QueryCache.`,
+        );
         if (queryClient) {
+          // Abort all active in-flight queries to prevent late network responses
+          // from committing protected clinical/intelligence data into the cache after eviction
+          void queryClient.cancelQueries();
           queryClient.clear();
         }
         safeSetState({

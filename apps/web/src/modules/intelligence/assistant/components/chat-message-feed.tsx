@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useRef, useState, useMemo } from 'react';
-import { ArrowDown, Bot, Loader2, Sparkles } from 'lucide-react';
+import { ArrowDown, Bot, Loader2, MessageSquare, Sparkles } from 'lucide-react';
 import { Button } from '@kinergy-platform/ui';
 import type { ChatMessage } from '../types/assistant.types';
 import { ChatMessageItem } from './chat-message-item';
@@ -7,10 +7,12 @@ import { ChatMessageItem } from './chat-message-item';
 export interface ChatMessageFeedProps {
   messages: readonly ChatMessage[];
   conversationId?: string;
+  isNewThread?: boolean;
   isLoading?: boolean;
   isGenerating?: boolean;
   onPromptSuggestionClick?: (prompt: string) => void;
   onRetryMessage?: (messageId: string) => void;
+  onReconcileMessage?: (messageId: string) => void;
   onRegenerateMessage?: (messageId: string) => void;
   hasMoreMessages?: boolean;
   isLoadingMore?: boolean;
@@ -45,10 +47,12 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
   ({
     messages,
     conversationId,
+    isNewThread = false,
     isLoading = false,
     isGenerating = false,
     onPromptSuggestionClick,
     onRetryMessage,
+    onReconcileMessage,
     onRegenerateMessage,
     hasMoreMessages = false,
     isLoadingMore = false,
@@ -191,7 +195,7 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
                 size="sm"
                 onClick={handleLoadMore}
                 disabled={isLoadingMore}
-                className="text-xs gap-1.5 h-7 px-3 cursor-pointer shadow-2xs"
+                className="text-xs gap-1.5 h-7 px-3 cursor-pointer shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 data-testid="load-more-messages-button"
               >
                 {isLoadingMore ? (
@@ -206,14 +210,14 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
             </div>
           )}
 
-          {/* Empty Conversation Welcome State */}
-          {orderedMessages.length === 0 && !isLoading && (
+          {/* Empty Conversation Welcome State (New Thread) */}
+          {orderedMessages.length === 0 && !isLoading && isNewThread && (
             <div
               data-testid="chat-empty-state"
               className="flex h-full flex-col items-center justify-center text-center p-6 max-w-lg mx-auto"
             >
               <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-xs">
-                <Bot className="h-7 w-7" />
+                <Bot className="h-7 w-7" aria-hidden="true" />
               </div>
               <h3 className="text-base font-semibold text-foreground">
                 ¿En qué puedo ayudarte hoy?
@@ -237,13 +241,33 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
                         onClick={() => onPromptSuggestionClick(suggestion)}
                         className="flex items-start gap-2 rounded-lg border border-border/60 bg-card/60 p-2.5 text-left text-xs text-foreground/90 hover:bg-accent/40 hover:border-primary/40 transition-colors shadow-2xs focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-hidden"
                       >
-                        <Sparkles className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5" />
+                        <Sparkles
+                          className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5"
+                          aria-hidden="true"
+                        />
                         <span className="line-clamp-2">{suggestion}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Deliberate Empty State for Persisted Conversation with 0 Messages */}
+          {orderedMessages.length === 0 && !isLoading && !isNewThread && (
+            <div
+              data-testid="chat-empty-conversation-state"
+              className="flex h-full flex-col items-center justify-center text-center p-6 max-w-lg mx-auto"
+            >
+              <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground shadow-xs">
+                <MessageSquare className="h-6 w-6 opacity-70" aria-hidden="true" />
+              </div>
+              <h3 className="text-base font-semibold text-foreground">Conversación vacía</h3>
+              <p className="mt-1 text-xs text-muted-foreground max-w-sm">
+                Esta conversación fue creada pero aún no contiene mensajes. Escribe tu primera
+                consulta abajo para comenzar.
+              </p>
             </div>
           )}
 
@@ -258,6 +282,7 @@ export const ChatMessageFeed: React.FC<ChatMessageFeedProps> = React.memo(
                 message={msg}
                 conversationId={conversationId}
                 onRetry={onRetryMessage ? handleItemRetry : undefined}
+                onReconcile={onReconcileMessage ? () => onReconcileMessage(msg.id) : undefined}
                 onRegenerate={isEligibleForRegeneration ? onRegenerateMessage : undefined}
                 isRegenerating={isGenerating}
                 onPreviewDocument={onPreviewDocument}

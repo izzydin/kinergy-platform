@@ -44,10 +44,12 @@ export const CodeBlock: React.FC<CodeBlockProps> = React.memo(
         className={`my-3 overflow-hidden rounded-lg border border-border/70 bg-muted/40 shadow-2xs ${className}`}
       >
         {/* Code Header Bar */}
-        <div className="flex items-center justify-between border-b border-border/60 bg-muted/80 px-3 py-1.5 text-xs text-muted-foreground">
-          <div className="flex items-center gap-1.5 font-mono text-[11px] font-medium lowercase">
-            <Terminal className="h-3.5 w-3.5 text-primary" />
-            <span>{displayLanguage}</span>
+        <div className="flex items-center justify-between border-b border-border/60 bg-muted/80 px-3 py-1.5 text-xs text-muted-foreground gap-2">
+          <div className="flex items-center gap-1.5 font-mono text-[11px] font-medium lowercase min-w-0">
+            <Terminal className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden="true" />
+            <span className="truncate max-w-[200px]" title={displayLanguage}>
+              {displayLanguage}
+            </span>
           </div>
 
           <Button
@@ -56,7 +58,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = React.memo(
             size="sm"
             onClick={handleCopy}
             aria-label={copied ? 'Código copiado' : 'Copiar código al portapapeles'}
-            className="h-6 gap-1 px-2 text-[11px] border-border/70 hover:bg-background/80 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-hidden"
+            className="h-6 gap-1 px-2 text-[11px] shrink-0 border-border/70 hover:bg-background/80 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-hidden"
           >
             {copied ? (
               <>
@@ -77,7 +79,7 @@ export const CodeBlock: React.FC<CodeBlockProps> = React.memo(
         <pre
           tabIndex={0}
           aria-label={`Contenido de código ${displayLanguage}`}
-          className="overflow-x-auto p-3 font-mono text-xs leading-relaxed text-foreground/90 selection:bg-primary/20 focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-hidden"
+          className="overflow-x-auto p-3 font-mono text-xs leading-relaxed text-foreground/90 selection:bg-primary/20 whitespace-pre focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-hidden"
         >
           <code>{code}</code>
         </pre>

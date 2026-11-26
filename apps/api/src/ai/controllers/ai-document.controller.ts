@@ -12,6 +12,7 @@ import {
   UseInterceptors,
   UploadedFile,
   UseGuards,
+  UseFilters,
   HttpCode,
   HttpStatus,
   BadRequestException,
@@ -89,6 +90,7 @@ import {
   DocumentPreviewMetadataResponseDto,
   KnowledgeCapabilitiesResponseDto,
 } from './dtos/ai-document.dto';
+import { AiExceptionFilter } from '../filters/ai-exception.filter';
 
 interface MulterUploadedFile {
   fieldname: string;
@@ -103,6 +105,7 @@ interface MulterUploadedFile {
 @ApiBearerAuth()
 @Controller(['api/v1/ai/knowledge/documents', 'api/v1/ai/documents'])
 @UseGuards(AuthenticationGuard, AuthorizationGuard)
+@UseFilters(AiExceptionFilter)
 export class AiDocumentController {
   constructor(
     @Inject(SECURE_DOCUMENT_UPLOAD_SERVICE)

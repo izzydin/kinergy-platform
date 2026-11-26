@@ -37,6 +37,7 @@ export interface KnowledgeDocumentTableProps {
   readonly errorMessage?: string;
   readonly onRetry?: () => void;
   readonly isFiltered?: boolean;
+  readonly searchTerm?: string;
   readonly onResetFilters?: () => void;
   readonly onDownload?: (doc: KnowledgeDocumentItem) => void;
   readonly onRetryIngestion?: (doc: KnowledgeDocumentItem) => void;
@@ -135,6 +136,7 @@ export const KnowledgeDocumentTable: React.FC<KnowledgeDocumentTableProps> = ({
   errorMessage,
   onRetry,
   isFiltered = false,
+  searchTerm = '',
   onResetFilters,
   onDownload,
   onRetryIngestion,
@@ -190,7 +192,7 @@ export const KnowledgeDocumentTable: React.FC<KnowledgeDocumentTableProps> = ({
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <Link
                     to={`/intelligence/knowledge/documents/${encodeURIComponent(doc.id)}`}
-                    className="text-xs md:text-sm font-semibold text-foreground hover:text-primary hover:underline transition-colors truncate"
+                    className="text-xs md:text-sm font-semibold text-foreground hover:text-primary hover:underline transition-colors truncate rounded-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                     title={doc.title}
                     data-testid={`document-title-link-${doc.id}`}
                   >
@@ -244,7 +246,7 @@ export const KnowledgeDocumentTable: React.FC<KnowledgeDocumentTableProps> = ({
         header: () => (
           <button
             type="button"
-            className="flex items-center gap-1.5 font-semibold text-xs text-foreground hover:text-primary transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring rounded px-1 py-0.5"
+            className="flex items-center gap-1.5 font-semibold text-xs text-foreground hover:text-primary transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded px-1 py-0.5"
             onClick={() => onToggleSort('createdAt')}
             data-testid="sort-created-at-header"
             aria-label={`Ordenar por fecha: actualmente ${
@@ -297,7 +299,7 @@ export const KnowledgeDocumentTable: React.FC<KnowledgeDocumentTableProps> = ({
               {/* Ver detalles */}
               <Link
                 to={`/intelligence/knowledge/documents/${encodeURIComponent(doc.id)}`}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 title="Ver detalles del documento"
                 aria-label={`Ver detalles de ${doc.title}`}
                 data-testid={`action-view-${doc.id}`}
@@ -307,44 +309,50 @@ export const KnowledgeDocumentTable: React.FC<KnowledgeDocumentTableProps> = ({
 
               {/* Descargar */}
               {onDownload && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onDownload(doc)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+                  className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-foreground hover:bg-accent transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                   title="Descargar archivo"
                   aria-label={`Descargar ${doc.title}`}
                   data-testid={`action-download-${doc.id}`}
                 >
                   <Download className="h-4 w-4" />
-                </button>
+                </Button>
               )}
 
               {/* Reintentar indexación RAG si falló */}
               {isFailed && onRetryIngestion && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onRetryIngestion(doc)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
+                  className="h-8 w-8 p-0 rounded-lg text-amber-500 hover:text-amber-400 hover:bg-amber-500/10 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                   title="Reintentar indexación RAG"
                   aria-label={`Reintentar indexación de ${doc.title}`}
                   data-testid={`action-retry-${doc.id}`}
                 >
                   <RotateCcw className="h-4 w-4" />
-                </button>
+                </Button>
               )}
 
               {/* Eliminar (role-gated) */}
               {canDelete && onDelete && (
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   onClick={() => onDelete(doc)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                  className="h-8 w-8 p-0 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
                   title="Eliminar documento"
                   aria-label={`Eliminar ${doc.title}`}
                   data-testid={`action-delete-${doc.id}`}
                 >
                   <Trash2 className="h-4 w-4" />
-                </button>
+                </Button>
               )}
             </div>
           );
@@ -368,7 +376,15 @@ export const KnowledgeDocumentTable: React.FC<KnowledgeDocumentTableProps> = ({
         isLoading={isLoading}
         isFetching={isFetching}
         isError={isError}
-        errorMessage={errorMessage || 'Error al cargar la biblioteca de documentos.'}
+        errorMessage={
+          errorMessage?.toLowerCase().includes('403') ||
+          errorMessage?.toLowerCase().includes('forbidden')
+            ? 'Acceso no autorizado a la base de conocimiento.'
+            : errorMessage?.toLowerCase().includes('503') ||
+                errorMessage?.toLowerCase().includes('unavailable')
+              ? 'La base de conocimiento se encuentra temporalmente no disponible.'
+              : errorMessage || 'Error al cargar la biblioteca de documentos.'
+        }
         onRetry={onRetry}
         isFiltered={isFiltered}
         emptyTitle={
@@ -381,7 +397,7 @@ export const KnowledgeDocumentTable: React.FC<KnowledgeDocumentTableProps> = ({
         }
         onResetFilters={onResetFilters}
         emptyAction={
-          !isFiltered && onUploadClick ? (
+          !isFiltered && !searchTerm.trim() && onUploadClick ? (
             <Button
               size="sm"
               onClick={onUploadClick}
@@ -394,7 +410,7 @@ export const KnowledgeDocumentTable: React.FC<KnowledgeDocumentTableProps> = ({
           ) : undefined
         }
         ariaLabel="Tabla de documentos de la base de conocimiento"
-        className="border border-border/50 rounded-xl bg-card/40 backdrop-blur-xs overflow-hidden"
+        className="border border-border/50 rounded-xl bg-card/40 backdrop-blur-xs"
       />
     </div>
   );

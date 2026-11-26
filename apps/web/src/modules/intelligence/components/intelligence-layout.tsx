@@ -48,6 +48,14 @@ export const IntelligenceLayout: React.FC<IntelligenceLayoutProps> = ({ children
         data-testid="intelligence-layout"
         className="flex h-[calc(100vh-theme(spacing.28))] md:h-[calc(100vh-theme(spacing.24))] flex-col rounded-xl border border-border/40 bg-card/30 shadow-xs overflow-hidden overflow-x-hidden transition-colors"
       >
+        {/* Skip to Main Content Link for Keyboard Users (WCAG 2.4.1) */}
+        <a
+          href="#intelligence-main-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-primary focus:px-3 focus:py-1.5 focus:text-xs focus:font-semibold focus:text-primary-foreground focus:shadow-md focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:outline-hidden"
+        >
+          Saltar al contenido principal
+        </a>
+
         {/* Module Header Bar */}
         <header
           role="banner"
@@ -85,6 +93,7 @@ export const IntelligenceLayout: React.FC<IntelligenceLayoutProps> = ({ children
           <NavLink
             to="/intelligence/chat"
             aria-label="AI Assistant — Chat Asistente"
+            aria-current={isChatActive ? 'page' : undefined}
             className={`inline-flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0 ${
               isChatActive
                 ? 'border-primary text-primary font-semibold'
@@ -99,6 +108,7 @@ export const IntelligenceLayout: React.FC<IntelligenceLayoutProps> = ({ children
             <NavLink
               to="/intelligence/knowledge"
               aria-label="Knowledge Center — Base de Conocimiento"
+              aria-current={isKnowledgeActive ? 'page' : undefined}
               className={`inline-flex items-center gap-2 border-b-2 px-3 py-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring shrink-0 ${
                 isKnowledgeActive
                   ? 'border-primary text-primary font-semibold'
@@ -114,7 +124,9 @@ export const IntelligenceLayout: React.FC<IntelligenceLayoutProps> = ({ children
         {/* Main Content Region: flex-1 min-h-0 overflow-hidden supports full-height chat workspaces */}
         <main
           role="main"
-          className="flex-1 min-h-0 flex flex-col p-4 md:p-6 overflow-hidden overflow-x-hidden min-w-0"
+          id="intelligence-main-content"
+          tabIndex={-1}
+          className="flex-1 min-h-0 flex flex-col p-4 md:p-6 overflow-hidden overflow-x-hidden min-w-0 focus:outline-hidden"
         >
           {children || <Outlet />}
         </main>

@@ -146,7 +146,7 @@ describe('AI-09.1.03: Intelligence Shared Layout & Composition Architecture', ()
       expect(pill).toBeInTheDocument();
       expect(pill).toHaveAttribute('role', 'status');
       expect(pill).toHaveTextContent('AI En línea');
-      expect(pill.className).toContain('text-emerald-400');
+      expect(pill.className).toMatch(/text-emerald-(?:400|700)/);
     });
 
     it('renders degraded status with amber styling', () => {
@@ -154,7 +154,7 @@ describe('AI-09.1.03: Intelligence Shared Layout & Composition Architecture', ()
 
       const pill = screen.getByTestId('ai-health-pill');
       expect(pill).toHaveTextContent('AI Degradado');
-      expect(pill.className).toContain('text-amber-400');
+      expect(pill.className).toMatch(/text-amber-(?:400|700)/);
     });
 
     it('renders unhealthy status with rose styling', () => {
@@ -162,7 +162,7 @@ describe('AI-09.1.03: Intelligence Shared Layout & Composition Architecture', ()
 
       const pill = screen.getByTestId('ai-health-pill');
       expect(pill).toHaveTextContent('AI Fuera de servicio');
-      expect(pill.className).toContain('text-rose-400');
+      expect(pill.className).toMatch(/text-rose-(?:400|700)/);
     });
 
     it('supports custom label override', () => {

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Bot, Check, Loader2, Menu, Pencil, Sparkles, Trash2, X } from 'lucide-react';
-import { Badge, Button } from '@kinergy-platform/ui';
+import { Badge, Button, Input } from '@kinergy-platform/ui';
 
 export interface ChatWorkspaceHeaderProps {
   title?: string;
@@ -9,7 +9,9 @@ export interface ChatWorkspaceHeaderProps {
   createdAt?: string;
   lastActivityAt?: string;
   isNewThread?: boolean;
+  isRefreshing?: boolean;
   onToggleMobileSidebar?: () => void;
+  isMobileSidebarOpen?: boolean;
   onDeleteConversation?: () => void;
   isDeleting?: boolean;
   onRename?: (newTitle: string) => Promise<void> | void;
@@ -50,7 +52,9 @@ export const ChatWorkspaceHeader: React.FC<ChatWorkspaceHeaderProps> = ({
   createdAt,
   lastActivityAt,
   isNewThread = false,
+  isRefreshing = false,
   onToggleMobileSidebar,
+  isMobileSidebarOpen = false,
   onDeleteConversation,
   isDeleting = false,
   onRename,
@@ -115,14 +119,18 @@ export const ChatWorkspaceHeader: React.FC<ChatWorkspaceHeaderProps> = ({
       <div className="flex items-center gap-2.5 min-w-0">
         {/* Mobile menu trigger button */}
         {onToggleMobileSidebar && (
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             aria-label="Abrir panel de conversaciones"
+            aria-expanded={isMobileSidebarOpen}
+            aria-haspopup="dialog"
             onClick={onToggleMobileSidebar}
-            className="md:hidden rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
+            className="md:hidden h-8 w-8 min-h-[32px] min-w-[32px] p-0 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
           >
             <Menu className="h-4 w-4" />
-          </button>
+          </Button>
         )}
 
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
@@ -137,10 +145,12 @@ export const ChatWorkspaceHeader: React.FC<ChatWorkspaceHeaderProps> = ({
                 className="flex items-center gap-1.5"
                 data-testid="header-rename-form"
               >
-                <input
+                <Input
                   type="text"
                   data-testid="header-rename-input"
                   aria-label="Editar título de la conversación"
+                  aria-invalid={Boolean(validationError)}
+                  aria-describedby={validationError ? 'header-rename-error' : undefined}
                   value={headerTitle}
                   maxLength={255}
                   autoFocus
@@ -155,45 +165,51 @@ export const ChatWorkspaceHeader: React.FC<ChatWorkspaceHeaderProps> = ({
                       handleCancelEditing();
                     }
                   }}
-                  className="rounded border border-input bg-background px-2 py-0.5 text-xs text-foreground focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-primary w-48 sm:w-64"
+                  className="h-7 w-48 sm:w-64 px-2 py-0.5 text-xs text-foreground"
                 />
-                <button
+                <Button
                   type="submit"
+                  variant="ghost"
+                  size="sm"
                   data-testid="header-save-rename-button"
                   aria-label="Guardar título"
                   disabled={isRenaming}
-                  className="rounded p-1 text-primary hover:bg-primary/10 transition-colors cursor-pointer disabled:opacity-50"
+                  className="h-7 w-7 p-0 rounded text-primary hover:bg-primary/10 transition-colors cursor-pointer disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 >
                   {isRenaming ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
                     <Check className="h-3.5 w-3.5" />
                   )}
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="sm"
                   data-testid="header-cancel-rename-button"
                   aria-label="Cancelar edición"
                   disabled={isRenaming}
                   onClick={handleCancelEditing}
-                  className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer disabled:opacity-50"
+                  className="h-7 w-7 p-0 rounded text-muted-foreground hover:bg-muted hover:text-foreground transition-colors cursor-pointer disabled:opacity-50 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 >
                   <X className="h-3.5 w-3.5" />
-                </button>
+                </Button>
               </form>
             ) : (
               <div className="flex items-center gap-1.5 min-w-0">
                 <h2 className="truncate text-sm font-semibold text-foreground">{title}</h2>
                 {!isNewThread && onRename && (
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     aria-label="Renombrar conversación actual"
                     data-testid="header-rename-button"
                     onClick={handleStartEditing}
-                    className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+                    className="h-6 w-6 p-0 rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                   >
                     <Pencil className="h-3.5 w-3.5" />
-                  </button>
+                  </Button>
                 )}
               </div>
             )}
@@ -206,6 +222,7 @@ export const ChatWorkspaceHeader: React.FC<ChatWorkspaceHeaderProps> = ({
           {validationError && (
             <span
               role="alert"
+              id="header-rename-error"
               data-testid="header-rename-error"
               className="text-[10px] text-destructive font-medium mt-0.5"
             >
@@ -262,13 +279,23 @@ export const ChatWorkspaceHeader: React.FC<ChatWorkspaceHeaderProps> = ({
 
       {/* Action Controls */}
       <div className="flex items-center gap-2">
+        {isRefreshing && (
+          <span
+            data-testid="header-refreshing-indicator"
+            aria-label="Sincronizando conversación..."
+            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/80 bg-muted/50 px-2 py-0.5 rounded-full"
+          >
+            <Loader2 className="h-3 w-3 animate-spin text-primary" aria-hidden="true" />
+            <span className="hidden md:inline">Sincronizando</span>
+          </span>
+        )}
         {!isNewThread && onDeleteConversation && (
           <Button
             variant="ghost"
             size="sm"
             onClick={onDeleteConversation}
             disabled={isDeleting}
-            className="text-xs text-muted-foreground hover:text-destructive gap-1.5"
+            className="text-xs text-muted-foreground hover:text-destructive gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-1"
             aria-label="Eliminar conversación actual"
           >
             <Trash2 className="h-3.5 w-3.5" />

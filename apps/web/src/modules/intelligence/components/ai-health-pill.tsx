@@ -1,4 +1,5 @@
 import React from 'react';
+import { Badge } from '@kinergy-platform/ui';
 import type { IntelligenceSubsystemStatus } from '../types';
 import { useAIHealth } from '../hooks/use-ai-health';
 
@@ -17,18 +18,18 @@ const statusConfig: Record<
 > = {
   healthy: {
     label: 'AI En línea',
-    dotClass: 'bg-emerald-500 animate-pulse',
-    badgeClass: 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400',
+    dotClass: 'bg-emerald-500 motion-safe:animate-pulse',
+    badgeClass: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300',
   },
   degraded: {
     label: 'AI Degradado',
     dotClass: 'bg-amber-500',
-    badgeClass: 'border-amber-500/20 bg-amber-500/10 text-amber-400',
+    badgeClass: 'border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300',
   },
   unhealthy: {
     label: 'AI Fuera de servicio',
     dotClass: 'bg-rose-500',
-    badgeClass: 'border-rose-500/20 bg-rose-500/10 text-rose-400',
+    badgeClass: 'border-rose-500/25 bg-rose-500/10 text-rose-700 dark:text-rose-300',
   },
 };
 
@@ -56,7 +57,8 @@ export const AIHealthPill: React.FC<AIHealthPillProps> = ({
   const displayText = label || current.label;
 
   return (
-    <div
+    <Badge
+      variant="outline"
       role="status"
       aria-label={`Estado del Asistente AI: ${displayText}`}
       data-testid="ai-health-pill"
@@ -64,6 +66,6 @@ export const AIHealthPill: React.FC<AIHealthPillProps> = ({
     >
       <span className={`h-1.5 w-1.5 rounded-full ${current.dotClass}`} aria-hidden="true" />
       <span>{displayText}</span>
-    </div>
+    </Badge>
   );
 };

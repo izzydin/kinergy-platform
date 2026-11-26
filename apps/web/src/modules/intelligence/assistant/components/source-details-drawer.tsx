@@ -95,13 +95,49 @@ export const SourceDetailsDrawer: React.FC<SourceDetailsDrawerProps> = React.mem
   }) => {
     const [copied, setCopied] = useState(false);
     const panelRef = useRef<HTMLDivElement>(null);
+    const previousActiveElementRef = useRef<HTMLElement | null>(null);
 
     // Reset copied status when active citation changes
     useEffect(() => {
       setCopied(false);
     }, [citation?.citationId, citation?.documentId, citationIndex]);
 
-    // Handle Escape key to close
+    // Focus management: capture active element on open, focus panel/close button, and restore on close
+    useEffect(() => {
+      if (isOpen) {
+        previousActiveElementRef.current = (document.activeElement as HTMLElement) || null;
+        const timer = setTimeout(() => {
+          if (panelRef.current) {
+            const closeBtn = panelRef.current.querySelector<HTMLElement>(
+              '[data-testid="close-drawer-btn"]',
+            );
+            if (closeBtn) {
+              closeBtn.focus();
+            } else {
+              panelRef.current.focus();
+            }
+          }
+        }, 30);
+        return () => clearTimeout(timer);
+      }
+
+      if (previousActiveElementRef.current) {
+        previousActiveElementRef.current.focus?.();
+        previousActiveElementRef.current = null;
+      }
+      return undefined;
+    }, [isOpen]);
+
+    // Restore focus on unmount if drawer was open
+    useEffect(() => {
+      return () => {
+        if (previousActiveElementRef.current) {
+          previousActiveElementRef.current.focus?.();
+        }
+      };
+    }, []);
+
+    // Handle Escape key and Tab focus trap
     useEffect(() => {
       if (!isOpen) return;
 
@@ -109,6 +145,29 @@ export const SourceDetailsDrawer: React.FC<SourceDetailsDrawerProps> = React.mem
         if (e.key === 'Escape') {
           e.preventDefault();
           onClose();
+          return;
+        }
+
+        if (e.key === 'Tab' && panelRef.current) {
+          const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+            'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+          );
+          if (focusable.length === 0) return;
+
+          const first = focusable[0];
+          const last = focusable[focusable.length - 1];
+
+          if (e.shiftKey) {
+            if (document.activeElement === first || document.activeElement === panelRef.current) {
+              e.preventDefault();
+              last?.focus();
+            }
+          } else {
+            if (document.activeElement === last) {
+              e.preventDefault();
+              first?.focus();
+            }
+          }
         }
       };
 
@@ -243,16 +302,22 @@ export const SourceDetailsDrawer: React.FC<SourceDetailsDrawerProps> = React.mem
           tabIndex={-1}
         >
           {/* Header */}
-          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/80 bg-background/95 px-5 py-4 backdrop-blur-sm">
-            <div className="flex items-center gap-2">
-              <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">
+          <div className="sticky top-0 z-10 flex items-center justify-between border-b border-border/80 bg-background/95 px-5 py-4 backdrop-blur-sm gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">
                 [{citationIndex + 1}]
               </span>
-              <div>
-                <h2 id="source-details-title" className="text-sm font-semibold text-foreground">
+              <div className="min-w-0">
+                <h2
+                  id="source-details-title"
+                  className="text-sm font-semibold text-foreground truncate"
+                >
                   Detalles de la fuente
                 </h2>
-                <p id="source-details-description" className="text-[11px] text-muted-foreground">
+                <p
+                  id="source-details-description"
+                  className="text-[11px] text-muted-foreground truncate"
+                >
                   Verificación de procedencia y evidencia RAG
                 </p>
               </div>
@@ -262,42 +327,48 @@ export const SourceDetailsDrawer: React.FC<SourceDetailsDrawerProps> = React.mem
               {/* Pagination controls if multiple citations */}
               {allCitations && allCitations.length > 1 && (
                 <div className="flex items-center mr-2 border rounded-md border-border/70 p-0.5">
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={handlePrev}
                     disabled={!hasPrevious}
                     aria-label="Fuente anterior"
                     data-testid="prev-citation-btn"
-                    className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                    className="h-6 w-6 p-0 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                   >
                     <ChevronLeft className="h-4 w-4" />
-                  </button>
+                  </Button>
                   <span className="text-[11px] px-1 font-mono text-muted-foreground">
                     {citationIndex + 1}/{allCitations.length}
                   </span>
-                  <button
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="sm"
                     onClick={handleNext}
                     disabled={!hasNext}
                     aria-label="Siguiente fuente"
                     data-testid="next-citation-btn"
-                    className="p-1 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-colors"
+                    className="h-6 w-6 p-0 rounded text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:pointer-events-none transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                   >
                     <ChevronRight className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </div>
               )}
 
               {/* Close Button */}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="sm"
                 onClick={onClose}
                 aria-label="Cerrar panel de fuente"
                 data-testid="close-drawer-btn"
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="h-8 w-8 p-0 rounded-md text-muted-foreground hover:bg-muted hover:text-foreground transition-colors focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               >
                 <X className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -489,7 +560,7 @@ export const SourceDetailsDrawer: React.FC<SourceDetailsDrawerProps> = React.mem
                   onClick={handleCopyExcerpt}
                   aria-label="Copiar extracto al portapapeles"
                   data-testid="copy-excerpt-btn"
-                  className="h-7 text-[11px] gap-1 text-muted-foreground hover:text-foreground"
+                  className="h-7 text-[11px] gap-1 text-muted-foreground hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
                 >
                   {copied ? (
                     <>
@@ -508,7 +579,10 @@ export const SourceDetailsDrawer: React.FC<SourceDetailsDrawerProps> = React.mem
               {/* Verbatim Excerpt Card (Strictly Text-Escaped & Whitespace Preserved) */}
               <div
                 data-testid="drawer-verbatim-excerpt"
-                className="rounded-md border border-border/70 bg-muted/30 p-3.5 text-xs text-foreground font-sans leading-relaxed whitespace-pre-wrap select-text max-h-64 overflow-y-auto"
+                tabIndex={0}
+                role="region"
+                aria-label="Extracto textual de evidencia"
+                className="rounded-md border border-border/70 bg-muted/30 p-3.5 text-xs text-foreground font-sans leading-relaxed whitespace-pre-wrap break-words select-text max-h-64 overflow-y-auto focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               >
                 {excerpt}
               </div>
@@ -589,7 +663,13 @@ export const SourceDetailsDrawer: React.FC<SourceDetailsDrawerProps> = React.mem
 
           {/* Drawer Sticky Footer / Action Bar */}
           <div className="sticky bottom-0 border-t border-border/80 bg-background/95 px-5 py-3 backdrop-blur-sm flex items-center justify-between gap-3">
-            <Button type="button" variant="outline" size="sm" onClick={onClose} className="text-xs">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onClose}
+              className="text-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
+            >
               Cerrar
             </Button>
 
@@ -600,7 +680,7 @@ export const SourceDetailsDrawer: React.FC<SourceDetailsDrawerProps> = React.mem
                 size="sm"
                 onClick={handlePreviewClick}
                 data-testid="open-full-document-btn"
-                className="gap-1.5 text-xs font-medium"
+                className="gap-1.5 text-xs font-medium focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               >
                 <span>Abrir documento completo</span>
                 <ExternalLink className="h-3.5 w-3.5" />

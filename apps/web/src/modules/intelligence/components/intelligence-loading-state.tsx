@@ -1,7 +1,7 @@
 import React from 'react';
 import { Skeleton } from '@kinergy-platform/ui';
 
-export type IntelligenceLoadingVariant = 'chat' | 'knowledge' | 'page';
+export type IntelligenceLoadingVariant = 'chat' | 'conversation-list' | 'knowledge' | 'page';
 
 export interface IntelligenceLoadingStateProps {
   /** Loading presentation variant (default: 'page') */
@@ -22,6 +22,7 @@ export interface IntelligenceLoadingStateProps {
  * - Visually hidden screen reader announcements (`.sr-only`)
  * - Respects `prefers-reduced-motion` via `motion-reduce:animate-none`
  * - Eliminates Cumulative Layout Shift (CLS) with proportional skeleton geometry
+ * - Sets `aria-hidden="true"` on purely visual skeleton placeholders
  */
 export const IntelligenceLoadingState: React.FC<IntelligenceLoadingStateProps> = ({
   variant = 'page',
@@ -41,7 +42,7 @@ export const IntelligenceLoadingState: React.FC<IntelligenceLoadingStateProps> =
 
       {/* ── Variant 1: Chat Workspace Skeleton ────────────────────────── */}
       {variant === 'chat' && (
-        <div className="flex h-full w-full flex-col justify-between gap-6">
+        <div aria-hidden="true" className="flex h-full w-full flex-col justify-between gap-6">
           {/* Messages Stream Placeholder */}
           <div className="space-y-6 flex-1 overflow-hidden">
             {/* Assistant Message Bubble Skeleton */}
@@ -84,9 +85,54 @@ export const IntelligenceLoadingState: React.FC<IntelligenceLoadingStateProps> =
         </div>
       )}
 
-      {/* ── Variant 2: Knowledge Center / Document Library Skeleton ───── */}
+      {/* ── Variant 2: Conversation List / Sidebar Skeleton ──────────── */}
+      {variant === 'conversation-list' && (
+        <div
+          aria-hidden="true"
+          className="space-y-4 w-full p-1"
+          data-testid="conversation-list-skeleton"
+        >
+          {/* Section 1 header skeleton */}
+          <Skeleton className="h-3 w-16 mb-2 motion-reduce:animate-none" />
+          <div className="space-y-2">
+            {[1, 2, 3].map((idx) => (
+              <div
+                key={`sidebar-skeleton-item-${idx}`}
+                className="flex items-center gap-2.5 rounded-lg border border-border/30 bg-card/30 p-2.5"
+              >
+                <Skeleton className="h-4 w-4 rounded-sm shrink-0 motion-reduce:animate-none" />
+                <div className="flex-1 space-y-1.5 min-w-0">
+                  <Skeleton
+                    className={`h-3.5 ${idx % 2 === 0 ? 'w-4/5' : 'w-2/3'} motion-reduce:animate-none`}
+                  />
+                  <Skeleton className="h-2.5 w-1/3 motion-reduce:animate-none" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Section 2 header skeleton */}
+          <Skeleton className="h-3 w-20 mt-4 mb-2 motion-reduce:animate-none" />
+          <div className="space-y-2">
+            {[4, 5].map((idx) => (
+              <div
+                key={`sidebar-skeleton-item-${idx}`}
+                className="flex items-center gap-2.5 rounded-lg border border-border/30 bg-card/30 p-2.5"
+              >
+                <Skeleton className="h-4 w-4 rounded-sm shrink-0 motion-reduce:animate-none" />
+                <div className="flex-1 space-y-1.5 min-w-0">
+                  <Skeleton className="h-3.5 w-3/4 motion-reduce:animate-none" />
+                  <Skeleton className="h-2.5 w-2/5 motion-reduce:animate-none" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Variant 3: Knowledge Center / Document Library Skeleton ───── */}
       {variant === 'knowledge' && (
-        <div className="space-y-6 w-full">
+        <div aria-hidden="true" className="space-y-6 w-full">
           {/* Search & Actions Toolbar Skeleton */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pb-2 border-b border-border/40">
             <Skeleton className="h-9 w-full sm:w-72 rounded-lg motion-reduce:animate-none" />
@@ -119,9 +165,9 @@ export const IntelligenceLoadingState: React.FC<IntelligenceLoadingStateProps> =
         </div>
       )}
 
-      {/* ── Variant 3: Generic Page Skeleton ─────────────────────────── */}
+      {/* ── Variant 4: Generic Page Skeleton ─────────────────────────── */}
       {variant === 'page' && (
-        <div className="space-y-6 w-full">
+        <div aria-hidden="true" className="space-y-6 w-full">
           <div className="space-y-2 pb-4 border-b border-border/40">
             <Skeleton className="h-6 w-56 motion-reduce:animate-none" />
             <Skeleton className="h-3.5 w-96 max-w-full motion-reduce:animate-none" />

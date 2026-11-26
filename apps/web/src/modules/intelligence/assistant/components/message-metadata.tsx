@@ -29,14 +29,14 @@ export const MessageMetadata: React.FC<MessageMetadataProps> = ({
   return (
     <footer
       aria-label="Metadatos del mensaje"
-      className="flex flex-wrap items-center gap-2 px-1 text-[11px] text-muted-foreground/70"
+      className="flex flex-wrap items-center gap-2 px-1 text-[11px] text-muted-foreground"
     >
       <time dateTime={createdAt}>{formattedTime}</time>
 
       {metadata?.model && (
         <>
           <span aria-hidden="true">•</span>
-          <span className="font-mono text-muted-foreground/80">{metadata.model}</span>
+          <span className="font-mono text-muted-foreground">{metadata.model}</span>
         </>
       )}
 
@@ -47,10 +47,19 @@ export const MessageMetadata: React.FC<MessageMetadataProps> = ({
         </>
       )}
 
-      {grounded && (
+      {grounded !== undefined && (
         <>
           <span aria-hidden="true">•</span>
-          <span className="text-primary font-medium">Fundamentado</span>
+          <span
+            data-testid={grounded ? 'grounded-badge-verified' : 'grounded-badge-abstention'}
+            className={
+              grounded
+                ? 'text-primary font-medium'
+                : 'text-amber-700 dark:text-amber-400 font-medium'
+            }
+          >
+            {grounded ? 'Fundamentado' : 'Sin evidencia directa'}
+          </span>
         </>
       )}
     </footer>

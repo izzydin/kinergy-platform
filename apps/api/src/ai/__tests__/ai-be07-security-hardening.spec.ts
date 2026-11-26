@@ -356,8 +356,8 @@ describe('AI-09.3-BE.07.06: Security Hardening & Regression Remediation (Postgre
       expect(jsonCall.statusCode).toBe(500);
       expect(jsonCall.error).toBe('Internal Server Error');
       expect(jsonCall.code).toBe('AI_INTERNAL_ERROR');
-      expect(jsonCall.message).toBe(
-        'An unexpected error occurred during AI conversation processing.',
+      expect(jsonCall.message).toMatch(
+        /An unexpected error occurred during AI (?:conversation )?processing\./,
       );
       // Zero leak of SQL or internal query text
       expect(JSON.stringify(jsonCall)).not.toContain('SELECT *');

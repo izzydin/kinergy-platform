@@ -235,6 +235,8 @@ export const DocumentPreviewMetadataResponseSchema: z.ZodType<DocumentPreviewMet
     visibilityScope: VisibilityScopeSchema,
     isAuthorized: z.boolean(),
     isDeleted: z.boolean(),
+    status: z.enum(['ACTIVE', 'ARCHIVED', 'DELETED']).optional(),
+    isArchived: z.boolean().optional(),
   });
 
 export function parsePaginatedDocumentsResponse(data: unknown): PaginatedDocumentsResponse {

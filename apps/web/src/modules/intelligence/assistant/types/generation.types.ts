@@ -20,7 +20,8 @@ export type GenerationStatus =
   | 'COMPLETED'
   | 'FAILED'
   | 'CANCELLED'
-  | 'INTERRUPTED';
+  | 'INTERRUPTED'
+  | 'UNKNOWN';
 
 /**
  * Valid state transition map ensuring strict state machine progression.
@@ -30,13 +31,22 @@ export const VALID_GENERATION_TRANSITIONS: Readonly<
   Record<GenerationStatus, readonly GenerationStatus[]>
 > = {
   IDLE: ['PENDING'],
-  PENDING: ['STREAMING', 'COMPLETED', 'FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'],
-  STREAMING: ['COMPLETED', 'INTERRUPTED', 'CANCELLING', 'CANCELLED', 'FAILED'],
-  CANCELLING: ['CANCELLED', 'FAILED', 'COMPLETED'],
+  PENDING: [
+    'STREAMING',
+    'COMPLETED',
+    'FAILED',
+    'CANCELLING',
+    'CANCELLED',
+    'INTERRUPTED',
+    'UNKNOWN',
+  ],
+  STREAMING: ['COMPLETED', 'INTERRUPTED', 'CANCELLING', 'CANCELLED', 'FAILED', 'UNKNOWN'],
+  CANCELLING: ['CANCELLED', 'FAILED', 'COMPLETED', 'UNKNOWN'],
   COMPLETED: ['IDLE', 'PENDING'],
   FAILED: ['IDLE', 'PENDING'],
   CANCELLED: ['IDLE', 'PENDING'],
   INTERRUPTED: ['IDLE', 'PENDING'],
+  UNKNOWN: ['IDLE', 'PENDING', 'COMPLETED', 'FAILED', 'CANCELLED', 'INTERRUPTED'],
 };
 
 /**
@@ -95,6 +105,7 @@ export type GenerationEvent =
   | { readonly type: 'START_CANCEL' }
   | { readonly type: 'CANCEL' }
   | { readonly type: 'INTERRUPT' }
+  | { readonly type: 'MARK_UNKNOWN'; readonly error?: Error }
   | { readonly type: 'RESET' };
 
 /**
@@ -193,6 +204,18 @@ export function generationStateReducer(
         ...state,
         status: 'INTERRUPTED',
         completedAt: new Date().toISOString(),
+      };
+    }
+
+    case 'MARK_UNKNOWN': {
+      if (!isValidGenerationTransition(state.status, 'UNKNOWN')) {
+        return state;
+      }
+      return {
+        ...state,
+        status: 'UNKNOWN',
+        error: event.error ?? state.error,
+        completedAt: null,
       };
     }
 

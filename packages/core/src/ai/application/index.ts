@@ -3,6 +3,7 @@ export * from './ports/ai-conversation-logger.port';
 export * from './services/ai-conversation-redaction.service';
 export * from './services/ai-source-attribution.service';
 export * from './errors/ai-conversation-application.error';
+export * from './errors/ai-failure-classifier';
 export * from './dtos/ai-conversation.dtos';
 export { AiApplicationResult } from './common/application-result';
 export * from './services/ai-payload-hasher';

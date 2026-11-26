@@ -1,5 +1,6 @@
 import React from 'react';
 import { FileText, ExternalLink, Archive, ShieldAlert } from 'lucide-react';
+import { Badge } from '@kinergy-platform/ui';
 import type { RAGSourceCitationDto } from '../types/assistant.types';
 
 export interface CitationBadgeProps {
@@ -44,43 +45,55 @@ export const CitationBadge: React.FC<CitationBadgeProps> = React.memo(
     const isRestricted = source.previewStatus === 'DOCUMENT_RESTRICTED';
 
     return (
-      <button
-        type="button"
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
-        aria-label={accessibleLabel}
-        data-testid={`citation-badge-${index + 1}`}
-        title={displayTitle}
-        className={`group inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground hover:bg-accent/60 hover:border-primary/50 hover:text-foreground transition-colors cursor-pointer select-none focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-primary ${className}`}
+      <Badge
+        asChild
+        variant="outline"
+        className={`group inline-flex max-w-full items-center gap-1.5 rounded-md border border-border/70 bg-muted/40 px-2 py-0.5 text-[11px] font-normal text-muted-foreground hover:bg-accent/60 hover:border-primary/50 hover:text-foreground transition-colors cursor-pointer select-none focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 ${className}`}
       >
-        <span className="font-semibold text-primary">[{index + 1}]</span>
+        <button
+          type="button"
+          onClick={handleClick}
+          onKeyDown={handleKeyDown}
+          aria-label={accessibleLabel}
+          data-testid={`citation-badge-${index + 1}`}
+          title={displayTitle}
+          className="inline-flex max-w-full items-center gap-1.5 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded-xs"
+        >
+          <span className="font-semibold text-primary">[{index + 1}]</span>
 
-        {isSoftDeleted ? (
-          <Archive className="h-2.5 w-2.5 text-amber-500 shrink-0" aria-hidden="true" />
-        ) : isRestricted ? (
-          <ShieldAlert className="h-2.5 w-2.5 text-amber-500 shrink-0" aria-hidden="true" />
-        ) : (
-          <FileText
-            className="h-2.5 w-2.5 text-muted-foreground/70 shrink-0 group-hover:text-primary transition-colors"
+          {isSoftDeleted ? (
+            <Archive
+              className="h-2.5 w-2.5 text-amber-700 dark:text-amber-400 shrink-0"
+              aria-hidden="true"
+            />
+          ) : isRestricted ? (
+            <ShieldAlert
+              className="h-2.5 w-2.5 text-amber-700 dark:text-amber-400 shrink-0"
+              aria-hidden="true"
+            />
+          ) : (
+            <FileText
+              className="h-2.5 w-2.5 text-muted-foreground shrink-0 group-hover:text-primary transition-colors"
+              aria-hidden="true"
+            />
+          )}
+
+          <span className="truncate max-w-[120px] sm:max-w-[160px] md:max-w-[200px] font-medium">
+            {displayTitle}
+          </span>
+
+          {pageLabel && (
+            <span className="text-[10px] text-muted-foreground font-mono bg-muted px-1.5 py-0.5 rounded-xs shrink-0">
+              {pageLabel}
+            </span>
+          )}
+
+          <ExternalLink
+            className="h-2.5 w-2.5 text-muted-foreground group-hover:text-primary transition-colors shrink-0"
             aria-hidden="true"
           />
-        )}
-
-        <span className="truncate max-w-[120px] sm:max-w-[160px] md:max-w-[200px] font-medium">
-          {displayTitle}
-        </span>
-
-        {pageLabel && (
-          <span className="text-[10px] text-muted-foreground/80 font-mono bg-muted/80 px-1 py-0.2 rounded-xs shrink-0">
-            {pageLabel}
-          </span>
-        )}
-
-        <ExternalLink
-          className="h-2.5 w-2.5 text-muted-foreground/50 group-hover:text-primary transition-colors shrink-0"
-          aria-hidden="true"
-        />
-      </button>
+        </button>
+      </Badge>
     );
   },
 );

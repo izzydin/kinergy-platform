@@ -647,34 +647,9 @@ export class ArchiveConversationResponseDto {
   archivedAt!: string;
 }
 
-export class AiConversationErrorResponseDto {
-  @ApiProperty({ description: 'HTTP status code', example: 400 })
-  statusCode!: number;
+import { AiErrorResponseDto } from '../../dtos/ai-error-response.dto';
 
-  @ApiProperty({ description: 'High-level HTTP error category', example: 'Bad Request' })
-  error!: string;
-
-  @ApiProperty({ description: 'Application error code', example: 'AI_INVALID_TURN_INPUT' })
-  code!: string;
-
-  @ApiProperty({
-    description: 'Human-readable, safe error message',
-    example: 'userPrompt must not be empty or contain only whitespace',
-  })
-  message!: string;
-
-  @ApiProperty({
-    description: 'Request URI path where error occurred',
-    example: '/api/v1/ai/conversations',
-  })
-  path!: string;
-
-  @ApiProperty({
-    description: 'ISO 8601 timestamp of error occurrence',
-    example: '2026-11-23T16:00:00.000Z',
-  })
-  timestamp!: string;
-}
+export class AiConversationErrorResponseDto extends AiErrorResponseDto {}
 
 export class AuditInspectConversationRequestDto {
   @ApiProperty({

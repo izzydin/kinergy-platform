@@ -30,9 +30,9 @@ export const KnowledgeOverviewHeader: React.FC<KnowledgeOverviewHeaderProps> = (
             <BookOpen className="h-5 w-5" aria-hidden="true" />
           </div>
           <div className="min-w-0">
-            <h1 className="text-lg md:text-xl font-bold tracking-tight text-foreground truncate">
+            <h2 className="text-lg md:text-xl font-bold tracking-tight text-foreground truncate">
               Base de Conocimiento & Documentación
-            </h1>
+            </h2>
             <p className="text-xs md:text-sm text-muted-foreground mt-0.5 max-w-2xl">
               Administración de guías clínicas, manuales operativos y protocolos institucionales
               indexados en el motor vectorial para consultas asistidas. Formatos aceptados: PDF,
@@ -49,7 +49,7 @@ export const KnowledgeOverviewHeader: React.FC<KnowledgeOverviewHeaderProps> = (
                 size="sm"
                 onClick={onBrowseClick}
                 data-testid="knowledge-browse-button"
-                className="gap-2 h-9 text-xs font-medium"
+                className="gap-2 h-9 text-xs font-medium focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               >
                 <FolderOpen className="h-4 w-4" aria-hidden="true" />
                 <span>Explorar Biblioteca</span>
@@ -62,7 +62,7 @@ export const KnowledgeOverviewHeader: React.FC<KnowledgeOverviewHeaderProps> = (
                 size="sm"
                 onClick={onUploadClick}
                 data-testid="knowledge-upload-button"
-                className="gap-2 h-9 text-xs font-semibold shadow-xs"
+                className="gap-2 h-9 text-xs font-semibold shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               >
                 <Upload className="h-4 w-4" aria-hidden="true" />
                 <span>Subir Documento</span>

@@ -24,7 +24,7 @@ const LEVEL_WEIGHTS: Record<LogLevelThreshold, number> = {
 };
 
 const SENSITIVE_KEY_PATTERNS =
-  /password|pass|secret|token|bearer|authorization|auth_token|access_token|refresh_token|private_key|api_key|apikey|credential|ssn|credit_card/i;
+  /password|pass|secret|token|bearer|authorization|auth_token|access_token|refresh_token|private_key|api_key|apikey|credential|ssn|credit_card|raw_content|file_bytes|document_text/i;
 
 /**
  * Sanitizes arbitrary values to redact sensitive keys, tokens, or credentials.
@@ -38,6 +38,13 @@ export function sanitizeValue(key: string, value: unknown): unknown {
     // Redact inline Bearer tokens if present
     if (value.startsWith('Bearer ') && value.length > 10) {
       return 'Bearer [REDACTED]';
+    }
+    // Truncate excessively long strings in telemetry logs to prevent dumping raw document bodies
+    if (
+      value.length > 500 &&
+      (key.toLowerCase().includes('prompt') || key.toLowerCase().includes('content'))
+    ) {
+      return `${value.slice(0, 100)}... [TRUNCATED ${value.length} chars]`;
     }
     return value;
   }

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, X, Upload, RotateCcw, Loader2 } from 'lucide-react';
-import { Button } from '@kinergy-platform/ui';
+import { Button, Input, Select } from '@kinergy-platform/ui';
 import { useOptionalAuth } from '../../../../app/providers/auth-provider';
 import type { VisibilityScope } from '../types/knowledge-contract.types';
 
@@ -66,83 +66,81 @@ export const KnowledgeLibraryToolbar: React.FC<KnowledgeLibraryToolbarProps> = (
     >
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
         {/* Search input with debounced propagation */}
-        <div className="relative flex-1 min-w-[240px] max-w-md">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground">
+        <div className="relative flex-1 min-w-0 sm:min-w-[240px] max-w-md">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-muted-foreground z-10">
             <Search className="h-4 w-4" aria-hidden="true" />
           </div>
-          <input
+          <Input
             type="search"
             data-testid="library-search-input"
             value={localSearch}
             onChange={handleInputChange}
             placeholder="Buscar por título de documento..."
             aria-label="Buscar por título de documento"
-            className="w-full h-9 pl-9 pr-8 text-xs md:text-sm rounded-lg border border-input bg-card text-foreground placeholder:text-muted-foreground shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-transparent transition-colors"
+            className="w-full h-9 pl-9 pr-8 text-xs md:text-sm bg-card shadow-2xs"
           />
           {localSearch.length > 0 && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="sm"
               data-testid="clear-search-button"
               onClick={handleClear}
-              className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-muted-foreground hover:text-foreground transition-colors"
+              className="absolute inset-y-0 right-0 pr-2.5 h-9 w-9 p-0 flex items-center justify-center text-muted-foreground hover:text-foreground z-10 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               aria-label="Limpiar búsqueda"
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
+            </Button>
           )}
         </div>
 
         {/* Secondary actions: Filter selectors & Upload */}
         <div className="flex flex-wrap items-center gap-2.5">
           {/* Visibility Scope Filter */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-1 sm:flex-initial min-w-[140px] sm:min-w-[170px]">
             <label htmlFor="library-visibility-filter" className="sr-only">
               Filtrar por visibilidad
             </label>
-            <div className="relative">
-              <select
-                id="library-visibility-filter"
-                data-testid="filter-visibility-scope"
-                value={visibilityScope ?? ''}
-                onChange={(e) =>
-                  onVisibilityScopeChange(
-                    e.target.value ? (e.target.value as VisibilityScope) : undefined,
-                  )
-                }
-                className="h-9 rounded-lg border border-input bg-card px-2.5 text-xs font-medium text-foreground shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Filtrar por visibilidad"
-              >
-                <option value="">Todas las visibilidades</option>
-                <option value="ALL_STAFF">Personal General</option>
-                <option value="CLINICAL_STAFF">Personal Clínico</option>
-                <option value="MANAGEMENT">Dirección / Gestión</option>
-              </select>
-            </div>
+            <Select
+              id="library-visibility-filter"
+              data-testid="filter-visibility-scope"
+              value={visibilityScope ?? ''}
+              onChange={(e) =>
+                onVisibilityScopeChange(
+                  e.target.value ? (e.target.value as VisibilityScope) : undefined,
+                )
+              }
+              className="h-9 text-xs font-medium bg-card shadow-2xs"
+              aria-label="Filtrar por visibilidad"
+            >
+              <option value="">Todas las visibilidades</option>
+              <option value="ALL_STAFF">Personal General</option>
+              <option value="CLINICAL_STAFF">Personal Clínico</option>
+              <option value="MANAGEMENT">Dirección / Gestión</option>
+            </Select>
           </div>
 
           {/* MIME / File Type Filter */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-1 sm:flex-initial min-w-[140px] sm:min-w-[150px]">
             <label htmlFor="library-mime-filter" className="sr-only">
               Filtrar por formato
             </label>
-            <div className="relative">
-              <select
-                id="library-mime-filter"
-                data-testid="filter-mime-type"
-                value={mimeType ?? ''}
-                onChange={(e) => onMimeTypeChange(e.target.value || undefined)}
-                className="h-9 rounded-lg border border-input bg-card px-2.5 text-xs font-medium text-foreground shadow-2xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                aria-label="Filtrar por formato"
-              >
-                <option value="">Todos los formatos</option>
-                <option value="application/pdf">PDF (.pdf)</option>
-                <option value="application/vnd.openxmlformats-officedocument.wordprocessingml.document">
-                  Word (.docx)
-                </option>
-                <option value="text/markdown">Markdown (.md)</option>
-                <option value="text/plain">Texto (.txt)</option>
-              </select>
-            </div>
+            <Select
+              id="library-mime-filter"
+              data-testid="filter-mime-type"
+              value={mimeType ?? ''}
+              onChange={(e) => onMimeTypeChange(e.target.value || undefined)}
+              className="h-9 text-xs font-medium bg-card shadow-2xs"
+              aria-label="Filtrar por formato"
+            >
+              <option value="">Todos los formatos</option>
+              <option value="application/pdf">PDF (.pdf)</option>
+              <option value="application/vnd.openxmlformats-officedocument.wordprocessingml.document">
+                Word (.docx)
+              </option>
+              <option value="text/markdown">Markdown (.md)</option>
+              <option value="text/plain">Texto (.txt)</option>
+            </Select>
           </div>
 
           {/* Reset Filters button */}
@@ -152,7 +150,7 @@ export const KnowledgeLibraryToolbar: React.FC<KnowledgeLibraryToolbarProps> = (
               size="sm"
               data-testid="reset-filters-button"
               onClick={onResetFilters}
-              className="h-9 px-2.5 text-xs gap-1.5 text-muted-foreground hover:text-foreground"
+              className="h-9 px-2.5 text-xs gap-1.5 text-muted-foreground hover:text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
             >
               <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Limpiar filtros</span>
@@ -163,11 +161,11 @@ export const KnowledgeLibraryToolbar: React.FC<KnowledgeLibraryToolbarProps> = (
           {isFetching && !isLoading && (
             <div
               data-testid="library-refreshing-indicator"
-              className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground px-2 py-1 rounded-md bg-muted/40 animate-pulse"
+              className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground px-2 py-1 rounded-md bg-muted/40 motion-safe:animate-pulse"
               role="status"
               aria-live="polite"
             >
-              <Loader2 className="h-3 w-3 animate-spin text-primary" />
+              <Loader2 className="h-3 w-3 motion-safe:animate-spin text-primary" />
               <span>Actualizando...</span>
             </div>
           )}
@@ -178,7 +176,7 @@ export const KnowledgeLibraryToolbar: React.FC<KnowledgeLibraryToolbarProps> = (
               size="sm"
               data-testid="library-upload-button"
               onClick={onUploadClick}
-              className="h-9 px-3 gap-1.5 text-xs font-semibold shadow-xs"
+              className="h-9 px-3 gap-1.5 text-xs font-semibold shadow-xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
             >
               <Upload className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Subir Documento</span>

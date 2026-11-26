@@ -1,6 +1,7 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useOptionalAuth } from '../../../../app/providers/auth-provider';
+import { assistantStorageService } from '../services/assistant-storage.service';
 import {
   useConversation,
   useInfiniteConversationMessages,
@@ -86,15 +87,22 @@ export const ChatWorkspace: React.FC = () => {
   });
 
   // Generation lifecycle state machine
-  const { isGenerating, isCancelling, submitMessage, regenerateMessage, cancelGeneration, state } =
-    useGenerationLifecycle({
-      tenantId,
-      userId,
-      conversationId,
-      onConversationCreated: (newId) => {
-        navigate(`/intelligence/chat/${newId}`, { replace: true });
-      },
-    });
+  const {
+    isGenerating,
+    isCancelling,
+    submitMessage,
+    regenerateMessage,
+    cancelGeneration,
+    reconcileGeneration,
+    state,
+  } = useGenerationLifecycle({
+    tenantId,
+    userId,
+    conversationId,
+    onConversationCreated: (newId) => {
+      navigate(`/intelligence/chat/${newId}`, { replace: true });
+    },
+  });
 
   // Reconcile authoritative backend persistence with local fallback and active generation
   const activeConversation = useMemo(() => {
@@ -197,29 +205,64 @@ export const ChatWorkspace: React.FC = () => {
     conversationId && !activeConversation && (isFetchingPersistent || isFetchingLocal),
   );
 
-  // Error categorization: 404 (not found / unauthorized) vs 500 / network failure
-  const is404 =
-    (persistentConvError as ApiError)?.statusCode === 404 ||
-    (persistentMessagesError as ApiError)?.statusCode === 404;
+  const isRefreshing = Boolean(
+    activeConversation && (isFetchingPersistent || isLoadingMoreMessages),
+  );
+
+  // Error categorization: 403 (unauthorized), 404 (not found), 503 (unavailable), 500 / network
+  const is403 = Boolean(
+    (persistentConvError as { statusCode?: number; status?: number })?.statusCode === 403 ||
+    (persistentConvError as { statusCode?: number; status?: number })?.status === 403 ||
+    (persistentMessagesError as { statusCode?: number; status?: number })?.statusCode === 403 ||
+    (persistentMessagesError as { statusCode?: number; status?: number })?.status === 403,
+  );
+
+  // Authorization revocation guarantee: purge protected local conversation cache immediately on 403
+  useEffect(() => {
+    if (is403 && conversationId) {
+      assistantStorageService.deleteConversation(tenantId, userId, conversationId);
+    }
+  }, [is403, conversationId, tenantId, userId]);
+
+  const is503 = Boolean(
+    (persistentConvError as { statusCode?: number; status?: number })?.statusCode === 503 ||
+    (persistentConvError as { statusCode?: number; status?: number })?.status === 503 ||
+    (persistentMessagesError as { statusCode?: number; status?: number })?.statusCode === 503 ||
+    (persistentMessagesError as { statusCode?: number; status?: number })?.status === 503,
+  );
+
+  const is404 = Boolean(
+    (persistentConvError as { statusCode?: number; status?: number })?.statusCode === 404 ||
+    (persistentConvError as { statusCode?: number; status?: number })?.status === 404 ||
+    (persistentMessagesError as { statusCode?: number; status?: number })?.statusCode === 404 ||
+    (persistentMessagesError as { statusCode?: number; status?: number })?.status === 404,
+  );
 
   const hasNetworkError =
-    Boolean(persistentConvError && (persistentConvError as ApiError)?.statusCode !== 404) ||
-    Boolean(persistentMessagesError && (persistentMessagesError as ApiError)?.statusCode !== 404);
+    Boolean(
+      persistentConvError && (persistentConvError as ApiError)?.statusCode !== 404 && !is403,
+    ) ||
+    Boolean(
+      persistentMessagesError &&
+      (persistentMessagesError as ApiError)?.statusCode !== 404 &&
+      !is403,
+    );
 
   const isNotFound = Boolean(
     conversationId &&
     !isLoadingConversation &&
     !activeConversation &&
-    (is404 || (!hasNetworkError && !isLocalConvError)),
+    (is404 || (!hasNetworkError && !isLocalConvError && !is403 && !is503)),
   );
 
   const isConversationError = Boolean(
     conversationId &&
     !isLoadingConversation &&
     !activeConversation &&
-    hasNetworkError &&
+    (hasNetworkError || is503) &&
     !localConversation &&
-    !is404,
+    !is404 &&
+    !is403,
   );
 
   // Refetch action combining both backend and local retry
@@ -249,6 +292,8 @@ export const ChatWorkspace: React.FC = () => {
         return 'Generación cancelada por el usuario.';
       case 'INTERRUPTED':
         return 'Conexión interrumpida antes de completar respuesta.';
+      case 'UNKNOWN':
+        return 'Estado de generación indeterminado. Verificando con el servidor...';
       case 'FAILED':
         return 'Error al generar la respuesta.';
       default:
@@ -383,28 +428,6 @@ export const ChatWorkspace: React.FC = () => {
     [submitMessage],
   );
 
-  const handleRetryMessage = React.useCallback(
-    (msgId: string) => {
-      const msgs = activeConversation?.messages ?? [];
-      const targetIdx = msgs.findIndex((m) => m.id === msgId);
-      if (targetIdx !== -1) {
-        const targetMsg = msgs[targetIdx];
-        if (targetMsg && targetMsg.role === 'user') {
-          void handleSendMessage(targetMsg.content);
-        } else {
-          const userMsg = msgs
-            .slice(0, targetIdx)
-            .reverse()
-            .find((m) => m.role === 'user');
-          if (userMsg) {
-            void handleSendMessage(userMsg.content);
-          }
-        }
-      }
-    },
-    [activeConversation?.messages, handleSendMessage],
-  );
-
   const handleRegenerateMessage = React.useCallback(
     async (messageId: string) => {
       await regenerateMessage({
@@ -414,6 +437,22 @@ export const ChatWorkspace: React.FC = () => {
       });
     },
     [regenerateMessage],
+  );
+
+  const handleRetryMessage = React.useCallback(
+    (msgId: string) => {
+      const msgs = activeConversation?.messages ?? [];
+      const targetIdx = msgs.findIndex((m) => m.id === msgId);
+      if (targetIdx !== -1) {
+        const targetMsg = msgs[targetIdx];
+        if (targetMsg && targetMsg.role === 'user') {
+          void handleSendMessage(targetMsg.content);
+        } else {
+          void handleRegenerateMessage(msgId);
+        }
+      }
+    },
+    [activeConversation?.messages, handleSendMessage, handleRegenerateMessage],
   );
 
   // Determine current view state
@@ -447,7 +486,7 @@ export const ChatWorkspace: React.FC = () => {
       />
 
       {/* Main Conversation Region */}
-      <main
+      <section
         role="region"
         aria-label="Área de conversación activa"
         className="flex flex-1 min-w-0 min-h-0 flex-col bg-background/50 overflow-hidden"
@@ -459,7 +498,9 @@ export const ChatWorkspace: React.FC = () => {
           createdAt={activeConversation?.createdAt}
           lastActivityAt={activeConversation?.updatedAt}
           isNewThread={isNewThread}
+          isRefreshing={isRefreshing}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(true)}
+          isMobileSidebarOpen={isMobileSidebarOpen}
           onDeleteConversation={handleDeleteActiveConversation}
           isDeleting={deleteConversationMutation.isPending || archiveMutation.isPending}
           onRename={async (newTitle) => {
@@ -476,7 +517,10 @@ export const ChatWorkspace: React.FC = () => {
 
         {/* View States */}
         {isLoadingConversation && (
-          <div className="flex flex-1 items-center justify-center p-6">
+          <div
+            className="flex flex-1 items-center justify-center p-6"
+            data-testid="chat-loading-container"
+          >
             <IntelligenceLoadingState
               variant="chat"
               message="Cargando conversación y mensajes almacenados..."
@@ -484,34 +528,64 @@ export const ChatWorkspace: React.FC = () => {
           </div>
         )}
 
-        {!isLoadingConversation && isNotFound && (
-          <div className="flex flex-1 items-center justify-center p-6">
+        {!isLoadingConversation && is403 && (
+          <div
+            className="flex flex-1 items-center justify-center p-6"
+            data-testid="chat-forbidden-container"
+          >
+            <IntelligenceErrorState
+              title="Acceso no autorizado"
+              error="No cuentas con la autorización de sede requerida para consultar esta conversación."
+              onRetry={handleNewConversation}
+              retryLabel="Nueva conversación"
+              testId="chat-forbidden-state"
+            />
+          </div>
+        )}
+
+        {!isLoadingConversation && !is403 && isNotFound && (
+          <div
+            className="flex flex-1 items-center justify-center p-6"
+            data-testid="chat-not-found-container"
+          >
             <IntelligenceErrorState
               title="Conversación no encontrada"
               error="La sesión solicitada no existe o fue eliminada de este navegador."
               onRetry={handleNewConversation}
               retryLabel="Iniciar nueva conversación"
+              testId="chat-not-found-state"
             />
           </div>
         )}
 
-        {!isLoadingConversation && isConversationError && (
-          <div className="flex flex-1 items-center justify-center p-6">
+        {!isLoadingConversation && !is403 && !isNotFound && isConversationError && (
+          <div
+            className="flex flex-1 items-center justify-center p-6"
+            data-testid="chat-error-container"
+          >
             <IntelligenceErrorState
-              title="Error al cargar conversación"
-              error="No se pudieron recuperar los mensajes del almacenamiento."
+              title={
+                is503 ? 'Servicio temporalmente no disponible' : 'Error al cargar conversación'
+              }
+              error={
+                is503
+                  ? 'El servicio de persistencia no está disponible en este momento. Intenta nuevamente.'
+                  : 'No se pudieron recuperar los mensajes del almacenamiento.'
+              }
               onRetry={() => {
                 void handleRefetch();
               }}
+              testId="chat-error-state"
             />
           </div>
         )}
 
-        {!isLoadingConversation && !isNotFound && !isConversationError && (
+        {!isLoadingConversation && !is403 && !isNotFound && !isConversationError && (
           <>
             <ChatMessageFeed
               key={conversationId ?? 'new'}
               conversationId={conversationId}
+              isNewThread={isNewThread}
               messages={activeConversation?.messages ?? []}
               hasMoreMessages={hasMoreMessages}
               isLoadingMore={isLoadingMoreMessages}
@@ -520,6 +594,7 @@ export const ChatWorkspace: React.FC = () => {
                 void handleSendMessage(prompt);
               }}
               onRetryMessage={handleRetryMessage}
+              onReconcileMessage={() => void reconcileGeneration()}
               onRegenerateMessage={handleRegenerateMessage}
               isGenerating={isGenerating}
               onPreviewDocument={handlePreviewDocument}
@@ -534,7 +609,7 @@ export const ChatWorkspace: React.FC = () => {
             />
           </>
         )}
-      </main>
+      </section>
 
       {/* Delete Confirmation Dialog */}
       <DeleteConversationDialog

@@ -210,7 +210,10 @@ export const CitationDetailDialog: React.FC<CitationDetailDialogProps> = React.m
               </span>
               <blockquote
                 data-testid="citation-excerpt-text"
-                className="rounded-lg border border-border/70 bg-card p-3.5 text-xs text-foreground leading-relaxed italic select-text whitespace-pre-wrap shadow-2xs"
+                tabIndex={0}
+                role="region"
+                aria-label="Extracto de evidencia recuperado"
+                className="rounded-lg border border-border/70 bg-card p-3.5 text-xs text-foreground leading-relaxed italic select-text whitespace-pre-wrap break-words max-h-60 overflow-y-auto shadow-2xs focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1"
               >
                 "{excerpt}"
               </blockquote>

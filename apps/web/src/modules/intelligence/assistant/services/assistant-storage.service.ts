@@ -292,6 +292,48 @@ export class AssistantStorageService {
     removeStorageItem(key);
   }
 
+  /**
+   * Retrieves any preserved draft input for the conversation.
+   */
+  getDraft(tenantId: string, userId: string, conversationId?: string): string {
+    const safeTenant = (tenantId || 'global').trim();
+    const safeUser = (userId || 'anonymous').trim();
+    const safeConv = (conversationId || 'new').trim();
+    const key = `${STORAGE_KEY_PREFIX}_draft_${safeTenant}_${safeUser}_${safeConv}`;
+    return getStorageItem(key) || '';
+  }
+
+  /**
+   * Persists the unsubmitted draft input for a conversation.
+   */
+  setDraft(
+    tenantId: string,
+    userId: string,
+    conversationId: string | undefined,
+    draft: string,
+  ): void {
+    const safeTenant = (tenantId || 'global').trim();
+    const safeUser = (userId || 'anonymous').trim();
+    const safeConv = (conversationId || 'new').trim();
+    const key = `${STORAGE_KEY_PREFIX}_draft_${safeTenant}_${safeUser}_${safeConv}`;
+    if (!draft || draft.trim().length === 0) {
+      removeStorageItem(key);
+    } else {
+      setStorageItem(key, draft);
+    }
+  }
+
+  /**
+   * Clears the preserved draft input for a conversation upon successful submission.
+   */
+  clearDraft(tenantId: string, userId: string, conversationId?: string): void {
+    const safeTenant = (tenantId || 'global').trim();
+    const safeUser = (userId || 'anonymous').trim();
+    const safeConv = (conversationId || 'new').trim();
+    const key = `${STORAGE_KEY_PREFIX}_draft_${safeTenant}_${safeUser}_${safeConv}`;
+    removeStorageItem(key);
+  }
+
   private saveConversations(tenantId: string, userId: string, conversations: Conversation[]): void {
     const key = getConversationStorageKey(tenantId, userId);
     setStorageItem(key, JSON.stringify(conversations));
