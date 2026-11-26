@@ -358,6 +358,12 @@ export class PaginatedDocumentsResponseDto {
   }
 }
 
+import {
+  IngestionFailureInfoDto,
+  IngestionStageInfoDto,
+  IngestionRetrievalStatusDto,
+} from './ingestion-observability.dto';
+
 export class IngestionJobResponseDto {
   @ApiProperty({ example: 'job_123' })
   id!: string;
@@ -386,8 +392,38 @@ export class IngestionJobResponseDto {
   @ApiProperty({ example: '2026-11-19T12:00:00.000Z' })
   createdAt!: string;
 
+  @ApiPropertyOptional({ example: '2026-11-19T12:00:01.000Z' })
+  startedAt?: string | null;
+
   @ApiPropertyOptional({ example: '2026-11-19T12:01:00.000Z' })
   completedAt?: string | null;
+
+  @ApiPropertyOptional({ example: null })
+  nextRetryAt?: string | null;
+
+  @ApiPropertyOptional({ example: null })
+  cancelledAt?: string | null;
+
+  @ApiPropertyOptional({ example: null })
+  cancellationReason?: string | null;
+
+  @ApiPropertyOptional({ example: 25000 })
+  durationMs?: number | null;
+
+  @ApiPropertyOptional({ example: true })
+  isTerminal?: boolean;
+
+  @ApiPropertyOptional({ example: false })
+  canRetry?: boolean;
+
+  @ApiPropertyOptional({ type: IngestionFailureInfoDto })
+  failureInfo?: IngestionFailureInfoDto | null;
+
+  @ApiPropertyOptional({ type: [IngestionStageInfoDto] })
+  stages?: IngestionStageInfoDto[];
+
+  @ApiPropertyOptional({ type: IngestionRetrievalStatusDto })
+  retrievalStatus?: IngestionRetrievalStatusDto;
 }
 
 export class CancelIngestionJobRequestDto {

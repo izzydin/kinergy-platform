@@ -10,6 +10,7 @@ import type {
   KnowledgeCapabilitiesResponse,
   ListDocumentsQueryParams,
   IngestionJobItem,
+  IngestionRetrievalStatus,
   UpdateDocumentMetadataRequest,
   UploadDocumentResponse,
   DocumentPreviewMetadataResponse,
@@ -21,6 +22,7 @@ import {
   parseKnowledgeCapabilitiesResponse,
   parseIngestionJobItems,
   parseIngestionJobItem,
+  parseIngestionRetrievalStatus,
   parseUploadDocumentResponse,
   parseDocumentPreviewMetadataResponse,
   parseDocumentVersionsList,
@@ -148,11 +150,59 @@ export const knowledgeApi = {
   },
 
   /**
+   * Retrieves historical ingestion jobs for a specific version of a document.
+   */
+  async getVersionIngestionHistory(
+    documentId: string,
+    versionId: string,
+    options?: RequestOptions,
+  ): Promise<IngestionJobItem[]> {
+    const raw = await httpClient.get<unknown>(
+      `${BASE_PATH}/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/ingestion`,
+      options,
+    );
+    return parseIngestionJobItems(raw);
+  },
+
+  /**
+   * Evaluates authoritative retrieval readiness of a document in the active vector index.
+   */
+  async getRetrievalStatus(
+    documentId: string,
+    options?: RequestOptions & { versionId?: string },
+  ): Promise<IngestionRetrievalStatus> {
+    const raw = await httpClient.get<unknown>(
+      `${BASE_PATH}/${encodeURIComponent(documentId)}/retrieval-status`,
+      {
+        ...options,
+        params: options?.versionId ? { versionId: options.versionId } : undefined,
+      },
+    );
+    return parseIngestionRetrievalStatus(raw);
+  },
+
+  /**
    * Retries failed ingestion for the current version of a document.
    */
   async retryIngestion(documentId: string, options?: RequestOptions): Promise<IngestionJobItem> {
     const raw = await httpClient.post<unknown>(
       `${BASE_PATH}/${encodeURIComponent(documentId)}/ingestion/retry`,
+      undefined,
+      options,
+    );
+    return parseIngestionJobItem(raw);
+  },
+
+  /**
+   * Retries failed ingestion for a specific version of a document.
+   */
+  async retryVersionIngestion(
+    documentId: string,
+    versionId: string,
+    options?: RequestOptions,
+  ): Promise<IngestionJobItem> {
+    const raw = await httpClient.post<unknown>(
+      `${BASE_PATH}/${encodeURIComponent(documentId)}/versions/${encodeURIComponent(versionId)}/retry`,
       undefined,
       options,
     );

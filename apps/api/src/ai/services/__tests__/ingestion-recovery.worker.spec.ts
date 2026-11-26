@@ -17,6 +17,8 @@ describe('IngestionRecoveryWorker', () => {
       save: jest.fn().mockImplementation(async (j: IngestionJob) => j),
       findById: jest.fn().mockResolvedValue(null),
       findByVersionId: jest.fn().mockResolvedValue([]),
+      findByDocumentId: jest.fn().mockResolvedValue([]),
+      findAll: jest.fn().mockResolvedValue({ items: [], total: 0 }),
       findActiveJobByVersionId: jest.fn().mockResolvedValue(null),
       findPendingRetries: jest.fn().mockResolvedValue([]),
       findPendingUploads: jest.fn().mockResolvedValue([]),

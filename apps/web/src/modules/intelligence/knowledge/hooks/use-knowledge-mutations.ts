@@ -66,13 +66,39 @@ export function useRetryDocumentIngestion() {
   return useMutation({
     mutationFn: (documentId: string) => knowledgeApi.retryIngestion(documentId),
     onSuccess: (_data, documentId) => {
-      notification.success('Proceso de reindexación iniciado.');
+      notification.success('Reintento de indexación iniciado.');
       void queryClient.invalidateQueries({ queryKey: knowledgeQueryKeys.detail(documentId) });
       void queryClient.invalidateQueries({ queryKey: knowledgeQueryKeys.ingestion(documentId) });
       void queryClient.invalidateQueries({ queryKey: knowledgeQueryKeys.all });
     },
     onError: (error: Error) => {
       notification.error(error.message || 'Error al reintentar la indexación.');
+    },
+  });
+}
+
+export function useRetryVersionIngestion() {
+  const queryClient = useQueryClient();
+  const notification = useNotification();
+
+  return useMutation({
+    mutationFn: ({ documentId, versionId }: { documentId: string; versionId: string }) =>
+      knowledgeApi.retryVersionIngestion(documentId, versionId),
+    onSuccess: (_data, variables) => {
+      notification.success('Reintento de versión iniciado.');
+      void queryClient.invalidateQueries({
+        queryKey: knowledgeQueryKeys.detail(variables.documentId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: knowledgeQueryKeys.ingestion(variables.documentId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: knowledgeQueryKeys.versionIngestion(variables.documentId, variables.versionId),
+      });
+      void queryClient.invalidateQueries({ queryKey: knowledgeQueryKeys.all });
+    },
+    onError: (error: Error) => {
+      notification.error(error.message || 'Error al reintentar la indexación de la versión.');
     },
   });
 }

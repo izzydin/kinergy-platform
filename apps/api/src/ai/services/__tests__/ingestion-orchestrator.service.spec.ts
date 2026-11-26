@@ -67,6 +67,8 @@ describe('IngestionOrchestratorService', () => {
       save: jest.fn().mockImplementation(async (j: IngestionJob) => j),
       findById: jest.fn().mockImplementation(async (_t, id) => (id === job.id ? job : null)),
       findByVersionId: jest.fn().mockResolvedValue([job]),
+      findByDocumentId: jest.fn().mockResolvedValue([job]),
+      findAll: jest.fn().mockResolvedValue({ items: [job], total: 1 }),
       findActiveJobByVersionId: jest.fn().mockResolvedValue(job),
       findPendingRetries: jest.fn().mockResolvedValue([]),
       findPendingUploads: jest.fn().mockResolvedValue([]),

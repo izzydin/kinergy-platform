@@ -1,7 +1,11 @@
 import { Prisma, PrismaClient } from '@prisma/client';
 import { IngestionJob } from '../../../../domain/models/ingestion-job.aggregate';
 import { IngestionStatus, isIngestionActive } from '../../../../domain/enums/ingestion-status.enum';
-import { IIngestionJobRepositoryPort } from '../../../../ports/outbound/ingestion-job-repository.port';
+import {
+  IIngestionJobRepositoryPort,
+  IngestionJobListFilter,
+  PaginatedIngestionJobsResult,
+} from '../../../../ports/outbound/ingestion-job-repository.port';
 import { PrismaIngestionJobMapper } from '../mappers/prisma-ingestion-job.mapper';
 import {
   DuplicateActiveIngestionException,
@@ -140,6 +144,61 @@ export class PrismaIngestionJobRepository implements IIngestionJobRepositoryPort
     });
 
     return records.map((r) => PrismaIngestionJobMapper.toDomain(r));
+  }
+
+  public async findByDocumentId(tenantId: string, documentId: string): Promise<IngestionJob[]> {
+    if (!documentId || !tenantId) return [];
+
+    const records = await this.prisma.ingestionJob.findMany({
+      where: {
+        documentId: documentId.trim(),
+        tenantId: tenantId.trim(),
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return records.map((r) => PrismaIngestionJobMapper.toDomain(r));
+  }
+
+  public async findAll(
+    tenantId: string,
+    filter?: IngestionJobListFilter,
+  ): Promise<PaginatedIngestionJobsResult> {
+    if (!tenantId) return { items: [], total: 0 };
+
+    const where: Prisma.IngestionJobWhereInput = {
+      tenantId: tenantId.trim(),
+    };
+
+    if (filter?.status) {
+      where.status = PrismaIngestionJobMapper.toPrismaStatus(filter.status);
+    }
+    if (filter?.documentId) {
+      where.documentId = filter.documentId.trim();
+    }
+    if (filter?.documentVersionId) {
+      where.documentVersionId = filter.documentVersionId.trim();
+    }
+
+    const limit = Math.max(1, Math.min(100, filter?.limit ?? 20));
+    const offset = Math.max(0, filter?.offset ?? 0);
+    const orderByField = filter?.orderBy || 'createdAt';
+    const orderDirection = filter?.orderDirection || 'desc';
+
+    const [records, total] = await Promise.all([
+      this.prisma.ingestionJob.findMany({
+        where,
+        take: limit,
+        skip: offset,
+        orderBy: { [orderByField]: orderDirection },
+      }),
+      this.prisma.ingestionJob.count({ where }),
+    ]);
+
+    return {
+      items: records.map((r) => PrismaIngestionJobMapper.toDomain(r)),
+      total,
+    };
   }
 
   public async findActiveJobByVersionId(

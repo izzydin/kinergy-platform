@@ -1,6 +1,22 @@
 import { IngestionJob } from '../../domain/models/ingestion-job.aggregate';
+import { IngestionStatus } from '../../domain/enums/ingestion-status.enum';
 
 export const INGESTION_JOB_REPOSITORY_PORT = Symbol('INGESTION_JOB_REPOSITORY_PORT');
+
+export interface IngestionJobListFilter {
+  status?: IngestionStatus;
+  documentId?: string;
+  documentVersionId?: string;
+  limit?: number;
+  offset?: number;
+  orderBy?: 'createdAt' | 'startedAt' | 'completedAt';
+  orderDirection?: 'asc' | 'desc';
+}
+
+export interface PaginatedIngestionJobsResult {
+  items: IngestionJob[];
+  total: number;
+}
 
 /**
  * Port contract for IngestionJob persistence.
@@ -21,6 +37,16 @@ export interface IIngestionJobRepositoryPort {
    * Finds all historical ingestion jobs for a specific document version.
    */
   findByVersionId(tenantId: string, versionId: string): Promise<IngestionJob[]>;
+
+  /**
+   * Finds all historical ingestion jobs for a document across all versions.
+   */
+  findByDocumentId(tenantId: string, documentId: string): Promise<IngestionJob[]>;
+
+  /**
+   * Finds paginated ingestion jobs within a tenant matching query filters.
+   */
+  findAll(tenantId: string, filter?: IngestionJobListFilter): Promise<PaginatedIngestionJobsResult>;
 
   /**
    * Finds any currently active ingestion job for a version (UPLOADED, VALIDATING, PROCESSING, INDEXING).

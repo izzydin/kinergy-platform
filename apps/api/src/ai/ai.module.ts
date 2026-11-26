@@ -50,8 +50,11 @@ import {
   RAG_TURN_PIPELINE_SERVICE,
   AI_TURN_DISPATCHER_SERVICE,
   AI_TURN_GENERATION_WORKER,
+  INGESTION_OBSERVABILITY_SERVICE,
 } from './ai.tokens';
+import { IngestionObservabilityService } from './services/ingestion-observability.service';
 import {
+  INGESTION_JOB_REPOSITORY_PORT,
   DOCUMENT_INDEXING_PORT,
   INDEX_GENERATION_REPOSITORY_PORT,
   VECTOR_STORE_PORT,
@@ -133,6 +136,7 @@ import { AiHealthController } from './controllers/ai-health.controller';
 import { DocumentContentValidatorService } from './services/document-content-validator.service';
 import { SecureDocumentUploadService } from './services/secure-document-upload.service';
 import { AiDocumentController } from './controllers/ai-document.controller';
+import { AiIngestionController } from './controllers/ai-ingestion.controller';
 import { AiRAGController } from './controllers/ai-rag.controller';
 import { PrismaModule } from '../platform/persistence/prisma/prisma.module';
 import { PrismaService } from '../platform/persistence/prisma/prisma.service';
@@ -502,6 +506,11 @@ export class AiModule implements OnApplicationBootstrap {
       inject: [PrismaService],
     };
 
+    const ingestionJobRepoAlias = {
+      provide: INGESTION_JOB_REPOSITORY_PORT,
+      useExisting: INGESTION_JOB_REPOSITORY,
+    };
+
     const contentValidatorProvider = {
       provide: DOCUMENT_CONTENT_VALIDATOR,
       useClass: DocumentContentValidatorService,
@@ -786,6 +795,11 @@ export class AiModule implements OnApplicationBootstrap {
       useClass: IngestionOrchestratorService,
     };
 
+    const observabilityServiceProvider = {
+      provide: INGESTION_OBSERVABILITY_SERVICE,
+      useClass: IngestionObservabilityService,
+    };
+
     const recoveryWorkerProvider = {
       provide: INGESTION_RECOVERY_WORKER,
       useClass: IngestionRecoveryWorker,
@@ -835,7 +849,12 @@ export class AiModule implements OnApplicationBootstrap {
     return {
       module: AiModule,
       imports: [PrismaModule, StorageModule.register(), IdentityModule, AiConversationModule],
-      controllers: [AiHealthController, AiDocumentController, AiRAGController],
+      controllers: [
+        AiHealthController,
+        AiDocumentController,
+        AiIngestionController,
+        AiRAGController,
+      ],
       providers: [
         configProvider,
         llmProvider,
@@ -844,6 +863,7 @@ export class AiModule implements OnApplicationBootstrap {
         knowledgeDocRepoProvider,
         knowledgeDocRepoAlias,
         ingestionJobRepoProvider,
+        ingestionJobRepoAlias,
         contentValidatorProvider,
         DocumentContentValidatorService,
         uploadServiceProvider,
@@ -852,6 +872,8 @@ export class AiModule implements OnApplicationBootstrap {
         PendingDocumentIndexingAdapter,
         orchestratorProvider,
         IngestionOrchestratorService,
+        observabilityServiceProvider,
+        IngestionObservabilityService,
         recoveryWorkerProvider,
         IngestionRecoveryWorker,
         PdfParserAdapter,
@@ -947,6 +969,7 @@ export class AiModule implements OnApplicationBootstrap {
         KNOWLEDGE_DOCUMENT_REPOSITORY,
         KNOWLEDGE_DOCUMENT_REPOSITORY_PORT,
         INGESTION_JOB_REPOSITORY,
+        INGESTION_JOB_REPOSITORY_PORT,
         DOCUMENT_CONTENT_VALIDATOR,
         SECURE_DOCUMENT_UPLOAD_SERVICE,
         SecureDocumentUploadService,
@@ -955,6 +978,8 @@ export class AiModule implements OnApplicationBootstrap {
         PendingDocumentIndexingAdapter,
         INGESTION_ORCHESTRATOR_SERVICE,
         IngestionOrchestratorService,
+        INGESTION_OBSERVABILITY_SERVICE,
+        IngestionObservabilityService,
         INGESTION_RECOVERY_WORKER,
         IngestionRecoveryWorker,
         DOCUMENT_PARSER_TOKEN,

@@ -8,6 +8,83 @@ export type VisibilityScope = 'ALL_STAFF' | 'CLINICAL_STAFF' | 'MANAGEMENT';
 export type IngestionStatus =
   'UPLOADED' | 'VALIDATING' | 'PROCESSING' | 'INDEXING' | 'READY' | 'FAILED' | 'CANCELLED';
 
+export type IngestionStageId = 'VALIDATING' | 'PROCESSING' | 'INDEXING';
+
+export type IngestionStageStatus =
+  'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED' | 'CANCELLED' | 'SKIPPED';
+
+export type IngestionFailureCategory =
+  | 'VALIDATION'
+  | 'PARSING'
+  | 'CHUNKING'
+  | 'INDEXING'
+  | 'STORAGE'
+  | 'INFRASTRUCTURE'
+  | 'TIMEOUT'
+  | 'CANCELLATION'
+  | 'UNKNOWN';
+
+export interface IngestionFailureInfo {
+  readonly code: string;
+  readonly category: IngestionFailureCategory;
+  readonly message: string;
+  readonly failedStage?: IngestionStageId;
+  readonly isRetryable?: boolean;
+  readonly failedAt?: string;
+  readonly attemptNumber?: number;
+  readonly occurredAt?: string;
+  readonly isTransient?: boolean;
+  readonly canRetry?: boolean;
+}
+
+export interface IngestionStageMetrics {
+  readonly totalChunks?: number;
+  readonly embeddedChunks?: number;
+  readonly indexedChunks?: number;
+  readonly extractedTokens?: number;
+  readonly indexGenerationId?: string | null;
+  readonly customMetrics?: Record<string, number>;
+}
+
+export interface IngestionStageInfo {
+  readonly stage: IngestionStageId;
+  readonly label?: string;
+  readonly status: IngestionStageStatus;
+  readonly order?: number;
+  readonly startedAt?: string | null;
+  readonly completedAt?: string | null;
+  readonly durationMs?: number | null;
+  readonly metrics?: IngestionStageMetrics | null;
+  readonly failureInfo?: IngestionFailureInfo | null;
+  readonly error?: string;
+}
+
+export interface IngestionRetrievalStatus {
+  readonly documentId?: string;
+  readonly isReadyForRetrieval: boolean;
+  readonly overallReady?: boolean;
+  readonly hasActiveIndexGeneration?: boolean;
+  readonly isDocumentActive?: boolean;
+  readonly chunksPersisted?: boolean;
+  readonly embeddingsCommitted?: boolean;
+  readonly activeGenerationId?: string | null;
+  readonly targetVersionId?: string | null;
+  readonly targetVersionNumber?: number | null;
+  readonly currentVersionId?: string | null;
+  readonly currentVersionNumber?: number | null;
+  readonly indexedVersionId?: string | null;
+  readonly indexedVersionNumber?: number | null;
+  readonly hasVersionDiscrepancy?: boolean;
+  readonly discrepancyReason?: string | null;
+  readonly lastSuccessfulIndexingAt?: string | null;
+  readonly totalChunks?: number;
+  readonly indexedChunks?: number;
+  readonly embeddingsCount?: number;
+  readonly reasons?: readonly string[];
+  readonly reason?: string;
+  readonly evaluatedAt?: string;
+}
+
 export interface DocumentVersionItem {
   readonly id: string;
   readonly versionNumber: number;
@@ -82,13 +159,26 @@ export interface IngestionJobItem {
   readonly id: string;
   readonly documentId: string;
   readonly documentVersionId: string;
+  readonly versionNumber?: number;
   readonly status: IngestionStatus;
+  readonly currentStage?: string;
   readonly attemptCount: number;
   readonly maxAttempts: number;
+  readonly startedAt?: string | null;
+  readonly completedAt?: string | null;
+  readonly nextRetryAt?: string | null;
+  readonly cancelledAt?: string | null;
+  readonly cancellationReason?: string | null;
+  readonly durationMs?: number | null;
+  readonly isTerminal?: boolean;
+  readonly canRetry?: boolean;
   readonly lastErrorCode?: string | null;
   readonly lastErrorMessage?: string | null;
+  readonly failureInfo?: IngestionFailureInfo | null;
+  readonly stages?: readonly IngestionStageInfo[];
+  readonly retrievalStatus?: IngestionRetrievalStatus | null;
   readonly createdAt: string;
-  readonly completedAt?: string | null;
+  readonly updatedAt?: string;
 }
 
 export interface UpdateDocumentMetadataRequest {

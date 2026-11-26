@@ -1,9 +1,17 @@
 import React from 'react';
-import { CheckCircle2, Clock, Loader2, AlertTriangle, Ban, FileCheck } from 'lucide-react';
+import {
+  CheckCircle2,
+  Clock,
+  Loader2,
+  AlertTriangle,
+  Ban,
+  FileCheck,
+  HelpCircle,
+} from 'lucide-react';
 import type { IngestionStatus } from '../types/knowledge-contract.types';
 
 export interface IngestionStatusBadgeProps {
-  readonly status?: IngestionStatus | null;
+  readonly status?: IngestionStatus | string | null;
   readonly className?: string;
   readonly showIcon?: boolean;
 }
@@ -58,6 +66,7 @@ const STATUS_CONFIGS: Record<IngestionStatus, StatusConfig> = {
 /**
  * Accessible status badge indicating document RAG ingestion lifecycle state.
  * Clarifies the distinction between storage upload and semantic indexing.
+ * Safely falls back for unrecognized future statuses without assuming success.
  */
 export const IngestionStatusBadge: React.FC<IngestionStatusBadgeProps> = ({
   status,
@@ -69,6 +78,7 @@ export const IngestionStatusBadge: React.FC<IngestionStatusBadgeProps> = ({
       <span
         role="status"
         aria-label="Estado de indexación: Desconocido"
+        data-testid="ingestion-status-unknown"
         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium bg-muted text-muted-foreground border-border/60 ${className}`}
       >
         <FileCheck className="h-3 w-3" />
@@ -77,11 +87,15 @@ export const IngestionStatusBadge: React.FC<IngestionStatusBadgeProps> = ({
     );
   }
 
-  const config = STATUS_CONFIGS[status] ?? {
-    label: status,
-    badgeClass: 'bg-muted text-muted-foreground border-border/60',
-    icon: FileCheck,
-  };
+  const isKnown = (status as IngestionStatus) in STATUS_CONFIGS;
+  const config: StatusConfig = isKnown
+    ? STATUS_CONFIGS[status as IngestionStatus]
+    : {
+        label: status || 'Desconocido',
+        badgeClass: 'bg-muted text-muted-foreground border-border/60',
+        icon: HelpCircle,
+        animate: false,
+      };
 
   const Icon = config.icon;
 

@@ -69,6 +69,17 @@ export const knowledgeQueryKeys = {
   ingestion: (documentId: string, scope?: KnowledgeQueryScope) =>
     [...knowledgeQueryKeys.ingestions(scope), documentId] as const,
 
+  versionIngestion: (documentId: string, versionId: string, scope?: KnowledgeQueryScope) =>
+    [...knowledgeQueryKeys.ingestions(scope), documentId, 'versions', versionId] as const,
+
+  retrievalStatus: (documentId: string, versionId?: string, scope?: KnowledgeQueryScope) =>
+    [
+      ...knowledgeQueryKeys.details(scope),
+      documentId,
+      'retrieval-status',
+      versionId ?? 'current',
+    ] as const,
+
   preview: (documentId: string, versionId?: string, scope?: KnowledgeQueryScope) =>
     [...knowledgeQueryKeys.details(scope), documentId, 'preview', versionId ?? 'latest'] as const,
 

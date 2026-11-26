@@ -137,6 +137,15 @@ describe('AI-03.4 — Knowledge Document Management HTTP APIs (Integration)', ()
           (j) => j.tenantId === tenantId && j.documentVersionId === versionId,
         );
       },
+      findByDocumentId: async (tenantId: string, documentId: string) => {
+        return Array.from(jobStore.values()).filter(
+          (j) => j.tenantId === tenantId && j.documentId === documentId,
+        );
+      },
+      findAll: async (tenantId: string) => {
+        const items = Array.from(jobStore.values()).filter((j) => j.tenantId === tenantId);
+        return { items, total: items.length };
+      },
       findActiveJobByVersionId: async (tenantId: string, versionId: string) => {
         const jobs = Array.from(jobStore.values()).filter(
           (j) => j.tenantId === tenantId && j.documentVersionId === versionId,

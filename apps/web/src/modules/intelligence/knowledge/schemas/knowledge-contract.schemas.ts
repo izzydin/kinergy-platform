@@ -2,6 +2,13 @@ import { z } from 'zod';
 import type {
   VisibilityScope,
   IngestionStatus,
+  IngestionStageId,
+  IngestionStageStatus,
+  IngestionFailureCategory,
+  IngestionFailureInfo,
+  IngestionStageMetrics,
+  IngestionStageInfo,
+  IngestionRetrievalStatus,
   DocumentVersionItem,
   KnowledgeDocumentItem,
   PaginatedDocumentsResponse,
@@ -85,17 +92,118 @@ export const KnowledgeCapabilitiesResponseSchema: z.ZodType<KnowledgeCapabilitie
     supportedVisibilityScopes: z.array(VisibilityScopeSchema),
   });
 
+export const IngestionStageIdSchema: z.ZodType<IngestionStageId> = z.enum([
+  'VALIDATING',
+  'PROCESSING',
+  'INDEXING',
+]);
+
+export const IngestionStageStatusSchema: z.ZodType<IngestionStageStatus> = z.enum([
+  'PENDING',
+  'IN_PROGRESS',
+  'COMPLETED',
+  'FAILED',
+  'CANCELLED',
+  'SKIPPED',
+]);
+
+export const IngestionFailureCategorySchema: z.ZodType<IngestionFailureCategory> = z.enum([
+  'VALIDATION',
+  'PARSING',
+  'CHUNKING',
+  'INDEXING',
+  'STORAGE',
+  'INFRASTRUCTURE',
+  'TIMEOUT',
+  'CANCELLATION',
+  'UNKNOWN',
+]);
+
+export const IngestionFailureInfoSchema: z.ZodType<IngestionFailureInfo> = z.object({
+  code: z.string(),
+  category: IngestionFailureCategorySchema,
+  message: z.string(),
+  failedStage: IngestionStageIdSchema.optional(),
+  isRetryable: z.boolean().optional(),
+  failedAt: z.string().optional(),
+  attemptNumber: z.number().int().optional(),
+  occurredAt: z.string().optional(),
+  isTransient: z.boolean().optional(),
+  canRetry: z.boolean().optional(),
+});
+
+export const IngestionStageMetricsSchema: z.ZodType<IngestionStageMetrics> = z.object({
+  totalChunks: z.number().int().optional(),
+  embeddedChunks: z.number().int().optional(),
+  indexedChunks: z.number().int().optional(),
+  extractedTokens: z.number().int().optional(),
+  indexGenerationId: z.string().nullable().optional(),
+  customMetrics: z.record(z.number()).optional(),
+});
+
+export const IngestionStageInfoSchema: z.ZodType<IngestionStageInfo> = z.object({
+  stage: IngestionStageIdSchema,
+  label: z.string().optional(),
+  status: IngestionStageStatusSchema,
+  order: z.number().int().optional(),
+  startedAt: z.string().nullable().optional(),
+  completedAt: z.string().nullable().optional(),
+  durationMs: z.number().nullable().optional(),
+  metrics: IngestionStageMetricsSchema.nullable().optional(),
+  failureInfo: IngestionFailureInfoSchema.nullable().optional(),
+  error: z.string().optional(),
+});
+
+export const IngestionRetrievalStatusSchema: z.ZodType<IngestionRetrievalStatus> = z.object({
+  documentId: z.string().optional(),
+  isReadyForRetrieval: z.boolean(),
+  overallReady: z.boolean().optional(),
+  hasActiveIndexGeneration: z.boolean().optional(),
+  isDocumentActive: z.boolean().optional(),
+  chunksPersisted: z.boolean().optional(),
+  embeddingsCommitted: z.boolean().optional(),
+  activeGenerationId: z.string().nullable().optional(),
+  targetVersionId: z.string().nullable().optional(),
+  targetVersionNumber: z.number().nullable().optional(),
+  currentVersionId: z.string().nullable().optional(),
+  currentVersionNumber: z.number().nullable().optional(),
+  indexedVersionId: z.string().nullable().optional(),
+  indexedVersionNumber: z.number().nullable().optional(),
+  hasVersionDiscrepancy: z.boolean().optional(),
+  discrepancyReason: z.string().nullable().optional(),
+  lastSuccessfulIndexingAt: z.string().nullable().optional(),
+  totalChunks: z.number().optional(),
+  indexedChunks: z.number().optional(),
+  embeddingsCount: z.number().optional(),
+  reasons: z.array(z.string()).optional(),
+  reason: z.string().optional(),
+  evaluatedAt: z.string().optional(),
+});
+
 export const IngestionJobItemSchema: z.ZodType<IngestionJobItem> = z.object({
   id: z.string().min(1),
   documentId: z.string().min(1),
   documentVersionId: z.string().min(1),
+  versionNumber: z.number().int().optional(),
   status: IngestionStatusSchema,
-  attemptCount: z.number().int().min(1),
+  currentStage: z.string().optional(),
+  attemptCount: z.number().int().min(0),
   maxAttempts: z.number().int().min(1),
+  startedAt: z.string().nullable().optional(),
+  completedAt: z.string().nullable().optional(),
+  nextRetryAt: z.string().nullable().optional(),
+  cancelledAt: z.string().nullable().optional(),
+  cancellationReason: z.string().nullable().optional(),
+  durationMs: z.number().nullable().optional(),
+  isTerminal: z.boolean().optional(),
+  canRetry: z.boolean().optional(),
   lastErrorCode: z.string().nullable().optional(),
   lastErrorMessage: z.string().nullable().optional(),
+  failureInfo: IngestionFailureInfoSchema.nullable().optional(),
+  stages: z.array(IngestionStageInfoSchema).optional(),
+  retrievalStatus: IngestionRetrievalStatusSchema.nullable().optional(),
   createdAt: z.string(),
-  completedAt: z.string().nullable().optional(),
+  updatedAt: z.string().optional(),
 });
 
 export const UploadDocumentResponseSchema: z.ZodType<UploadDocumentResponse> = z.object({
@@ -161,4 +269,8 @@ export function parseDocumentPreviewMetadataResponse(
 
 export function parseDocumentVersionsList(data: unknown): DocumentVersionItem[] {
   return z.array(DocumentVersionItemSchema).parse(data);
+}
+
+export function parseIngestionRetrievalStatus(data: unknown): IngestionRetrievalStatus {
+  return IngestionRetrievalStatusSchema.parse(data);
 }

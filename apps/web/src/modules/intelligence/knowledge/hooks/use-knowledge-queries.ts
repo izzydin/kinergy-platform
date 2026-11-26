@@ -2,12 +2,21 @@ import { useQuery, keepPreviousData, type UseQueryOptions } from '@tanstack/reac
 import { useOptionalAuth } from '../../../../app/providers/auth-provider';
 import { knowledgeApi } from '../api/knowledge.api';
 import { knowledgeQueryKeys } from '../api/knowledge-query-keys';
+import {
+  DEFAULT_INGESTION_POLLING_CONFIG,
+  getIngestionJobsPollingInterval,
+  getRetrievalStatusPollingInterval,
+  getDocumentDetailPollingInterval,
+  shouldRetryIngestionQuery,
+  getIngestionQueryRetryDelay,
+} from './ingestion-polling.policy';
 import type {
   KnowledgeCapabilitiesResponse,
   PaginatedDocumentsResponse,
   KnowledgeDocumentItem,
   ListDocumentsQueryParams,
   IngestionJobItem,
+  IngestionRetrievalStatus,
   DocumentPreviewMetadataResponse,
   DocumentVersionItem,
 } from '../types/knowledge-contract.types';
@@ -74,6 +83,15 @@ export function useKnowledgeDocument(
     queryFn: ({ signal }) => knowledgeApi.getDocument(documentId!, { signal, includeDeleted }),
     enabled: Boolean(documentId && documentId.trim().length > 0),
     staleTime: 30 * 1000,
+    placeholderData: keepPreviousData,
+    refetchInterval: (query) =>
+      getDocumentDetailPollingInterval(
+        query.state.data,
+        DEFAULT_INGESTION_POLLING_CONFIG,
+        query.state.error,
+      ),
+    retry: (failureCount, error) => shouldRetryIngestionQuery(failureCount, error),
+    retryDelay: (failureCount, error) => getIngestionQueryRetryDelay(failureCount, error),
     ...options,
   });
 }
@@ -92,7 +110,77 @@ export function useDocumentIngestionHistory(
     queryKey: knowledgeQueryKeys.ingestion(documentId || '', scope),
     queryFn: ({ signal }) => knowledgeApi.getIngestionHistory(documentId!, { signal }),
     enabled: Boolean(documentId && documentId.trim().length > 0),
+    staleTime: 5 * 1000,
+    placeholderData: keepPreviousData,
+    refetchInterval: (query) =>
+      getIngestionJobsPollingInterval(
+        query.state.data,
+        DEFAULT_INGESTION_POLLING_CONFIG,
+        query.state.error,
+      ),
+    retry: (failureCount, error) => shouldRetryIngestionQuery(failureCount, error),
+    retryDelay: (failureCount, error) => getIngestionQueryRetryDelay(failureCount, error),
+    ...options,
+  });
+}
+
+export function useVersionIngestionHistory(
+  documentId: string | undefined,
+  versionId: string | undefined,
+  options?: Omit<
+    UseQueryOptions<IngestionJobItem[], Error, IngestionJobItem[], readonly unknown[]>,
+    'queryKey' | 'queryFn'
+  >,
+) {
+  const auth = useOptionalAuth();
+  const scope = { tenantId: auth?.currentUser?.tenantId ?? undefined };
+
+  return useQuery({
+    queryKey: knowledgeQueryKeys.versionIngestion(documentId || '', versionId || '', scope),
+    queryFn: ({ signal }) =>
+      knowledgeApi.getVersionIngestionHistory(documentId!, versionId!, { signal }),
+    enabled: Boolean(
+      documentId && documentId.trim().length > 0 && versionId && versionId.trim().length > 0,
+    ),
+    staleTime: 5 * 1000,
+    placeholderData: keepPreviousData,
+    refetchInterval: (query) =>
+      getIngestionJobsPollingInterval(
+        query.state.data,
+        DEFAULT_INGESTION_POLLING_CONFIG,
+        query.state.error,
+      ),
+    retry: (failureCount, error) => shouldRetryIngestionQuery(failureCount, error),
+    retryDelay: (failureCount, error) => getIngestionQueryRetryDelay(failureCount, error),
+    ...options,
+  });
+}
+
+export function useDocumentRetrievalStatus(
+  documentId: string | undefined,
+  versionId?: string,
+  options?: Omit<
+    UseQueryOptions<IngestionRetrievalStatus, Error, IngestionRetrievalStatus, readonly unknown[]>,
+    'queryKey' | 'queryFn'
+  >,
+) {
+  const auth = useOptionalAuth();
+  const scope = { tenantId: auth?.currentUser?.tenantId ?? undefined };
+
+  return useQuery({
+    queryKey: knowledgeQueryKeys.retrievalStatus(documentId || '', versionId, scope),
+    queryFn: ({ signal }) => knowledgeApi.getRetrievalStatus(documentId!, { signal, versionId }),
+    enabled: Boolean(documentId && documentId.trim().length > 0),
     staleTime: 10 * 1000,
+    placeholderData: keepPreviousData,
+    refetchInterval: (query) =>
+      getRetrievalStatusPollingInterval(
+        query.state.data,
+        DEFAULT_INGESTION_POLLING_CONFIG,
+        query.state.error,
+      ),
+    retry: (failureCount, error) => shouldRetryIngestionQuery(failureCount, error),
+    retryDelay: (failureCount, error) => getIngestionQueryRetryDelay(failureCount, error),
     ...options,
   });
 }

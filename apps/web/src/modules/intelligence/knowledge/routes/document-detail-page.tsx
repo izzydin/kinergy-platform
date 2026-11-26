@@ -15,6 +15,7 @@ import {
   Check,
   AlertTriangle,
   ShieldAlert,
+  ShieldCheck,
   FileQuestion,
   Loader2,
   Calendar,
@@ -30,17 +31,24 @@ import { Button, Badge, Skeleton, Alert } from '@kinergy-platform/ui';
 import { IntelligencePageContainer } from '../../components/intelligence-page-container';
 import { useOptionalAuth } from '../../../../app/providers/auth-provider';
 import { useNotification } from '../../../../app/providers/notification-provider';
-import { useKnowledgeDocument, useDocumentIngestionHistory } from '../hooks/use-knowledge-queries';
+import {
+  useKnowledgeDocument,
+  useDocumentIngestionHistory,
+  useDocumentRetrievalStatus,
+} from '../hooks/use-knowledge-queries';
 import {
   useRetryDocumentIngestion,
   useCancelDocumentIngestion,
 } from '../hooks/use-knowledge-mutations';
 import { triggerDocumentDownload, knowledgeApi } from '../api/knowledge.api';
 import { IngestionStatusBadge } from '../components/ingestion-status-badge';
+import { IngestionLifecycleTimeline } from '../components/ingestion-lifecycle-timeline';
+import { ProcessingHistoryDiagnostics } from '../components/processing-history-diagnostics';
 import { DocumentEditMetadataModal } from '../components/document-edit-metadata-modal';
 import { DocumentDeleteDialog } from '../components/document-delete-dialog';
 import { DocumentRestoreDialog } from '../components/document-restore-dialog';
 import { DocumentReprocessDialog } from '../components/document-reprocess-dialog';
+import { DocumentRetryDialog } from '../components/document-retry-dialog';
 import { KnowledgeDocumentPreviewModal } from '../components/knowledge-document-preview-modal';
 import { VersionDetailModal } from '../components/version-detail-modal';
 import { VersionComparisonModal } from '../components/version-comparison-modal';
@@ -117,6 +125,8 @@ export const DocumentDetailPage: React.FC = () => {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isRestoreDialogOpen, setIsRestoreDialogOpen] = useState(false);
   const [isReprocessDialogOpen, setIsReprocessDialogOpen] = useState(false);
+  const [isRetryDialogOpen, setIsRetryDialogOpen] = useState(false);
+  const [retryTargetVersionId, setRetryTargetVersionId] = useState<string | undefined>(undefined);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewVersionId, setPreviewVersionId] = useState<string | undefined>(undefined);
   const [selectedVersionForDetails, setSelectedVersionForDetails] =
@@ -125,6 +135,7 @@ export const DocumentDetailPage: React.FC = () => {
   const [isUploadVersionModalOpen, setIsUploadVersionModalOpen] = useState(false);
   const [copiedChecksum, setCopiedChecksum] = useState(false);
   const [downloadingVersionId, setDownloadingVersionId] = useState<string | null>(null);
+  const [isManualRefreshing, setIsManualRefreshing] = useState(false);
 
   const { data: document, isLoading, isError, error, refetch } = useKnowledgeDocument(documentId);
 
@@ -133,11 +144,45 @@ export const DocumentDetailPage: React.FC = () => {
     return [...(document?.versions || [])].sort((a, b) => b.versionNumber - a.versionNumber);
   }, [document?.versions]);
 
-  const { data: ingestionHistory, isLoading: isHistoryLoading } =
-    useDocumentIngestionHistory(documentId);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+
+  const {
+    data: ingestionHistory,
+    isLoading: isHistoryLoading,
+    isRefetching: isHistoryRefetching,
+    refetch: refetchIngestionHistory,
+    error: historyError,
+  } = useDocumentIngestionHistory(documentId);
+
+  const {
+    data: retrievalStatus,
+    isLoading: isRetrievalLoading,
+    refetch: refetchRetrievalStatus,
+  } = useDocumentRetrievalStatus(documentId);
+
+  const activeJob = useMemo(() => {
+    if (!ingestionHistory || ingestionHistory.length === 0) return null;
+    if (selectedJobId) {
+      const found = ingestionHistory.find((j) => j.id === selectedJobId);
+      if (found) return found;
+    }
+    return ingestionHistory[0];
+  }, [ingestionHistory, selectedJobId]);
 
   const retryMutation = useRetryDocumentIngestion();
   const cancelMutation = useCancelDocumentIngestion();
+
+  const handleManualRefresh = async () => {
+    if (isManualRefreshing) return;
+    setIsManualRefreshing(true);
+    try {
+      await Promise.all([refetch(), refetchIngestionHistory(), refetchRetrievalStatus()]);
+    } catch {
+      notification.error('Error al actualizar el estado de procesamiento.');
+    } finally {
+      setIsManualRefreshing(false);
+    }
+  };
 
   // Evaluate user roles for administrative operations
   const roles = (auth?.currentUser?.roles ?? []).map((r) => r.toUpperCase());
@@ -191,7 +236,8 @@ export const DocumentDetailPage: React.FC = () => {
 
   const handleRetryIngestion = () => {
     if (!document) return;
-    retryMutation.mutate(document.id);
+    setRetryTargetVersionId(undefined);
+    setIsRetryDialogOpen(true);
   };
 
   const handleCancelIngestion = () => {
@@ -398,6 +444,29 @@ export const DocumentDetailPage: React.FC = () => {
           </Alert>
         )}
 
+        {/* Version Discrepancy Alert Banner */}
+        {!isDeleted && retrievalStatus?.hasVersionDiscrepancy && (
+          <Alert
+            variant="warning"
+            data-testid="version-discrepancy-alert"
+            className="text-xs border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+          >
+            <AlertTriangle
+              className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0"
+              aria-hidden="true"
+            />
+            <div>
+              <strong>Discrepancia de Versión en Índice RAG:</strong>{' '}
+              {retrievalStatus.discrepancyReason ||
+                `La versión actual del documento (v${document.versionNumber ?? 1}) difiere de la versión indexada en el motor de búsqueda asistida (${
+                  retrievalStatus.indexedVersionNumber
+                    ? `v${retrievalStatus.indexedVersionNumber}`
+                    : 'ninguna versión indexada'
+                }).`}
+            </div>
+          </Alert>
+        )}
+
         {/* =================================================================== */}
         {/* HEADER: Title, Badges & Administrative Actions                      */}
         {/* =================================================================== */}
@@ -443,6 +512,26 @@ export const DocumentDetailPage: React.FC = () => {
                 <span className="text-xs font-semibold text-muted-foreground px-1.5 py-0.5 rounded bg-muted/60">
                   v{document.versionNumber ?? 1}
                 </span>
+
+                {/* Indexed Version in RAG Badge */}
+                {retrievalStatus?.indexedVersionNumber !== undefined && (
+                  <span
+                    data-testid="indexed-version-badge"
+                    className={`text-[11px] font-medium px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+                      retrievalStatus.indexedVersionNumber === (document.versionNumber ?? 1)
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                        : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20'
+                    }`}
+                  >
+                    <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                    <span>
+                      RAG:{' '}
+                      {retrievalStatus.indexedVersionNumber
+                        ? `v${retrievalStatus.indexedVersionNumber}`
+                        : 'Sin indexar'}
+                    </span>
+                  </span>
+                )}
 
                 {/* File Extension Badge */}
                 {document.fileExtension && (
@@ -769,6 +858,48 @@ export const DocumentDetailPage: React.FC = () => {
                 </div>
               </div>
 
+              <div>
+                <span className="text-muted-foreground block text-[11px]">Disponibilidad RAG</span>
+                <span className="text-xs font-medium text-foreground block mt-0.5">
+                  {retrievalStatus?.overallReady ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold inline-flex items-center gap-1">
+                      <Check className="h-3 w-3" aria-hidden="true" /> Disponible para Citación
+                    </span>
+                  ) : document.ingestionStatus === 'READY' ? (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      Sincronizando con índice activo
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">No disponible</span>
+                  )}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-border/40">
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Versión en RAG</span>
+                  <span
+                    data-testid="metadata-indexed-version"
+                    className="font-medium text-foreground block mt-0.5"
+                  >
+                    {retrievalStatus?.indexedVersionNumber
+                      ? `v${retrievalStatus.indexedVersionNumber}`
+                      : retrievalStatus?.isReadyForRetrieval
+                        ? `v${document.versionNumber ?? 1}`
+                        : 'Ninguna'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[11px]">Última indexación</span>
+                  <span
+                    data-testid="metadata-last-indexed-at"
+                    className="font-medium text-foreground block mt-0.5 truncate"
+                  >
+                    {formatDate(retrievalStatus?.lastSuccessfulIndexingAt)}
+                  </span>
+                </div>
+              </div>
+
               {/* Status Narrative Explanation */}
               <div className="rounded-md p-2.5 text-[11px] leading-relaxed bg-muted/30 border border-border/40">
                 {document.ingestionStatus === 'READY' && (
@@ -878,6 +1009,12 @@ export const DocumentDetailPage: React.FC = () => {
                       ver.id === document.currentVersionId ||
                       ver.versionNumber === document.versionNumber;
                     const isDownloading = downloadingVersionId === ver.id;
+                    const isIndexedInRag =
+                      retrievalStatus?.indexedVersionId === ver.id ||
+                      retrievalStatus?.indexedVersionNumber === ver.versionNumber ||
+                      (isCurrent &&
+                        Boolean(retrievalStatus?.isReadyForRetrieval) &&
+                        !retrievalStatus?.hasVersionDiscrepancy);
 
                     return (
                       <tr
@@ -925,12 +1062,41 @@ export const DocumentDetailPage: React.FC = () => {
                           {formatDate(ver.createdAt)}
                         </td>
                         <td className="py-2.5 px-3">
-                          <IngestionStatusBadge
-                            status={
-                              ver.ingestionStatus ||
-                              (isCurrent ? document.ingestionStatus : 'READY')
-                            }
-                          />
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <IngestionStatusBadge
+                              status={
+                                ver.ingestionStatus ||
+                                (isCurrent ? document.ingestionStatus : 'READY')
+                              }
+                            />
+                            {isIndexedInRag ? (
+                              <span
+                                data-testid={`version-${ver.versionNumber}-rag-badge`}
+                                className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded-full"
+                                title="Esta versión está actualmente representada en el índice activo de RAG"
+                              >
+                                <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                                <span>En RAG</span>
+                              </span>
+                            ) : isCurrent ? (
+                              <span
+                                data-testid={`version-${ver.versionNumber}-rag-badge`}
+                                className="inline-flex items-center gap-1 text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded-full"
+                                title="Versión actual aún no disponible en el índice activo de RAG"
+                              >
+                                <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                                <span>No en RAG</span>
+                              </span>
+                            ) : (
+                              <span
+                                data-testid={`version-${ver.versionNumber}-rag-badge`}
+                                className="text-[10px] text-muted-foreground bg-muted/60 px-1.5 py-0.5 rounded-full inline-block"
+                                title="Versión histórica no activa en el índice"
+                              >
+                                Histórico
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-2.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-1">
@@ -993,85 +1159,40 @@ export const DocumentDetailPage: React.FC = () => {
         </div>
 
         {/* =================================================================== */}
-        {/* INGESTION JOBS HISTORY                                              */}
+        {/* INGESTION LIFECYCLE TIMELINE & RETRIEVAL READINESS                  */}
         {/* =================================================================== */}
-        <div
-          data-testid="ingestion-history-section"
-          className="flex flex-col gap-3 rounded-xl border border-border/70 bg-card p-4 shadow-xs"
-        >
-          <div className="flex items-center justify-between border-b border-border/50 pb-2.5">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-primary" aria-hidden="true" />
-              <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Registro de Trabajos de Ingesta ({ingestionHistory?.length || 0})
-              </h3>
-            </div>
-            {isHistoryLoading && (
-              <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin" /> Cargando registro...
-              </span>
-            )}
-          </div>
+        <IngestionLifecycleTimeline
+          documentId={document.id}
+          versionId={activeJob?.documentVersionId}
+          job={activeJob}
+          retrievalStatus={retrievalStatus}
+          isLoading={isHistoryLoading || isRetrievalLoading}
+          isRefreshing={isManualRefreshing || isHistoryRefetching}
+          error={historyError as Error | null}
+          canManage={canManage}
+          onRefresh={handleManualRefresh}
+          onRetry={handleRetryIngestion}
+          onCancel={handleCancelIngestion}
+          isRetryPending={retryMutation.isPending}
+          isCancelPending={cancelMutation.isPending}
+        />
 
-          {ingestionHistory && ingestionHistory.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-border/60 text-muted-foreground text-[11px]">
-                    <th className="py-2 px-3 font-semibold">ID Trabajo</th>
-                    <th className="py-2 px-3 font-semibold">Estado</th>
-                    <th className="py-2 px-3 font-semibold">Intentos</th>
-                    <th className="py-2 px-3 font-semibold">Inicio</th>
-                    <th className="py-2 px-3 font-semibold">Finalización</th>
-                    <th className="py-2 px-3 font-semibold">Detalle</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/40">
-                  {ingestionHistory.map((job) => (
-                    <tr
-                      key={job.id}
-                      data-testid={`ingestion-job-row-${job.id}`}
-                      className="hover:bg-muted/20 transition-colors"
-                    >
-                      <td className="py-2.5 px-3 font-mono text-[11px] text-muted-foreground">
-                        {job.id.length > 12 ? `${job.id.substring(0, 12)}…` : job.id}
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <IngestionStatusBadge status={job.status} />
-                      </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">
-                        {job.attemptCount} / {job.maxAttempts}
-                      </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">
-                        {formatDate(job.createdAt)}
-                      </td>
-                      <td className="py-2.5 px-3 text-muted-foreground">
-                        {job.completedAt ? formatDate(job.completedAt) : 'En progreso'}
-                      </td>
-                      <td className="py-2.5 px-3 text-muted-foreground max-w-[200px] truncate">
-                        {job.lastErrorMessage ? (
-                          <span className="text-rose-600 dark:text-rose-400 text-[11px]">
-                            {job.lastErrorMessage}
-                          </span>
-                        ) : job.status === 'READY' ? (
-                          <span className="text-emerald-600 dark:text-emerald-400 text-[11px]">
-                            Indexado exitosamente
-                          </span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="py-6 text-center text-xs text-muted-foreground">
-              No hay registros de trabajos de ingesta adicionales para este documento.
-            </div>
-          )}
-        </div>
+        {/* =================================================================== */}
+        {/* INGESTION PROCESSING HISTORY & FAILURE DIAGNOSTICS (IM.05)         */}
+        {/* =================================================================== */}
+        <ProcessingHistoryDiagnostics
+          documentId={document.id}
+          jobs={ingestionHistory}
+          selectedJobId={activeJob?.id}
+          onSelectJob={(jobId) => setSelectedJobId(jobId)}
+          isLoading={isHistoryLoading}
+          isRefreshing={isManualRefreshing || isHistoryRefetching}
+          error={historyError as Error | null}
+          canManage={canManage}
+          onRefresh={handleManualRefresh}
+          onRetry={handleRetryIngestion}
+          isRetryPending={retryMutation.isPending}
+        />
       </div>
 
       {/* Edit Metadata Modal */}
@@ -1148,11 +1269,26 @@ export const DocumentDetailPage: React.FC = () => {
             selectedVersionForDetails.id === document.currentVersionId ||
             selectedVersionForDetails.versionNumber === document.versionNumber
           }
+          isIndexedInRag={
+            retrievalStatus?.indexedVersionId === selectedVersionForDetails.id ||
+            retrievalStatus?.indexedVersionNumber === selectedVersionForDetails.versionNumber ||
+            ((selectedVersionForDetails.id === document.currentVersionId ||
+              selectedVersionForDetails.versionNumber === document.versionNumber) &&
+              Boolean(retrievalStatus?.isReadyForRetrieval) &&
+              !retrievalStatus?.hasVersionDiscrepancy)
+          }
+          retrievalStatus={retrievalStatus}
           onPreview={(ver) => {
             setPreviewVersionId(ver.id);
             setIsPreviewOpen(true);
           }}
           onDownload={(ver) => handleDownloadVersion(ver)}
+          canManage={canManage}
+          onRetry={(ver) => {
+            setSelectedVersionForDetails(null);
+            setRetryTargetVersionId(ver.id);
+            setIsRetryDialogOpen(true);
+          }}
         />
       )}
 
@@ -1182,6 +1318,28 @@ export const DocumentDetailPage: React.FC = () => {
           targetDocumentTitle={document.title}
           onSuccess={() => {
             void refetch();
+          }}
+        />
+      )}
+
+      {/* Document Ingestion Retry Confirmation Dialog */}
+      {isRetryDialogOpen && document && (
+        <DocumentRetryDialog
+          isOpen={isRetryDialogOpen}
+          onClose={() => {
+            setIsRetryDialogOpen(false);
+            setRetryTargetVersionId(undefined);
+          }}
+          document={{
+            id: document.id,
+            title: document.title,
+            currentVersionNumber: document.versionNumber,
+          }}
+          job={activeJob}
+          targetVersionId={retryTargetVersionId}
+          onRetried={() => {
+            void refetchIngestionHistory();
+            void refetchRetrievalStatus();
           }}
         />
       )}

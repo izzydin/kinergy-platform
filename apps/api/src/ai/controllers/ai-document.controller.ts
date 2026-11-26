@@ -68,10 +68,14 @@ import {
   SECURE_DOCUMENT_UPLOAD_SERVICE,
   VECTOR_CLEANUP_SERVICE,
   RETRIEVAL_SECURITY_POLICY_SERVICE,
+  INGESTION_OBSERVABILITY_SERVICE,
 } from '../ai.tokens';
 import { VectorCleanupService } from '../services/indexing/vector-cleanup.service';
 import { SecureDocumentUploadService } from '../services/secure-document-upload.service';
 import { RetrievalSecurityPolicyService } from '../services/retrieval/retrieval-security-policy.service';
+import { IngestionObservabilityService } from '../services/ingestion-observability.service';
+import { IngestionErrorCode } from '../services/ingestion-retry.policy';
+import { IngestionRetrievalStatusDto } from './dtos/ingestion-observability.dto';
 import {
   UploadDocumentRequestDto,
   UploadDocumentResponseDto,
@@ -117,6 +121,9 @@ export class AiDocumentController {
     @Optional()
     @Inject(RETRIEVAL_SECURITY_POLICY_SERVICE)
     private readonly securityPolicy?: RetrievalSecurityPolicyService,
+    @Optional()
+    @Inject(INGESTION_OBSERVABILITY_SERVICE)
+    private readonly observabilityService?: IngestionObservabilityService,
   ) {}
 
   /**
@@ -830,6 +837,10 @@ export class AiDocumentController {
   ): Promise<IngestionJobResponseDto[]> {
     const { tenantId } = this.extractAuthContext(user);
 
+    if (this.observabilityService) {
+      return this.observabilityService.getDocumentIngestionHistory(tenantId, documentId, user);
+    }
+
     const doc = await this.documentRepo.findById(tenantId, documentId);
     if (!doc || doc.isDeleted()) {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
@@ -853,6 +864,88 @@ export class AiDocumentController {
     }
 
     return allJobs.map((j) => this.toIngestionJobDto(j));
+  }
+
+  /**
+   * 11b. GET /api/v1/ai/knowledge/documents/:id/versions/:versionId/ingestion
+   * List historical ingestion jobs for a specific document version.
+   */
+  @Get(':id/versions/:versionId/ingestion')
+  @ApiOperation({ summary: 'Get ingestion status and history for a specific document version' })
+  @ApiParam({ name: 'id', description: 'Logical Knowledge Document ID' })
+  @ApiParam({ name: 'versionId', description: 'Specific document version ID' })
+  @ApiResponse({ status: 200, type: [IngestionJobResponseDto] })
+  @ApiResponse({ status: 404, description: 'Document or version not found' })
+  async getVersionIngestionHistory(
+    @Param('id') documentId: string,
+    @Param('versionId') versionId: string,
+    @CurrentUser() user: AuthenticatedUserPayload | null,
+  ): Promise<IngestionJobResponseDto[]> {
+    const { tenantId } = this.extractAuthContext(user);
+
+    if (this.observabilityService) {
+      return this.observabilityService.getVersionIngestionHistory(
+        tenantId,
+        documentId,
+        versionId,
+        user,
+      );
+    }
+
+    const doc = await this.documentRepo.findById(tenantId, documentId);
+    if (!doc || doc.isDeleted()) {
+      throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    const version = doc.getVersionById(versionId);
+    if (!version) {
+      throw new NotFoundException(
+        `Document version '${versionId}' does not belong to document '${documentId}'.`,
+      );
+    }
+
+    const jobs = await this.ingestionJobRepo.findByVersionId(tenantId, versionId);
+    return jobs.map((j) => this.toIngestionJobDto(j));
+  }
+
+  /**
+   * 11c. GET /api/v1/ai/knowledge/documents/:id/retrieval-status
+   * Authoritative semantic search retrieval readiness evaluation for a document.
+   */
+  @Get(':id/retrieval-status')
+  @ApiOperation({ summary: 'Evaluate document semantic search retrieval readiness' })
+  @ApiParam({ name: 'id', description: 'Logical Knowledge Document ID' })
+  @ApiResponse({ status: 200, type: IngestionRetrievalStatusDto })
+  @ApiResponse({ status: 404, description: 'Document not found' })
+  async getDocumentRetrievalStatus(
+    @Param('id') documentId: string,
+    @CurrentUser() user: AuthenticatedUserPayload | null,
+    @Query('versionId') versionId?: string,
+  ): Promise<IngestionRetrievalStatusDto> {
+    const { tenantId } = this.extractAuthContext(user);
+
+    if (this.observabilityService) {
+      return this.observabilityService.evaluateRetrievalReadiness(
+        tenantId,
+        documentId,
+        versionId?.trim(),
+        user,
+      );
+    }
+
+    const doc = await this.documentRepo.findById(tenantId, documentId);
+    if (!doc || doc.isDeleted()) {
+      throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    return {
+      isReadyForRetrieval: false,
+      activeGenerationId: null,
+      totalChunks: 0,
+      indexedChunks: 0,
+      embeddingsCount: 0,
+      reason: 'Observability service not configured.',
+    };
   }
 
   /**
@@ -898,6 +991,89 @@ export class AiDocumentController {
 
     if (!lastJob) {
       throw new NotFoundException(`No ingestion job exists for version '${currentVersion.id}'.`);
+    }
+
+    if (
+      lastJob.lastErrorCode === IngestionErrorCode.MAX_ATTEMPTS_EXCEEDED ||
+      lastJob.lastErrorCode === IngestionErrorCode.CANCELLED_BY_USER
+    ) {
+      throw new BadRequestException(
+        `Job cannot be retried because it is in a terminal failure state (${lastJob.lastErrorCode}).`,
+      );
+    }
+
+    try {
+      lastJob.retry();
+      const saved = await this.ingestionJobRepo.save(lastJob);
+
+      if (this.orchestrator) {
+        setImmediate(() => {
+          this.orchestrator!.processJob(saved.id, tenantId).catch(() => {});
+        });
+      }
+
+      return this.toIngestionJobDto(saved);
+    } catch (err: unknown) {
+      this.translateDomainException(err);
+    }
+  }
+
+  /**
+   * 12c. POST /api/v1/ai/knowledge/documents/:id/versions/:versionId/retry
+   * Retry failed ingestion for a specific document version.
+   */
+  @Post(':id/versions/:versionId/retry')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Retry failed ingestion for a specific document version' })
+  @ApiParam({ name: 'id', description: 'Logical Knowledge Document ID' })
+  @ApiParam({ name: 'versionId', description: 'Specific Document Version ID' })
+  @ApiResponse({ status: 200, type: IngestionJobResponseDto })
+  @ApiResponse({ status: 400, description: 'Job is not in a failed or retryable state' })
+  @ApiResponse({ status: 404, description: 'Document, version, or ingestion job not found' })
+  async retryVersionIngestion(
+    @Param('id') documentId: string,
+    @Param('versionId') versionId: string,
+    @CurrentUser() user: AuthenticatedUserPayload | null,
+  ): Promise<IngestionJobResponseDto> {
+    const { tenantId } = this.extractAuthContext(user);
+
+    const doc = await this.documentRepo.findById(tenantId, documentId);
+    if (!doc || doc.isDeleted()) {
+      throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
+    }
+
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(doc.visibilityScope)) {
+        throw new ForbiddenException(
+          'You do not have the required role clearance to access or modify this document.',
+        );
+      }
+    }
+
+    this.assertCanManageDocument(user, doc);
+
+    const version = doc.getVersionById(versionId);
+    if (!version) {
+      throw new NotFoundException(
+        `Document version '${versionId}' does not belong to document '${documentId}'.`,
+      );
+    }
+
+    const jobs = await this.ingestionJobRepo.findByVersionId(tenantId, version.id);
+    const lastJob = jobs.length > 0 ? jobs[jobs.length - 1] : null;
+
+    if (!lastJob) {
+      throw new NotFoundException(`No ingestion job exists for version '${version.id}'.`);
+    }
+
+    if (
+      lastJob.lastErrorCode === IngestionErrorCode.MAX_ATTEMPTS_EXCEEDED ||
+      lastJob.lastErrorCode === IngestionErrorCode.CANCELLED_BY_USER
+    ) {
+      throw new BadRequestException(
+        `Job cannot be retried because it is in a terminal failure state (${lastJob.lastErrorCode}).`,
+      );
     }
 
     try {
@@ -1112,6 +1288,18 @@ export class AiDocumentController {
   }
 
   private toIngestionJobDto(job: IngestionJob): IngestionJobResponseDto {
+    const isTerminal =
+      job.status === IngestionStatus.READY ||
+      job.status === IngestionStatus.CANCELLED ||
+      (job.status === IngestionStatus.FAILED && job.attemptCount >= job.maxAttempts);
+
+    let durationMs: number | null = null;
+    if (job.startedAt && job.completedAt) {
+      durationMs = job.completedAt.getTime() - job.startedAt.getTime();
+    } else if (job.startedAt && !job.completedAt && !job.cancelledAt) {
+      durationMs = Math.max(0, Date.now() - job.startedAt.getTime());
+    }
+
     return {
       id: job.id,
       documentId: job.documentId,
@@ -1122,7 +1310,14 @@ export class AiDocumentController {
       lastErrorCode: job.lastErrorCode,
       lastErrorMessage: job.lastErrorMessage,
       createdAt: job.createdAt.toISOString(),
+      startedAt: job.startedAt ? job.startedAt.toISOString() : null,
       completedAt: job.completedAt ? job.completedAt.toISOString() : null,
+      nextRetryAt: job.nextRetryAt ? job.nextRetryAt.toISOString() : null,
+      cancelledAt: job.cancelledAt ? job.cancelledAt.toISOString() : null,
+      cancellationReason: job.cancellationReason,
+      durationMs,
+      isTerminal,
+      canRetry: job.canRetry(),
     };
   }
 

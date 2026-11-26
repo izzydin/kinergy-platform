@@ -9,9 +9,25 @@ import {
   Button,
   Badge,
 } from '@kinergy-platform/ui';
-import { Layers, FileText, Download, Eye, Copy, Check, Calendar, User, Shield } from 'lucide-react';
+import {
+  Layers,
+  FileText,
+  Download,
+  Eye,
+  Copy,
+  Check,
+  Calendar,
+  User,
+  Shield,
+  ShieldCheck,
+  AlertTriangle,
+  RotateCcw,
+} from 'lucide-react';
 import { IngestionStatusBadge } from './ingestion-status-badge';
-import type { DocumentVersionItem } from '../types/knowledge-contract.types';
+import type {
+  DocumentVersionItem,
+  IngestionRetrievalStatus,
+} from '../types/knowledge-contract.types';
 
 export interface VersionDetailModalProps {
   readonly isOpen: boolean;
@@ -20,8 +36,13 @@ export interface VersionDetailModalProps {
   readonly documentTitle: string;
   readonly version: DocumentVersionItem | null;
   readonly isCurrent: boolean;
+  readonly isIndexedInRag?: boolean;
+  readonly retrievalStatus?: IngestionRetrievalStatus | null;
   readonly onPreview?: (version: DocumentVersionItem) => void;
   readonly onDownload?: (version: DocumentVersionItem) => void;
+  readonly canManage?: boolean;
+  readonly onRetry?: (version: DocumentVersionItem) => void;
+  readonly isRetryPending?: boolean;
 }
 
 function formatBytes(bytes?: number): string {
@@ -66,8 +87,13 @@ export const VersionDetailModal: React.FC<VersionDetailModalProps> = ({
   documentTitle,
   version,
   isCurrent,
+  isIndexedInRag = false,
+  retrievalStatus,
   onPreview,
   onDownload,
+  canManage = false,
+  onRetry,
+  isRetryPending = false,
 }) => {
   const [copiedChecksum, setCopiedChecksum] = useState(false);
 
@@ -120,6 +146,25 @@ export const VersionDetailModal: React.FC<VersionDetailModalProps> = ({
                     Versión Histórica
                   </Badge>
                 )}
+                {isIndexedInRag ? (
+                  <Badge
+                    variant="default"
+                    className="bg-emerald-600 text-white text-[10px] font-semibold gap-1 inline-flex items-center"
+                    data-testid="version-detail-rag-active-badge"
+                  >
+                    <ShieldCheck className="h-3 w-3" aria-hidden="true" />
+                    <span>Activo en Índice RAG</span>
+                  </Badge>
+                ) : isCurrent ? (
+                  <Badge
+                    variant="outline"
+                    className="border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[10px] font-medium gap-1 inline-flex items-center"
+                    data-testid="version-detail-rag-inactive-badge"
+                  >
+                    <AlertTriangle className="h-3 w-3" aria-hidden="true" />
+                    <span>No disponible en RAG</span>
+                  </Badge>
+                ) : null}
                 {version.fileExtension && (
                   <span className="text-[10px] font-mono font-medium text-muted-foreground uppercase px-1.5 py-0.2 rounded bg-muted/60">
                     .{version.fileExtension}
@@ -242,6 +287,61 @@ export const VersionDetailModal: React.FC<VersionDetailModalProps> = ({
                   {version.id}
                 </span>
               </div>
+
+              <div>
+                <span className="text-muted-foreground block text-[11px]">
+                  Disponibilidad en RAG:
+                </span>
+                <span
+                  data-testid="version-detail-rag-status"
+                  className="font-medium text-foreground block mt-0.5"
+                >
+                  {isIndexedInRag ? (
+                    <span className="text-emerald-600 dark:text-emerald-400 font-semibold inline-flex items-center gap-1">
+                      <ShieldCheck className="h-3.5 w-3.5" aria-hidden="true" />
+                      Activo en índice de búsqueda
+                    </span>
+                  ) : isCurrent ? (
+                    <span className="text-amber-600 dark:text-amber-400 inline-flex items-center gap-1">
+                      <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                      {retrievalStatus?.discrepancyReason || 'Aún no indexado'}
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground">Versión histórica no activa</span>
+                  )}
+                </span>
+              </div>
+
+              {version.ingestionStatus === 'FAILED' && (
+                <div
+                  data-testid="version-detail-failure-banner"
+                  className="sm:col-span-2 rounded border border-rose-500/30 bg-rose-500/10 p-2.5 text-rose-800 dark:text-rose-300 text-[11px] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+                >
+                  <div>
+                    <div className="flex items-center gap-1 font-semibold text-rose-700 dark:text-rose-400">
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                      <span>Fallo de Ingesta Registrado</span>
+                    </div>
+                    <p className="mt-0.5 text-[10px] text-rose-700/90 dark:text-rose-300/90 leading-tight">
+                      El procesamiento de esta versión falló durante la extracción o indexación.
+                    </p>
+                  </div>
+                  {canManage && onRetry && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => onRetry(version)}
+                      disabled={isRetryPending}
+                      data-testid="version-detail-retry-button"
+                      className="h-7 text-xs border-rose-500/40 text-rose-800 dark:text-rose-200 hover:bg-rose-500/20 shrink-0 self-start sm:self-auto gap-1"
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                      <span>Reintentar versión</span>
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

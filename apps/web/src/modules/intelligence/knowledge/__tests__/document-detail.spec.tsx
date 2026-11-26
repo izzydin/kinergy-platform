@@ -19,6 +19,8 @@ jest.mock('../api/knowledge.api', () => ({
     updateMetadata: jest.fn(),
     deleteDocument: jest.fn(),
     getIngestionHistory: jest.fn(),
+    getRetrievalStatus: jest.fn(),
+    getVersionIngestionHistory: jest.fn(),
     retryIngestion: jest.fn(),
     cancelIngestion: jest.fn(),
     uploadDocument: jest.fn(),
@@ -180,6 +182,18 @@ describe('KC.06 — Document Details & Metadata', () => {
     jest.clearAllMocks();
     mockedApi.getDocument.mockResolvedValue(mockDocument);
     mockedApi.getIngestionHistory.mockResolvedValue(mockIngestionJobs);
+    mockedApi.getRetrievalStatus.mockResolvedValue({
+      documentId: 'doc_123',
+      isReadyForRetrieval: true,
+      overallReady: true,
+      hasActiveIndexGeneration: true,
+      isDocumentActive: true,
+      chunksPersisted: true,
+      embeddingsCommitted: true,
+      activeGenerationId: 'gen_test',
+      reasons: [],
+      evaluatedAt: '2026-11-26T10:00:00.000Z',
+    });
   });
 
   describe('1. Details Retrieval & Metadata Presentation', () => {
@@ -340,6 +354,10 @@ describe('KC.06 — Document Details & Metadata', () => {
       });
 
       fireEvent.click(retryBtn);
+
+      // Confirm in safe retry dialog
+      const confirmRetryBtn = await screen.findByTestId('confirm-retry-document-button');
+      fireEvent.click(confirmRetryBtn);
 
       await waitFor(() => {
         expect(mockedApi.retryIngestion).toHaveBeenCalledWith('doc_123');
