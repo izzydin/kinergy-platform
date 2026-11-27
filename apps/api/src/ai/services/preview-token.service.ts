@@ -1,5 +1,5 @@
 import * as crypto from 'crypto';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional, Inject } from '@nestjs/common';
 
 export interface PreviewTokenClaims {
   readonly tenantId: string;
@@ -8,6 +8,7 @@ export interface PreviewTokenClaims {
   readonly messageId: string;
   readonly citationId: string;
   readonly documentId: string;
+  readonly roles?: readonly string[];
   readonly exp: number;
 }
 
@@ -40,11 +41,20 @@ const DEFAULT_EXPIRATION_SECONDS = 300; // 5 minutes
 export class PreviewTokenService {
   private readonly secretKey: string;
 
-  constructor() {
-    this.secretKey =
+  constructor(@Optional() @Inject('AI_PREVIEW_TOKEN_SECRET') secret?: string) {
+    const isTestEnv =
+      process.env['NODE_ENV'] === 'test' || process.env['JEST_WORKER_ID'] !== undefined;
+    const candidateSecret =
+      secret ||
       process.env['AI_PREVIEW_TOKEN_SECRET'] ||
       process.env['JWT_SECRET'] ||
-      'kinergy-secure-document-preview-secret-salt-2026';
+      (isTestEnv ? 'kinergy-secure-document-preview-secret-salt-2026' : '');
+    if (!candidateSecret || candidateSecret.length < 32) {
+      throw new Error(
+        'AI_PREVIEW_TOKEN_SECRET or JWT_SECRET must be configured in environment with at least 32 characters',
+      );
+    }
+    this.secretKey = candidateSecret;
   }
 
   /**

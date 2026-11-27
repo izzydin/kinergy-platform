@@ -108,9 +108,29 @@ export const PERMISSION_CATALOG: Record<string, PermissionDefinition[]> = {
   ],
   AI: [
     {
+      code: 'ai.conversations.create',
+      description: 'Initiate AI conversation sessions and submit prompt turns',
+    },
+    {
+      code: 'ai.conversations.manage',
+      description: 'Archive and manage AI conversations across the tenant',
+    },
+    {
       code: 'ai.conversations.audit',
       description:
         'Audit and inspect persistent AI conversation histories and clinical interactions',
+    },
+    {
+      code: 'ai.documents.upload',
+      description: 'Upload knowledge documents into tenant knowledge base',
+    },
+    {
+      code: 'ai.documents.manage',
+      description: 'Edit metadata, soft-delete, restore, and retry ingestion for tenant documents',
+    },
+    {
+      code: 'ai.knowledge.query',
+      description: 'Execute semantic and hybrid RAG knowledge queries',
     },
   ],
 };
@@ -157,7 +177,13 @@ export const SYSTEM_ROLE_DEFINITIONS = [
     description:
       'Training and clinical staff managing client progress, appointments, POS sales, and check-ins.',
     type: RoleType.SYSTEM,
-    permissionCodes: [...SHARED_OPERATIONAL_PERMISSION_CODES, 'reports.read'],
+    permissionCodes: [
+      ...SHARED_OPERATIONAL_PERMISSION_CODES,
+      'reports.read',
+      'ai.conversations.create',
+      'ai.documents.upload',
+      'ai.knowledge.query',
+    ],
   },
   {
     name: 'Kitchen Staff',
@@ -172,13 +198,19 @@ export const SYSTEM_ROLE_DEFINITIONS = [
       'sales.create',
       'payments.create',
       'receipts.read',
+      'ai.conversations.create',
+      'ai.knowledge.query',
     ],
   },
   {
     name: 'Receptionist',
     description: 'Front desk staff handling appointments, client intake, and billing.',
     type: RoleType.SYSTEM,
-    permissionCodes: [...SHARED_OPERATIONAL_PERMISSION_CODES],
+    permissionCodes: [
+      ...SHARED_OPERATIONAL_PERMISSION_CODES,
+      'ai.conversations.create',
+      'ai.knowledge.query',
+    ],
   },
 ];
 

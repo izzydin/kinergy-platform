@@ -60,12 +60,12 @@ export interface IVectorStorePort {
   /**
    * Deletes all embeddings associated with a specific document (e.g., on GDPR erasure or document deletion).
    */
-  deleteByDocumentId(documentId: string): Promise<number>;
+  deleteByDocumentId(documentId: string, tenantId?: string): Promise<number>;
 
   /**
    * Deletes all embeddings associated with a specific document version.
    */
-  deleteByDocumentVersionId(versionId: string): Promise<number>;
+  deleteByDocumentVersionId(versionId: string, tenantId?: string): Promise<number>;
 
   /**
    * Deletes all embeddings associated with a retired or cancelled index generation.

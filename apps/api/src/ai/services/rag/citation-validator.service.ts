@@ -139,6 +139,25 @@ export class CitationValidatorService implements ICitationValidatorPort {
       adjustedAnswer = adjustedAnswer.slice(0, 4000);
     }
 
+    // Check 4G: Sanitize dangerous exfiltration vectors (Markdown images and raw HTML img/script tags)
+    const exfiltrationImagePattern = /!\[.*?\]\s*\(\s*https?:\/\/[^\s)]+\)/gi;
+    const htmlImgPattern = /<img\s+[^>]*src\s*=\s*['"]https?:\/\/[^'"]+['"][^>]*>/gi;
+    const htmlScriptPattern = /<\/?script[^>]*>/gi;
+
+    if (
+      exfiltrationImagePattern.test(adjustedAnswer) ||
+      htmlImgPattern.test(adjustedAnswer) ||
+      htmlScriptPattern.test(adjustedAnswer)
+    ) {
+      inconsistencies.push(
+        'Detected potential data exfiltration channel or script tag in model output.',
+      );
+      adjustedAnswer = adjustedAnswer
+        .replace(exfiltrationImagePattern, '[Image Removed: Exfiltration Prevention]')
+        .replace(htmlImgPattern, '[Image Removed: Exfiltration Prevention]')
+        .replace(htmlScriptPattern, '');
+    }
+
     if (inconsistencies.length > 0) {
       this.logger.warn(
         `Citation validation flagged ${inconsistencies.length} inconsistency(ies) for query "${query.slice(0, 50)}...": ${inconsistencies.join(' | ')}`,

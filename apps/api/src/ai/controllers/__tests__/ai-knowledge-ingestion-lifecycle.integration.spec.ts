@@ -37,6 +37,7 @@ import {
   DOCUMENT_CONTENT_VALIDATOR,
   AI_CONFIG_TOKEN,
   INGESTION_OBSERVABILITY_SERVICE,
+  RETRIEVAL_SECURITY_POLICY_SERVICE,
 } from '../../ai.tokens';
 import {
   OBJECT_STORAGE_PORT,
@@ -222,6 +223,7 @@ describe('AI-09.10 — IT.06: Knowledge Center, Upload, and Ingestion (Backend I
     const mockChunkRepo: IKnowledgeChunkRepositoryPort = {
       saveChunks: async () => {},
       findByVersionId: async () => [],
+      findById: async () => null,
       countByVersionId: async () => 8,
       deleteByVersionId: async () => 0,
     };
@@ -269,32 +271,42 @@ describe('AI-09.10 — IT.06: Knowledge Center, Upload, and Ingestion (Backend I
       }),
     };
 
+    const storageStore = new Map<string, { buffer: Buffer; mimeType: string }>();
+
     mockStoragePort = {
       upload: jest
         .fn()
-        .mockImplementation(async (tenantId, domainFolder, filename, buffer, mimeType) => ({
-          key: `tenants/${tenantId}/${domainFolder}/2026/11/uuid-${filename}`,
-          tenantId,
-          domainFolder,
-          filename,
-          mimeType,
-          sizeBytes: buffer.length,
-          createdAt: new Date(),
-          lastModified: new Date(),
-        })),
-      download: jest.fn().mockImplementation(async (_tenantId, key) => ({
-        data: Buffer.from(`Payload for ${key}`),
-        metadata: {
-          key,
-          tenantId: tenantAlpha,
-          domainFolder: 'knowledge_base',
-          filename: 'document.pdf',
-          mimeType: 'application/pdf',
-          sizeBytes: 25,
-          createdAt: new Date(),
-          lastModified: new Date(),
-        },
-      })),
+        .mockImplementation(async (tenantId, domainFolder, filename, buffer, mimeType) => {
+          const key = `tenants/${tenantId}/${domainFolder}/2026/11/uuid-${filename}`;
+          storageStore.set(key, { buffer, mimeType });
+          return {
+            key,
+            tenantId,
+            domainFolder,
+            filename,
+            mimeType,
+            sizeBytes: buffer.length,
+            createdAt: new Date(),
+            lastModified: new Date(),
+          };
+        }),
+      download: jest.fn().mockImplementation(async (_tenantId, key) => {
+        const stored = storageStore.get(key);
+        const data = stored?.buffer ?? Buffer.from(`Payload for ${key}`);
+        return {
+          data,
+          metadata: {
+            key,
+            tenantId: tenantAlpha,
+            domainFolder: 'knowledge_base',
+            filename: 'document.pdf',
+            mimeType: stored?.mimeType ?? 'application/pdf',
+            sizeBytes: data.length,
+            createdAt: new Date(),
+            lastModified: new Date(),
+          },
+        };
+      }),
       delete: jest.fn().mockResolvedValue(undefined),
       exists: jest.fn().mockResolvedValue(true),
       getMetadata: jest.fn(),
@@ -352,6 +364,18 @@ describe('AI-09.10 — IT.06: Knowledge Center, Upload, and Ingestion (Backend I
         {
           provide: INGESTION_OBSERVABILITY_SERVICE,
           useClass: IngestionObservabilityService,
+        },
+        {
+          provide: RETRIEVAL_SECURITY_POLICY_SERVICE,
+          useValue: {
+            resolveAllowedVisibilityScopes: jest
+              .fn()
+              .mockReturnValue([
+                VisibilityScope.ALL_STAFF,
+                VisibilityScope.CLINICAL_STAFF,
+                VisibilityScope.MANAGEMENT,
+              ]),
+          },
         },
       ],
     })
@@ -457,15 +481,17 @@ describe('AI-09.10 — IT.06: Knowledge Center, Upload, and Ingestion (Backend I
       expect([IngestionStatus.UPLOADED, IngestionStatus.READY]).toContain(res.body.ingestionStatus);
     });
 
-    it('rejects unsupported file type (.exe) with 400 Bad Request', async () => {
+    it('rejects unsupported file type (.exe) with 415 Unsupported Media Type', async () => {
       const exeBuffer = Buffer.from('MZ\x90\x00\x03\x00\x00\x00');
       const res = await request(app.getHttpServer())
         .post('/api/v1/ai/knowledge/documents')
         .field('title', 'Malware Test')
         .attach('file', exeBuffer, 'payload.exe')
-        .expect(400);
+        .expect(415);
 
-      expect(res.body.message).toMatch(/Unsupported document format|not allowed|validation/i);
+      expect(res.body.message).toMatch(
+        /not supported|unsupported document format|not allowed|validation/i,
+      );
     });
 
     it('rejects file claiming to be .pdf but failing magic byte validation', async () => {
@@ -481,15 +507,15 @@ describe('AI-09.10 — IT.06: Knowledge Center, Upload, and Ingestion (Backend I
       );
     });
 
-    it('rejects file exceeding 10MB size limit with 400 Bad Request', async () => {
+    it('rejects file exceeding 10MB size limit with 413 Payload Too Large', async () => {
       const oversizedBuffer = Buffer.alloc(11 * 1024 * 1024, '%PDF-1.4\n...');
       const res = await request(app.getHttpServer())
         .post('/api/v1/ai/knowledge/documents')
         .field('title', 'Oversized Document')
         .attach('file', oversizedBuffer, 'oversized.pdf')
-        .expect(400);
+        .expect(413);
 
-      expect(res.body.message).toMatch(/exceeds maximum (allowed|permitted) size/i);
+      expect(res.body.message).toMatch(/File too large|exceeds maximum (allowed|permitted) size/i);
     });
 
     it('rejects duplicate content upload with 409 Conflict', async () => {

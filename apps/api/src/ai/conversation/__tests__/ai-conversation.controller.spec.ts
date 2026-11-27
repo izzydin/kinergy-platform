@@ -414,6 +414,7 @@ describe('AI-09.3-BE.05.03 — AiConversationController Unit Tests', () => {
         tenantId: mockAuthUser.tenantId,
         conversationId: 'conv_1',
         includeTurns: true,
+        userId: mockAuthUser.actorId,
       });
 
       expect(response.id).toBe('conv_1');
@@ -500,6 +501,7 @@ describe('AI-09.3-BE.05.03 — AiConversationController Unit Tests', () => {
         conversationId: 'conv_1',
         cursor: 'curr_cursor',
         limit: 10,
+        userId: mockAuthUser.actorId,
       });
 
       expect(response.messages).toHaveLength(2);
@@ -541,6 +543,7 @@ describe('AI-09.3-BE.05.03 — AiConversationController Unit Tests', () => {
         tenantId: mockAuthUser.tenantId,
         conversationId: 'conv_1',
         title: updateDto.title,
+        userId: mockAuthUser.actorId,
       });
 
       expect(response.conversationId).toBe('conv_1');
@@ -564,6 +567,8 @@ describe('AI-09.3-BE.05.03 — AiConversationController Unit Tests', () => {
       expect(archiveUseCase.execute).toHaveBeenCalledWith({
         tenantId: mockAuthUser.tenantId,
         conversationId: 'conv_1',
+        userId: mockAuthUser.actorId,
+        allowAdminOverride: false,
       });
 
       expect(response.conversationId).toBe('conv_1');

@@ -9,7 +9,7 @@ import {
   StorageDomainFolder,
   StoredObjectMetadata,
 } from '../domain/storage.types';
-import { StorageFileNotFoundError } from '../domain/storage.errors';
+import { StorageFileNotFoundError, StorageTenantAccessDeniedError } from '../domain/storage.errors';
 import { StorageKeyUtil } from '../utils/storage-key.util';
 import { StorageConfiguration } from '../config/storage.config';
 
@@ -25,7 +25,13 @@ export class LocalStorageAdapter implements ObjectStoragePort {
   }
 
   private getFilePath(key: string): string {
-    return path.join(this.rootDir, key);
+    const safeKey = path.posix.normalize(key.replace(/\\/g, '/'));
+    const resolvedPath = path.resolve(this.rootDir, safeKey);
+    const resolvedRoot = path.resolve(this.rootDir);
+    if (!resolvedPath.startsWith(resolvedRoot + path.sep) && resolvedPath !== resolvedRoot) {
+      throw new StorageTenantAccessDeniedError(key, 'traversal-detected');
+    }
+    return resolvedPath;
   }
 
   private getMetaFilePath(key: string): string {
@@ -146,13 +152,18 @@ export class LocalStorageAdapter implements ObjectStoragePort {
       throw new StorageFileNotFoundError(key, tenantId);
     }
 
-    // In local mode, generate a local gateway path with HMAC signature
+    // In local mode, generate a local gateway path with HMAC signature and expiration
+    const expiresAt = Math.floor(Date.now() / 1000) + expiresInSeconds;
+    const secret =
+      process.env['STORAGE_LOCAL_SECRET'] ||
+      process.env['JWT_SECRET'] ||
+      'local-storage-secret-key-salt-2026';
     const token = crypto
-      .createHmac('sha256', 'local-storage-secret')
-      .update(`${tenantId}:${key}:${expiresInSeconds}`)
+      .createHmac('sha256', secret)
+      .update(`${tenantId}:${key}:${expiresAt}`)
       .digest('hex');
 
-    const downloadUrl = `/api/v1/storage/local/${encodeURIComponent(key)}?token=${token}`;
+    const downloadUrl = `/api/v1/storage/local/${encodeURIComponent(key)}?token=${token}&expiresAt=${expiresAt}`;
 
     return {
       downloadUrl,

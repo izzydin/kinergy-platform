@@ -108,7 +108,7 @@ describe('SecureDocumentUploadService (Unit & Consistency)', () => {
       expect(mockStoragePort.upload).toHaveBeenCalledWith(
         tenantA,
         'knowledge_base',
-        'cervical-spine-protocol.pdf',
+        expect.stringMatching(/\.pdf$/),
         validPdfBuffer,
         'application/pdf',
       );

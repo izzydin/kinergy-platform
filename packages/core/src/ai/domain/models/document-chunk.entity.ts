@@ -109,6 +109,28 @@ export class DocumentChunk {
 
     const language = (props.language || props.provenance.language || 'es').toLowerCase().trim();
 
+    // Invariant: Sanitize metadata to strip any reserved authorization attributes or tenant override attempts
+    const sanitizedMetadata: Record<string, unknown> = {};
+    if (props.metadata && typeof props.metadata === 'object') {
+      const FORBIDDEN_METADATA_KEYS = new Set([
+        'tenantid',
+        'tenant_id',
+        'visibilityscope',
+        'visibility_scope',
+        'uploadedby',
+        'uploaded_by',
+        'deletedat',
+        'deleted_at',
+        'roles',
+        'permissions',
+      ]);
+      for (const [key, val] of Object.entries(props.metadata)) {
+        if (!FORBIDDEN_METADATA_KEYS.has(key.toLowerCase().trim())) {
+          sanitizedMetadata[key] = val;
+        }
+      }
+    }
+
     return new DocumentChunk({
       id,
       documentId: props.documentId.trim(),
@@ -118,7 +140,7 @@ export class DocumentChunk {
       tokenCount: props.tokenCount,
       language,
       provenance: props.provenance,
-      metadata: props.metadata ?? {},
+      metadata: sanitizedMetadata,
       createdAt: props.createdAt ? new Date(props.createdAt.getTime()) : new Date(),
     });
   }

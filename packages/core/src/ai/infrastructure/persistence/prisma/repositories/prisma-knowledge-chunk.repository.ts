@@ -6,6 +6,7 @@ import { ChunkProvenance } from '../../../../domain/value-objects/chunk-provenan
 import {
   DocumentNotFoundException,
   UnauthorizedDocumentAccessException,
+  DocumentValidationException,
 } from '../../../../domain/exceptions/knowledge-document.exceptions';
 
 /**
@@ -21,9 +22,19 @@ export class PrismaKnowledgeChunkRepository implements IKnowledgeChunkRepository
     versionId: string,
     chunks: readonly DocumentChunk[],
   ): Promise<void> {
-    const cleanTenantId = tenantId.trim();
-    const cleanDocId = documentId.trim();
-    const cleanVersionId = versionId.trim();
+    const cleanTenantId = tenantId?.trim();
+    const cleanDocId = documentId?.trim();
+    const cleanVersionId = versionId?.trim();
+
+    if (!cleanTenantId) {
+      throw new DocumentValidationException('tenantId is required for chunk persistence.');
+    }
+    if (!cleanDocId) {
+      throw new DocumentValidationException('documentId is required for chunk persistence.');
+    }
+    if (!cleanVersionId) {
+      throw new DocumentValidationException('versionId is required for chunk persistence.');
+    }
 
     await this.prisma.$transaction(async (tx) => {
       // 1. Verify document exists and belongs to the given tenant
@@ -56,12 +67,26 @@ export class PrismaKnowledgeChunkRepository implements IKnowledgeChunkRepository
         );
       }
 
-      // 3. Atomically replace any existing chunks for this version (Idempotent reprocessing)
+      // 3. Verify chunk provenance and lineage invariants
+      for (const c of chunks) {
+        if (c.documentId !== cleanDocId) {
+          throw new DocumentValidationException(
+            `Chunk provenance mismatch: chunk '${c.id.value}' documentId '${c.documentId}' does not match target document '${cleanDocId}'.`,
+          );
+        }
+        if (c.documentVersionId !== cleanVersionId) {
+          throw new DocumentValidationException(
+            `Chunk provenance mismatch: chunk '${c.id.value}' versionId '${c.documentVersionId}' does not match target version '${cleanVersionId}'.`,
+          );
+        }
+      }
+
+      // 4. Atomically replace any existing chunks for this version (Idempotent reprocessing)
       await tx.knowledgeChunk.deleteMany({
         where: { documentVersionId: cleanVersionId },
       });
 
-      // 4. Bulk insert new chunks
+      // 5. Bulk insert new chunks
       if (chunks.length > 0) {
         await tx.knowledgeChunk.createMany({
           data: chunks.map((c) => ({
@@ -94,6 +119,58 @@ export class PrismaKnowledgeChunkRepository implements IKnowledgeChunkRepository
           })),
         });
       }
+    });
+  }
+
+  public async findById(tenantId: string, chunkId: string): Promise<DocumentChunk | null> {
+    const cleanTenantId = tenantId?.trim();
+    const cleanChunkId = chunkId?.trim();
+    if (!cleanTenantId || !cleanChunkId) return null;
+
+    const r = await this.prisma.knowledgeChunk.findFirst({
+      where: {
+        id: cleanChunkId,
+        tenantId: cleanTenantId,
+      },
+    });
+
+    if (!r) return null;
+
+    const provRaw = r.provenance as Record<string, unknown>;
+    const provenance = ChunkProvenance.create({
+      documentId: r.documentId,
+      documentVersionId: r.documentVersionId,
+      chunkIndex: r.sequence,
+      pageNumber: typeof provRaw['pageNumber'] === 'number' ? provRaw['pageNumber'] : null,
+      sectionHierarchy: Array.isArray(provRaw['sectionHierarchy'])
+        ? (provRaw['sectionHierarchy'] as string[])
+        : [],
+      sourceBlockIds: Array.isArray(provRaw['sourceBlockIds'])
+        ? (provRaw['sourceBlockIds'] as string[])
+        : [],
+      startOffset: typeof provRaw['startOffset'] === 'number' ? provRaw['startOffset'] : null,
+      endOffset: typeof provRaw['endOffset'] === 'number' ? provRaw['endOffset'] : null,
+      startLine: typeof provRaw['startLine'] === 'number' ? provRaw['startLine'] : null,
+      endLine: typeof provRaw['endLine'] === 'number' ? provRaw['endLine'] : null,
+      language: r.language,
+      checksum: r.checksum,
+      configurationVersion:
+        typeof provRaw['configurationVersion'] === 'string'
+          ? provRaw['configurationVersion']
+          : '1.0.0',
+    });
+
+    return DocumentChunk.create({
+      id: ChunkId.create(r.id),
+      documentId: r.documentId,
+      documentVersionId: r.documentVersionId,
+      sequence: r.sequence,
+      content: r.content,
+      tokenCount: r.tokenCount,
+      language: r.language,
+      provenance,
+      metadata: (r.metadata as Record<string, unknown>) ?? {},
+      createdAt: r.createdAt,
     });
   }
 

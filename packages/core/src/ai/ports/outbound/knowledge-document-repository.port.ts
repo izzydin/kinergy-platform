@@ -7,6 +7,7 @@ export const KNOWLEDGE_DOCUMENT_REPOSITORY_PORT = Symbol('KNOWLEDGE_DOCUMENT_REP
 export interface FindDocumentsFilter {
   includeDeleted?: boolean;
   visibilityScope?: VisibilityScope;
+  visibilityScopes?: VisibilityScope[];
   search?: string;
   mimeType?: string;
   uploadedBy?: string;

@@ -373,6 +373,17 @@ export class MarkdownParserAdapter implements IDocumentParserPort {
       });
     }
 
+    const maxExtractedChars = 5 * 1024 * 1024;
+    if (cleanText.length > maxExtractedChars) {
+      throw new ExtractionResourceLimitExceededException(
+        'Extracted text characters',
+        cleanText.length,
+        maxExtractedChars,
+        request.documentId,
+        request.documentVersionId,
+      );
+    }
+
     const durationMs = Date.now() - startTime;
 
     return ExtractedDocument.create({

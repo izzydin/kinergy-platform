@@ -877,6 +877,7 @@ model KnowledgeDocument {
   embeddings    DocumentEmbedding[] @relation("DocumentToEmbeddings")
   citations     AiConversationCitation[] @relation("DocumentToCitations")
 
+  @@unique([id, tenantId], name: "unique_document_tenant")
   @@index([tenantId])
   @@index([tenantId, visibilityScope])
   @@index([tenantId, deletedAt])
@@ -929,7 +930,7 @@ model IngestionJob {
   cancelledAt        DateTime?       @map("cancelled_at")
   cancellationReason String?         @map("cancellation_reason") @db.Text
 
-  document   KnowledgeDocument @relation("DocumentToIngestionJobs", fields: [documentId], references: [id], onDelete: Cascade)
+  document   KnowledgeDocument @relation("DocumentToIngestionJobs", fields: [documentId, tenantId], references: [id, tenantId], onDelete: Cascade)
   versionRef DocumentVersion   @relation("VersionToIngestionJobs", fields: [documentVersionId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
@@ -957,7 +958,7 @@ model KnowledgeChunk {
   tsv               Unsupported("tsvector")? @map("tsv")
   createdAt         DateTime @default(now()) @map("created_at")
 
-  document   KnowledgeDocument   @relation("DocumentToChunks", fields: [documentId], references: [id], onDelete: Cascade)
+  document   KnowledgeDocument   @relation("DocumentToChunks", fields: [documentId, tenantId], references: [id, tenantId], onDelete: Cascade)
   version    DocumentVersion     @relation("VersionToChunks", fields: [documentVersionId], references: [id], onDelete: Cascade)
   embeddings DocumentEmbedding[] @relation("ChunkToEmbeddings")
   citations  AiConversationCitation[] @relation("ChunkToCitations")

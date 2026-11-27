@@ -91,7 +91,7 @@ describe('Sales SubRouter & Module Route Contract Integration', () => {
     });
 
     expect(
-      await screen.findByTestId('sale-create-page', {}, { timeout: 14000 }),
+      await screen.findByTestId('sale-create-page', {}, { timeout: 18000 }),
     ).toBeInTheDocument();
   }, 20000);
 

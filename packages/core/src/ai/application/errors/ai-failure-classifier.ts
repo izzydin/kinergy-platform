@@ -79,6 +79,15 @@ import {
   DuplicateDocumentVersionException,
   DuplicateDocumentContentException,
 } from '../../domain/exceptions/knowledge-document.exceptions';
+import {
+  DocumentExtractionException,
+  ExtractionTimeoutException,
+  ExtractionResourceLimitExceededException,
+  InvalidFormatExtractionException,
+  CorruptDocumentExtractionException,
+  EmptyExtractedDocumentException,
+} from '../../domain/exceptions/document-extraction.exceptions';
+import { FileProcessingFailureCode } from '../../domain/enums/file-processing-failure-code.enum';
 
 /**
  * Standard failure categories for Kynergy Intelligence operations.
@@ -249,11 +258,14 @@ export class AiFailureClassifier {
         code,
         statusCode: 403,
         errorTitle: 'Forbidden',
-        message: this.sanitizeErrorMessage(
-          exception instanceof Error
-            ? exception.message
-            : 'You do not possess the required permissions or tenant clearance for this resource.',
-        ),
+        message:
+          exception instanceof UnauthorizedDocumentAccessException
+            ? 'You do not possess the required permissions or authorization for this document.'
+            : this.sanitizeErrorMessage(
+                exception instanceof Error
+                  ? exception.message
+                  : 'You do not possess the required permissions or tenant clearance for this resource.',
+              ),
         isRetryable: false,
         details:
           exception instanceof AiConversationApplicationError ? exception.details : undefined,
@@ -303,16 +315,116 @@ export class AiFailureClassifier {
 
     // 4b. Document Upload & Ingestion Validation
     if (
-      exception instanceof DocumentValidationException ||
-      exception instanceof UnsupportedDocumentFormatException ||
-      exception instanceof DocumentContentMismatchException ||
-      exception instanceof DocumentMalformedException ||
+      exception instanceof InputTooLargeException ||
       exception instanceof DocumentSizeLimitExceededException ||
-      exception instanceof DocumentSecurityRiskException
+      exception instanceof ExtractionResourceLimitExceededException
+    ) {
+      return {
+        category: AiFailureCategory.VALIDATION_ERROR,
+        code:
+          exception instanceof ExtractionResourceLimitExceededException
+            ? FileProcessingFailureCode.RESOURCE_LIMIT_EXCEEDED
+            : FileProcessingFailureCode.FILE_TOO_LARGE,
+        statusCode: 413,
+        errorTitle: 'Payload Too Large',
+        message: this.sanitizeErrorMessage(exception.message),
+        isRetryable: false,
+      };
+    }
+
+    if (
+      exception instanceof DocumentPreviewUnsupportedFormatError ||
+      exception instanceof UnsupportedDocumentFormatException
+    ) {
+      return {
+        category: AiFailureCategory.VALIDATION_ERROR,
+        code: FileProcessingFailureCode.UNSUPPORTED_FILE_TYPE,
+        statusCode: 415,
+        errorTitle: 'Unsupported Media Type',
+        message: this.sanitizeErrorMessage(exception.message),
+        isRetryable: false,
+        details:
+          exception instanceof DocumentPreviewUnsupportedFormatError
+            ? exception.details
+            : undefined,
+      };
+    }
+
+    if (exception instanceof ExtractionTimeoutException) {
+      return {
+        category: AiFailureCategory.PROVIDER_TIMEOUT,
+        code: FileProcessingFailureCode.PARSER_TIMEOUT,
+        statusCode: 504,
+        errorTitle: 'Gateway Timeout',
+        message: 'Document extraction timed out waiting for parser completion.',
+        isRetryable: true,
+        retryAfterSeconds: 3,
+      };
+    }
+
+    if (exception instanceof DocumentSecurityRiskException) {
+      return {
+        category: AiFailureCategory.UPLOAD_FAILED,
+        code: FileProcessingFailureCode.MALWARE_DETECTED,
+        statusCode: 400,
+        errorTitle: 'Bad Request',
+        message: 'Security risk detected in document: Upload rejected due to security policy.',
+        isRetryable: false,
+      };
+    }
+
+    if (exception instanceof DocumentContentMismatchException) {
+      return {
+        category: AiFailureCategory.UPLOAD_FAILED,
+        code: FileProcessingFailureCode.MIME_SIGNATURE_MISMATCH,
+        statusCode: 400,
+        errorTitle: 'Bad Request',
+        message: this.sanitizeErrorMessage(exception.message),
+        isRetryable: false,
+      };
+    }
+
+    if (
+      exception instanceof DocumentMalformedException ||
+      exception instanceof CorruptDocumentExtractionException ||
+      exception instanceof InvalidFormatExtractionException
     ) {
       return {
         category: AiFailureCategory.UPLOAD_FAILED,
-        code: exception.code,
+        code: FileProcessingFailureCode.MALFORMED_DOCUMENT,
+        statusCode: 400,
+        errorTitle: 'Bad Request',
+        message: 'Document structure is corrupt or cannot be parsed.',
+        isRetryable: false,
+      };
+    }
+
+    if (exception instanceof EmptyExtractedDocumentException) {
+      return {
+        category: AiFailureCategory.UPLOAD_FAILED,
+        code: FileProcessingFailureCode.EXTRACTION_FAILURE,
+        statusCode: 400,
+        errorTitle: 'Bad Request',
+        message: 'Document was parsed successfully but yielded no extractable textual content.',
+        isRetryable: false,
+      };
+    }
+
+    if (exception instanceof DocumentExtractionException) {
+      return {
+        category: AiFailureCategory.UPLOAD_FAILED,
+        code: FileProcessingFailureCode.EXTRACTION_FAILURE,
+        statusCode: 400,
+        errorTitle: 'Bad Request',
+        message: 'Document extraction failed during content processing.',
+        isRetryable: false,
+      };
+    }
+
+    if (exception instanceof DocumentValidationException) {
+      return {
+        category: AiFailureCategory.UPLOAD_FAILED,
+        code: exception.code || FileProcessingFailureCode.UNSUPPORTED_FILE_TYPE,
         statusCode: 400,
         errorTitle: 'Bad Request',
         message: this.sanitizeErrorMessage(exception.message),
@@ -386,10 +498,17 @@ export class AiFailureClassifier {
     }
 
     // 6. Payload Too Large (413)
-    if (exception instanceof InputTooLargeException) {
+    if (
+      exception instanceof InputTooLargeException ||
+      exception instanceof DocumentSizeLimitExceededException ||
+      exception instanceof ExtractionResourceLimitExceededException
+    ) {
       return {
         category: AiFailureCategory.VALIDATION_ERROR,
-        code: exception.code,
+        code:
+          exception instanceof ExtractionResourceLimitExceededException
+            ? FileProcessingFailureCode.RESOURCE_LIMIT_EXCEEDED
+            : FileProcessingFailureCode.FILE_TOO_LARGE,
         statusCode: 413,
         errorTitle: 'Payload Too Large',
         message: this.sanitizeErrorMessage(exception.message),
@@ -398,31 +517,45 @@ export class AiFailureClassifier {
     }
 
     // 7. Unsupported Media Type (415)
-    if (exception instanceof DocumentPreviewUnsupportedFormatError) {
+    if (
+      exception instanceof DocumentPreviewUnsupportedFormatError ||
+      exception instanceof UnsupportedDocumentFormatException
+    ) {
       return {
         category: AiFailureCategory.VALIDATION_ERROR,
-        code: exception.code,
+        code: FileProcessingFailureCode.UNSUPPORTED_FILE_TYPE,
         statusCode: 415,
         errorTitle: 'Unsupported Media Type',
         message: this.sanitizeErrorMessage(exception.message),
         isRetryable: false,
-        details: exception.details,
+        details:
+          exception instanceof DocumentPreviewUnsupportedFormatError
+            ? exception.details
+            : undefined,
       };
     }
 
     // 8. Provider & Infrastructure Timeouts (504)
     if (
       exception instanceof ProviderTimeoutException ||
+      exception instanceof ExtractionTimeoutException ||
       (exception instanceof RetrievalProviderException &&
         exception.errorCode === RetrievalErrorCode.PROVIDER_TIMEOUT) ||
       errName === 'GatewayTimeoutException'
     ) {
+      const code =
+        exception instanceof ExtractionTimeoutException
+          ? FileProcessingFailureCode.PARSER_TIMEOUT
+          : 'PROVIDER_TIMEOUT';
       return {
         category: AiFailureCategory.PROVIDER_TIMEOUT,
-        code: 'PROVIDER_TIMEOUT',
+        code,
         statusCode: 504,
         errorTitle: 'Gateway Timeout',
-        message: 'The AI inference or retrieval provider timed out waiting for a response.',
+        message:
+          exception instanceof ExtractionTimeoutException
+            ? 'Document extraction timed out waiting for parser completion.'
+            : 'The AI inference or retrieval provider timed out waiting for a response.',
         isRetryable: true,
         retryAfterSeconds: 3,
       };
@@ -660,14 +793,36 @@ export class AiFailureClassifier {
       /stack\s*trace/i,
       /[a-zA-Z]:\\(?:[^\\/:*?"<>|\r\n]+\\)*[^\\/:*?"<>|\r\n]*/g, // Windows paths
       /\/(?:[a-zA-Z0-9_-]+\/)+[a-zA-Z0-9_.-]+/g, // POSIX paths
+      /Macro\.VBA\b/i,
+      /EICAR\b/i,
+      /Trojan\b/i,
+      /Backdoor\b/i,
+      /ExploitTarget\b/i,
+      /Worm\b/i,
+      /Ransomware\b/i,
+      /mammoth/i,
+      /unpdf/i,
+      /pdfjs/i,
     ];
 
     let sanitized = message;
     for (const pattern of sensitivePatterns) {
       if (pattern.test(sanitized)) {
+        if (/Macro\.VBA|EICAR|Trojan|Backdoor|ExploitTarget|Worm|Ransomware/i.test(sanitized)) {
+          return 'Security risk detected in document: Upload rejected due to security policy.';
+        }
+        if (/mammoth|unpdf|pdfjs/i.test(sanitized)) {
+          return 'Document structure is invalid or violates format specifications.';
+        }
         return 'The AI subsystem encountered an unexpected internal error.';
       }
     }
+
+    sanitized = sanitized.replace(/knowledge_base\/[a-zA-Z0-9_\-./]+/g, '[redacted_storage_key]');
+    sanitized = sanitized.replace(
+      /(?:token\s+)?near:\s*['"][^'"]*['"]/gi,
+      "near: '[redacted_token]'",
+    );
 
     sanitized = sanitized.replace(/\b(?:\d[ -]*?){13,19}\b/g, '****-****-****-[MASKED]');
     sanitized = sanitized.replace(/Bearer\s+[A-Za-z0-9\-_.]+/gi, 'Bearer [REDACTED]');

@@ -3,6 +3,7 @@ import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import {
   KnowledgeDocument,
   DocumentVersion,
+  DocumentFormat,
   IngestionJob,
   VisibilityScope,
   IngestionStatus,
@@ -12,6 +13,7 @@ import {
   UnauthorizedDocumentAccessException,
   DuplicateDocumentVersionException,
   DuplicateDocumentContentException,
+  DocumentSecurityRiskException,
 } from '@kinergy-platform/core';
 import {
   OBJECT_STORAGE_PORT,
@@ -24,6 +26,11 @@ import {
 } from '../ai.tokens';
 import { DocumentContentValidatorService } from './document-content-validator.service';
 import { IngestionOrchestratorService } from './ingestion-orchestrator.service';
+import {
+  IMalwareScannerPort,
+  MALWARE_SCANNER_PORT,
+  MalwareScanStatus,
+} from '../ports/malware-scanner.port';
 
 export interface UploadDocumentDto {
   tenantId: string;
@@ -71,6 +78,9 @@ export class SecureDocumentUploadService {
     private readonly contentValidator: DocumentContentValidatorService,
     @Optional()
     private readonly orchestrator?: IngestionOrchestratorService,
+    @Optional()
+    @Inject(MALWARE_SCANNER_PORT)
+    private readonly malwareScanner?: IMalwareScannerPort,
   ) {}
 
   /**
@@ -101,6 +111,34 @@ export class SecureDocumentUploadService {
       originalFileName: file.originalFileName,
       declaredMimeType: file.mimeType,
     });
+
+    // 2.5 Malware and threat scanning
+    if (this.malwareScanner) {
+      const scanResult = await this.malwareScanner.scanBuffer(file.buffer, {
+        documentId,
+        tenantId,
+        checksum: validated.checksum,
+      });
+
+      if (scanResult.status === MalwareScanStatus.INFECTED) {
+        throw new DocumentSecurityRiskException(
+          `Malware threat detected in document: '${scanResult.threatFound}'. Upload rejected.`,
+        );
+      }
+      if (scanResult.status === MalwareScanStatus.SUSPICIOUS) {
+        throw new DocumentSecurityRiskException(
+          `Suspicious content detected: '${scanResult.threatFound}'. Upload rejected.`,
+        );
+      }
+      if (
+        scanResult.status === MalwareScanStatus.UNSCANNABLE ||
+        scanResult.status === MalwareScanStatus.ERROR
+      ) {
+        throw new DocumentSecurityRiskException(
+          `Malware scan failed (${scanResult.status}): ${scanResult.threatFound || 'Scanner unavailable'}. Upload rejected fail-closed.`,
+        );
+      }
+    }
 
     // 3. Pre-check existing document if adding a version OR prevent duplicate active document in tenant
     let existingDoc: KnowledgeDocument | null = null;
@@ -135,11 +173,14 @@ export class SecureDocumentUploadService {
       }
     }
 
-    // 4. Phase 1: Upload to backing store with tenant partition
+    // 4. Phase 1: Upload to backing store with tenant partition using opaque synthetic identifier
+    // Client-provided originalFileName is strictly isolated to metadata and never enters storage paths
+    const ext = this.resolveExtension(validated.detectedFormat);
+    const syntheticStorageFileName = `${crypto.randomUUID()}.${ext}`;
     const storedObject = await this.storagePort.upload(
       tenantId,
       'knowledge_base',
-      validated.safeFileName,
+      syntheticStorageFileName,
       file.buffer,
       validated.canonicalMimeType,
     );
@@ -254,5 +295,20 @@ export class SecureDocumentUploadService {
     const ext = path.extname(filename);
     const base = path.basename(filename, ext);
     return base.replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim() || 'Untitled Document';
+  }
+
+  private resolveExtension(format: DocumentFormat): string {
+    switch (format) {
+      case DocumentFormat.PDF:
+        return 'pdf';
+      case DocumentFormat.DOCX:
+        return 'docx';
+      case DocumentFormat.MARKDOWN:
+        return 'md';
+      case DocumentFormat.TXT:
+        return 'txt';
+      default:
+        return 'bin';
+    }
   }
 }

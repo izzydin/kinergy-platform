@@ -69,11 +69,15 @@ export class VectorCleanupService {
       `Initiating vector cleanup for document '${cleanDocId}' in tenant '${cleanTenantId}'...`,
     );
 
-    // 1. Cancel in-flight jobs for this document
-    const cancelledJobs = await this.jobRepo.cancelJobsForDocument(cleanDocId, reason);
+    // 1. Cancel in-flight jobs for this document within tenant scope
+    const cancelledJobs = await this.jobRepo.cancelJobsForDocument(
+      cleanDocId,
+      reason,
+      cleanTenantId,
+    );
 
-    // 2. Physically remove vectors from document_embeddings table
-    const deletedVectors = await this.vectorStore.deleteByDocumentId(cleanDocId);
+    // 2. Physically remove vectors from document_embeddings table within tenant scope
+    const deletedVectors = await this.vectorStore.deleteByDocumentId(cleanDocId, cleanTenantId);
 
     this.logger.log(
       `Completed vector cleanup for doc '${cleanDocId}': cancelled ${cancelledJobs} jobs, deleted ${deletedVectors} vectors.`,
@@ -102,8 +106,15 @@ export class VectorCleanupService {
       `Initiating vector cleanup for version '${cleanVerId}' in tenant '${cleanTenantId}'...`,
     );
 
-    const cancelledJobs = await this.jobRepo.cancelJobsForVersion(cleanVerId, reason);
-    const deletedVectors = await this.vectorStore.deleteByDocumentVersionId(cleanVerId);
+    const cancelledJobs = await this.jobRepo.cancelJobsForVersion(
+      cleanVerId,
+      reason,
+      cleanTenantId,
+    );
+    const deletedVectors = await this.vectorStore.deleteByDocumentVersionId(
+      cleanVerId,
+      cleanTenantId,
+    );
 
     this.logger.log(
       `Completed vector cleanup for version '${cleanVerId}': cancelled ${cancelledJobs} jobs, deleted ${deletedVectors} vectors.`,

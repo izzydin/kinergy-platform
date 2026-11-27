@@ -65,6 +65,10 @@ export class UpdateConversationTitleUseCase {
       throw new ConversationNotFoundError(conversationId, tenantId);
     }
 
+    if (input.userId && conv.userId !== input.userId.trim()) {
+      throw new ConversationNotFoundError(conversationId, tenantId);
+    }
+
     if (conv.isArchived()) {
       throw new InvalidConversationLifecycleError(
         conversationId,

@@ -15,6 +15,7 @@ import {
   UseFilters,
   HttpCode,
   HttpStatus,
+  HttpException,
   BadRequestException,
   UnauthorizedException,
   ConflictException,
@@ -37,6 +38,9 @@ import {
 import type { Response } from 'express';
 import {
   DocumentValidationException,
+  DocumentSizeLimitExceededException,
+  DocumentSecurityRiskException,
+  UnsupportedDocumentFormatException,
   DuplicateDocumentVersionException,
   DuplicateDocumentContentException,
   DocumentNotFoundException,
@@ -52,9 +56,12 @@ import {
   IngestionJob,
   VisibilityScope,
   IngestionStatus,
+  AiResourceAuthorizationPolicy,
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
+import { RequirePermissions } from '../../platform/identity/authorization/decorators/permissions.decorator';
+import { PERMISSIONS } from '../../platform/identity/authorization/permissions';
 import {
   CurrentUser,
   AuthenticatedUserPayload,
@@ -101,12 +108,30 @@ interface MulterUploadedFile {
   buffer: Buffer;
 }
 
+/**
+ * Strict Multer options for AI Knowledge Document uploads conforming to AI-10.3-FILE-SECURITY-POLICY:
+ * - fileSize: 10 MB (10,485,760 bytes)
+ * - files: 1 (single-file constraint)
+ * - fields: 10 (bounded multipart form fields)
+ * - parts: 15 (bounded multipart components to prevent DoS)
+ */
+export const KNOWLEDGE_DOCUMENT_UPLOAD_MULTER_OPTIONS = {
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10 MB maximum
+    files: 1, // Single file only
+    fields: 10,
+    parts: 15,
+  },
+};
+
 @ApiTags('AI - Knowledge Documents')
 @ApiBearerAuth()
 @Controller(['api/v1/ai/knowledge/documents', 'api/v1/ai/documents'])
 @UseGuards(AuthenticationGuard, AuthorizationGuard)
 @UseFilters(AiExceptionFilter)
 export class AiDocumentController {
+  private readonly resourcePolicy = new AiResourceAuthorizationPolicy();
+
   constructor(
     @Inject(SECURE_DOCUMENT_UPLOAD_SERVICE)
     private readonly uploadService: SecureDocumentUploadService,
@@ -134,8 +159,9 @@ export class AiDocumentController {
    * Upload a new knowledge document with its initial version.
    */
   @Post()
+  @RequirePermissions(PERMISSIONS.AI.DOCUMENTS_UPLOAD)
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', KNOWLEDGE_DOCUMENT_UPLOAD_MULTER_OPTIONS))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Upload a new knowledge document',
@@ -158,6 +184,15 @@ export class AiDocumentController {
 
     if (!file || !file.buffer) {
       throw new BadRequestException('A file is required for document upload.');
+    }
+
+    if (dto?.visibilityScope && this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(dto.visibilityScope)) {
+        throw new ForbiddenException(
+          `You do not have the required role clearance to assign visibility scope '${dto.visibilityScope}'.`,
+        );
+      }
     }
 
     try {
@@ -206,10 +241,34 @@ export class AiDocumentController {
     const limit = Math.max(1, Math.min(100, Number(query.limit) || 20));
     const offset = (page - 1) * limit;
 
+    let allowedScopes: VisibilityScope[] | undefined;
+    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+      allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+    } else {
+      allowedScopes = [VisibilityScope.ALL_STAFF];
+    }
+
+    const isManager = this.canUserManageDocument(user, undefined);
+    const includeDeleted = isManager ? (query.includeDeleted ?? false) : false;
+
+    if (query.visibilityScope && allowedScopes && !allowedScopes.includes(query.visibilityScope)) {
+      return {
+        items: [],
+        page,
+        limit,
+        total: 0,
+        totalPages: 0,
+        hasNextPage: false,
+        hasPreviousPage: false,
+        data: [],
+      };
+    }
+
     const filter = {
-      includeDeleted: query.includeDeleted ?? false,
+      includeDeleted,
       search: query.search?.trim(),
       visibilityScope: query.visibilityScope,
+      visibilityScopes: allowedScopes,
       mimeType: query.mimeType?.trim(),
       uploadedBy: query.uploadedBy?.trim(),
       createdFrom: query.createdFrom ? new Date(query.createdFrom) : undefined,
@@ -381,6 +440,14 @@ export class AiDocumentController {
       }
 
       if (dto.visibilityScope !== undefined) {
+        if (this.securityPolicy && user?.roles && user.roles.length > 0) {
+          const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+          if (!allowedScopes.includes(dto.visibilityScope)) {
+            throw new ForbiddenException(
+              `You do not have the required role clearance to assign visibility scope '${dto.visibilityScope}'.`,
+            );
+          }
+        }
         doc.changeVisibilityScope(dto.visibilityScope);
       }
 
@@ -455,6 +522,7 @@ export class AiDocumentController {
    * Restore a soft-deleted knowledge document back to ACTIVE status.
    */
   @Post(':id/restore')
+  @RequirePermissions(PERMISSIONS.AI.DOCUMENTS_MANAGE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Restore a soft-deleted knowledge document',
@@ -598,8 +666,9 @@ export class AiDocumentController {
    * Upload a subsequent version to an existing document.
    */
   @Post(':id/versions')
+  @RequirePermissions(PERMISSIONS.AI.DOCUMENTS_UPLOAD)
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', KNOWLEDGE_DOCUMENT_UPLOAD_MULTER_OPTIONS))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Upload a subsequent version for an existing document',
@@ -638,6 +707,15 @@ export class AiDocumentController {
     }
 
     this.assertCanManageDocument(user, doc);
+
+    if (dto?.visibilityScope && this.securityPolicy && user?.roles && user.roles.length > 0) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+      if (!allowedScopes.includes(dto.visibilityScope)) {
+        throw new ForbiddenException(
+          `You do not have the required role clearance to assign visibility scope '${dto.visibilityScope}'.`,
+        );
+      }
+    }
 
     try {
       const result = await this.uploadService.uploadDocument({
@@ -778,10 +856,16 @@ export class AiDocumentController {
       throw new NotFoundException(`Knowledge document '${documentId}' was not found.`);
     }
 
-    let isAuthorized = true;
+    let isAuthorized = doc.visibilityScope === VisibilityScope.ALL_STAFF;
     if (this.securityPolicy && user?.roles && user.roles.length > 0) {
       const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
       isAuthorized = allowedScopes.includes(doc.visibilityScope);
+    }
+
+    if (!isAuthorized) {
+      throw new ForbiddenException(
+        'You do not have the required role clearance to access or preview this document.',
+      );
     }
 
     let targetVersion: DocumentVersion | undefined;
@@ -998,7 +1082,11 @@ export class AiDocumentController {
 
     if (
       lastJob.lastErrorCode === IngestionErrorCode.MAX_ATTEMPTS_EXCEEDED ||
-      lastJob.lastErrorCode === IngestionErrorCode.CANCELLED_BY_USER
+      lastJob.lastErrorCode === IngestionErrorCode.CANCELLED_BY_USER ||
+      lastJob.lastErrorCode === IngestionErrorCode.SECURITY_VIOLATION ||
+      lastJob.lastErrorCode === IngestionErrorCode.CHECKSUM_MISMATCH ||
+      lastJob.lastErrorCode === IngestionErrorCode.UNSUPPORTED_FORMAT ||
+      lastJob.lastErrorCode === IngestionErrorCode.MALFORMED_CONTENT
     ) {
       throw new BadRequestException(
         `Job cannot be retried because it is in a terminal failure state (${lastJob.lastErrorCode}).`,
@@ -1072,7 +1160,11 @@ export class AiDocumentController {
 
     if (
       lastJob.lastErrorCode === IngestionErrorCode.MAX_ATTEMPTS_EXCEEDED ||
-      lastJob.lastErrorCode === IngestionErrorCode.CANCELLED_BY_USER
+      lastJob.lastErrorCode === IngestionErrorCode.CANCELLED_BY_USER ||
+      lastJob.lastErrorCode === IngestionErrorCode.SECURITY_VIOLATION ||
+      lastJob.lastErrorCode === IngestionErrorCode.CHECKSUM_MISMATCH ||
+      lastJob.lastErrorCode === IngestionErrorCode.UNSUPPORTED_FORMAT ||
+      lastJob.lastErrorCode === IngestionErrorCode.MALFORMED_CONTENT
     ) {
       throw new BadRequestException(
         `Job cannot be retried because it is in a terminal failure state (${lastJob.lastErrorCode}).`,
@@ -1344,16 +1436,26 @@ export class AiDocumentController {
 
   private canUserManageDocument(
     user: AuthenticatedUserPayload | null,
-    doc: KnowledgeDocument,
+    doc?: KnowledgeDocument,
   ): boolean {
     if (!user) return false;
     const userId = user.id || user.userId;
-    if (userId && userId === doc.uploadedBy) return true;
-    const roles = (user.roles ?? []).map((r) => r.toLowerCase());
-    return roles.some((r) =>
-      ['owner', 'superadmin', 'admin', 'administrator', 'manager', 'management', 'gestor'].includes(
-        r,
-      ),
+    return this.resourcePolicy.canManageDocument(
+      {
+        actorId: userId ?? '',
+        tenantId: user.tenantId ?? '',
+        roles: user.roles,
+        permissions: user.permissions,
+      },
+      doc
+        ? {
+            id: doc.id.value,
+            tenantId: doc.tenantId,
+            uploadedBy: doc.uploadedBy,
+            visibilityScope: doc.visibilityScope,
+            deletedAt: doc.deletedAt,
+          }
+        : undefined,
     );
   }
 
@@ -1386,6 +1488,23 @@ export class AiDocumentController {
     }
     if (err instanceof UnauthorizedDocumentAccessException) {
       throw new ForbiddenException(err.message);
+    }
+    if (err instanceof DocumentSizeLimitExceededException) {
+      throw new HttpException(
+        'File size exceeds the maximum permitted limit of 10 MB.',
+        HttpStatus.PAYLOAD_TOO_LARGE,
+      );
+    }
+    if (err instanceof DocumentSecurityRiskException) {
+      throw new BadRequestException(
+        'Security risk detected in document: Upload rejected due to security policy.',
+      );
+    }
+    if (err instanceof UnsupportedDocumentFormatException) {
+      throw new HttpException(
+        'The document format is not supported for text extraction. Supported formats: PDF, DOCX, Markdown, Plain Text.',
+        HttpStatus.UNSUPPORTED_MEDIA_TYPE,
+      );
     }
     if (
       err instanceof DocumentValidationException ||

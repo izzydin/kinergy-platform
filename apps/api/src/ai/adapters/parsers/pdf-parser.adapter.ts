@@ -252,6 +252,17 @@ export class PdfParserAdapter implements IDocumentParserPort {
       );
     }
 
+    const maxExtractedChars = 5 * 1024 * 1024;
+    if (totalExtractedChars > maxExtractedChars) {
+      throw new ExtractionResourceLimitExceededException(
+        'Extracted text characters',
+        totalExtractedChars,
+        maxExtractedChars,
+        request.documentId,
+        request.documentVersionId,
+      );
+    }
+
     // 4. Construct ExtractedBlock stream preserving 1-indexed page boundaries
     const blocks: ExtractedBlock[] = [];
     let sequenceCounter = 0;

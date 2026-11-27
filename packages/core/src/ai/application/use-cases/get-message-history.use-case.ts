@@ -59,6 +59,10 @@ export class GetMessageHistoryUseCase {
       throw new ConversationNotFoundError(conversationId, tenantId);
     }
 
+    if (input.userId && conv.userId !== input.userId.trim()) {
+      throw new ConversationNotFoundError(conversationId, tenantId);
+    }
+
     // 2. Fetch canonical history with sequence-based keyset pagination
     const historyResult = await this.messageRepo.listCanonicalHistory(tenantId, conversationId, {
       cursor: input.cursor,

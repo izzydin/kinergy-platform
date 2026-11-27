@@ -22,14 +22,14 @@ describe('Trainer and Receptionist Operational Permission Equivalence', () => {
       const trainerPerms = await resolver.resolvePermissions('usr_trn', ['Trainer'], []);
       const receptionistPerms = await resolver.resolvePermissions('usr_rec', ['Receptionist'], []);
 
-      // Receptionist has exactly the 17 shared operational permissions
-      expect(receptionistPerms).toHaveLength(17);
+      // Receptionist has the 17 shared operational permissions + 2 baseline AI permissions = 19
+      expect(receptionistPerms).toHaveLength(19);
       expect(receptionistPerms).toEqual(
         expect.arrayContaining([...SHARED_OPERATIONAL_PERMISSIONS]),
       );
 
-      // Trainer has all 17 shared operational permissions + reports.read = 18
-      expect(trainerPerms).toHaveLength(18);
+      // Trainer has all 17 shared operational permissions + reports.read + 3 AI permissions = 21
+      expect(trainerPerms).toHaveLength(21);
       for (const opPerm of SHARED_OPERATIONAL_PERMISSIONS) {
         expect(trainerPerms).toContain(opPerm);
       }

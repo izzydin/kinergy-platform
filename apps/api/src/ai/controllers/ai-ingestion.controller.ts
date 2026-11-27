@@ -14,6 +14,8 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@ne
 import { IIngestionJobRepositoryPort } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
+import { RequirePermissions } from '../../platform/identity/authorization/decorators/permissions.decorator';
+import { PERMISSIONS } from '../../platform/identity/authorization/permissions';
 import {
   CurrentUser,
   AuthenticatedUserPayload,
@@ -50,6 +52,7 @@ export class AiIngestionController {
    * Lists cross-document ingestion jobs with server-side pagination and filters.
    */
   @Get('jobs')
+  @RequirePermissions(PERMISSIONS.AI.DOCUMENTS_MANAGE)
   @ApiOperation({
     summary: 'List tenant ingestion jobs',
     description:
@@ -85,6 +88,7 @@ export class AiIngestionController {
    * Retrieves fine-grained diagnostics and stage progression for a single ingestion job.
    */
   @Get('jobs/:jobId')
+  @RequirePermissions(PERMISSIONS.AI.DOCUMENTS_MANAGE)
   @ApiOperation({ summary: 'Get ingestion job diagnostics by ID' })
   @ApiParam({ name: 'jobId', description: 'Unique Ingestion Job identifier' })
   @ApiResponse({ status: 200, type: EnrichedIngestionJobResponseDto })
@@ -155,6 +159,14 @@ export class AiIngestionController {
   private assertCanManage(user: AuthenticatedUserPayload | null): void {
     if (!user) {
       throw new ForbiddenException('Authentication required.');
+    }
+    if (user.permissions && Array.isArray(user.permissions)) {
+      if (
+        user.permissions.includes(PERMISSIONS.AI.DOCUMENTS_MANAGE) ||
+        user.permissions.includes('ai.documents.manage')
+      ) {
+        return;
+      }
     }
     const roles = (user.roles ?? []).map((r) => r.toLowerCase());
     const isPrivileged = roles.some((r) =>

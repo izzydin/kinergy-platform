@@ -21,6 +21,7 @@ import {
   KnowledgeDocument,
   DocumentVersion,
   IngestionJobListFilter,
+  VisibilityScope,
 } from '@kinergy-platform/core';
 import { AuthenticatedUserPayload } from '../../platform/identity/decorators/current-user.decorator';
 import {
@@ -775,8 +776,17 @@ export class IngestionObservabilityService {
     user: AuthenticatedUserPayload | null,
     doc: KnowledgeDocument,
   ): void {
-    if (this.securityPolicy && user?.roles && user.roles.length > 0) {
-      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(user.roles);
+    if (doc.visibilityScope === VisibilityScope.ALL_STAFF) {
+      return;
+    }
+    const roles = user?.roles ?? [];
+    if (!roles || roles.length === 0) {
+      throw new ForbiddenException(
+        'You do not have the required role clearance to access ingestion diagnostics for this document.',
+      );
+    }
+    if (this.securityPolicy) {
+      const allowedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(roles);
       if (!allowedScopes.includes(doc.visibilityScope)) {
         throw new ForbiddenException(
           'You do not have the required role clearance to access ingestion diagnostics for this document.',

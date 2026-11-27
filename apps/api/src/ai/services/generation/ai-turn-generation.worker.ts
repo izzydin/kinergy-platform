@@ -14,6 +14,7 @@ import {
   TurnStatus,
   AiTurnErrorClassifier,
 } from '@kinergy-platform/core';
+import { IUserRepository, USER_REPOSITORY, UserStatus } from '../../../platform/identity/domain';
 import { AiTurnDispatcherService } from './ai-turn-dispatcher.service';
 
 export interface TurnGenerationWorkerOptions {
@@ -56,6 +57,9 @@ export class AiTurnGenerationWorker implements OnModuleInit, OnApplicationShutdo
     private readonly convRepo: IAiConversationRepositoryPort,
     private readonly dispatcher: AiTurnDispatcherService,
     @Optional() options?: TurnGenerationWorkerOptions,
+    @Optional()
+    @Inject(USER_REPOSITORY)
+    private readonly userRepo?: IUserRepository,
   ) {
     this.options = {
       ...DEFAULT_TURN_GENERATION_WORKER_OPTIONS,
@@ -178,6 +182,21 @@ export class AiTurnGenerationWorker implements OnModuleInit, OnApplicationShutdo
           continue;
         }
 
+        let userRoles: string[] = [];
+        let userPermissions: string[] = [];
+
+        if (this.userRepo) {
+          const user = await this.userRepo.findById(conv.userId);
+          if (!user || user.status !== UserStatus.ACTIVE) {
+            this.logger.warn(
+              `Turn '${turnId}' recovery skipped: user '${conv.userId}' is inactive or not found.`,
+            );
+            continue;
+          }
+          userRoles = user.roles ?? [];
+          userPermissions = user.permissions ?? [];
+        }
+
         const dispatchResult = await this.dispatcher.dispatchTurn({
           tenantId,
           userId: conv.userId,
@@ -186,8 +205,8 @@ export class AiTurnGenerationWorker implements OnModuleInit, OnApplicationShutdo
           attemptId: turn.activeAttemptId?.value ?? '',
           attemptNumber: turn.activeAttemptNumber ?? 1,
           actorContext: {
-            roles: [],
-            permissions: [],
+            roles: userRoles,
+            permissions: userPermissions,
           },
         });
 

@@ -103,4 +103,10 @@ describe('PreviewTokenService Unit Tests', () => {
     expect(service.verifyToken('invalid-dotless-token', validContext).valid).toBe(false);
     expect(service.verifyToken('invalid.payload.too.many.dots', validContext).valid).toBe(false);
   });
+
+  it('7. throws an error if initialized with a secret shorter than 32 characters', () => {
+    expect(() => new PreviewTokenService('too-short-secret')).toThrow(
+      'AI_PREVIEW_TOKEN_SECRET or JWT_SECRET must be configured in environment with at least 32 characters',
+    );
+  });
 });

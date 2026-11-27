@@ -54,6 +54,10 @@ export class GetConversationUseCase {
         throw new ConversationNotFoundError(conversationId, tenantId);
       }
 
+      if (input.userId && details.conversation.userId !== input.userId.trim()) {
+        throw new ConversationNotFoundError(conversationId, tenantId);
+      }
+
       const turnsDto: TurnSummaryDto[] = (details.turns ?? []).map((t) => ({
         id: t.id.value,
         turnIndex: t.turnIndex,
@@ -83,6 +87,10 @@ export class GetConversationUseCase {
 
     const conv = await this.convRepo.findById(tenantId, conversationId);
     if (!conv) {
+      throw new ConversationNotFoundError(conversationId, tenantId);
+    }
+
+    if (input.userId && conv.userId !== input.userId.trim()) {
       throw new ConversationNotFoundError(conversationId, tenantId);
     }
 

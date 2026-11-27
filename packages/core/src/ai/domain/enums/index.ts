@@ -14,3 +14,4 @@ export * from './conversation-role.enum';
 export * from './generation-status.enum';
 export * from './turn-status.enum';
 export * from './feedback-rating.enum';
+export * from './file-processing-failure-code.enum';

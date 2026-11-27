@@ -47,6 +47,7 @@ describe('DocumentProcessingPipelineService', () => {
     mockChunkRepo = {
       saveChunks: jest.fn().mockResolvedValue(undefined),
       findByVersionId: jest.fn().mockResolvedValue([]),
+      findById: jest.fn().mockResolvedValue(null),
       deleteByVersionId: jest.fn().mockResolvedValue(0),
       countByVersionId: jest.fn().mockResolvedValue(0),
     };

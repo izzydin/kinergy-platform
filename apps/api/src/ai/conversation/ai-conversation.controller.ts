@@ -133,6 +133,7 @@ export class AiConversationController {
    * Supports idempotent retry through the clientTurnId.
    */
   @Post()
+  @RequirePermissions(PERMISSIONS.AI.CONVERSATIONS_CREATE)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create conversation with initial turn',
@@ -190,6 +191,7 @@ export class AiConversationController {
    * Enforces single active turn generation and client-stable idempotency.
    */
   @Post(':id/turns')
+  @RequirePermissions(PERMISSIONS.AI.CONVERSATIONS_CREATE)
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Reserve subsequent conversation turn',
@@ -391,6 +393,7 @@ export class AiConversationController {
    * Preserves historical responses, allocates a new attempt, and dispatches execution.
    */
   @Post(':id/turns/:turnId/regenerate')
+  @RequirePermissions(PERMISSIONS.AI.CONVERSATIONS_CREATE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Regenerate assistant response for turn',
@@ -445,6 +448,7 @@ export class AiConversationController {
    * Resolves parent turn and validates latest-turn eligibility.
    */
   @Post(':id/messages/:messageId/regenerate')
+  @RequirePermissions(PERMISSIONS.AI.CONVERSATIONS_CREATE)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Regenerate assistant response for message',
@@ -545,6 +549,7 @@ export class AiConversationController {
     const detail = await this.getConvUseCase.execute({
       tenantId: auth.tenantId,
       conversationId,
+      userId: auth.actorId,
       includeTurns: true,
     });
 
@@ -574,6 +579,7 @@ export class AiConversationController {
     const history = await this.getHistoryUseCase.execute({
       tenantId: auth.tenantId,
       conversationId,
+      userId: auth.actorId,
       cursor: query.cursor,
       limit: query.limit,
     });
@@ -608,6 +614,7 @@ export class AiConversationController {
     const result = await this.updateTitleUseCase.execute({
       tenantId: auth.tenantId,
       conversationId,
+      userId: auth.actorId,
       title: body.title,
     });
 
@@ -638,9 +645,15 @@ export class AiConversationController {
     @TrustedAi() auth: TrustedAiContext,
     @Param('id') conversationId: string,
   ): Promise<ArchiveConversationResponseDto> {
+    const isAdmin =
+      auth.roles.some((r) => ['owner', 'superadmin', 'admin'].includes(r.toLowerCase())) ||
+      (Array.isArray(auth.permissions) && auth.permissions.includes('ai.conversations.manage'));
+
     const result = await this.archiveConvUseCase.execute({
       tenantId: auth.tenantId,
       conversationId,
+      userId: auth.actorId,
+      allowAdminOverride: isAdmin,
     });
 
     return AiConversationResponseMapper.toArchiveConversationResponse(result);
@@ -897,6 +910,7 @@ export class AiConversationController {
         messageId,
         citationId,
         documentId: p.documentId,
+        roles: auth.roles,
       });
     }
 
@@ -1013,6 +1027,9 @@ export class AiConversationController {
 
       tenantId = verification.claims.tenantId;
       userId = verification.claims.userId;
+      if (verification.claims.roles && verification.claims.roles.length > 0) {
+        userRoles.push(...verification.claims.roles);
+      }
     }
 
     if (!tenantId) {

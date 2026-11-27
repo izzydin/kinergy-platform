@@ -95,6 +95,7 @@ describe('IngestionObservabilityService (Unit & Invariants)', () => {
     mockChunkRepo = {
       saveChunks: jest.fn(),
       findByVersionId: jest.fn().mockResolvedValue([]),
+      findById: jest.fn().mockResolvedValue(null),
       deleteByVersionId: jest.fn(),
       countByVersionId: jest.fn().mockResolvedValue(10),
     };

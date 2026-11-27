@@ -150,6 +150,9 @@ export class RAGTurnPipelineAdapter implements IRAGTurnPipelinePort {
   }
 
   private resolveVisibilityScopes(roles: readonly string[]): VisibilityScope[] {
+    if (!roles || roles.length === 0) {
+      return [];
+    }
     const scopes = new Set<VisibilityScope>([VisibilityScope.ALL_STAFF]);
     for (const r of roles) {
       const lower = r.toLowerCase();

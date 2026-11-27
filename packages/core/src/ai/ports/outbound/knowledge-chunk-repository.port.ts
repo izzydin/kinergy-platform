@@ -25,6 +25,11 @@ export interface IKnowledgeChunkRepositoryPort {
   findByVersionId(tenantId: string, versionId: string): Promise<DocumentChunk[]>;
 
   /**
+   * Retrieves a specific chunk by ID enforcing tenant isolation.
+   */
+  findById(tenantId: string, chunkId: string): Promise<DocumentChunk | null>;
+
+  /**
    * Deletes all chunks associated with a document version.
    */
   deleteByVersionId(tenantId: string, versionId: string): Promise<number>;

@@ -77,6 +77,10 @@ export class DocumentContentValidatorService {
       throw new DocumentValidationException('Original file name is required and cannot be empty.');
     }
 
+    if (originalFileName.includes('\0')) {
+      throw new DocumentValidationException('Original file name contains illegal null bytes.');
+    }
+
     const rawExt = path.extname(originalFileName).toLowerCase().replace(/^\./, '');
     if (!rawExt) {
       throw new DocumentValidationException(
@@ -347,6 +351,27 @@ export class DocumentContentValidatorService {
       const filename = buffer
         .subarray(filenameOffset, filenameOffset + filenameLength)
         .toString('utf8');
+
+      // Archive path traversal check
+      if (
+        filename.includes('..') ||
+        filename.startsWith('/') ||
+        filename.startsWith('\\') ||
+        /^[a-zA-Z]:/.test(filename) ||
+        filename.includes('\0')
+      ) {
+        throw new DocumentSecurityRiskException(
+          `DOCX archive contains forbidden path traversal entry: '${filename}'.`,
+        );
+      }
+
+      // Nested archive check
+      if (/\.(zip|tar|gz|bz2|7z|rar|xz)$/i.test(filename)) {
+        throw new DocumentSecurityRiskException(
+          `DOCX archive contains prohibited nested archive: '${filename}'.`,
+        );
+      }
+
       entryNames.add(filename);
 
       currentOffset += 46 + filenameLength + extraLength + commentLength;

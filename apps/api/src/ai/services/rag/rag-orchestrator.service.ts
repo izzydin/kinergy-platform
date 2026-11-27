@@ -18,6 +18,7 @@ import {
   EmptyRetrievalQueryException,
   ProviderTimeoutException,
   GenerationCancelledException,
+  VisibilityScope,
 } from '@kinergy-platform/core';
 import { AI_CONFIG_TOKEN, GENERATION_OBSERVABILITY_SERVICE } from '../../ai.tokens';
 import { AiConfiguration, DEFAULT_AI_CONFIG } from '../../config/ai.config';
@@ -231,10 +232,29 @@ export class RAGOrchestratorService implements IGenerateGroundedAnswerUseCase {
         );
       }
 
-      // Case 3B: Chunks exist but contain purely empty/whitespace text
-      const validChunks = retrievalResult.chunks.filter(
-        (c) => c.content && c.content.trim().length > 0,
-      );
+      // Case 3B: Chunks exist but contain purely empty/whitespace text or fail authorization sanity check
+      // Defense-in-depth: Ensure chunks strictly match the query's authorized tenant and visibility scopes
+      const authorizedScopes = command.authContext.allowedVisibilityScopes;
+      const validChunks = retrievalResult.chunks.filter((c) => {
+        if (!c.content || c.content.trim().length === 0) {
+          return false;
+        }
+        // If chunk has visibilityScope metadata and authorizedScopes is provided, verify scope boundary
+        const chunkScope = (c.metadata as { visibilityScope?: string } | undefined)
+          ?.visibilityScope;
+        if (
+          authorizedScopes &&
+          authorizedScopes.length > 0 &&
+          chunkScope &&
+          !authorizedScopes.includes(chunkScope as VisibilityScope)
+        ) {
+          this.logger.error(
+            `[Defense-in-depth] Chunk ${c.chunkId.value} scope (${chunkScope}) violates authorized scopes (${authorizedScopes.join(',')}). Dropping chunk.`,
+          );
+          return false;
+        }
+        return true;
+      });
 
       if (validChunks.length === 0) {
         const totalDurationMs = Math.round(performance.now() - startTime);
@@ -311,12 +331,19 @@ export class RAGOrchestratorService implements IGenerateGroundedAnswerUseCase {
         );
       }
 
-      // 4. Construct Bounded Generation Context
+      // 4. Construct Bounded Generation Context with strict provenance and diversity controls
       const contextStartTime = performance.now();
       const constructedContext = await this.contextBuilder.buildContext({
         query,
         evidenceChunks: validChunks,
         conversationHistory: activeHistory,
+        options: {
+          tenantId,
+          allowedVisibilityScopes: authorizedScopes,
+          maxSources: 5,
+          maxChunksPerSource: 3,
+          filterSuspiciousContent: true,
+        },
       });
       contextDurationMs = performance.now() - contextStartTime;
 

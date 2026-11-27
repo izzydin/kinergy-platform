@@ -182,7 +182,15 @@ export class PrismaKnowledgeDocumentRepository implements IKnowledgeDocumentRepo
       where.deletedAt = null;
     }
 
-    if (filter?.visibilityScope) {
+    if (filter?.visibilityScopes && filter.visibilityScopes.length > 0) {
+      if (filter.visibilityScope) {
+        where.visibilityScope = filter.visibilityScopes.includes(filter.visibilityScope)
+          ? filter.visibilityScope
+          : { in: [] };
+      } else {
+        where.visibilityScope = { in: filter.visibilityScopes };
+      }
+    } else if (filter?.visibilityScope) {
       where.visibilityScope = filter.visibilityScope;
     }
 

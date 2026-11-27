@@ -208,6 +208,7 @@ describe('AI-09.3-BE.05.05 — Security, Tenant Isolation & RBAC Hardening', () 
       expect(getUseCase.execute).toHaveBeenCalledWith({
         tenantId: authDoctorBeta.tenantId, // Strictly scoped to Tenant Beta
         conversationId: 'conv_alpha_001',
+        userId: authDoctorBeta.actorId,
         includeTurns: true,
       });
     });
@@ -365,6 +366,103 @@ describe('AI-09.3-BE.05.05 — Security, Tenant Isolation & RBAC Hardening', () 
           reason: 'Emergency clinical review of conversation data',
         }),
       ).rejects.toThrow(TransactionFailureError);
+    });
+  });
+
+  describe('6. Trusted Identity Propagation & Same-Tenant BOLA Defense', () => {
+    it('propagates the authenticated actorId and tenantId directly into getConversation use case', async () => {
+      getUseCase.execute.mockResolvedValueOnce({
+        id: 'conv_alpha_001',
+        tenantId: 'tenant_alpha',
+        userId: 'usr_trainer_alpha',
+        title: 'Rehabilitation Protocol',
+        turnCounter: 0,
+        messageCounter: 0,
+        lastActivityAt: '2026-11-27T10:00:00.000Z',
+        createdAt: '2026-11-27T10:00:00.000Z',
+        updatedAt: '2026-11-27T10:00:00.000Z',
+        isArchived: false,
+      });
+
+      await controller.getConversation(authTrainerAlpha, 'conv_alpha_001');
+
+      expect(getUseCase.execute).toHaveBeenCalledWith({
+        tenantId: 'tenant_alpha',
+        conversationId: 'conv_alpha_001',
+        userId: 'usr_trainer_alpha',
+        includeTurns: true,
+      });
+    });
+
+    it('propagates the authenticated actorId and tenantId into updateTitle, ignoring client identity tampering', async () => {
+      updateTitleUseCase.execute.mockResolvedValueOnce({
+        conversationId: 'conv_alpha_001',
+        title: 'Updated Safe Title',
+        updatedAt: '2026-11-27T10:05:00.000Z',
+      });
+
+      await controller.updateTitle(authTrainerAlpha, 'conv_alpha_001', {
+        title: 'Updated Safe Title',
+      });
+
+      expect(updateTitleUseCase.execute).toHaveBeenCalledWith({
+        tenantId: 'tenant_alpha',
+        conversationId: 'conv_alpha_001',
+        userId: 'usr_trainer_alpha',
+        title: 'Updated Safe Title',
+      });
+    });
+
+    it('enforces allowAdminOverride=false for standard staff archiving conversations', async () => {
+      archiveUseCase.execute.mockResolvedValueOnce({
+        conversationId: 'conv_alpha_001',
+        isArchived: true,
+        archivedAt: '2026-11-27T10:10:00.000Z',
+      });
+
+      await controller.archiveConversation(authTrainerAlpha, 'conv_alpha_001');
+
+      expect(archiveUseCase.execute).toHaveBeenCalledWith({
+        tenantId: 'tenant_alpha',
+        conversationId: 'conv_alpha_001',
+        userId: 'usr_trainer_alpha',
+        allowAdminOverride: false,
+      });
+    });
+
+    it('enforces allowAdminOverride=true when an Owner or Admin archives a conversation', async () => {
+      archiveUseCase.execute.mockResolvedValueOnce({
+        conversationId: 'conv_alpha_001',
+        isArchived: true,
+        archivedAt: '2026-11-27T10:10:00.000Z',
+      });
+
+      await controller.archiveConversation(authOwnerAlpha, 'conv_alpha_001');
+
+      expect(archiveUseCase.execute).toHaveBeenCalledWith({
+        tenantId: 'tenant_alpha',
+        conversationId: 'conv_alpha_001',
+        userId: 'usr_owner_alpha',
+        allowAdminOverride: true,
+      });
+    });
+
+    it('propagates authenticated actorId into getMessageHistory to prevent cross-user message reads', async () => {
+      getHistoryUseCase.execute.mockResolvedValueOnce({
+        messages: [],
+        nextCursor: null,
+        hasMore: false,
+      });
+
+      await controller.getMessageHistory(authTrainerAlpha, 'conv_alpha_001', { limit: 10 });
+
+      expect(getHistoryUseCase.execute).toHaveBeenCalledWith({
+        tenantId: 'tenant_alpha',
+        conversationId: 'conv_alpha_001',
+        userId: 'usr_trainer_alpha',
+        cursor: undefined,
+        limit: 10,
+      });
     });
   });
 });

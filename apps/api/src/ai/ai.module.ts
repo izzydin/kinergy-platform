@@ -51,6 +51,7 @@ import {
   AI_TURN_DISPATCHER_SERVICE,
   AI_TURN_GENERATION_WORKER,
   INGESTION_OBSERVABILITY_SERVICE,
+  DOCUMENT_STORAGE_RECONCILIATION_SERVICE,
 } from './ai.tokens';
 import { IngestionObservabilityService } from './services/ingestion-observability.service';
 import {
@@ -135,6 +136,9 @@ import { AiHealthService } from './services/ai-health.service';
 import { AiHealthController } from './controllers/ai-health.controller';
 import { DocumentContentValidatorService } from './services/document-content-validator.service';
 import { SecureDocumentUploadService } from './services/secure-document-upload.service';
+import { ParserSandboxService } from './services/parser-sandbox.service';
+import { TempFileStorageService } from './services/temp-file-storage.service';
+import { DocumentStorageReconciliationService } from './services/document-storage-reconciliation.service';
 import { AiDocumentController } from './controllers/ai-document.controller';
 import { AiIngestionController } from './controllers/ai-ingestion.controller';
 import { AiRAGController } from './controllers/ai-rag.controller';
@@ -846,6 +850,11 @@ export class AiModule implements OnApplicationBootstrap {
       useClass: EmbeddingGenerationPipelineService,
     };
 
+    const reconciliationServiceProvider = {
+      provide: DOCUMENT_STORAGE_RECONCILIATION_SERVICE,
+      useClass: DocumentStorageReconciliationService,
+    };
+
     return {
       module: AiModule,
       imports: [PrismaModule, StorageModule.register(), IdentityModule, AiConversationModule],
@@ -876,6 +885,10 @@ export class AiModule implements OnApplicationBootstrap {
         IngestionObservabilityService,
         recoveryWorkerProvider,
         IngestionRecoveryWorker,
+        ParserSandboxService,
+        TempFileStorageService,
+        reconciliationServiceProvider,
+        DocumentStorageReconciliationService,
         PdfParserAdapter,
         DocxParserAdapter,
         MarkdownParserAdapter,
@@ -984,6 +997,7 @@ export class AiModule implements OnApplicationBootstrap {
         IngestionRecoveryWorker,
         DOCUMENT_PARSER_TOKEN,
         CompositeDocumentParserAdapter,
+        ParserSandboxService,
         LANGUAGE_DETECTOR_TOKEN,
         DeterministicLanguageDetectorService,
         DOCUMENT_NORMALIZER_TOKEN,
@@ -1060,6 +1074,9 @@ export class AiModule implements OnApplicationBootstrap {
         AI_TURN_GENERATION_WORKER,
         AiTurnGenerationWorker,
         RetrievalObservabilityService,
+        TempFileStorageService,
+        DOCUMENT_STORAGE_RECONCILIATION_SERVICE,
+        DocumentStorageReconciliationService,
         AiConversationModule,
       ],
     };

@@ -1,3 +1,4 @@
+import * as crypto from 'crypto';
 import {
   Controller,
   Get,
@@ -17,13 +18,16 @@ export class StorageController {
 
   /**
    * Local mode download endpoint.
-   * Serves file contents directly when running with LocalStorageAdapter.
+   * Serves file contents directly when running with LocalStorageAdapter,
+   * enforcing cryptographic HMAC signature validation, expiration checking,
+   * and tenant ownership assertions.
    */
   @Get('local/:key(*)')
   async serveLocalFile(
     @Param('key') key: string,
     @Query('token') token: string,
     @Res() res: Response,
+    @Query('expiresAt') expiresAt?: string,
   ): Promise<void> {
     if (!token) {
       throw new ForbiddenException('Missing download authorization token');
@@ -35,6 +39,36 @@ export class StorageController {
 
     if (!tenantId) {
       throw new ForbiddenException('Invalid tenant object path');
+    }
+
+    // Cryptographic validation of signed token and expiration
+    const exp = Number(expiresAt);
+    if (!expiresAt || isNaN(exp)) {
+      throw new ForbiddenException('Missing or invalid token expiration parameter');
+    }
+
+    const currentEpoch = Math.floor(Date.now() / 1000);
+    if (currentEpoch > exp) {
+      throw new ForbiddenException('Download authorization token has expired');
+    }
+
+    const secret =
+      process.env['STORAGE_LOCAL_SECRET'] ||
+      process.env['JWT_SECRET'] ||
+      'local-storage-secret-key-salt-2026';
+    const expectedToken = crypto
+      .createHmac('sha256', secret)
+      .update(`${tenantId}:${key}:${exp}`)
+      .digest('hex');
+
+    const tokenBuffer = Buffer.from(token);
+    const expectedBuffer = Buffer.from(expectedToken);
+
+    if (
+      tokenBuffer.length !== expectedBuffer.length ||
+      !crypto.timingSafeEqual(tokenBuffer, expectedBuffer)
+    ) {
+      throw new ForbiddenException('Invalid download authorization token signature');
     }
 
     try {

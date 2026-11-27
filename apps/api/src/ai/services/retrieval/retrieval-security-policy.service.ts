@@ -3,6 +3,7 @@ import {
   VisibilityScope,
   IKnowledgeDocumentRepositoryPort,
   KNOWLEDGE_DOCUMENT_REPOSITORY_PORT,
+  AiResourceAuthorizationPolicy,
 } from '@kinergy-platform/core';
 
 export interface DocumentAuthorizationResult {
@@ -18,6 +19,8 @@ export interface DocumentAuthorizationResult {
  */
 @Injectable()
 export class RetrievalSecurityPolicyService {
+  private readonly resourcePolicy = new AiResourceAuthorizationPolicy();
+
   constructor(
     @Inject(KNOWLEDGE_DOCUMENT_REPOSITORY_PORT)
     private readonly documentRepo: IKnowledgeDocumentRepositoryPort,
@@ -118,13 +121,20 @@ export class RetrievalSecurityPolicyService {
           continue;
         }
 
-        // Exclude soft-deleted documents
-        if (doc.deletedAt !== null) {
-          continue;
-        }
+        // Authoritative eligibility check via AiResourceAuthorizationPolicy
+        const isEligible = this.resourcePolicy.isDocumentEligibleAsKnowledgeSource(
+          {
+            id: doc.id.value,
+            tenantId: doc.tenantId,
+            uploadedBy: doc.uploadedBy,
+            visibilityScope: doc.visibilityScope,
+            deletedAt: doc.deletedAt,
+          },
+          tenantId,
+          allowedScopes,
+        );
 
-        // Exclude documents exceeding the user's visibility scope clearance
-        if (!allowedScopes.includes(doc.visibilityScope)) {
+        if (!isEligible) {
           continue;
         }
 

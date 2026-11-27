@@ -49,6 +49,10 @@ export class ArchiveConversationUseCase {
       throw new ConversationNotFoundError(conversationId, tenantId);
     }
 
+    if (input.userId && conv.userId !== input.userId.trim() && !input.allowAdminOverride) {
+      throw new ConversationNotFoundError(conversationId, tenantId);
+    }
+
     // 2. Prevent re-archiving
     if (conv.isArchived()) {
       throw new InvalidConversationLifecycleError(

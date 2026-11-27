@@ -36,14 +36,19 @@ describe('DefaultPermissionResolver', () => {
   });
 
   describe('Approved Role-to-Permission Mappings (Milestone 7.13 / ADR-0135)', () => {
-    it('should grant Owner full platform capabilities across all 35 permissions', async () => {
+    it('should grant Owner full platform capabilities across all 40 permissions', async () => {
       const resolved = await resolver.resolvePermissions('usr_owner', ['Owner'], []);
 
-      expect(resolved.length).toBe(35);
+      expect(resolved.length).toBe(40);
       expect(resolved).toEqual(expect.arrayContaining([...ALL_PERMISSION_CODES]));
 
-      // AI Conversation Audit permission verified
+      // AI permissions verified
+      expect(resolved).toContain(PERMISSIONS.AI.CONVERSATIONS_CREATE);
+      expect(resolved).toContain(PERMISSIONS.AI.CONVERSATIONS_MANAGE);
       expect(resolved).toContain(PERMISSIONS.AI.CONVERSATIONS_AUDIT);
+      expect(resolved).toContain(PERMISSIONS.AI.DOCUMENTS_UPLOAD);
+      expect(resolved).toContain(PERMISSIONS.AI.DOCUMENTS_MANAGE);
+      expect(resolved).toContain(PERMISSIONS.AI.KNOWLEDGE_QUERY);
 
       // Sales, Payments, Receipts verified
       expect(resolved).toContain(PERMISSIONS.SALES.READ);
@@ -60,7 +65,7 @@ describe('DefaultPermissionResolver', () => {
     it('should grant Receptionist approved point-of-sale, payment, and receipt capabilities', async () => {
       const resolved = await resolver.resolvePermissions('usr_recep', ['Receptionist'], []);
 
-      expect(resolved.length).toBe(17);
+      expect(resolved.length).toBe(19);
 
       // Phase 7 approved permissions
       expect(resolved).toContain('sales.read');
@@ -98,7 +103,7 @@ describe('DefaultPermissionResolver', () => {
     it('should grant Kitchen Staff counter order and tender capture capabilities only', async () => {
       const resolved = await resolver.resolvePermissions('usr_kitchen', ['Kitchen Staff'], []);
 
-      expect(resolved.length).toBe(8);
+      expect(resolved.length).toBe(10);
 
       // Phase 7 approved permissions
       expect(resolved).toContain('sales.read');
@@ -128,7 +133,7 @@ describe('DefaultPermissionResolver', () => {
     it('should grant Trainer equivalent operational capabilities to Receptionist plus reports.read', async () => {
       const resolved = await resolver.resolvePermissions('usr_trainer', ['Trainer'], []);
 
-      expect(resolved.length).toBe(18);
+      expect(resolved.length).toBe(21);
 
       // Operational POS, sales, payments, receipts capabilities (aligned with Receptionist)
       expect(resolved).toContain('sales.read');
@@ -189,8 +194,8 @@ describe('DefaultPermissionResolver', () => {
         directPermissions,
       );
 
-      // Kitchen Staff has 8 permissions; custom.direct.perm adds 1 -> total 9 unique
-      expect(resolved.length).toBe(9);
+      // Kitchen Staff has 10 permissions; custom.direct.perm adds 1 -> total 11 unique
+      expect(resolved.length).toBe(11);
       expect(resolved).toContain('custom.direct.perm');
       expect(resolved.filter((p) => p === 'sales.read').length).toBe(1);
       expect(resolved.filter((p) => p === 'sales.create').length).toBe(1);
@@ -216,7 +221,7 @@ describe('DefaultPermissionResolver', () => {
     });
   });
 
-  describe('AI Conversation Audit RBAC Isolation (AI-09.3-BE.02.01)', () => {
+  describe('AI Conversation Audit RBAC Isolation (AI-09.3-BE.02.01 & AI-10.1)', () => {
     it('should grant ai.conversations.audit exclusively to Owner', async () => {
       const ownerPerms = await resolver.resolvePermissions('u_owner', ['Owner'], []);
       expect(ownerPerms).toContain(PERMISSIONS.AI.CONVERSATIONS_AUDIT);
@@ -232,18 +237,32 @@ describe('DefaultPermissionResolver', () => {
       }
     });
 
-    it('should preserve standard role permission counts without regression', async () => {
-      const recep = await resolver.resolvePermissions('u_r', ['Receptionist'], []);
-      expect(recep.length).toBe(17);
-
-      const kitchen = await resolver.resolvePermissions('u_k', ['Kitchen Staff'], []);
-      expect(kitchen.length).toBe(8);
-
+    it('should grant ai.documents.upload only to Owner, Trainer, and Therapist', async () => {
       const trainer = await resolver.resolvePermissions('u_t', ['Trainer'], []);
-      expect(trainer.length).toBe(18);
+      expect(trainer).toContain(PERMISSIONS.AI.DOCUMENTS_UPLOAD);
 
       const therapist = await resolver.resolvePermissions('u_th', ['Therapist'], []);
-      expect(therapist.length).toBe(8);
+      expect(therapist).toContain(PERMISSIONS.AI.DOCUMENTS_UPLOAD);
+
+      const recep = await resolver.resolvePermissions('u_r', ['Receptionist'], []);
+      expect(recep).not.toContain(PERMISSIONS.AI.DOCUMENTS_UPLOAD);
+
+      const kitchen = await resolver.resolvePermissions('u_k', ['Kitchen Staff'], []);
+      expect(kitchen).not.toContain(PERMISSIONS.AI.DOCUMENTS_UPLOAD);
+    });
+
+    it('should preserve standard role permission counts without regression', async () => {
+      const recep = await resolver.resolvePermissions('u_r', ['Receptionist'], []);
+      expect(recep.length).toBe(19);
+
+      const kitchen = await resolver.resolvePermissions('u_k', ['Kitchen Staff'], []);
+      expect(kitchen.length).toBe(10);
+
+      const trainer = await resolver.resolvePermissions('u_t', ['Trainer'], []);
+      expect(trainer.length).toBe(21);
+
+      const therapist = await resolver.resolvePermissions('u_th', ['Therapist'], []);
+      expect(therapist.length).toBe(11);
     });
   });
 });

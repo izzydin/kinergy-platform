@@ -73,8 +73,9 @@ describe('VectorCleanupService', () => {
       expect(mockJobRepo.cancelJobsForDocument).toHaveBeenCalledWith(
         'doc-123',
         'Document soft-deleted',
+        tenantId,
       );
-      expect(mockVectorStore.deleteByDocumentId).toHaveBeenCalledWith('doc-123');
+      expect(mockVectorStore.deleteByDocumentId).toHaveBeenCalledWith('doc-123', tenantId);
     });
 
     it('cancels active jobs and deletes vectors when version is deleted', async () => {
@@ -87,8 +88,12 @@ describe('VectorCleanupService', () => {
       expect(result.versionId).toBe('ver-v1');
       expect(result.cancelledJobs).toBe(1);
       expect(result.deletedVectors).toBe(8);
-      expect(mockJobRepo.cancelJobsForVersion).toHaveBeenCalledWith('ver-v1', 'Version superseded');
-      expect(mockVectorStore.deleteByDocumentVersionId).toHaveBeenCalledWith('ver-v1');
+      expect(mockJobRepo.cancelJobsForVersion).toHaveBeenCalledWith(
+        'ver-v1',
+        'Version superseded',
+        tenantId,
+      );
+      expect(mockVectorStore.deleteByDocumentVersionId).toHaveBeenCalledWith('ver-v1', tenantId);
     });
   });
 

@@ -237,6 +237,7 @@ describe('AI-09.3-BE.05.01 — AiConversationModule & Controller DI Verification
       tenantId: mockTrustedContext.tenantId,
       conversationId: 'conv_1',
       includeTurns: true,
+      userId: mockTrustedContext.actorId,
     });
 
     expect(detail.id).toBe('conv_1');
@@ -276,6 +277,7 @@ describe('AI-09.3-BE.05.01 — AiConversationModule & Controller DI Verification
       conversationId: 'conv_1',
       cursor: undefined,
       limit: 20,
+      userId: mockTrustedContext.actorId,
     });
 
     expect(response.messages).toHaveLength(1);
@@ -300,6 +302,7 @@ describe('AI-09.3-BE.05.01 — AiConversationModule & Controller DI Verification
       tenantId: mockTrustedContext.tenantId,
       conversationId: 'conv_1',
       title: 'Renamed Session',
+      userId: mockTrustedContext.actorId,
     });
 
     expect(response.title).toBe('Renamed Session');
@@ -318,6 +321,8 @@ describe('AI-09.3-BE.05.01 — AiConversationModule & Controller DI Verification
     expect(archiveUseCase.execute).toHaveBeenCalledWith({
       tenantId: mockTrustedContext.tenantId,
       conversationId: 'conv_1',
+      userId: mockTrustedContext.actorId,
+      allowAdminOverride: false,
     });
 
     expect(response.isArchived).toBe(true);

@@ -282,7 +282,7 @@ describe('AI-09.3-BE.07.02: Cross-User & Cross-Tenant Isolation Acceptance (Post
       expect(result.title).toBe('Conversación A1');
     });
 
-    it('allows peer clinician User A2 in the same tenant to read Conversation A1 by ID (shared tenant read)', async () => {
+    it('blocks peer clinician User A2 in the same tenant from reading Conversation A1 by ID (BOLA prevention KY-SEC-002)', async () => {
       const created = await createConvUseCase.execute({
         tenantId: TENANT_A,
         userId: PRINCIPAL_A1.actorId,
@@ -291,11 +291,10 @@ describe('AI-09.3-BE.07.02: Cross-User & Cross-Tenant Isolation Acceptance (Post
         title: 'Evaluación Compartida',
       });
 
-      // User A2 reads via controller using their own authenticated context
-      const detail = await controller.getConversation(PRINCIPAL_A2, created.conversationId);
-
-      expect(detail.id).toBe(created.conversationId);
-      expect(detail.title).toBe('Evaluación Compartida');
+      // User A2 reads via controller using their own authenticated context -> blocked with 404
+      await expect(
+        controller.getConversation(PRINCIPAL_A2, created.conversationId),
+      ).rejects.toThrow(ConversationNotFoundError);
     });
 
     it('strictly blocks User B1 (Tenant B) from reading Conversation A1 (returns 404, never 200/403 to prevent existence leakage)', async () => {

@@ -6,6 +6,7 @@ import {
   ILLMProviderPort,
   buildRAGSystemPrompt,
   buildRAGUserPrompt,
+  validatePromptStructure,
   KINERGY_RAG_PROMPT_VERSION,
   ChatMessage,
   GenerationCancelledException,
@@ -56,6 +57,18 @@ export class GroundedGenerationService implements IGroundedGenerationPort {
     const promptVersion = KINERGY_RAG_PROMPT_VERSION;
     const modelIdentifier = this.llmProvider.getModelIdentifier();
 
+    // 0. Prompt-construction validation: fail closed on missing/malformed context
+    if (!command.query || typeof command.query !== 'string' || command.query.trim().length === 0) {
+      throw new Error('Query cannot be empty for grounded generation.');
+    }
+
+    if (
+      !command.constructedContext ||
+      typeof command.constructedContext.formattedContext !== 'string'
+    ) {
+      throw new Error('Constructed context is invalid or missing.');
+    }
+
     // 1. Build authoritative versioned system prompt
     const systemPrompt = buildRAGSystemPrompt({ language: command.language });
 
@@ -70,6 +83,15 @@ export class GroundedGenerationService implements IGroundedGenerationPort {
       formattedEvidence: command.constructedContext.formattedContext,
       conversationHistorySummary,
     });
+
+    // 3b. Validate structured prompt boundaries before model invocation
+    const validation = validatePromptStructure({ systemPrompt, userPrompt });
+    if (!validation.isValid) {
+      this.logger.error(
+        `Prompt structural integrity validation failed: ${validation.errors.join('; ')}`,
+      );
+      throw new Error(`Prompt structural validation failed: ${validation.errors.join('; ')}`);
+    }
 
     // 4. Resolve generation options & retry policy
     const temperature = command.temperature ?? this.config.chatTemperature ?? 0.2;
@@ -273,6 +295,18 @@ export class GroundedGenerationService implements IGroundedGenerationPort {
 
   private formatConversationHistory(history: readonly ChatMessage[]): string {
     if (!history || history.length === 0) return '';
-    return history.map((msg) => `${msg.role.toUpperCase()}: ${msg.content}`).join('\n');
+    const validRoles = new Set(['user', 'assistant']);
+    return history
+      .filter((msg) => msg && validRoles.has(msg.role) && typeof msg.content === 'string')
+      .map((msg) => {
+        const sanitized = this.escapeUntrustedContent(msg.content.trim());
+        return `  <turn role="${msg.role}">\n${msg.role.toUpperCase()}: ${sanitized}\n  </turn>`;
+      })
+      .join('\n');
+  }
+
+  private escapeUntrustedContent(text: string): string {
+    if (!text) return '';
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 }

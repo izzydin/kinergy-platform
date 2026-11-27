@@ -52,7 +52,7 @@ describe('Identity Database Seed Specification', () => {
         expect(codes.has(perm.code)).toBe(false);
         codes.add(perm.code);
       }
-      expect(allPermissions.length).toBe(35);
+      expect(allPermissions.length).toBe(40);
     });
 
     it('should register approved Sales permissions conforming to hierarchical dot-notation', () => {

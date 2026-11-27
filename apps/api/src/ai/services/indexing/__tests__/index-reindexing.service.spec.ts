@@ -102,6 +102,7 @@ describe('IndexReindexingService', () => {
     mockChunkRepo = {
       saveChunks: jest.fn(),
       findByVersionId: jest.fn(),
+      findById: jest.fn().mockResolvedValue(null),
       deleteByVersionId: jest.fn(),
       countByVersionId: jest.fn(),
     };

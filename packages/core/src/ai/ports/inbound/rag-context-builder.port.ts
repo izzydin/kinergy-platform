@@ -6,7 +6,7 @@ import { ChatMessage } from '../../domain/value-objects/chat-message.vo';
 export const RAG_CONTEXT_BUILDER_PORT = Symbol('IRAGContextBuilderPort');
 
 /**
- * Options controlling token allocation, safety margins, and untrusted delimiter escaping.
+ * Options controlling token allocation, safety margins, context limits, and untrusted delimiter escaping.
  */
 export interface ContextBudgetOptions {
   /** Maximum total context budget (e.g. 4096 for Qwen 3 4B via Ollama). Defaults to 4096. */
@@ -29,6 +29,24 @@ export interface ContextBudgetOptions {
 
   /** Whether to sanitize closing XML boundary tags found inside untrusted chunk text. Defaults to true. */
   escapeUntrustedDelimiters?: boolean;
+
+  /** Maximum number of distinct document sources admitted into context. Defaults to 5. */
+  maxSources?: number;
+
+  /** Maximum number of chunks admitted per distinct document source. Defaults to 3. */
+  maxChunksPerSource?: number;
+
+  /** Maximum character length per individual chunk content. Defaults to 10000. */
+  maxChunkContentLength?: number;
+
+  /** Authenticated tenant ID to assert strict provenance matching. */
+  tenantId?: string;
+
+  /** Allowed visibility scopes to assert strict clearance. */
+  allowedVisibilityScopes?: readonly string[];
+
+  /** Whether to scan and filter out high-severity suspicious injection content. Defaults to true when tenantId is set. */
+  filterSuspiciousContent?: boolean;
 }
 
 /**

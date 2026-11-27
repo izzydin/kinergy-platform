@@ -6,6 +6,7 @@ import {
   ExtractionTimeoutException,
   ExtractionResourceLimitExceededException,
   DocumentValidationException,
+  DocumentSecurityRiskException,
 } from '@kinergy-platform/core';
 
 /**
@@ -92,7 +93,38 @@ export class IngestionRetryPolicy {
     const message = error instanceof Error ? error.message : String(error);
     const lowerMessage = message.toLowerCase();
 
-    // 0. Explicit Domain Extraction & Processing Exceptions
+    // 0. Security exceptions take highest precedence
+    if (
+      error instanceof DocumentSecurityRiskException ||
+      lowerMessage.includes('malware') ||
+      lowerMessage.includes('quarantine') ||
+      lowerMessage.includes('infected') ||
+      lowerMessage.includes('unscannable') ||
+      lowerMessage.includes('unauthorized') ||
+      lowerMessage.includes('forbidden') ||
+      lowerMessage.includes('malicious') ||
+      lowerMessage.includes('prohibited') ||
+      lowerMessage.includes('zip bomb') ||
+      lowerMessage.includes('security risk') ||
+      lowerMessage.includes('security violation')
+    ) {
+      return {
+        code: IngestionErrorCode.SECURITY_VIOLATION,
+        isRetryable: false,
+        message: message || 'Document operation or state violated security authorization policies.',
+      };
+    }
+
+    // 0.1 Checksum / integrity mismatch takes precedence over missing resources
+    if (lowerMessage.includes('checksum') || lowerMessage.includes('hash mismatch')) {
+      return {
+        code: IngestionErrorCode.CHECKSUM_MISMATCH,
+        isRetryable: false,
+        message: 'Document checksum validation failed against stored object.',
+      };
+    }
+
+    // 0.2 Explicit Domain Extraction & Processing Exceptions
     if (error instanceof ExtractionTimeoutException) {
       return {
         code: IngestionErrorCode.PROCESSING_TIMEOUT,
@@ -188,8 +220,9 @@ export class IngestionRetryPolicy {
     if (
       lowerMessage.includes('not found') ||
       lowerMessage.includes('does not exist') ||
+      lowerMessage.includes('deleted') ||
       lowerMessage.includes('nosuchkey') ||
-      lowerMessage.includes('404')
+      /\b404\b/.test(lowerMessage)
     ) {
       if (lowerMessage.includes('document') || lowerMessage.includes('version')) {
         return {
@@ -202,29 +235,6 @@ export class IngestionRetryPolicy {
         code: IngestionErrorCode.STORAGE_OBJECT_MISSING,
         isRetryable: false,
         message: 'Physical object was not found in storage repository.',
-      };
-    }
-
-    // 5. Checksum / integrity mismatch (permanent)
-    if (lowerMessage.includes('checksum') || lowerMessage.includes('hash mismatch')) {
-      return {
-        code: IngestionErrorCode.CHECKSUM_MISMATCH,
-        isRetryable: false,
-        message: 'Document checksum validation failed against stored object.',
-      };
-    }
-
-    // 6. Security & format violations (permanent)
-    if (
-      lowerMessage.includes('malicious') ||
-      lowerMessage.includes('prohibited') ||
-      lowerMessage.includes('zip bomb') ||
-      lowerMessage.includes('security')
-    ) {
-      return {
-        code: IngestionErrorCode.SECURITY_VIOLATION,
-        isRetryable: false,
-        message: 'Document content violated security validation policies.',
       };
     }
 

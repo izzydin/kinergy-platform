@@ -51,10 +51,10 @@ export interface IVectorIndexingJobRepositoryPort {
   /**
    * Cancels in-flight (PENDING/RUNNING) indexing jobs for a deleted document.
    */
-  cancelJobsForDocument(documentId: string, reason: string): Promise<number>;
+  cancelJobsForDocument(documentId: string, reason: string, tenantId?: string): Promise<number>;
 
   /**
    * Cancels in-flight (PENDING/RUNNING) indexing jobs for a deleted document version.
    */
-  cancelJobsForVersion(versionId: string, reason: string): Promise<number>;
+  cancelJobsForVersion(versionId: string, reason: string, tenantId?: string): Promise<number>;
 }

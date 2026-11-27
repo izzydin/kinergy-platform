@@ -502,13 +502,10 @@ describe('AI-09.3-BE.07.07: Final Security & Integration Acceptance (PostgreSQL)
         title: 'Reeducación Postural',
       });
 
-      // 2. User Alpha 2 (same tenant) can list and view conversation (tenant-shared model)
-      const detailSameTenant = await controller.getConversation(
-        PRINCIPAL_ALPHA_2,
-        convAlpha.conversationId,
-      );
-      expect(detailSameTenant.id).toBe(convAlpha.conversationId);
-      expect(detailSameTenant.title).toBe('Reeducación Postural');
+      // 2. User Alpha 2 (same tenant, non-creator) attempting direct read is blocked -> 404 Not Found (ADR-AI-10-001 KY-SEC-002 BOLA defense)
+      await expect(
+        controller.getConversation(PRINCIPAL_ALPHA_2, convAlpha.conversationId),
+      ).rejects.toThrow(ConversationNotFoundError);
 
       // 3. User Beta 1 (different tenant) attempts access -> 404 Not Found (zero existence leakage)
       await expect(

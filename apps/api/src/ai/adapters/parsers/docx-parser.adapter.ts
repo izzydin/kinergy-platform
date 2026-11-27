@@ -22,6 +22,7 @@ export interface DocxParserOptions {
   timeoutMs?: number;
   maxUncompressedBytes?: number;
   maxEntryCount?: number;
+  maxExtractedChars?: number;
 }
 
 const DEFAULT_MAX_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
@@ -167,10 +168,18 @@ export class DocxParserAdapter implements IDocumentParserPort {
     this.assertSafeZipArchive(nodeBuffer, request.documentId, request.documentVersionId);
 
     // 2. Extract structured HTML via Mammoth (preserves tables and lists without loss)
+    // Secure options: convertImage strictly disabled and externalFileAccess: false to prevent SSRF or LFI
     let htmlResult: { value: string; messages: { type: string; message: string }[] };
 
     try {
-      htmlResult = await mammoth.convertToHtml({ buffer: nodeBuffer });
+      htmlResult = await mammoth.convertToHtml(
+        { buffer: nodeBuffer },
+        {
+          convertImage: mammoth.images.imgElement(() => Promise.resolve({ src: '' })),
+          ignoreEmptyParagraphs: true,
+          externalFileAccess: false,
+        },
+      );
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       throw new InvalidFormatExtractionException(
@@ -196,6 +205,18 @@ export class DocxParserAdapter implements IDocumentParserPort {
       });
     }
 
+    const totalChars = blocks.reduce((acc, b) => acc + b.charCount, 0);
+    const maxExtractedChars = this.options.maxExtractedChars ?? 5 * 1024 * 1024;
+    if (totalChars > maxExtractedChars) {
+      throw new ExtractionResourceLimitExceededException(
+        'Extracted text characters',
+        totalChars,
+        maxExtractedChars,
+        request.documentId,
+        request.documentVersionId,
+      );
+    }
+
     const durationMs = Date.now() - startTime;
     const warnings = htmlResult.messages?.map((m) => `[Mammoth ${m.type}]: ${m.message}`) ?? [];
 
@@ -210,7 +231,7 @@ export class DocxParserAdapter implements IDocumentParserPort {
         parserName: this.parserName,
         parserVersion: '1.13.0',
         pageCount: null, // Unpaginated
-        totalChars: blocks.reduce((acc, b) => acc + b.charCount, 0),
+        totalChars,
         warningCount: warnings.length,
         warnings,
         custom: {
@@ -492,6 +513,30 @@ export class DocxParserAdapter implements IDocumentParserPort {
       }
 
       const fileName = buffer.toString('utf8', currentOffset + 46, currentOffset + 46 + nameLength);
+
+      // Path traversal check
+      if (
+        fileName.includes('..') ||
+        fileName.startsWith('/') ||
+        fileName.startsWith('\\') ||
+        /^[a-zA-Z]:/.test(fileName) ||
+        fileName.includes('\0')
+      ) {
+        throw new UnsupportedDocumentFeatureException(
+          `DOCX package contains forbidden path traversal entry: '${fileName}'`,
+          documentId,
+          documentVersionId,
+        );
+      }
+
+      // Nested archive check
+      if (/\.(zip|tar|gz|bz2|7z|rar|xz)$/i.test(fileName)) {
+        throw new UnsupportedDocumentFeatureException(
+          `DOCX package contains prohibited nested archive entry: '${fileName}'`,
+          documentId,
+          documentVersionId,
+        );
+      }
 
       // Macro check
       if (

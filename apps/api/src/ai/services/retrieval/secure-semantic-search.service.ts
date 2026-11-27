@@ -128,11 +128,23 @@ export class SecureSemanticSearchService implements ISemanticSearchUseCase {
     }
 
     // 2. Resolve allowable visibility scopes based on authenticated roles
-    const allowedScopes =
+    // Client-provided scopes can ONLY narrow down the role-authorized scopes, never broaden them.
+    const roleAuthorizedScopes = this.securityPolicy.resolveAllowedVisibilityScopes(
+      command.authContext.roles ?? [],
+    );
+
+    let allowedScopes: VisibilityScope[];
+    if (
       command.authContext.allowedVisibilityScopes &&
       command.authContext.allowedVisibilityScopes.length > 0
-        ? command.authContext.allowedVisibilityScopes
-        : this.securityPolicy.resolveAllowedVisibilityScopes(command.authContext.roles ?? []);
+    ) {
+      // Narrowing: intersect client-provided scopes with role-authorized scopes
+      allowedScopes = command.authContext.allowedVisibilityScopes.filter((scope) =>
+        roleAuthorizedScopes.includes(scope),
+      );
+    } else {
+      allowedScopes = roleAuthorizedScopes;
+    }
 
     if (allowedScopes.length === 0) {
       this.logger.warn(

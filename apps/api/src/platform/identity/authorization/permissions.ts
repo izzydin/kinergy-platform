@@ -66,7 +66,12 @@ export const PERMISSIONS = {
     PERMISSIONS_READ: 'identity.permissions.read',
   },
   AI: {
+    CONVERSATIONS_CREATE: 'ai.conversations.create',
+    CONVERSATIONS_MANAGE: 'ai.conversations.manage',
     CONVERSATIONS_AUDIT: 'ai.conversations.audit',
+    DOCUMENTS_UPLOAD: 'ai.documents.upload',
+    DOCUMENTS_MANAGE: 'ai.documents.manage',
+    KNOWLEDGE_QUERY: 'ai.knowledge.query',
   },
 } as const;
 
@@ -180,7 +185,11 @@ export const SHARED_OPERATIONAL_PERMISSIONS: readonly PermissionCode[] = Object.
  */
 export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = Object.freeze({
   Owner: ALL_PERMISSION_CODES,
-  Receptionist: SHARED_OPERATIONAL_PERMISSIONS,
+  Receptionist: Object.freeze([
+    ...SHARED_OPERATIONAL_PERMISSIONS,
+    PERMISSIONS.AI.CONVERSATIONS_CREATE,
+    PERMISSIONS.AI.KNOWLEDGE_QUERY,
+  ]),
   'Kitchen Staff': Object.freeze([
     PERMISSIONS.KITCHEN.READ,
     PERMISSIONS.KITCHEN.ORDERS_MANAGE,
@@ -190,8 +199,16 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> 
     PERMISSIONS.SALES.CREATE,
     PERMISSIONS.PAYMENTS.CREATE,
     PERMISSIONS.RECEIPTS.READ,
+    PERMISSIONS.AI.CONVERSATIONS_CREATE,
+    PERMISSIONS.AI.KNOWLEDGE_QUERY,
   ]),
-  Trainer: Object.freeze([...SHARED_OPERATIONAL_PERMISSIONS, PERMISSIONS.REPORTS.READ]),
+  Trainer: Object.freeze([
+    ...SHARED_OPERATIONAL_PERMISSIONS,
+    PERMISSIONS.REPORTS.READ,
+    PERMISSIONS.AI.CONVERSATIONS_CREATE,
+    PERMISSIONS.AI.DOCUMENTS_UPLOAD,
+    PERMISSIONS.AI.KNOWLEDGE_QUERY,
+  ]),
   Therapist: Object.freeze([
     PERMISSIONS.CLIENTS.READ,
     PERMISSIONS.APPOINTMENTS.READ,
@@ -201,6 +218,9 @@ export const SYSTEM_ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> 
     PERMISSIONS.PAYMENTS.READ,
     PERMISSIONS.RECEIPTS.READ,
     PERMISSIONS.RECEIPTS.MANAGE,
+    PERMISSIONS.AI.CONVERSATIONS_CREATE,
+    PERMISSIONS.AI.DOCUMENTS_UPLOAD,
+    PERMISSIONS.AI.KNOWLEDGE_QUERY,
   ]),
 });
 

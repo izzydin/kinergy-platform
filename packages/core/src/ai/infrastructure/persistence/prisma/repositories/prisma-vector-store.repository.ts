@@ -63,6 +63,66 @@ export class PrismaVectorStoreRepository implements IVectorStorePort {
 
     await this.prisma.$transaction(async (tx) => {
       for (const emb of embeddings) {
+        // 1. Verify chunk existence and provenance lineage
+        const chunk = await tx.knowledgeChunk.findUnique({
+          where: { id: emb.chunkId.value },
+          select: { documentId: true, documentVersionId: true, tenantId: true },
+        });
+
+        if (!chunk) {
+          throw new EmbeddingValidationException(
+            `Cannot persist embedding: chunk '${emb.chunkId.value}' does not exist.`,
+            VectorIndexingErrorCode.CHUNK_NOT_FOUND,
+          );
+        }
+
+        if (chunk.documentId !== emb.documentId) {
+          throw new EmbeddingValidationException(
+            `Vector provenance mismatch: chunk '${emb.chunkId.value}' belongs to document '${chunk.documentId}', but embedding references '${emb.documentId}'.`,
+            VectorIndexingErrorCode.PROVENANCE_MISMATCH,
+          );
+        }
+
+        if (chunk.documentVersionId !== emb.documentVersionId) {
+          throw new EmbeddingValidationException(
+            `Vector provenance mismatch: chunk '${emb.chunkId.value}' belongs to version '${chunk.documentVersionId}', but embedding references '${emb.documentVersionId}'.`,
+            VectorIndexingErrorCode.PROVENANCE_MISMATCH,
+          );
+        }
+
+        // 2. Verify parent document existence, non-deletion, and tenant boundary
+        const doc = await tx.knowledgeDocument.findUnique({
+          where: { id: emb.documentId },
+          select: { tenantId: true, deletedAt: true },
+        });
+
+        if (!doc || doc.deletedAt !== null) {
+          throw new EmbeddingValidationException(
+            `Cannot persist embedding for deleted or non-existent document '${emb.documentId}'.`,
+            VectorIndexingErrorCode.PROVENANCE_MISMATCH,
+          );
+        }
+
+        if (doc.tenantId !== chunk.tenantId) {
+          throw new EmbeddingValidationException(
+            `Cross-tenant provenance violation between document '${emb.documentId}' (${doc.tenantId}) and chunk '${emb.chunkId.value}' (${chunk.tenantId}).`,
+            VectorIndexingErrorCode.PROVENANCE_MISMATCH,
+          );
+        }
+
+        // 3. Verify index generation existence and tenant match
+        const gen = await tx.indexGeneration.findUnique({
+          where: { id: emb.indexGenerationId.value },
+          select: { tenantId: true },
+        });
+
+        if (!gen || gen.tenantId !== doc.tenantId) {
+          throw new EmbeddingValidationException(
+            `Index generation '${emb.indexGenerationId.value}' does not belong to document tenant '${doc.tenantId}'.`,
+            VectorIndexingErrorCode.PROVENANCE_MISMATCH,
+          );
+        }
+
         const vectorLiteral = `[${emb.vector.values.join(',')}]`;
 
         await tx.$executeRawUnsafe(
@@ -202,38 +262,67 @@ export class PrismaVectorStoreRepository implements IVectorStorePort {
       );
     }
 
+    const cleanTenantId = options.tenantId?.trim();
+    if (!cleanTenantId) {
+      throw new EmbeddingValidationException(
+        'tenantId is strictly required for vector similarity search.',
+        VectorIndexingErrorCode.PROVENANCE_MISMATCH,
+      );
+    }
+
+    const cleanGenId = options.generationId?.trim();
+    if (!cleanGenId) {
+      throw new EmbeddingValidationException(
+        'generationId is strictly required for vector similarity search.',
+        VectorIndexingErrorCode.PROVENANCE_MISMATCH,
+      );
+    }
+
     const vectorLiteral = `[${queryVector.join(',')}]`;
     const minSim = options.minSimilarity ?? 0.0;
     const limit = Math.max(1, Math.min(options.limit, 100));
 
     let query = `
       SELECT 
-        "id",
-        "chunk_id",
-        "document_id",
-        "document_version_id",
-        "index_generation_id",
-        1 - ("embedding" <=> $1::vector) AS "similarity",
-        ("embedding" <=> $1::vector) AS "distance"
-      FROM "document_embeddings"
-      WHERE "index_generation_id" = $2
+        de."id",
+        de."chunk_id",
+        de."document_id",
+        de."document_version_id",
+        de."index_generation_id",
+        1 - (de."embedding" <=> $1::vector) AS "similarity",
+        (de."embedding" <=> $1::vector) AS "distance"
+      FROM "document_embeddings" de
+      JOIN "index_generations" ig ON ig."id" = de."index_generation_id"
+      JOIN "knowledge_documents" kd ON kd."id" = de."document_id"
+      JOIN "document_versions" dv ON dv."id" = de."document_version_id"
+      JOIN "knowledge_chunks" kc ON kc."id" = de."chunk_id"
+      WHERE de."index_generation_id" = $2
+        AND ig."tenant_id" = $3
+        AND kd."tenant_id" = $3
+        AND kc."tenant_id" = $3
+        AND kd."deleted_at" IS NULL
     `;
-    const params: unknown[] = [vectorLiteral, options.generationId.trim()];
+    const params: unknown[] = [vectorLiteral, cleanGenId, cleanTenantId];
 
     if (options.documentIds && options.documentIds.length > 0) {
       const docIdsPlaceholder = options.documentIds
         .map((_, i) => `$${params.length + 1 + i}`)
         .join(',');
-      query += ` AND "document_id" IN (${docIdsPlaceholder})`;
+      query += ` AND kd."id" IN (${docIdsPlaceholder})`;
       params.push(...options.documentIds);
     }
 
+    if (options.filterMetadata && Object.keys(options.filterMetadata).length > 0) {
+      params.push(JSON.stringify(options.filterMetadata));
+      query += ` AND kc."metadata" IS NOT NULL AND kc."metadata"::jsonb @> $${params.length}::jsonb`;
+    }
+
     if (minSim > 0.0) {
-      query += ` AND (1 - ("embedding" <=> $1::vector)) >= $${params.length + 1}`;
+      query += ` AND (1 - (de."embedding" <=> $1::vector)) >= $${params.length + 1}`;
       params.push(minSim);
     }
 
-    query += ` ORDER BY "embedding" <=> $1::vector ASC LIMIT $${params.length + 1};`;
+    query += ` ORDER BY de."embedding" <=> $1::vector ASC, de."id" ASC LIMIT $${params.length + 1};`;
     params.push(limit);
 
     const rows = await this.prisma.$queryRawUnsafe<RawSimilarityRow[]>(query, ...params);
@@ -248,7 +337,17 @@ export class PrismaVectorStoreRepository implements IVectorStorePort {
     }));
   }
 
-  public async deleteByDocumentId(documentId: string): Promise<number> {
+  public async deleteByDocumentId(documentId: string, tenantId?: string): Promise<number> {
+    if (tenantId && tenantId.trim().length > 0) {
+      const res = await this.prisma.$executeRawUnsafe(
+        `DELETE FROM "document_embeddings"
+         WHERE "document_id" = $1
+           AND "document_id" IN (SELECT "id" FROM "knowledge_documents" WHERE "id" = $1 AND "tenant_id" = $2);`,
+        documentId.trim(),
+        tenantId.trim(),
+      );
+      return res;
+    }
     const res = await this.prisma.$executeRawUnsafe(
       `DELETE FROM "document_embeddings" WHERE "document_id" = $1;`,
       documentId.trim(),
@@ -256,7 +355,17 @@ export class PrismaVectorStoreRepository implements IVectorStorePort {
     return res;
   }
 
-  public async deleteByDocumentVersionId(versionId: string): Promise<number> {
+  public async deleteByDocumentVersionId(versionId: string, tenantId?: string): Promise<number> {
+    if (tenantId && tenantId.trim().length > 0) {
+      const res = await this.prisma.$executeRawUnsafe(
+        `DELETE FROM "document_embeddings"
+         WHERE "document_version_id" = $1
+           AND "document_id" IN (SELECT "id" FROM "knowledge_documents" WHERE "tenant_id" = $2);`,
+        versionId.trim(),
+        tenantId.trim(),
+      );
+      return res;
+    }
     const res = await this.prisma.$executeRawUnsafe(
       `DELETE FROM "document_embeddings" WHERE "document_version_id" = $1;`,
       versionId.trim(),

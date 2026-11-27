@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { Injectable, Inject, Logger, Optional } from '@nestjs/common';
 import {
   IKnowledgeDocumentRepositoryPort,
@@ -6,14 +7,26 @@ import {
   IngestionStatus,
   IDocumentIndexingPort,
   DOCUMENT_INDEXING_PORT,
+  UnauthorizedDocumentAccessException,
+  DocumentSecurityRiskException,
 } from '@kinergy-platform/core';
 import {
   ObjectStoragePort,
   OBJECT_STORAGE_PORT,
 } from '../../platform/storage/ports/object-storage.port';
-import { KNOWLEDGE_DOCUMENT_REPOSITORY, INGESTION_JOB_REPOSITORY } from '../ai.tokens';
+import {
+  KNOWLEDGE_DOCUMENT_REPOSITORY,
+  INGESTION_JOB_REPOSITORY,
+  DOCUMENT_CONTENT_VALIDATOR,
+} from '../ai.tokens';
 import { IngestionRetryPolicy, IngestionErrorCode } from './ingestion-retry.policy';
 import { DocumentProcessingPipelineService } from './document-processing-pipeline.service';
+import { DocumentContentValidatorService } from './document-content-validator.service';
+import {
+  IMalwareScannerPort,
+  MALWARE_SCANNER_PORT,
+  MalwareScanStatus,
+} from '../ports/malware-scanner.port';
 
 /**
  * Ingestion Orchestrator Service.
@@ -38,6 +51,12 @@ export class IngestionOrchestratorService {
     private readonly indexingPort?: IDocumentIndexingPort,
     @Optional()
     private readonly pipeline?: DocumentProcessingPipelineService,
+    @Optional()
+    @Inject(DOCUMENT_CONTENT_VALIDATOR)
+    private readonly contentValidator?: DocumentContentValidatorService,
+    @Optional()
+    @Inject(MALWARE_SCANNER_PORT)
+    private readonly malwareScanner?: IMalwareScannerPort,
   ) {}
 
   /**
@@ -66,14 +85,14 @@ export class IngestionOrchestratorService {
    * Pipeline execution with state checkpoints and failure recovery.
    */
   private async executePipeline(jobId: string, tenantId?: string): Promise<IngestionJob> {
-    // 1. Fetch current job state
+    // 1. Fetch current job state from authoritative persistence
     let job: IngestionJob | null;
 
     if (tenantId) {
       job = await this.jobRepo.findById(tenantId, jobId);
     } else {
-      // Find across all tenants if tenantId not explicitly passed (e.g. from background recovery)
-      // Since findById requires tenantId in the port, query retries/uploads or active jobs
+      // Background recovery without explicit caller tenant:
+      // Search pending retries first, then pending uploads
       const pending = await this.jobRepo.findPendingRetries(100);
       const foundPending = pending.find((j) => j.id === jobId);
       if (foundPending) {
@@ -89,7 +108,20 @@ export class IngestionOrchestratorService {
       throw new Error(`Ingestion job '${jobId}' not found.`);
     }
 
-    const tId = job.tenantId;
+    // Authoritative tenant derived strictly from the persisted IngestionJob record
+    const authoritativeTenantId = job.tenantId;
+
+    // Fail-closed verification: If caller provided a mismatched tenantId, reject immediately (Anti-BOLA / payload tampering)
+    if (tenantId && tenantId.trim() !== authoritativeTenantId) {
+      this.logger.error(
+        `[SECURITY] Tenant mismatch detected for job '${jobId}'. Supplied: '${tenantId}', Authoritative: '${authoritativeTenantId}'.`,
+      );
+      throw new UnauthorizedDocumentAccessException(
+        `Cross-tenant job execution rejected for job '${jobId}'.`,
+      );
+    }
+
+    const tId = authoritativeTenantId;
 
     // 2. Terminal state check (Idempotency)
     if (job.isTerminal()) {
@@ -114,10 +146,17 @@ export class IngestionOrchestratorService {
         );
       }
 
-      // Perform validation checks: Verify document and version exist in DB
+      // Authoritative ownership & state validation: Verify document and version exist in DB under same tenant
       const document = await this.documentRepo.findById(tId, job.documentId);
       if (!document || document.isDeleted()) {
         throw new Error(`Referenced document '${job.documentId}' does not exist or was deleted.`);
+      }
+
+      // Invariant: Verify parent document tenant matches job tenant
+      if (document.tenantId !== tId) {
+        throw new UnauthorizedDocumentAccessException(
+          `Document tenant '${document.tenantId}' does not match job tenant '${tId}'.`,
+        );
       }
 
       const version = document.getVersionById(job.documentVersionId);
@@ -139,22 +178,93 @@ export class IngestionOrchestratorService {
       job = await this.checkCancellationOrRefresh(tId, jobId, job);
       if (job.status === IngestionStatus.CANCELLED) return job;
 
+      // Authoritative checkpoint: Re-validate document state prior to text extraction and chunk persistence
+      const docProcessing = await this.documentRepo.findById(tId, job.documentId);
+      if (!docProcessing || docProcessing.isDeleted()) {
+        throw new Error(`Referenced document '${job.documentId}' does not exist or was deleted.`);
+      }
+      if (docProcessing.tenantId !== tId) {
+        throw new UnauthorizedDocumentAccessException(
+          `Document tenant '${docProcessing.tenantId}' does not match job tenant '${tId}'.`,
+        );
+      }
+
+      // In PROCESSING stage: verify file is accessible, matches checksum, and passes security validation
+      const streamMeta = await this.storagePort.download(tId, version.storageKey);
+      if (!streamMeta || !streamMeta.data) {
+        throw new Error(`Failed to read content stream for storage key '${version.storageKey}'.`);
+      }
+
+      const buffer = await this.readStreamToBuffer(streamMeta.data);
+
+      // Checksum integrity verification: Ensure stored file exactly matches authoritative version hash
+      const actualHash = createHash('sha256').update(buffer).digest('hex');
+      if (version.checksum && actualHash.toLowerCase() !== version.checksum.toLowerCase()) {
+        this.logger.error(
+          `[SECURITY] Checksum mismatch on doc '${job.documentId}' v'${version.id}': expected '${version.checksum}', computed '${actualHash}'.`,
+        );
+        throw new Error(
+          `Document checksum validation failed against stored object: expected ${version.checksum}, actual ${actualHash}`,
+        );
+      }
+
+      // Content & structural format validation
+      if (this.contentValidator) {
+        this.contentValidator.validate({
+          buffer,
+          originalFileName: version.originalFileName,
+          declaredMimeType: version.mimeType,
+        });
+      }
+
+      // Malware scanning and threat defense
+      if (this.malwareScanner) {
+        const scan = await this.malwareScanner.scanBuffer(buffer, {
+          versionId: version.id,
+          checksum: version.checksum,
+        });
+
+        if (
+          scan.status === MalwareScanStatus.INFECTED ||
+          scan.status === MalwareScanStatus.SUSPICIOUS
+        ) {
+          this.logger.warn(
+            `[SECURITY] Malware detected in document '${job.documentId}' v'${version.id}': ${scan.threatFound}. Quarantining document.`,
+          );
+          docProcessing.softDelete('SYSTEM_MALWARE_QUARANTINE');
+          await this.documentRepo.save(docProcessing);
+          throw new DocumentSecurityRiskException(
+            `Document quarantined due to detected malware threat: ${scan.threatFound ?? 'suspicious payload'}`,
+          );
+        }
+
+        if (
+          scan.status === MalwareScanStatus.UNSCANNABLE ||
+          scan.status === MalwareScanStatus.ERROR
+        ) {
+          this.logger.warn(
+            `[SECURITY] Malware scanner failed closed for document '${job.documentId}': ${scan.status}.`,
+          );
+          throw new DocumentSecurityRiskException(
+            `Malware scanner failed closed: file is unscannable or scanner daemon error.`,
+          );
+        }
+      }
+
+      // Re-verify document state after security evaluation
+      const refreshedDoc = await this.documentRepo.findById(tId, job.documentId);
+      if (!refreshedDoc || refreshedDoc.isDeleted()) {
+        throw new Error(`Referenced document '${job.documentId}' does not exist or was deleted.`);
+      }
+
       if (job.status === IngestionStatus.VALIDATING) {
         job.startProcessing();
         job = await this.jobRepo.save(job);
         this.logger.log(`Job '${jobId}' transitioned to PROCESSING.`);
       }
 
-      // In PROCESSING stage: verify file is accessible and can be read
-      // Stream/download verification without leaking binary contents into logs
-      const streamMeta = await this.storagePort.download(tId, version.storageKey);
-      if (!streamMeta || !streamMeta.data) {
-        throw new Error(`Failed to read content stream for storage key '${version.storageKey}'.`);
-      }
-
       // Execute document processing pipeline (extraction, normalization, language detection, chunking, persistence)
       if (this.pipeline) {
-        const buffer = await this.readStreamToBuffer(streamMeta.data);
         await this.checkCancellationOrRefresh(tId, jobId, job);
 
         await this.pipeline.processDocument({
@@ -176,6 +286,17 @@ export class IngestionOrchestratorService {
       // =========================================================================
       job = await this.checkCancellationOrRefresh(tId, jobId, job);
       if (job.status === IngestionStatus.CANCELLED) return job;
+
+      // Authoritative checkpoint: Re-validate document state prior to vector generation and persistence
+      const docIndexing = await this.documentRepo.findById(tId, job.documentId);
+      if (!docIndexing || docIndexing.isDeleted()) {
+        throw new Error(`Referenced document '${job.documentId}' does not exist or was deleted.`);
+      }
+      if (docIndexing.tenantId !== tId) {
+        throw new UnauthorizedDocumentAccessException(
+          `Document tenant '${docIndexing.tenantId}' does not match job tenant '${tId}'.`,
+        );
+      }
 
       if (job.status === IngestionStatus.PROCESSING) {
         job.startIndexing();
@@ -200,6 +321,12 @@ export class IngestionOrchestratorService {
       // =========================================================================
       job = await this.checkCancellationOrRefresh(tId, jobId, job);
       if (job.status === IngestionStatus.CANCELLED) return job;
+
+      // Final state check: Ensure document was not deleted or modified during vector indexing
+      const docReady = await this.documentRepo.findById(tId, job.documentId);
+      if (!docReady || docReady.isDeleted()) {
+        throw new Error(`Referenced document '${job.documentId}' was deleted before completion.`);
+      }
 
       if (job.status === IngestionStatus.INDEXING) {
         job.markReady();

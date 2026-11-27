@@ -83,6 +83,7 @@ export type ReserveSubsequentTurnResult = ReserveConversationTurnResult;
 export interface GetConversationInput {
   readonly tenantId: string;
   readonly conversationId: string;
+  readonly userId?: string;
   readonly includeTurns?: boolean;
 }
 
@@ -146,6 +147,7 @@ export interface ListConversationsResult {
 export interface GetMessageHistoryInput {
   readonly tenantId: string;
   readonly conversationId: string;
+  readonly userId?: string;
   readonly cursor?: string | null;
   readonly limit?: number;
 }
@@ -179,6 +181,7 @@ export interface UpdateConversationTitleInput {
   readonly tenantId: string;
   readonly conversationId: string;
   readonly title: string;
+  readonly userId?: string;
 }
 
 export interface UpdateConversationTitleResult {
@@ -194,6 +197,8 @@ export interface UpdateConversationTitleResult {
 export interface ArchiveConversationInput {
   readonly tenantId: string;
   readonly conversationId: string;
+  readonly userId?: string;
+  readonly allowAdminOverride?: boolean;
 }
 
 export interface ArchiveConversationResult {

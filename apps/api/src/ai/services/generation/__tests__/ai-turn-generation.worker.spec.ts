@@ -132,4 +132,62 @@ describe('AiTurnGenerationWorker', () => {
 
     expect(dispatcher.abortAllActive).toHaveBeenCalledWith('WORKER_SHUTDOWN');
   });
+
+  it('rehydrates user roles dynamically from IUserRepository upon recovery', async () => {
+    const mockUserRepo = {
+      findById: jest.fn().mockResolvedValue({
+        id: USER_ID,
+        status: 'ACTIVE',
+        roles: ['Therapist', 'Clinical Staff'],
+        permissions: ['ai:read'],
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const workerWithUserRepo = new AiTurnGenerationWorker(
+      turnRepo,
+      convRepo,
+      dispatcher,
+      { enabled: false },
+      mockUserRepo,
+    );
+
+    const result = await workerWithUserRepo.poll();
+    expect(result.recoveredPending).toBe(1);
+
+    expect(dispatcher.dispatchTurn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tenantId: TENANT_ID,
+        userId: USER_ID,
+        actorContext: {
+          roles: ['Therapist', 'Clinical Staff'],
+          permissions: ['ai:read'],
+        },
+      }),
+    );
+  });
+
+  it('skips turn recovery and fails closed if user is inactive in IUserRepository', async () => {
+    const mockUserRepo = {
+      findById: jest.fn().mockResolvedValue({
+        id: USER_ID,
+        status: 'DISABLED',
+        roles: ['Therapist'],
+        permissions: [],
+      }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any;
+
+    const workerWithDisabledUser = new AiTurnGenerationWorker(
+      turnRepo,
+      convRepo,
+      dispatcher,
+      { enabled: false },
+      mockUserRepo,
+    );
+
+    const result = await workerWithDisabledUser.poll();
+    expect(result.recoveredPending).toBe(0);
+    expect(dispatcher.dispatchTurn).not.toHaveBeenCalled();
+  });
 });

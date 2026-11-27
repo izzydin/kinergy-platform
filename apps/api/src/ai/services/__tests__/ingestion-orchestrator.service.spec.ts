@@ -41,7 +41,7 @@ describe('IngestionOrchestratorService', () => {
         originalFileName: 'policy.pdf',
         mimeType: 'application/pdf',
         fileSize: 1024,
-        checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+        checksum: '637d40a8f9a1e3b7eeaa184c7d81f69a4c549cad30ee7d1de030fcc720d52149',
         storageKey,
         uploadedBy: 'user-001',
       },

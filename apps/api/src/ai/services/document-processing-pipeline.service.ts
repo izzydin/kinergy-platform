@@ -136,6 +136,15 @@ export class DocumentProcessingPipelineService {
       });
     }
 
+    // Security invariant: Validate chunk provenance matches authoritative document and version IDs
+    for (const chunk of chunks) {
+      if (chunk.documentId !== documentId || chunk.documentVersionId !== versionId) {
+        throw new Error(
+          `Chunk provenance violation detected: chunk documentId '${chunk.documentId}' does not match authoritative documentId '${documentId}'.`,
+        );
+      }
+    }
+
     await this.assertNotCancelled(options.isCancelled);
 
     // Step 5: Compute Deterministic Processing Fingerprint

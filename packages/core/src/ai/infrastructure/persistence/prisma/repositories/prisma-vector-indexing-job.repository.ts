@@ -140,17 +140,26 @@ export class PrismaVectorIndexingJobRepository implements IVectorIndexingJobRepo
     return records.map((r) => this.mapToDomain(r));
   }
 
-  public async cancelJobsForDocument(documentId: string, reason: string): Promise<number> {
-    const res = await this.prisma.vectorIndexingJob.updateMany({
-      where: {
-        scopeId: documentId.trim(),
-        status: {
-          in: [
-            VectorIndexingJobStatus.PENDING as unknown as PrismaJobModel['status'],
-            VectorIndexingJobStatus.RUNNING as unknown as PrismaJobModel['status'],
-          ],
-        },
+  public async cancelJobsForDocument(
+    documentId: string,
+    reason: string,
+    tenantId?: string,
+  ): Promise<number> {
+    const whereClause: Record<string, unknown> = {
+      scopeId: documentId.trim(),
+      status: {
+        in: [
+          VectorIndexingJobStatus.PENDING as unknown as PrismaJobModel['status'],
+          VectorIndexingJobStatus.RUNNING as unknown as PrismaJobModel['status'],
+        ],
       },
+    };
+    if (tenantId && tenantId.trim().length > 0) {
+      whereClause['tenantId'] = tenantId.trim();
+    }
+
+    const res = await this.prisma.vectorIndexingJob.updateMany({
+      where: whereClause,
       data: {
         status: VectorIndexingJobStatus.CANCELLED as unknown as PrismaJobModel['status'],
         lastErrorMessage: reason,
@@ -160,18 +169,27 @@ export class PrismaVectorIndexingJobRepository implements IVectorIndexingJobRepo
     return res.count;
   }
 
-  public async cancelJobsForVersion(versionId: string, reason: string): Promise<number> {
-    const res = await this.prisma.vectorIndexingJob.updateMany({
-      where: {
-        scope: VectorIndexingScope.DOCUMENT_VERSION as unknown as PrismaJobModel['scope'],
-        scopeId: versionId.trim(),
-        status: {
-          in: [
-            VectorIndexingJobStatus.PENDING as unknown as PrismaJobModel['status'],
-            VectorIndexingJobStatus.RUNNING as unknown as PrismaJobModel['status'],
-          ],
-        },
+  public async cancelJobsForVersion(
+    versionId: string,
+    reason: string,
+    tenantId?: string,
+  ): Promise<number> {
+    const whereClause: Record<string, unknown> = {
+      scope: VectorIndexingScope.DOCUMENT_VERSION as unknown as PrismaJobModel['scope'],
+      scopeId: versionId.trim(),
+      status: {
+        in: [
+          VectorIndexingJobStatus.PENDING as unknown as PrismaJobModel['status'],
+          VectorIndexingJobStatus.RUNNING as unknown as PrismaJobModel['status'],
+        ],
       },
+    };
+    if (tenantId && tenantId.trim().length > 0) {
+      whereClause['tenantId'] = tenantId.trim();
+    }
+
+    const res = await this.prisma.vectorIndexingJob.updateMany({
+      where: whereClause,
       data: {
         status: VectorIndexingJobStatus.CANCELLED as unknown as PrismaJobModel['status'],
         lastErrorMessage: reason,

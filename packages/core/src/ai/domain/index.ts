@@ -6,3 +6,5 @@ export * from './models';
 export * from './evaluation';
 export * from './fusion';
 export * from './prompts';
+export * from './services/suspicious-content-detector.service';
+export * from './services/tool-execution-policy.guard';

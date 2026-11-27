@@ -134,7 +134,13 @@ export class PrismaSemanticRetrievalRepository implements ISemanticRetrievalPort
   ): { sql: string; params: unknown[] } {
     const vectorLiteral = `[${queryVector.join(',')}]`;
     const criteria = query.criteria;
-    const cleanTenantId = criteria.tenantId.trim();
+    const cleanTenantId = criteria?.tenantId?.trim();
+    if (!cleanTenantId) {
+      throw new EmbeddingValidationException(
+        'tenantId is strictly required for semantic retrieval.',
+        VectorIndexingErrorCode.EMPTY_PAYLOAD,
+      );
+    }
 
     const selectClause = isCountOnly
       ? `SELECT COUNT(*)::int AS "count"`
@@ -182,13 +188,19 @@ export class PrismaSemanticRetrievalRepository implements ISemanticRetrievalPort
       sql += ` AND ig."status" = 'ACTIVE'`;
     }
 
-    // 2. Visibility scopes authorization filter
+    // 2. Visibility scopes authorization filter (Fail-closed: empty array produces 1=0 to guarantee no leaks)
     if (criteria.allowedVisibilityScopes && criteria.allowedVisibilityScopes.length > 0) {
       const scopePlaceholders = criteria.allowedVisibilityScopes.map((scope) => {
         params.push(scope);
         return `$${params.length}`;
       });
       sql += ` AND kd."visibility_scope"::text IN (${scopePlaceholders.join(', ')})`;
+    } else if (
+      criteria.allowedVisibilityScopes !== undefined &&
+      criteria.allowedVisibilityScopes.length === 0
+    ) {
+      // Empty visibility scopes explicitly provided means caller has no authorized scopes
+      sql += ` AND 1 = 0`;
     }
 
     // 3. Document IDs filter

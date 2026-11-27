@@ -41,6 +41,12 @@ module.exports = tseslint.config(
     },
   },
   {
+    files: ['**/*.spec.ts', '**/*.spec.tsx', '**/*.test.ts', '**/*.test.tsx'],
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+    },
+  },
+  {
     files: ['prisma/**/*.ts'],
     rules: {
       'no-console': 'off',

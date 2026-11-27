@@ -200,15 +200,8 @@ export class ConversationHistoryManagerService implements IConversationHistoryMa
   }
 
   private sanitizePromptInjectionTags(content: string): string {
-    return content
-      .replace(/<system>/gi, '&lt;system&gt;')
-      .replace(/<\/system>/gi, '&lt;/system&gt;')
-      .replace(/<retrieved_evidence>/gi, '&lt;retrieved_evidence&gt;')
-      .replace(/<\/retrieved_evidence>/gi, '&lt;/retrieved_evidence&gt;')
-      .replace(/<evidence_chunk/gi, '&lt;evidence_chunk')
-      .replace(/<\/evidence_chunk>/gi, '&lt;/evidence_chunk&gt;')
-      .replace(/<instruction>/gi, '&lt;instruction&gt;')
-      .replace(/<\/instruction>/gi, '&lt;/instruction&gt;');
+    if (!content) return '';
+    return content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
   private countTokens(text: string): number {

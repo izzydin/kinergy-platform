@@ -232,6 +232,18 @@ export class PlainTextParserAdapter implements IDocumentParserPort {
       });
     }
 
+    const totalChars = blocks.reduce((acc, b) => acc + b.charCount, 0);
+    const maxExtractedChars = 5 * 1024 * 1024;
+    if (totalChars > maxExtractedChars) {
+      throw new ExtractionResourceLimitExceededException(
+        'Extracted text characters',
+        totalChars,
+        maxExtractedChars,
+        request.documentId,
+        request.documentVersionId,
+      );
+    }
+
     const durationMs = Date.now() - startTime;
     const firstBlockText = blocks[0]?.text?.trim() ?? '';
     const candidateTitle =

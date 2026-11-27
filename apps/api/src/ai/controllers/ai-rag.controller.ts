@@ -35,6 +35,8 @@ import {
 } from '@kinergy-platform/core';
 import { AuthenticationGuard } from '../../platform/identity/guards/authentication.guard';
 import { AuthorizationGuard } from '../../platform/identity/authorization/authorization.guard';
+import { RequirePermissions } from '../../platform/identity/authorization/decorators/permissions.decorator';
+import { PERMISSIONS } from '../../platform/identity/authorization/permissions';
 import {
   CurrentUser,
   AuthenticatedUserPayload,
@@ -68,6 +70,7 @@ export class AiRAGController {
    * Executes a grounded RAG generation pipeline using authorized evidence chunks.
    */
   @Post()
+  @RequirePermissions(PERMISSIONS.AI.KNOWLEDGE_QUERY)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Query verified knowledge base and synthesize a grounded answer',
