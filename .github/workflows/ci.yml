@@ -52,6 +52,8 @@ jobs:
       STAGING_MIGRATOR_DATABASE_URL: postgresql://kinergy_migrator:kinergy_migrator_secure_password@127.0.0.1:5434/kinergy_staging?schema=public
       STAGING_DATABASE_URL: postgresql://kinergy_app:kinergy_app_secure_password@127.0.0.1:5434/kinergy_staging?schema=public
       STAGING_TEST_DATABASE_URL: postgresql://kinergy_test:kinergy_test_secure_password@127.0.0.1:5434/kinergy_staging?schema=public
+      JWT_ACCESS_SECRET: test-jwt-access-secret-32-chars-min!
+      JWT_REFRESH_SECRET: test-jwt-refresh-secret-32-chars-min!
       NODE_OPTIONS: '--max-old-space-size=4096'
 
     steps:
