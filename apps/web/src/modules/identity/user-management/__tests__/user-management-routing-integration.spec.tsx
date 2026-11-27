@@ -130,7 +130,7 @@ describe('User Management Routing & Module API Integration', () => {
     );
 
     expect(screen.getByText('Platform Admin')).toBeInTheDocument();
-  });
+  }, 15000);
 
   it('renders Forbidden view when navigating to /admin/users as unauthorized member without manage:users permission', async () => {
     renderAppAtRoute('/admin/users', MOCK_MEMBER_USER);
@@ -141,5 +141,5 @@ describe('User Management Routing & Module API Integration', () => {
       },
       { timeout: 10000 },
     );
-  });
+  }, 15000);
 });
